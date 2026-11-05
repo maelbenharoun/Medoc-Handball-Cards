@@ -1,0 +1,17 @@
+{
+  "name": "Médoc Hand Cards",
+  "short_name": "Hand Cards",
+  "description": "Ouvre des packs et collectionne les cartes des joueurs et joueuses du Médoc Handball (SG1, SG2, SF1, SF2).",
+  "lang": "fr",
+  "start_url": "./#boutique",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    {"src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
