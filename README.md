@@ -39,6 +39,8 @@ python -m http.server 8000
 # puis ouvrir http://localhost:8000
 ```
 
+Le mode hors ligne (service worker) est désactivé en local pour que le cache ne masque pas les modifications. Pour le tester, ouvrir `http://localhost:8000/?sw`, puis couper le réseau dans les outils du navigateur.
+
 ## Publier
 
 Settings → Pages → Source « Deploy from a branch », branche `main`, dossier `/ (root)`.

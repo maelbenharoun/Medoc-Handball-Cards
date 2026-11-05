@@ -40,6 +40,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;',
 const nb = n => n.toLocaleString('fr-FR');
 const aujourdhui = () => new Date().toLocaleDateString('fr-CA');
 const rang = r => RARETES.indexOf(r);
+// note d'une carte à un poste : un(e) mixte JDC·GB dans les buts compte avec sa note GB
+const noteAuPoste = (c, poste) => poste === 'GB' ? (c.gb ?? c.ovr) : c.ovr;
 
 function majPieces(delta) {
   if (delta) { S.pieces += delta; sauver(); const c = $('#coins'); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 220); }
@@ -60,6 +62,7 @@ function silhouette(r) {
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="34" r="17" fill="${f}"/><path d="M18 100c0-22 14-36 32-36s32 14 32 36z" fill="${f}"/></svg>`;
 }
 function carteHTML(c, o = {}) {
+  if (o.note != null && o.note !== c.ovr) c = {...c, ovr: o.note};   // note affichée selon le poste occupé
   if (o.cache) return `<div class="card locked lr-${c.rarete}" data-id="${c.id}"><div class="c-top"><b class="c-ovr">?</b><span class="c-pos">${c.poste}</span></div>
     <div class="c-face">${silhouette()}</div><div class="c-name">${esc(c.nom)}</div><div class="c-line"></div></div>`;
   const st = statsCarte(c);
@@ -136,21 +139,21 @@ function vueClub() {
 }
 
 function noteEquipe() {
-  const ids = POSTES.map(p => S.equipe[p.id]).filter(id => id && PAR_ID[id] && S.possede[id]);
-  if (!ids.length) return {note: 0, collectif: 0, n: 0};
-  const cs = ids.map(id => PAR_ID[id]);
-  const moy = cs.reduce((a, c) => a + c.ovr, 0) / 7;   // une place vide compte 0
+  const places = POSTES.filter(p => S.equipe[p.id] && PAR_ID[S.equipe[p.id]] && S.possede[S.equipe[p.id]]);
+  if (!places.length) return {note: 0, collectif: 0, n: 0};
+  const cs = places.map(p => PAR_ID[S.equipe[p.id]]);
+  const moy = places.reduce((a, p) => a + noteAuPoste(PAR_ID[S.equipe[p.id]], p.id), 0) / 7;   // une place vide compte 0
   const parEq = {}; cs.forEach(c => parEq[c.equipe] = (parEq[c.equipe] || 0) + 1);
   const max = Math.max(...Object.values(parEq));
   const collectif = max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;   // bonus quand on aligne des coéquipier(e)s
-  return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: ids.length};
+  return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length};
 }
 
 function vueEquipe() {
   const t = noteEquipe();
   const slots = POSTES.map(p => {
     const c = S.possede[S.equipe[p.id]] && PAR_ID[S.equipe[p.id]];
-    return `<button class="slot" data-slot="${p.id}" style="left:${p.x}%;top:${p.y}%">${c ? carteHTML(c) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`;
+    return `<button class="slot" data-slot="${p.id}" style="left:${p.x}%;top:${p.y}%">${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`;
   }).join('');
   return `<h1>Mon 7</h1>
     <p class="sub">Touche un poste pour aligner une carte de ton club. Aligner des coéquipier(e)s de la même équipe donne un bonus collectif.</p>
@@ -178,19 +181,27 @@ function choisir(poste) {
   const p = POSTES.find(x => x.id === poste);
   const dejaPris = new Set(Object.entries(S.equipe).filter(([k]) => k !== poste).map(([, v]) => v));
   const ok = CARTES.filter(c => S.possede[c.id] && !dejaPris.has(c.id) && (p.gb ? c.poste !== 'JDC' : c.poste !== 'GB'))
-    .sort((a, b) => b.ovr - a.ovr);
+    .sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
   ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
-    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.id}" data-poste="${poste}">${carteHTML(c)}<div><b>${esc(c.nom)}</b><small>${c.ovr} · ${c.poste} · ${c.equipe}</small></div></button>`).join('')
+    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${c.poste} · ${c.equipe}</small></div></button>`).join('')
       : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des packs !</p>`}</div>
     <div style="display:flex;gap:10px">${S.equipe[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
     <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
 }
 
 function autoEquipe() {
-  const mine = CARTES.filter(c => S.possede[c.id]).sort((a, b) => b.ovr - a.ovr);
-  const pris = new Set(); S.equipe = {};
-  const gb = mine.find(c => c.poste !== 'JDC'); if (gb) { S.equipe.GB = gb.id; pris.add(gb.id); }
-  for (const p of POSTES.filter(x => !x.gb)) { const c = mine.find(c => !pris.has(c.id) && c.poste !== 'GB'); if (c) { S.equipe[p.id] = c.id; pris.add(c.id); } }
+  const mine = CARTES.filter(c => S.possede[c.id]);
+  const champ = sauf => mine.filter(c => c.id !== sauf && c.poste !== 'GB').sort((a, b) => b.ovr - a.ovr).slice(0, 6);
+  // on essaie chaque gardien(ne) possible (GB ou mixte) et on garde le 7 au meilleur total ;
+  // à égalité, on préfère un(e) vrai(e) gardien(ne) pour garder le ou la mixte sur le terrain
+  let best = {total: -1, gb: null, champ: champ(null)};
+  for (const g of mine.filter(c => c.poste !== 'JDC').sort((a, b) => (a.poste === 'GB' ? 0 : 1) - (b.poste === 'GB' ? 0 : 1))) {
+    const ch = champ(g.id), total = noteAuPoste(g, 'GB') + ch.reduce((a, c) => a + c.ovr, 0);
+    if (total > best.total) best = {total, gb: g, champ: ch};
+  }
+  S.equipe = {};
+  if (best.gb) S.equipe.GB = best.gb.id;
+  POSTES.filter(x => !x.gb).forEach((p, i) => { if (best.champ[i]) S.equipe[p.id] = best.champ[i].id; });
   sauver(); route();
 }
 
@@ -276,4 +287,7 @@ fetch('data/cartes.json').then(r => r.json()).then(d => {
   majPieces(0); route();
 }).catch(() => { $('#view').innerHTML = '<h1>Oups</h1><p class="sub">Impossible de charger les cartes. Vérifie ta connexion et recharge la page.</p>'; });
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+// En ligne (https) : toujours. En local : seulement avec ?sw dans l'adresse, pour tester le hors-ligne
+// sans que le cache gêne pendant qu'on modifie les fichiers.
+if ('serviceWorker' in navigator && window.isSecureContext && (location.protocol === 'https:' || new URLSearchParams(location.search).has('sw')))
+  navigator.serviceWorker.register('sw.js');
