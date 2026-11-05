@@ -13,5 +13,5 @@
 - Tester le SQL sur une base Postgres locale (PGlite) qui imite Supabase avant de pousser, y compris les tentatives de triche.
 - `config.js` ne contient que l'adresse du projet et la clé publique (anon/publishable). Jamais la clé `service_role`/`secret`.
 - Seule dépendance autorisée : `supabase-js` (version fixée dans `serveur.js`, chargée depuis jsDelivr en mode serveur).
-- Après une modification des fichiers servis, changer `VERSION` dans `sw.js` pour que les téléphones récupèrent la nouvelle version.
+- Après une modification des fichiers servis, changer `VERSION` dans `sw.js` pour que les téléphones récupèrent la nouvelle version, et mettre le même numéro dans les `?v=` des fichiers appelés par `index.html` et `admin.html` (sinon le navigateur garde l'ancienne version jusqu'à 10 minutes).
 - Tester sur une largeur de téléphone (390 px) avant de pousser.
