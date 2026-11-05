@@ -194,6 +194,14 @@ const CompteServeur = (() => {
     alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}),
     reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
     chercherJoueurs: texte => rpc('chercher_joueurs', {p_texte: texte}),
+
+    // ── matchs ── (→ {match: {a, b, buts, resultat}, adversaire, gains, progres, finSaison, niveaux})
+    matchChampionnat: tactique => rpc('match_championnat', {p_tactique: tactique}),
+    seance: () => rpc('seance_equipe'),                                         // → {xpCarte, progres, niveaux}
+    defier: (pseudo, tactique) => rpc('defier', {p_pseudo: pseudo, p_tactique: tactique}),
+    adversaires: () => rpc('adversaires'),
+    classement: () => rpc('classement'),
+    rencontres: () => rpc('mes_rencontres'),
   };
 })();
 

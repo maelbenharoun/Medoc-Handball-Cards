@@ -1,6 +1,6 @@
 'use strict';
 /* Médoc Hand Cards — jeu de cartes à collectionner avec les joueurs et joueuses du Médoc Handball.
-   Ce fichier : l'affichage (vues #accueil, #club, #equipe, connexion, ouverture des boosters).
+   Ce fichier : l'affichage (vues #accueil, #club, #equipe, #jouer, connexion, ouverture des boosters, matchs).
    Les cartes (paliers, stats, rendu) sont dans cartes.js, partagé avec l'outil admin.html ;
    le compte du joueur dans serveur.js : toutes les règles sont appliquées par le serveur (supabase/schema.sql). */
 
@@ -64,7 +64,7 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, compte: vueCompte};
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, compte: vueCompte};
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
   const v = location.hash.slice(1);
@@ -260,6 +260,104 @@ function autoEquipe() {
   action(Compte.alignerEquipe(equipe), () => { toast('Ton meilleur 7 est aligné'); route(true); });
 }
 
+// ── jouer : championnat, séance, défis ──────────────────────────────────────────
+const TACTIQUES = [['attaque', 'Attaque', 'Plus de buts marqués, mais plus de buts encaissés'], ['equilibre', 'Équilibre', 'Ni trop offensif, ni trop défensif'],
+  ['defense', 'Défense', 'Moins de buts encaissés, mais moins de buts marqués']];
+const JEU = {tactique: null, adversaires: null, rencontres: null, recherche: '', joueurs: [], t: 0, charge: false};
+const RES = {gagne: 'Victoire', nul: 'Match nul', perdu: 'Défaite'};
+function chargerJeu(force) {
+  if (JEU.charge || (!force && JEU.adversaires && JEU.rencontres) || Compte.horsLigne) return;
+  JEU.charge = true;
+  Promise.all([Compte.adversaires(), Compte.rencontres()]).then(([a, r]) => { JEU.adversaires = a; JEU.rencontres = r; })
+    .catch(e => toast(e.message)).finally(() => { JEU.charge = false; if (vueCourante() === 'jouer' && $('#overlay').hidden) route(true); });
+}
+function vueJouer() {
+  chargerJeu();
+  const e = S(), sa = e.saison || {}, j = e.jour || {}, l = e.limites || {}, t = JEU.tactique || e.tactique || 'equilibre';
+  const complet = noteEquipe().n === 7, note = noteEquipe().note;
+  const restant = (k) => Math.max(0, (l[k] || 0) - (j[k] || 0));
+  const adv = (JEU.adversaires || []).map(x => `<div class="adv"><div><b>${esc(x.pseudo)}</b><small>niveau ${x.niveau} · 7 de ${x.note ?? '–'} · ${x.trophees} 🏆</small></div>
+    <button class="btn gold petit" data-defier="${esc(x.pseudo)}"${complet && restant('defi') ? '' : ' disabled'}>Défier</button></div>`).join('');
+  const histo = (JEU.rencontres || []).slice(0, 8).map(r => `<div class="hist r-${r.resultat}"><b>${r.score ? r.score.join(' – ') : ''}</b>
+    <span>${r.type === 'championnat' ? 'Championnat' : r.type === 'defi' ? 'Défi' : 'Défendu'} · ${esc(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
+  return `<h1>Jouer</h1>
+    ${complet ? '' : '<div class="daily hors"><p><b>Ton 7 n’est pas complet</b>Aligne 7 joueurs dans Mon 7 pour jouer des matchs.</p></div>'}
+    <h2>Tactique</h2>
+    <div class="filters">${TACTIQUES.map(([k, n]) => `<button data-tactique="${k}" class="${t === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <p class="sub petit">${TACTIQUES.find(x => x[0] === t)[2]}. Elle sert aussi quand on te défie.</p>
+    <div class="mode"><div class="mode-t"><b>${esc(e.divisionNom || 'Championnat')}</b><span>${sa.journee}/${sa.matchs} matchs · ${sa.points} pts</span></div>
+      <div class="bar"><i style="width:${100 * sa.points / (sa.montee || 20)}%"></i></div>
+      <p class="sub petit">${sa.points >= sa.montee ? 'Objectif atteint : la montée t’attend en fin de saison !' : `${sa.montee} points en fin de saison pour ${e.division < 4 ? 'monter' : 'être champion'}`}
+        · bilan ${sa.bilan?.v || 0} V, ${sa.bilan?.n || 0} N, ${sa.bilan?.d || 0} D</p>
+      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>contre</span><div><small>${esc(sa.adversaire || '')}</small><b>≈ ${sa.niveauAdversaire || '–'}</b></div></div>
+      <button class="btn gold large" data-act="championnat"${complet && restant('championnat') ? '' : ' disabled'}>Jouer la journée ${sa.journee + 1}</button>
+      <p class="sub petit centre">${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} restant${restant('championnat') > 1 ? 's' : ''} aujourd’hui</p></div>
+    <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
+      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque.</p>
+      <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Lancer une séance</button></div>
+    <div class="mode"><div class="mode-t"><b>Défis</b><span>${e.trophees || 0} 🏆</span></div>
+      <p class="sub petit">Affronte le 7 d’un autre joueur (il défend avec sa dernière tactique). ${restant('defi')}/${l.defi || 5} défis restants aujourd’hui.</p>
+      <input class="champ" type="search" placeholder="Chercher un joueur à défier" value="${esc(JEU.recherche)}" data-cherche-defi autocapitalize="off" autocomplete="off" spellcheck="false">
+      <div id="joueurs-defi">${joueursDefi()}</div>
+      ${JEU.adversaires ? (adv || '<p class="sub petit">Pas encore d’adversaire avec un 7 complet.</p>') : '<p class="sub petit">Chargement…</p>'}
+      <button class="lien" data-act="classement">Voir le classement</button></div>
+    ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
+}
+function joueursDefi() {
+  if (JEU.recherche.trim().length < 2) return '';
+  if (!JEU.joueurs.length) return '<p class="sub petit">Aucun joueur trouvé.</p>';
+  return JEU.joueurs.map(p => `<div class="adv"><div><b>${esc(p)}</b></div><button class="btn gold petit" data-defier="${esc(p)}">Défier</button></div>`).join('');
+}
+function fenetreClassement() {
+  action(Compte.classement(), c => ouvrirOverlay(`<div class="sheet"><h3>Classement des défis</h3>
+    <p class="sub">Tu es ${c.rang}${c.rang === 1 ? 'er' : 'e'} avec ${c.trophees} 🏆</p>
+    <div class="classe">${c.top.map((x, i) => `<div class="${x.pseudo === S().pseudo ? 'moi-l' : ''}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b><small>niv. ${x.niveau}</small><em>${x.trophees} 🏆</em></div>`).join('')}</div>
+    <button class="btn" data-act="fermer">Fermer</button></div>`));
+}
+
+// Match raconté minute par minute (60 minutes en 7 secondes), puis le résultat et les gains
+const MATCH = {};
+function jouerMatch(promesse, type) {
+  if (occupe) return;
+  action(promesse, r => {
+    clearInterval(MATCH.t);
+    Object.assign(MATCH, {r, type, minute: 0, a: 0, b: 0, i: 0});
+    ouvrirOverlay(`<div class="sheet match">
+      <div class="tableau"><div><small>${esc(S().pseudo)}</small><b id="sc-a">0</b></div><div class="mn" id="minute">0'</div>
+        <div><small>${esc(r.adversaire)}</small><b id="sc-b">0</b></div></div>
+      <div class="fil" id="fil"></div>
+      <div id="fin-match"><button class="btn ghost large" data-act="passer">Voir le résultat</button></div></div>`);
+    MATCH.t = setInterval(() => avancerMatch(MATCH.minute + 1), 115);
+  });
+}
+function avancerMatch(m) {
+  const {r} = MATCH, buts = r.match.buts;
+  if (!$('#fil')) return clearInterval(MATCH.t);
+  MATCH.minute = m;
+  while (MATCH.i < buts.length && buts[MATCH.i].m <= m) {
+    const x = buts[MATCH.i++];
+    if (x.c === 'a') MATCH.a++; else MATCH.b++;
+    $('#fil').insertAdjacentHTML('afterbegin', `<p class="but ${x.c}"><b>${x.m}'</b> But de ${esc(x.n)} <span>${MATCH.a} – ${MATCH.b}</span></p>`);
+  }
+  $('#sc-a').textContent = MATCH.a; $('#sc-b').textContent = MATCH.b; $('#minute').textContent = Math.min(m, 60) + "'";
+  if (m >= 60) finMatch();
+}
+function finMatch() {
+  clearInterval(MATCH.t);
+  const {r} = MATCH, g = r.gains || {}, res = r.match.resultat, fin = r.finSaison;
+  if (MATCH.i < r.match.buts.length) avancerMatch(60);   // « voir le résultat » : on affiche tout
+  if (!$('#fin-match') || $('#fin-match').dataset.fait) return;
+  $('#fin-match').dataset.fait = 1;
+  vibrer(res === 'gagne' ? [40, 60, 80] : 30);
+  const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join(' · ');
+  $('#fin-match').innerHTML = `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
+      <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces · +${g.xp} XP${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
+    ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
+    ${fin ? `<div class="daily depart"><p><b>${fin.montee ? 'Montée !' : fin.champion ? 'Champion !' : 'Fin de saison'}</b>${fin.points} points · +${nb(fin.pieces)} pièces${fin.champion ? ' · +1 booster' : ''}${
+      fin.montee ? ` · bienvenue en ${esc(S().divisionNom)}` : fin.champion ? '' : ' · nouvelle saison, nouvel essai'}</p></div>` : ''}
+    <button class="btn gold large" data-act="fin-match">Continuer</button>`;
+}
+
 // ── connexion et profil ─────────────────────────────────────────────────────────
 let messageCompte = '';
 function vueCompte() {
@@ -359,8 +457,8 @@ function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],.grid .card');
-  if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk')) fermerOverlay(); return; }
+  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],.grid .card');
+  if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) fermerOverlay(); return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
   if (d.slot) return choisir(d.slot);
@@ -368,7 +466,20 @@ document.addEventListener('click', e => {
   if (a === 'fermer') return fermerOverlay();
   if (a === 'dechirer') return dechirer();
   if (a === 'moi') return fenetreCompte();
+  if (d.tactique) { JEU.tactique = d.tactique; return route(true); }
+  if (a === 'passer') return finMatch();
+  if (a === 'fin-match') { JEU.rencontres = null; JEU.adversaires = null; return fermerOverlay(); }
+  if (a === 'classement') return fenetreClassement();
   if (occupe) return;
+  const tactique = JEU.tactique || S().tactique || 'equilibre';
+  if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
+  if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
+  if (a === 'seance') return action(Compte.seance(), r => {
+    const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
+    ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton 7.</p>
+      ${progres ? `<p class="sub">Ils progressent :<br>${progres}</p>` : '<p class="sub">Encore un peu de travail avant le prochain point.</p>'}
+      <button class="btn" data-act="fermer">Fermer</button></div>`);
+  });
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : 'pk-argent');
@@ -417,6 +528,17 @@ document.addEventListener('submit', e => {
   });
   if (quoi === 'mdp') return action(Compte.nouveauMotDePasse(d.mdp), () => { toast('Mot de passe changé'); route(); });
   if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
+});
+// recherche d'un joueur à défier (après une petite pause dans la frappe)
+document.addEventListener('input', e => {
+  if (e.target.dataset.chercheDefi === undefined) return;
+  JEU.recherche = e.target.value;
+  clearTimeout(JEU.t);
+  JEU.t = setTimeout(() => {
+    const q = JEU.recherche.trim(), maj = () => { const el = $('#joueurs-defi'); if (el) el.innerHTML = joueursDefi(); };
+    if (q.length < 2) { JEU.joueurs = []; return maj(); }
+    Compte.chercherJoueurs(q).then(l => { JEU.joueurs = l; maj(); }).catch(er => toast(er.message));
+  }, 300);
 });
 window.addEventListener('hashchange', () => route());
 // le réseau revient : on recharge pour se reconnecter au serveur (hors ligne, rien n'est en cours)

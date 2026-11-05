@@ -30,7 +30,22 @@ insert into parametres values (1, '{
   "vente": {"bronze": 10, "argent": 40, "or": 150, "ultime": 600},
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
-  "xp_fusion": 20, "xp_entrainement": 5
+  "xp_fusion": 20, "xp_entrainement": 5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2,
+  "pve_par_jour": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
+  "seance_xp_carte": 40, "seance_xp": 10,
+  "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
+  "pve_xp_carte": {"gagne": 30, "nul": 20, "perdu": 10},
+  "pve_pieces": {"gagne": 60, "nul": 30, "perdu": 10},
+  "saison_matchs": 10, "saison_points_montee": 20, "saison_pieces": 300,
+  "divisions": [{"nom": "Division Bronze", "base": 50, "pas": 0.9}, {"nom": "Division Argent", "base": 61, "pas": 1.2},
+                {"nom": "Division Or", "base": 76, "pas": 1.2}, {"nom": "Division Ultime", "base": 89, "pas": 0.9}],
+  "adversaires": ["Les Aigles", "Les Loups", "Les Requins", "Les Pirates", "Les Ours", "Les Lynx", "Les Faucons",
+                  "Les Bisons", "Les Panthères", "Les Corsaires"],
+  "pvp_xp": {"gagne": 40, "nul": 20, "perdu": 10},
+  "pvp_pieces": {"gagne": 80, "nul": 40, "perdu": 20},
+  "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
+  "pvp_defense_trophees": {"gagne": 5, "nul": 0, "perdu": -5}
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -96,6 +111,11 @@ alter table profils add column if not exists bonus int not null default 0;      
 alter table profils add column if not exists bonus_or int not null default 0;         -- boosters « Or ou mieux »
 alter table profils add column if not exists boosters_ouverts int not null default 0;
 alter table profils add column if not exists tactique text not null default 'equilibre';
+alter table profils add column if not exists division int not null default 1;          -- championnat : 1 Bronze … 4 Ultime
+alter table profils add column if not exists saison_journee int not null default 0;
+alter table profils add column if not exists saison_points int not null default 0;
+alter table profils add column if not exists saison_bilan jsonb not null default '{"v": 0, "n": 0, "d": 0}';
+alter table profils add column if not exists trophees int not null default 0;          -- défis contre les autres joueurs
 create unique index if not exists profils_pseudo on profils (lower(pseudo));
 
 -- Chaque carte possédée : un joueur du club, à un palier, avec sa note et son expérience
@@ -122,6 +142,19 @@ create table if not exists quetes (
   primary key (user_id, jour, quete)
 );
 
+-- Matchs joués : championnat, séances, défis (et défense quand on est défié)
+create table if not exists rencontres (
+  id bigserial primary key,
+  user_id uuid not null references profils on delete cascade,
+  type text not null check (type in ('championnat', 'seance', 'defi', 'defense')),
+  adversaire text not null,
+  score int[],                       -- {moi, adversaire}
+  resultat text check (resultat in ('gagne', 'nul', 'perdu')),
+  detail jsonb,
+  le timestamptz not null default now()
+);
+create index if not exists rencontres_user on rencontres (user_id, type, le);
+
 -- Journal de tout ce qui bouge (pièces, cartes) : pour comprendre un litige ou repérer une triche.
 create table if not exists mouvements (
   id bigserial primary key, user_id uuid, quoi text not null, detail jsonb, le timestamptz not null default now()
@@ -137,15 +170,17 @@ alter table profils enable row level security;
 alter table exemplaires enable row level security;
 alter table quetes enable row level security;
 alter table mouvements enable row level security;
+alter table rencontres enable row level security;
 
 drop policy if exists lecture on parametres;  create policy lecture on parametres for select using (true);
 drop policy if exists lecture on cartes;      create policy lecture on cartes for select using (true);
 drop policy if exists lecture on profils;     create policy lecture on profils for select using (user_id = auth.uid());
 drop policy if exists lecture on exemplaires; create policy lecture on exemplaires for select using (proprietaire = auth.uid());
 drop policy if exists lecture on quetes;      create policy lecture on quetes for select using (user_id = auth.uid());
+drop policy if exists lecture on rencontres;  create policy lecture on rencontres for select using (user_id = auth.uid());
 -- mouvements : aucune politique, donc illisible depuis le jeu
 
-revoke insert, update, delete, truncate on parametres, cartes, profils, exemplaires, quetes, mouvements from anon, authenticated;
+revoke insert, update, delete, truncate on parametres, cartes, profils, exemplaires, quetes, mouvements, rencontres from anon, authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Outils internes (non appelables depuis le jeu, voir les droits en bas)
@@ -207,7 +242,11 @@ language sql immutable as $$
          ('entrainement', 3, 60, 120, 'Fais 3 séances d’entraînement'),
          ('fusion', 1, 120, 250, 'Fais une fusion'),
          ('vente', 2, 40, 80, 'Vends 2 cartes en trop'),
-         ('equipe', 1, 30, 60, 'Modifie ton Mon 7')
+         ('equipe', 1, 30, 60, 'Modifie ton Mon 7'),
+         ('championnat', 3, 80, 200, 'Joue 3 matchs de championnat'),
+         ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi)'),
+         ('defi', 2, 80, 150, 'Lance 2 défis'),
+         ('seance', 1, 40, 80, 'Fais une séance d’entraînement d’équipe')
 $$;
 
 -- 3 quêtes par jour, choisies au hasard mais toujours les mêmes pour un joueur et un jour
@@ -307,6 +346,18 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'prochainBooster', case when p.boosters >= parami('booster_stock_max') then null
       else greatest(0, ceil(extract(epoch from p.boosters_maj + make_interval(mins => parami('booster_minutes')) - now())))::int end,
     'equipe', p.equipe, 'tactique', p.tactique,
+    'division', p.division, 'divisionNom', param('divisions') -> (p.division - 1) ->> 'nom',
+    'saison', jsonb_build_object('journee', p.saison_journee, 'points', p.saison_points, 'bilan', p.saison_bilan,
+      'matchs', parami('saison_matchs'), 'montee', parami('saison_points_montee'),
+      'adversaire', param('adversaires') ->> (p.saison_journee % jsonb_array_length(param('adversaires'))),
+      'niveauAdversaire', round(((param('divisions') -> (p.division - 1) ->> 'base')::numeric
+        + (param('divisions') -> (p.division - 1) ->> 'pas')::numeric * p.saison_journee))::int),
+    'trophees', p.trophees,
+    'jour', jsonb_build_object(
+      'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
+      'seance', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'seance' and r.le >= debut_du_jour()),
+      'defi', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'defi' and r.le >= debut_du_jour())),
+    'limites', jsonb_build_object('championnat', parami('pve_par_jour'), 'seance', parami('seances_par_jour'), 'defi', parami('defis_par_jour')),
     'exemplaires', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note,
         'xp', e.xp, 'verrou', e.verrou) order by e.obtenu_le) from exemplaires e where e.proprietaire = p.user_id), '[]'),
     'quetes', coalesce((select jsonb_agg(jsonb_build_object('id', q.quete, 'progres', least(q.progres, c.objectif), 'objectif', c.objectif,
@@ -553,6 +604,231 @@ begin
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- Matchs : moteur, championnat, séance, défis
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Force d'une équipe {poste: exemplaire} : attaque, défense, note, et les tireurs avec leur poids.
+-- Chaque joueur : note de l'exemplaire (−5 hors de son poste) + sa forme (écarts) → ses 6 stats.
+-- Attaque = tir, passes, vitesse des 6 joueurs de champ ; défense = défense, physique, mental + gardien(ne).
+create or replace function force_equipe(p_equipe jsonb, p_tactique text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes numeric := 0; n int := 0;
+  tireurs jsonb := '[]'; eqs jsonb := '{}'; maxi int; coll int; t int := parami('tactique_bonus');
+  s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
+begin
+  for l in select j.key as slot, e.note, c.poste, c.nom, c.equipe, c.ecarts
+      from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
+    ne := l.note - case when l.slot <> 'GB' and l.poste is not null and l.poste <> l.slot then 5 else 0 end;
+    n := n + 1; notes := notes + ne;
+    eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
+    s_men := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'men')::int, 0)));
+    s_phy := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'phy')::int, 0)));
+    if l.slot = 'GB' then
+      s_ref := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'ref')::int, 0)));
+      s_pla := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'pla')::int, 0)));
+      arr := .5 * s_ref + .3 * s_pla + .2 * s_men;
+    else
+      s_tir := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'tir')::int, 0)));
+      s_pas := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'pas')::int, 0)));
+      s_vit := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'vit')::int, 0)));
+      s_def := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'def')::int, 0)));
+      att := att + (.5 * s_tir + .3 * s_pas + .2 * s_vit) / 6;
+      def := def + (.5 * s_def + .3 * s_phy + .2 * s_men) / 6;
+      tireurs := tireurs || jsonb_build_object('n', l.nom, 'p', greatest(1, s_tir - 30));
+    end if;
+  end loop;
+  if n < 7 then raise exception 'Il faut 7 joueurs alignés dans ton Mon 7 pour jouer'; end if;
+  select max(value::int) into maxi from jsonb_each_text(eqs);
+  coll := case when maxi >= 7 then 3 when maxi >= 5 then 2 when maxi >= 3 then 1 else 0 end;   -- coéquipier(e)s
+  return jsonb_build_object(
+    'att', round(att + coll + case p_tactique when 'attaque' then t when 'defense' then -t else 0 end, 1),
+    'def', round(.6 * def + .4 * arr + coll + case p_tactique when 'defense' then t when 'attaque' then -t else 0 end, 1),
+    'note', round(notes / n + coll), 'tireurs', tireurs);
+end $$;
+
+-- Équipe de l'ordinateur d'un niveau donné
+create or replace function equipe_ordi(p_niveau numeric) returns jsonb language sql volatile as $$
+  select jsonb_build_object('att', round((p_niveau + random() * 2 - 1)::numeric, 1), 'def', round((p_niveau + random() * 2 - 1)::numeric, 1), 'note', round(p_niveau),
+    'tireurs', (select jsonb_agg(jsonb_build_object('n', 'n°' || k, 'p', 10)) from unnest(array[3, 7, 9, 10, 14, 21]) k))
+$$;
+
+-- Un tireur au hasard, selon son poids (les meilleurs tireurs marquent plus)
+create or replace function tireur(p_tireurs jsonb) returns text language sql volatile as $$
+  with t as (select x ->> 'n' n, sum((x ->> 'p')::numeric) over (order by i) cum, sum((x ->> 'p')::numeric) over () tot
+             from jsonb_array_elements(p_tireurs) with ordinality a(x, i)), r as (select random() v)
+  select n from t, r where cum >= v * tot order by cum limit 1
+$$;
+
+-- Match de 60 minutes : buts attendus selon attaque contre défense, un peu de hasard, puis le déroulé
+create or replace function simuler(p_a jsonb, p_b jsonb) returns jsonb language plpgsql volatile as $$
+declare ea numeric; eb numeric; ba int; bb int; buts jsonb := '[]'; i int;
+  base numeric := parami('match_base'); k numeric := (param('match_coef') #>> '{}')::numeric;
+begin
+  ea := base + k * ((p_a ->> 'att')::numeric - (p_b ->> 'def')::numeric);
+  eb := base + k * ((p_b ->> 'att')::numeric - (p_a ->> 'def')::numeric);
+  ba := greatest(8, round(ea + (random() + random() + random() + random() - 2) * 5));
+  bb := greatest(8, round(eb + (random() + random() + random() + random() - 2) * 5));
+  for i in 1..ba loop buts := buts || jsonb_build_object('m', 1 + floor(random() * 60)::int, 'c', 'a', 'n', tireur(p_a -> 'tireurs')); end loop;
+  for i in 1..bb loop buts := buts || jsonb_build_object('m', 1 + floor(random() * 60)::int, 'c', 'b', 'n', tireur(p_b -> 'tireurs')); end loop;
+  select coalesce(jsonb_agg(x order by (x ->> 'm')::int, random()), '[]') into buts from jsonb_array_elements(buts) x;
+  return jsonb_build_object('a', ba, 'b', bb, 'buts', buts,
+    'resultat', case when ba > bb then 'gagne' when ba = bb then 'nul' else 'perdu' end);
+end $$;
+
+-- Les 7 cartes alignées gagnent de l'expérience
+create or replace function xp_equipe(p_equipe jsonb, p_xp int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare l record; avant int; apres int; progres jsonb := '[]';
+begin
+  for l in select e.id, e.note, c.nom from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
+    perform xp_carte(l.id, p_xp);
+    select note into apres from exemplaires where id = l.id;
+    if apres > l.note then progres := progres || jsonb_build_object('nom', l.nom, 'avant', l.note, 'apres', apres); end if;
+  end loop;
+  return progres;
+end $$;
+
+create or replace function verifier_tactique(p_tactique text) returns text language plpgsql immutable as $$
+begin
+  if p_tactique not in ('attaque', 'equilibre', 'defense') then raise exception 'Tactique inconnue'; end if;
+  return p_tactique;
+end $$;
+
+create or replace function compter_jour(p_uid uuid, p_type text) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from rencontres where user_id = p_uid and type = p_type and le >= debut_du_jour()
+$$;
+
+-- Championnat contre l'ordinateur : 10 journées, adversaires de plus en plus forts ;
+-- 20 points ou plus en fin de saison = montée dans la division supérieure
+create or replace function match_championnat(p_tactique text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); dv jsonb; j int; niv numeric; adv text; fa jsonb; r jsonb; res text; pts int;
+  xp int; xpc int; v_pieces int; niveaux jsonb; progres jsonb; bilan jsonb; fin jsonb := null; recompense int; cle text;
+begin
+  perform verifier_tactique(p_tactique);
+  perform verifier_equipe(p.user_id, p.equipe);
+  if compter_jour(p.user_id, 'championnat') >= parami('pve_par_jour') then
+    raise exception 'Tu as joué tes % matchs de championnat du jour : reviens demain', parami('pve_par_jour');
+  end if;
+  dv := param('divisions') -> (p.division - 1);
+  j := p.saison_journee + 1;
+  niv := (dv ->> 'base')::numeric + (dv ->> 'pas')::numeric * (j - 1) + random() * 2 - 1;
+  adv := param('adversaires') ->> ((j - 1) % jsonb_array_length(param('adversaires')));
+  fa := force_equipe(p.equipe, p_tactique);
+  r := simuler(fa, equipe_ordi(niv));
+  res := r ->> 'resultat';
+  pts := case res when 'gagne' then 3 when 'nul' then 1 else 0 end;
+  xp := (param('pve_xp') ->> res)::int; xpc := (param('pve_xp_carte') ->> res)::int;
+  v_pieces := (param('pve_pieces') ->> res)::int * p.division;
+  cle := case res when 'gagne' then 'v' when 'nul' then 'n' else 'd' end;   -- bilan : victoires, nuls, défaites
+  bilan := jsonb_set(p.saison_bilan, array[cle], to_jsonb(coalesce((p.saison_bilan ->> cle)::int, 0) + 1));
+  update profils set tactique = p_tactique, pieces = pieces + v_pieces, saison_journee = j,
+    saison_points = saison_points + pts, saison_bilan = bilan where user_id = p.user_id;
+  -- fin de saison : récompense, montée éventuelle, nouvelle saison
+  if j >= parami('saison_matchs') then
+    recompense := parami('saison_pieces') * p.division * case when p.saison_points + pts >= parami('saison_points_montee') then 2 else 1 end;
+    fin := jsonb_build_object('points', p.saison_points + pts, 'montee', p.saison_points + pts >= parami('saison_points_montee') and p.division < 4,
+      'champion', p.saison_points + pts >= parami('saison_points_montee'), 'pieces', recompense, 'division', p.division);
+    update profils set pieces = pieces + recompense, saison_journee = 0, saison_points = 0, saison_bilan = '{"v": 0, "n": 0, "d": 0}',
+      division = least(4, division + case when (fin ->> 'montee')::boolean then 1 else 0 end),
+      bonus = bonus + case when (fin ->> 'champion')::boolean then 1 else 0 end where user_id = p.user_id;
+  end if;
+  progres := xp_equipe(p.equipe, xpc);
+  niveaux := gagner_xp(p.user_id, xp);
+  perform progresser(p.user_id, 'championnat');
+  if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;
+  insert into rencontres (user_id, type, adversaire, score, resultat, detail)
+    values (p.user_id, 'championnat', adv, array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('journee', j, 'niveau', round(niv)));
+  return jsonb_build_object('match', r, 'adversaire', adv, 'niveauAdversaire', round(niv), 'note', fa -> 'note', 'journee', j,
+    'gains', jsonb_build_object('xp', xp, 'xpCarte', xpc, 'pieces', v_pieces, 'points', pts), 'progres', progres, 'finSaison', fin,
+    'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Séance d'entraînement d'équipe : de l'expérience pour les joueurs alignés, sans risque
+create or replace function seance_equipe() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); progres jsonb; niveaux jsonb;
+begin
+  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton Mon 7'; end if;
+  if compter_jour(p.user_id, 'seance') >= parami('seances_par_jour') then
+    raise exception 'Tes joueurs ont fait leurs % séances du jour : reviens demain', parami('seances_par_jour');
+  end if;
+  progres := xp_equipe(p.equipe, parami('seance_xp_carte'));
+  niveaux := gagner_xp(p.user_id, parami('seance_xp'));
+  perform progresser(p.user_id, 'seance');
+  insert into rencontres (user_id, type, adversaire, detail) values (p.user_id, 'seance', 'Entraînement', jsonb_build_object('progres', progres));
+  return jsonb_build_object('xpCarte', parami('seance_xp_carte'), 'progres', progres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Défi contre le Mon 7 d'un autre joueur (il n'a pas besoin d'être connecté : il défend avec sa dernière tactique)
+create or replace function defier(p_pseudo text, p_tactique text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils; fa jsonb; fb jsonb; r jsonb; res text; res_d text; tr int; tr_d int;
+  xp int; v_pieces int; progres jsonb; niveaux jsonb;
+begin
+  perform verifier_tactique(p_tactique);
+  select * into a from profils where lower(pseudo) = lower(btrim(p_pseudo)) for update;
+  if not found then raise exception 'Joueur introuvable'; end if;
+  if a.user_id = p.user_id then raise exception 'Tu ne peux pas te défier toi-même'; end if;
+  if compter_jour(p.user_id, 'defi') >= parami('defis_par_jour') then
+    raise exception 'Tu as lancé tes % défis du jour : reviens demain', parami('defis_par_jour');
+  end if;
+  if (select count(*) from rencontres where user_id = p.user_id and type = 'defi' and adversaire = a.pseudo and le >= debut_du_jour())
+     >= parami('defis_meme_adversaire') then
+    raise exception 'Tu as déjà défié % % fois aujourd’hui', a.pseudo, parami('defis_meme_adversaire');
+  end if;
+  perform verifier_equipe(p.user_id, p.equipe);
+  fa := force_equipe(p.equipe, p_tactique);
+  begin
+    fb := force_equipe(a.equipe, a.tactique);
+  exception when others then
+    raise exception '% n’a pas encore d’équipe complète', a.pseudo;
+  end;
+  r := simuler(fa, fb);
+  res := r ->> 'resultat';
+  res_d := case res when 'gagne' then 'perdu' when 'perdu' then 'gagne' else 'nul' end;
+  tr := (param('pvp_trophees') ->> res)::int; tr_d := (param('pvp_defense_trophees') ->> res_d)::int;
+  xp := (param('pvp_xp') ->> res)::int; v_pieces := (param('pvp_pieces') ->> res)::int;
+  update profils set tactique = p_tactique, trophees = greatest(0, trophees + tr), pieces = pieces + v_pieces where user_id = p.user_id;
+  update profils set trophees = greatest(0, trophees + tr_d) where user_id = a.user_id;
+  progres := xp_equipe(p.equipe, (param('pve_xp_carte') ->> res)::int);
+  niveaux := gagner_xp(p.user_id, xp);
+  perform progresser(p.user_id, 'defi');
+  if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;
+  insert into rencontres (user_id, type, adversaire, score, resultat, detail) values
+    (p.user_id, 'defi', a.pseudo, array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('trophees', tr)),
+    (a.user_id, 'defense', p.pseudo, array[(r ->> 'b')::int, (r ->> 'a')::int], res_d, jsonb_build_object('trophees', tr_d));
+  return jsonb_build_object('match', r, 'adversaire', a.pseudo, 'note', fa -> 'note', 'noteAdversaire', fb -> 'note',
+    'gains', jsonb_build_object('xp', xp, 'pieces', v_pieces, 'trophees', tr), 'progres', progres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Adversaires proposés : des joueurs avec un 7 complet, proches en trophées
+create or replace function adversaires() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return coalesce((select jsonb_agg(t) from (
+    select a.pseudo, a.niveau, a.trophees,
+      (select round(avg(e.note)) from jsonb_each_text(a.equipe) j join exemplaires e on e.id::text = j.value) as note
+    from profils a where a.user_id <> p.user_id and (select count(*) from jsonb_object_keys(a.equipe)) = 7
+    order by abs(a.trophees - p.trophees), random() limit 8) t), '[]');
+end $$;
+
+-- Classement des défis : les 20 premiers, et ma place
+create or replace function classement() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return jsonb_build_object(
+    'top', coalesce((select jsonb_agg(t order by t.trophees desc, t.pseudo) from (
+      select pseudo, trophees, niveau from profils order by trophees desc, lower(pseudo) limit 20) t), '[]'),
+    'rang', (select count(*) + 1 from profils where trophees > p.trophees), 'trophees', p.trophees);
+end $$;
+
+-- Mes 20 derniers matchs (dont les défis reçus)
+create or replace function mes_rencontres() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return coalesce((select jsonb_agg(t order by t.le desc) from (
+    select type, adversaire, score, resultat, detail, le from rencontres where user_id = p.user_id and type <> 'seance'
+    order by le desc limit 20) t), '[]');
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- Administration (outil admin.html, compte avec role = 'admin')
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -598,5 +874,6 @@ grant execute on function
   mon_etat(), creer_profil(text, boolean), supprimer_mon_compte(),
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
+  match_championnat(text), seance_equipe(), defier(text, text), adversaires(), classement(), mes_rencontres(),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
