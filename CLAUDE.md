@@ -7,5 +7,6 @@
 - Les réglages propres au jeu (poste, 6 stats, note forcée, photo) sont dans `data/perso.json`, écrit par l'outil `admin.html`. Ne jamais l'écraser ni le régénérer depuis un script. La logique des cartes (poids par poste, raretés, rendu) est dans `cartes.js`, partagé entre le jeu et l'outil.
 - Ne jamais exporter de numéro de licence ni de donnée personnelle autre que nom, équipe et statistiques sportives. Seule exception : les photos ajoutées par Maël avec l'outil, avec l'accord de la personne (de ses parents si elle est mineure). Ne jamais en ajouter d'autre façon.
 - Sauvegarde du joueur : `localStorage`, clé `mhc-v1`. Changer le format = incrémenter la version et prévoir une migration.
+- Toute modification de la sauvegarde (pièces, cartes, Mon 7) passe par une action de `Compte` dans `compte.js`, qui renvoie une promesse. `app.js` ne fait que lire `Compte.etat`. C'est ce qui permettra de brancher le serveur Supabase prévu dans `docs/SERVEUR.md` (le serveur appliquera les règles, pas le téléphone).
 - Après une modification des fichiers servis, changer `VERSION` dans `sw.js` pour que les téléphones récupèrent la nouvelle version.
 - Tester sur une largeur de téléphone (390 px) avant de pousser.

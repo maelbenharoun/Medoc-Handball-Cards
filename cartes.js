@@ -87,6 +87,10 @@ function fusionner(site, perso) {
 // Brouillon de l'outil (modifications pas encore publiées) : visible en aperçu dans le jeu du même navigateur.
 // Une entrée null veut dire « remettre la carte par défaut ».
 const CLE_BROUILLON = 'mhc-outil-v1';
+const CLE_OUTIL_GITHUB = 'mhc-outil-github';   // réglages GitHub de l'outil (dépôt, branche, jeton vérifié)
+// Ce navigateur est-il celui de l'administrateur (jeton GitHub accepté par l'outil) ?
+// Ce n'est pas une sécurité (rien n'est publié sans le jeton) : juste pour que les joueurs ne voient jamais d'aperçu.
+function outilConnecte() { try { return !!JSON.parse(localStorage.getItem(CLE_OUTIL_GITHUB))?.jeton; } catch (e) { return false; } }
 function lireBrouillon() { try { return JSON.parse(localStorage.getItem(CLE_BROUILLON)) || {}; } catch (e) { return {}; } }
 function appliquerBrouillon(perso, brouillon) {
   const r = {...perso};

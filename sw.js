@@ -1,7 +1,7 @@
 // Cache hors ligne : le jeu s'ouvre sans réseau une fois installé.
 // Changer VERSION à chaque mise à jour des fichiers pour forcer le rafraîchissement.
-const VERSION = 'mhc-v3';
-const FICHIERS = ['./', 'index.html', 'style.css', 'cartes.js', 'app.js', 'manifest.webmanifest', 'data/cartes.json', 'data/perso.json',
+const VERSION = 'mhc-v4';
+const FICHIERS = ['./', 'index.html', 'style.css', 'cartes.js', 'compte.js', 'app.js', 'manifest.webmanifest', 'data/cartes.json', 'data/perso.json',
   'assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png'];
 
 self.addEventListener('install', e => {

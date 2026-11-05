@@ -22,7 +22,7 @@ Chaque carte a un **poste de jeu** et **6 stats** propres au jeu (Tir, Passes, D
 
 La rareté dépend de la note générale, calculée à partir des 6 stats avec des poids selon le poste (un ailier compte surtout la Vitesse et le Tir, un demi-centre les Passes, un pivot le Physique…). La répartition ci-dessus est celle de départ : elle bouge quand on modifie les stats.
 
-Les seuils et les poids se règlent dans `cartes.js` (`SEUILS`, `POIDS`), les chances des packs et le malus hors poste dans `app.js` (`PACKS`, `MALUS_HORS_POSTE`).
+Les seuils et les poids se règlent dans `cartes.js` (`SEUILS`, `POIDS`), les prix et chances des packs, les ventes et le bonus dans `compte.js` (`PACKS`, `VENTE`, `BONUS_JOUR`), le malus hors poste dans `app.js` (`MALUS_HORS_POSTE`).
 
 ## Gérer les cartes (outil)
 
@@ -32,7 +32,7 @@ Les seuils et les poids se règlent dans `cartes.js` (`SEUILS`, `POIDS`), les ch
 - de régler les **6 stats** (la note et la rareté suivent), ou de **forcer la note** ;
 - d'ajouter une **photo**, recadrée en carré (zoom, position). Uniquement avec l'accord de la personne, et de ses parents si elle est mineure : le dépôt et le site sont publics.
 
-Les modifications vont d'abord dans un **brouillon** gardé dans le navigateur : le jeu ouvert dans ce même navigateur les montre déjà en aperçu. **Publier** les enregistre ensuite dans le dépôt en un seul commit (`data/perso.json` + `assets/photos/`), et le jeu en ligne est à jour 1 à 2 minutes plus tard.
+Les modifications vont d'abord dans un **brouillon** gardé dans le navigateur : le jeu ouvert dans ce même navigateur les montre déjà en aperçu (seulement une fois l'outil connecté à GitHub : les joueurs ne voient jamais d'aperçu). **Publier** les enregistre ensuite dans le dépôt en un seul commit (`data/perso.json` + `assets/photos/`), et le jeu en ligne est à jour 1 à 2 minutes plus tard.
 
 Pour publier, il faut une fois un jeton GitHub, créé sur <https://github.com/settings/personal-access-tokens/new> :
 - Repository access : *Only select repositories* → ce dépôt ;
@@ -70,13 +70,15 @@ Le jeu est alors en ligne sur `https://maelbenharoun.github.io/medoc-handball-ca
 index.html            le jeu (en-tête, vue, onglets)
 style.css             design, cartes, animations
 cartes.js             cartes : postes, 6 stats, notes, raretés, rendu (partagé jeu + outil)
-app.js                le jeu : tirages, sauvegarde, vues
+compte.js             compte du joueur : règles de l'économie, tirage des packs, sauvegarde
+app.js                le jeu : affichage des vues et de l'ouverture des packs
 admin.html/.js/.css   l'outil de gestion des cartes
 sw.js                 cache hors ligne
 manifest.webmanifest  installation sur téléphone
 data/cartes.json      les cartes du site (généré par le script)
 data/perso.json       les réglages du jeu (écrit par l'outil)
 scripts/export_cartes.py
+docs/SERVEUR.md       plan du serveur Supabase (comptes, échanges)
 assets/               logo du club, icônes, photos/ (ajoutées par l'outil)
 ```
 
@@ -86,4 +88,4 @@ assets/               logo du club, icônes, photos/ (ajoutées par l'outil)
 - Packs par équipe (Pack SF, Pack SG).
 - Défis : « Aligne un 7 100 % SF2 », « Note d'équipe 80+ » → récompenses en packs.
 - Mini-match contre un 7 adverse simulé avec le modèle de pronostic.
-- Échanges de doublons entre copains (nécessite des comptes : Supabase, déjà utilisé pour medochandballstats).
+- Comptes et échanges de cartes entre joueurs, avec Supabase : voir [`docs/SERVEUR.md`](docs/SERVEUR.md) (le code est déjà préparé).

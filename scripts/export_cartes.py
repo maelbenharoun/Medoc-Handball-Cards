@@ -111,6 +111,14 @@ def main(src):
     for c in cartes:
         c["rarete"] = next(r for seuil, r in RARETES if c["ovr"] >= seuil)
     out = Path(__file__).resolve().parent.parent / "data" / "cartes.json"
+    # L'id (nom simplifié) identifie la carte dans les sauvegardes, data/perso.json et, plus tard, la base
+    # du serveur : une carte qui disparaît (nom corrigé sur le site, joueur parti) serait perdue pour ses propriétaires.
+    if out.exists():
+        avant = {c["id"]: c["nom"] for c in json.loads(out.read_text(encoding="utf-8"))["cartes"]}
+        partis = sorted(set(avant) - {c["id"] for c in cartes})
+        if partis:
+            print("⚠ Cartes qui disparaissent (à vérifier avant de publier) :",
+                  ", ".join(f"{avant[i]} ({i})" for i in partis))
     out.write_text(json.dumps({"saison": "2026-2027", "maj": date.today().isoformat(), "cartes": cartes},
                               ensure_ascii=False, indent=1), encoding="utf-8")
     compte = {}

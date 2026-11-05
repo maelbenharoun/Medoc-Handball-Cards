@@ -3,7 +3,6 @@
    Les modifications vont d'abord dans un brouillon (localStorage, visible en aperçu dans le jeu du même navigateur),
    puis « Publier » les enregistre dans le dépôt GitHub en un seul commit : data/perso.json + assets/photos/. */
 
-const CLE_REGLAGES = 'mhc-outil-github';
 const PHOTO_PX = 360;   // photos recadrées en carré 360×360, JPEG (les métadonnées, GPS compris, disparaissent)
 
 let SITE = [], PAR_ID = {}, PERSO = {}, SOURCE = '';
@@ -17,9 +16,9 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add
 
 function lireReglages() {
   const def = {depot: 'maelbenharoun/medoc-handball-cards', branche: 'main', jeton: ''};
-  try { return {...def, ...JSON.parse(localStorage.getItem(CLE_REGLAGES))}; } catch (e) { return def; }
+  try { return {...def, ...JSON.parse(localStorage.getItem(CLE_OUTIL_GITHUB))}; } catch (e) { return def; }
 }
-function sauverReglages() { try { localStorage.setItem(CLE_REGLAGES, JSON.stringify(REGL)); } catch (e) {} }
+function sauverReglages() { try { localStorage.setItem(CLE_OUTIL_GITHUB, JSON.stringify(REGL)); } catch (e) {} }
 function sauverBrouillon() {
   try { localStorage.setItem(CLE_BROUILLON, JSON.stringify(BROUILLON)); return true; }
   catch (e) { alert('La mémoire du navigateur est pleine (photos). Publie tes modifications avant d’en faire d’autres.'); return false; }
@@ -253,13 +252,14 @@ function reglages(msg) {
       <button class="btn ghost" data-act="fermer">Fermer</button><button class="btn gold" data-act="r-ok">Enregistrer</button></div></div>`;
 }
 async function validerReglages() {
+  const avant = REGL;
   REGL = {depot: $('#r-depot').value.trim(), branche: $('#r-branche').value.trim() || 'main', jeton: $('#r-jeton').value.trim()};
-  sauverReglages();
   if (REGL.jeton) {
+    // le jeton n'est enregistré qu'une fois accepté par GitHub
     try { await gh(`git/ref/heads/${REGL.branche}`); toast('Connecté à GitHub'); }
-    catch (e) { return reglages(erreurGitHub(e)); }
+    catch (e) { const msg = erreurGitHub(e); REGL = avant; return reglages(msg); }
   }
-  fermer(); charger();
+  sauverReglages(); fermer(); charger();
 }
 
 // ── événements ──────────────────────────────────────────────────────────────────
