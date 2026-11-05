@@ -1,0 +1,8556 @@
+{
+ "maj": "2026-11-05",
+ "matchs": [
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647791",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Marmande 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    30
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647792",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    18,
+    19
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647793",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Montpon-Ménestérol",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    28,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647795",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    21,
+    16
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636258",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636259",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    18,
+    23
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636260",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    13,
+    27
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636261",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    32
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636262",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    15,
+    37
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645733",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": null,
+   "score": [
+    37,
+    22
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645734",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    36,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645735",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": null,
+   "score": [
+    33,
+    38
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645736",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Léognan",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    37,
+    35
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645737",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    35,
+    22
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635725",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    37,
+    38
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635727",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Talence",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    30
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635728",
+   "j": 1,
+   "date": "2026-09-19",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": null,
+   "score": [
+    38,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647794",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": null,
+   "score": [
+    18,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636263",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    25,
+    15
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645738",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635726",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    38
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635729",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": null,
+   "score": [
+    27,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635730",
+   "j": 1,
+   "date": "2026-09-20",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Canejan 3",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    31,
+    21
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647796",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    40,
+    27
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647798",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    28,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647799",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Créon",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647800",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Agen",
+   "medoc": null,
+   "p": null,
+   "score": [
+    27,
+    22
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647801",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636264",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    24,
+    21
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636266",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    16
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636267",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    40,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636268",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    32,
+    24
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636269",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    22
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645739",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": null,
+   "score": [
+    17,
+    30
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645740",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645741",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    34,
+    34
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645742",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    37
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645743",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    24
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635731",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    20
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635732",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": null,
+   "score": [
+    41,
+    14
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635733",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": null,
+   "score": [
+    22,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635734",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    33,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635735",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    35,
+    32
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635736",
+   "j": 2,
+   "date": "2026-09-26",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    23
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636265",
+   "j": 2,
+   "date": "2026-09-27",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    27,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645744",
+   "j": 2,
+   "date": "2026-09-27",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647802",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    24
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647803",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Marmande 2",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    34,
+    32
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647805",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    35
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647806",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    24,
+    30
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636271",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    21,
+    27
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636272",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    21,
+    19
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636274",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": null,
+   "score": [
+    20,
+    13
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636275",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    23,
+    30
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645745",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": null,
+   "score": [
+    24,
+    34
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645746",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Grand Périgueux Erm",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    32,
+    35
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645750",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635737",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Talence",
+   "medoc": null,
+   "p": null,
+   "score": [
+    30,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635739",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": null,
+   "score": [
+    27,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635741",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": null,
+   "score": [
+    25,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635742",
+   "j": 3,
+   "date": "2026-10-03",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    21
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647807",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": null,
+   "score": [
+    11,
+    35
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636270",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    23,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636273",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Haillan",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    25,
+    20
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645747",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    39,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645748",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    33,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645749",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    41
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635740",
+   "j": 3,
+   "date": "2026-10-04",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Cubzaguais",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    31,
+    32
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647808",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Brive",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    38,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647809",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": null,
+   "score": [
+    33,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647810",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Marmande 2",
+   "ext": "Agen",
+   "medoc": null,
+   "p": null,
+   "score": [
+    22,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647812",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": null,
+   "score": [
+    36,
+    18
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647813",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Créon",
+   "medoc": null,
+   "p": null,
+   "score": [
+    25,
+    20
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636276",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    29,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636277",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    36,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636279",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    18,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636280",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": null,
+   "score": [
+    36,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636281",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    29,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645751",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Pana Loisirs",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    40,
+    22
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645752",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": null,
+   "score": [
+    22,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645753",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    44,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645754",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    36
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635743",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635744",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Talence",
+   "medoc": null,
+   "p": null,
+   "score": [
+    22,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635747",
+   "j": 4,
+   "date": "2026-10-10",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    35,
+    23
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645756",
+   "j": 4,
+   "date": "2026-10-11",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    35,
+    34
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635745",
+   "j": 4,
+   "date": "2026-10-11",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    24,
+    23
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635746",
+   "j": 4,
+   "date": "2026-10-11",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": null,
+   "score": [
+    38,
+    32
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635748",
+   "j": 4,
+   "date": "2026-10-11",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636286",
+   "j": 5,
+   "date": "2026-10-24",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    35,
+    35
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647814",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": null,
+   "score": [
+    29,
+    27
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647815",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    28,
+    31
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647816",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    29,
+    17
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647819",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    23,
+    29
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645759",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    34,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645760",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    34
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645761",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": null,
+   "score": [
+    35,
+    33
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645762",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    31,
+    28
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635749",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": null,
+   "score": [
+    38,
+    20
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635751",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": null,
+   "score": [
+    36,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635754",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    32,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636287",
+   "j": 5,
+   "date": "2026-10-31",
+   "heure": "21:15",
+   "dom": "Avenir Pailleton 2",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.169,
+    0.036,
+    0.794
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636283",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Fronsadais",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    36,
+    20
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636284",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": null,
+   "score": [
+    24,
+    25
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636285",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": null,
+   "score": [
+    19,
+    24
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645757",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    24
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645758",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": null,
+   "score": [
+    41,
+    41
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635750",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": "dom",
+   "p": null,
+   "score": [
+    31,
+    39
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635752",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": null,
+   "score": [
+    28,
+    21
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635753",
+   "j": 5,
+   "date": "2026-11-01",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": null,
+   "score": [
+    23,
+    26
+   ],
+   "forfait": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645768",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "18:30",
+   "dom": "Objat Correze 2",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.596,
+    0.055,
+    0.349
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647820",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:00",
+   "dom": "Agen",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.516,
+    0.054,
+    0.43
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647821",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:00",
+   "dom": "Blanquefort 2",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.393,
+    0.053,
+    0.554
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636293",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:00",
+   "dom": "Haillan",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.639,
+    0.05,
+    0.311
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645766",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:00",
+   "dom": "Léognan",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.48,
+    0.058,
+    0.462
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635755",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:00",
+   "dom": "Médoc Handball",
+   "ext": "Eysines 2",
+   "medoc": "dom",
+   "p": [
+    0.356,
+    0.055,
+    0.589
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636289",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:30",
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.116,
+    0.029,
+    0.856
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636290",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "19:45",
+   "dom": "Fronsadais",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.637,
+    0.05,
+    0.313
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636292",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "20:00",
+   "dom": "Pays Castillonnais",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.827,
+    0.033,
+    0.141
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635760",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "20:00",
+   "dom": "Arsac",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.363,
+    0.056,
+    0.581
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647824",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "20:30",
+   "dom": "Marmande 2",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.628,
+    0.05,
+    0.322
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645763",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "20:45",
+   "dom": "Béglais",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.79,
+    0.039,
+    0.171
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647823",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "21:00",
+   "dom": "Montpon-Ménestérol",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.737,
+    0.042,
+    0.22
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645765",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "21:00",
+   "dom": "Médoc Handball",
+   "ext": "Territoire Charente 3",
+   "medoc": "dom",
+   "p": [
+    0.618,
+    0.054,
+    0.328
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645767",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "21:00",
+   "dom": "Grand Périgueux Erm",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.889,
+    0.025,
+    0.086
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635757",
+   "j": 6,
+   "date": "2026-11-07",
+   "heure": "21:30",
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.851,
+    0.031,
+    0.118
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635759",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "14:00",
+   "dom": "Béglais 2",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.475,
+    0.058,
+    0.467
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647822",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "14:30",
+   "dom": "Médoc Handball",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": "dom",
+   "p": [
+    0.995,
+    0.002,
+    0.003
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636291",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "16:00",
+   "dom": "Gazinet Cestas 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.472,
+    0.054,
+    0.474
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645764",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "16:00",
+   "dom": "Isle 2",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.937,
+    0.016,
+    0.047
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635756",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "16:00",
+   "dom": "Canejan 3",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.683,
+    0.05,
+    0.267
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636288",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "16:30",
+   "dom": "Médoc Handball",
+   "ext": "Pe2M 2",
+   "medoc": "dom",
+   "p": [
+    0.825,
+    0.033,
+    0.143
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635758",
+   "j": 6,
+   "date": "2026-11-08",
+   "heure": "17:00",
+   "dom": "Bruges 33",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.171,
+    0.039,
+    0.789
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645774",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "18:00",
+   "dom": "Capo Limoges 2",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.297,
+    0.052,
+    0.651
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636295",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "18:30",
+   "dom": "Arcachon la Teste",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.089,
+    0.024,
+    0.888
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647826",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Brive",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.807,
+    0.035,
+    0.158
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647829",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Créon",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.168,
+    0.036,
+    0.796
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645769",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Pana Loisirs",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.135,
+    0.034,
+    0.831
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645771",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Palais s/ Vienne",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.265,
+    0.05,
+    0.685
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635763",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Cadillac Cérons",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.546,
+    0.057,
+    0.397
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635764",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Belin-Beliet 2",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.365,
+    0.056,
+    0.579
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635765",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:00",
+   "dom": "Cubzaguais",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.332,
+    0.054,
+    0.614
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636298",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:30",
+   "dom": "Gazinet Cestas 2",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.489,
+    0.054,
+    0.457
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635766",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "19:30",
+   "dom": "Arsac",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.625,
+    0.053,
+    0.321
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647830",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "20:30",
+   "dom": "Libourne",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.525,
+    0.054,
+    0.422
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635761",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "20:30",
+   "dom": "Eysines 2",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.829,
+    0.034,
+    0.137
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647827",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.041,
+    0.014,
+    0.945
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647828",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Sarlat",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.41,
+    0.053,
+    0.537
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636294",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Pe2M 2",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.58,
+    0.052,
+    0.367
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636296",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Cubzaguais",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.287,
+    0.048,
+    0.665
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645770",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Territoire Charente 3",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.78,
+    0.04,
+    0.18
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645773",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:00",
+   "dom": "Gond Pontouvre",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.72,
+    0.047,
+    0.234
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636297",
+   "j": 7,
+   "date": "2026-11-14",
+   "heure": "21:15",
+   "dom": "Avenir Pailleton 2",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.608,
+    0.051,
+    0.341
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635762",
+   "j": 7,
+   "date": "2026-11-15",
+   "heure": "14:00",
+   "dom": "Langonnais 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.483,
+    0.058,
+    0.459
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636299",
+   "j": 7,
+   "date": "2026-11-15",
+   "heure": "15:00",
+   "dom": "Bazadais",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.669,
+    0.048,
+    0.284
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645772",
+   "j": 7,
+   "date": "2026-11-15",
+   "heure": "16:00",
+   "dom": "Pessacais 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.395,
+    0.057,
+    0.548
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636303",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.272,
+    0.047,
+    0.681
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647833",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:00",
+   "dom": "Montpon-Ménestérol",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.86,
+    0.028,
+    0.112
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636302",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:00",
+   "dom": "Médoc Handball",
+   "ext": "Avenir Pailleton 2",
+   "medoc": "dom",
+   "p": [
+    0.933,
+    0.016,
+    0.051
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645775",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:00",
+   "dom": "Territoire Charente 3",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.91,
+    0.021,
+    0.069
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636301",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:30",
+   "dom": "Cubzaguais",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.797,
+    0.036,
+    0.167
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636304",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:30",
+   "dom": "Fronsadais",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.191,
+    0.039,
+    0.77
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635771",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:30",
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.852,
+    0.031,
+    0.117
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645777",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "19:45",
+   "dom": "Béglais",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.561,
+    0.056,
+    0.383
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636305",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "20:00",
+   "dom": "Pays Castillonnais",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.505,
+    0.054,
+    0.441
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647837",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "20:30",
+   "dom": "Marmande 2",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.376,
+    0.053,
+    0.572
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636300",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "20:30",
+   "dom": "Arcachon la Teste",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.271,
+    0.047,
+    0.683
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645776",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "21:00",
+   "dom": "Léognan",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.427,
+    0.057,
+    0.516
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645779",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "21:00",
+   "dom": "Médoc Handball",
+   "ext": "Capo Limoges 2",
+   "medoc": "dom",
+   "p": [
+    0.704,
+    0.048,
+    0.248
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645780",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "21:00",
+   "dom": "Grand Périgueux Erm",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.748,
+    0.044,
+    0.208
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635770",
+   "j": 8,
+   "date": "2026-11-28",
+   "heure": "21:30",
+   "dom": "Cubzaguais",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.81,
+    0.037,
+    0.153
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647832",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "14:00",
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.029,
+    0.01,
+    0.96
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647834",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "14:00",
+   "dom": "Agen",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.819,
+    0.034,
+    0.148
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635772",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "14:00",
+   "dom": "Béglais 2",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.134,
+    0.034,
+    0.832
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635767",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "15:00",
+   "dom": "Langonnais 2",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.257,
+    0.049,
+    0.694
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647835",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "15:30",
+   "dom": "Léognan",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.621,
+    0.05,
+    0.328
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645778",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "16:00",
+   "dom": "Objat Correze 2",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.854,
+    0.031,
+    0.115
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635768",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "16:00",
+   "dom": "Bruges 33",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.551,
+    0.057,
+    0.392
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635769",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "16:00",
+   "dom": "Médoc Handball",
+   "ext": "Belin-Beliet 2",
+   "medoc": "dom",
+   "p": [
+    0.62,
+    0.054,
+    0.326
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647838",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.492,
+    0.054,
+    0.454
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647839",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.92,
+    0.018,
+    0.062
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636307",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.667,
+    0.048,
+    0.286
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645782",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.418,
+    0.057,
+    0.524
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635777",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.607,
+    0.054,
+    0.338
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635778",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.758,
+    0.043,
+    0.199
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636310",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "18:30",
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.919,
+    0.018,
+    0.062
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635775",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "19:00",
+   "dom": "Canejan 3",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.436,
+    0.058,
+    0.507
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636309",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "19:30",
+   "dom": "Bazadais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.451,
+    0.054,
+    0.495
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645783",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "19:30",
+   "dom": "Isle 2",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.763,
+    0.042,
+    0.195
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635774",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "19:30",
+   "dom": "Belin-Beliet 2",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.676,
+    0.05,
+    0.274
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647842",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Sarlat",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.765,
+    0.04,
+    0.195
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647843",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Libourne",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.375,
+    0.052,
+    0.573
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636306",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Pe2M 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.333,
+    0.051,
+    0.617
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645781",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Pana Loisirs",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.249,
+    0.048,
+    0.703
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645785",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Palais s/ Vienne",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.089,
+    0.026,
+    0.885
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645786",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Gond Pontouvre",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.614,
+    0.054,
+    0.332
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635773",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:00",
+   "dom": "Eysines 2",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.856,
+    0.03,
+    0.114
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635776",
+   "j": 9,
+   "date": "2026-12-05",
+   "heure": "21:15",
+   "dom": "Arsac",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.48,
+    0.058,
+    0.462
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647840",
+   "j": 9,
+   "date": "2026-12-06",
+   "heure": "14:00",
+   "dom": "Blanquefort 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.35,
+    0.052,
+    0.598
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636308",
+   "j": 9,
+   "date": "2026-12-06",
+   "heure": "14:00",
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.346,
+    0.051,
+    0.603
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645784",
+   "j": 9,
+   "date": "2026-12-06",
+   "heure": "14:00",
+   "dom": "Capo Limoges 2",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.704,
+    0.048,
+    0.248
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636311",
+   "j": 9,
+   "date": "2026-12-06",
+   "heure": "16:00",
+   "dom": "Gazinet Cestas 2",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.886,
+    0.024,
+    0.09
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647844",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.249,
+    0.045,
+    0.706
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647845",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.455,
+    0.054,
+    0.491
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636312",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.354,
+    0.052,
+    0.594
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636313",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.56,
+    0.053,
+    0.387
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636315",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.649,
+    0.049,
+    0.302
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636316",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Gazinet Cestas 2",
+   "medoc": "dom",
+   "p": [
+    0.716,
+    0.044,
+    0.239
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645787",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.814,
+    0.036,
+    0.15
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645790",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.703,
+    0.048,
+    0.249
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635782",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.489,
+    0.058,
+    0.454
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635783",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Talence",
+   "medoc": "dom",
+   "p": [
+    0.231,
+    0.046,
+    0.723
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645788",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "16:00",
+   "dom": "Objat Correze 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.574,
+    0.056,
+    0.37
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636314",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "18:30",
+   "dom": "Arcachon la Teste",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.151,
+    0.034,
+    0.815
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645791",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "18:45",
+   "dom": "Béglais",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.345,
+    0.055,
+    0.601
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645792",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "19:00",
+   "dom": "Médoc Handball",
+   "ext": "Palais s/ Vienne",
+   "medoc": "dom",
+   "p": [
+    0.911,
+    0.021,
+    0.068
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636317",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "19:45",
+   "dom": "Fronsadais",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.033,
+    0.011,
+    0.956
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647848",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "20:30",
+   "dom": "Agen",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.605,
+    0.051,
+    0.344
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647849",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "21:00",
+   "dom": "Médoc Handball",
+   "ext": "Sarlat",
+   "medoc": "dom",
+   "p": [
+    0.755,
+    0.041,
+    0.204
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645789",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "21:00",
+   "dom": "Territoire Charente 3",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.683,
+    0.05,
+    0.267
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635779",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "21:00",
+   "dom": "Belin-Beliet 2",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.331,
+    0.054,
+    0.614
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635781",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "21:00",
+   "dom": "Langonnais 2",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.597,
+    0.055,
+    0.348
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647847",
+   "j": 10,
+   "date": "2026-12-13",
+   "heure": "14:00",
+   "dom": "Marmande 2",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.551,
+    0.053,
+    0.395
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635784",
+   "j": 10,
+   "date": "2026-12-13",
+   "heure": "16:00",
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.863,
+    0.029,
+    0.108
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635780",
+   "j": 10,
+   "date": "2026-12-13",
+   "heure": "16:30",
+   "dom": "Bruges 33",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.392,
+    0.057,
+    0.551
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647850",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.614,
+    0.051,
+    0.336
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647852",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.874,
+    0.026,
+    0.1
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647854",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.222,
+    0.042,
+    0.736
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647855",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.556,
+    0.053,
+    0.391
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636318",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.349,
+    0.051,
+    0.6
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636319",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.882,
+    0.025,
+    0.093
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636320",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.74,
+    0.042,
+    0.218
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636322",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.798,
+    0.036,
+    0.166
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645793",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.266,
+    0.05,
+    0.684
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645794",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.673,
+    0.05,
+    0.276
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645795",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.316,
+    0.053,
+    0.631
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645796",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.636,
+    0.053,
+    0.311
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645797",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.664,
+    0.051,
+    0.285
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635785",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.708,
+    0.048,
+    0.244
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635786",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.507,
+    0.058,
+    0.436
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635787",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.654,
+    0.052,
+    0.294
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635788",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.933,
+    0.017,
+    0.05
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635789",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.353,
+    0.055,
+    0.592
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635790",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.461,
+    0.058,
+    0.481
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636323",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": "18:30",
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.799,
+    0.036,
+    0.165
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645798",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": "19:00",
+   "dom": "Palais s/ Vienne",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.391,
+    0.057,
+    0.553
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647853",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": "20:30",
+   "dom": "Libourne",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.98,
+    0.006,
+    0.014
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636321",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": "21:30",
+   "dom": "Gazinet Cestas 2",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.913,
+    0.02,
+    0.067
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636278",
+   "j": 4,
+   "date": "2027-01-16",
+   "heure": "20:00",
+   "dom": "Pays Castillonnais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.357,
+    0.052,
+    0.591
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647857",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.799,
+    0.036,
+    0.165
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647859",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.548,
+    0.053,
+    0.398
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647860",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.981,
+    0.006,
+    0.014
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647861",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.373,
+    0.052,
+    0.575
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636324",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.41,
+    0.053,
+    0.536
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636325",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.725,
+    0.043,
+    0.231
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636326",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.869,
+    0.027,
+    0.104
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636327",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.929,
+    0.017,
+    0.054
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636328",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.991,
+    0.003,
+    0.006
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636329",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.29,
+    0.048,
+    0.662
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645799",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.267,
+    0.05,
+    0.683
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645800",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.298,
+    0.052,
+    0.65
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645801",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.786,
+    0.04,
+    0.174
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645802",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.499,
+    0.058,
+    0.443
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645804",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.845,
+    0.032,
+    0.123
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635791",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.872,
+    0.028,
+    0.1
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635792",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.818,
+    0.036,
+    0.146
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635793",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.9,
+    0.023,
+    0.077
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635794",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.312,
+    0.053,
+    0.635
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635795",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.574,
+    0.056,
+    0.37
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635796",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.555,
+    0.056,
+    0.388
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645803",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": "19:00",
+   "dom": "Palais s/ Vienne",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.209,
+    0.044,
+    0.747
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647858",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": "20:30",
+   "dom": "Libourne",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.799,
+    0.036,
+    0.165
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647864",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Léognan",
+   "medoc": "dom",
+   "p": [
+    0.717,
+    0.044,
+    0.238
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647865",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.32,
+    0.05,
+    0.63
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647866",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.431,
+    0.054,
+    0.515
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647867",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.112,
+    0.028,
+    0.86
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636330",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.506,
+    0.054,
+    0.44
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636331",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.6,
+    0.051,
+    0.348
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636332",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.15,
+    0.034,
+    0.816
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636333",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.039,
+    0.013,
+    0.948
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636334",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Cubzaguais",
+   "medoc": "dom",
+   "p": [
+    0.62,
+    0.05,
+    0.329
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636335",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.274,
+    0.047,
+    0.68
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645805",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.97,
+    0.009,
+    0.022
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645806",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.458,
+    0.058,
+    0.484
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645807",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Objat Correze 2",
+   "medoc": "dom",
+   "p": [
+    0.703,
+    0.048,
+    0.249
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645808",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.801,
+    0.038,
+    0.161
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645809",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.456,
+    0.058,
+    0.486
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645810",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.499,
+    0.058,
+    0.443
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635797",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.23,
+    0.046,
+    0.724
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635798",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.153,
+    0.037,
+    0.811
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635799",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.676,
+    0.05,
+    0.274
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635800",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.695,
+    0.049,
+    0.256
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635801",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Bruges 33",
+   "medoc": "dom",
+   "p": [
+    0.674,
+    0.05,
+    0.275
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635802",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.523,
+    0.057,
+    0.42
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647862",
+   "j": 13,
+   "date": "2027-01-31",
+   "heure": "14:00",
+   "dom": "Marmande 2",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.293,
+    0.048,
+    0.659
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647868",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.487,
+    0.054,
+    0.459
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647869",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Marmande 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.203,
+    0.04,
+    0.757
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647871",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.6,
+    0.051,
+    0.348
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647872",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.652,
+    0.049,
+    0.299
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647873",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.994,
+    0.002,
+    0.004
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636336",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.711,
+    0.045,
+    0.245
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636337",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.846,
+    0.03,
+    0.124
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636338",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.876,
+    0.026,
+    0.098
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636339",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.515,
+    0.054,
+    0.431
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636340",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.775,
+    0.039,
+    0.187
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636341",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.948,
+    0.013,
+    0.039
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645811",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.926,
+    0.018,
+    0.056
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645812",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.763,
+    0.042,
+    0.194
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645813",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.283,
+    0.051,
+    0.666
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645814",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.705,
+    0.048,
+    0.248
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645815",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.823,
+    0.035,
+    0.142
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645816",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.523,
+    0.057,
+    0.42
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635803",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.728,
+    0.046,
+    0.226
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635804",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.87,
+    0.028,
+    0.102
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635805",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.576,
+    0.056,
+    0.368
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635806",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.706,
+    0.048,
+    0.246
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635807",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.581,
+    0.056,
+    0.363
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635808",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.622,
+    0.054,
+    0.324
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636282",
+   "j": 5,
+   "date": "2027-02-13",
+   "heure": "18:30",
+   "dom": "Pe2M 2",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.117,
+    0.029,
+    0.854
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647874",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.463,
+    0.054,
+    0.483
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647875",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.57,
+    0.053,
+    0.377
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647876",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.782,
+    0.038,
+    0.18
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647878",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.036,
+    0.012,
+    0.951
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647879",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.187,
+    0.039,
+    0.775
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636342",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.8,
+    0.036,
+    0.164
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636343",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.204,
+    0.041,
+    0.756
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636344",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Pays Castillonnais",
+   "medoc": "dom",
+   "p": [
+    0.775,
+    0.039,
+    0.187
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636345",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.734,
+    0.043,
+    0.224
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636346",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.116,
+    0.029,
+    0.855
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636347",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.158,
+    0.035,
+    0.806
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645817",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.179,
+    0.04,
+    0.78
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645818",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.919,
+    0.02,
+    0.062
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645819",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.204,
+    0.043,
+    0.753
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645820",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.764,
+    0.042,
+    0.194
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645821",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.502,
+    0.058,
+    0.44
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645822",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.49,
+    0.058,
+    0.452
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635809",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.63,
+    0.053,
+    0.317
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635810",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.94,
+    0.015,
+    0.045
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635811",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Béglais 2",
+   "medoc": "dom",
+   "p": [
+    0.729,
+    0.046,
+    0.226
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635812",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.521,
+    0.057,
+    0.422
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635813",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.365,
+    0.056,
+    0.579
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635814",
+   "j": 15,
+   "date": "2027-03-06",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.65,
+    0.052,
+    0.298
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647880",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.494,
+    0.054,
+    0.452
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647881",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Agen",
+   "medoc": "dom",
+   "p": [
+    0.737,
+    0.042,
+    0.22
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647882",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.4,
+    0.053,
+    0.546
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647885",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.834,
+    0.032,
+    0.134
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636348",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.943,
+    0.014,
+    0.043
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636349",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.117,
+    0.029,
+    0.855
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636350",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.431,
+    0.054,
+    0.516
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636351",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.881,
+    0.025,
+    0.094
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636352",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.655,
+    0.049,
+    0.296
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636353",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.911,
+    0.02,
+    0.069
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645823",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.575,
+    0.056,
+    0.369
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645824",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Béglais",
+   "medoc": "dom",
+   "p": [
+    0.797,
+    0.038,
+    0.165
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645825",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.646,
+    0.052,
+    0.302
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645826",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.781,
+    0.04,
+    0.178
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645827",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.616,
+    0.054,
+    0.33
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645828",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.674,
+    0.05,
+    0.276
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635815",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.24,
+    0.047,
+    0.713
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635816",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.776,
+    0.041,
+    0.184
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635817",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.201,
+    0.043,
+    0.756
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635818",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.561,
+    0.056,
+    0.383
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635819",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.565,
+    0.056,
+    0.379
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635820",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.728,
+    0.046,
+    0.226
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647883",
+   "j": 16,
+   "date": "2027-03-13",
+   "heure": "20:30",
+   "dom": "Marmande 2",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.938,
+    0.015,
+    0.047
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647886",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.636,
+    0.05,
+    0.314
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647887",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.745,
+    0.042,
+    0.213
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647888",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.015,
+    0.006,
+    0.979
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647889",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.403,
+    0.053,
+    0.544
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647890",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.525,
+    0.054,
+    0.422
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636354",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.293,
+    0.048,
+    0.659
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636355",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.944,
+    0.014,
+    0.043
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636356",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.515,
+    0.054,
+    0.431
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636357",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.677,
+    0.047,
+    0.276
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636358",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.29,
+    0.048,
+    0.662
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636359",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.513,
+    0.054,
+    0.433
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645829",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.372,
+    0.056,
+    0.572
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645830",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.146,
+    0.036,
+    0.818
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645831",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.572,
+    0.056,
+    0.372
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645832",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.702,
+    0.048,
+    0.25
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645833",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.229,
+    0.046,
+    0.725
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645834",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.594,
+    0.055,
+    0.351
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635821",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.802,
+    0.038,
+    0.16
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635822",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.502,
+    0.058,
+    0.441
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635823",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.288,
+    0.051,
+    0.661
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635824",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.923,
+    0.019,
+    0.058
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635825",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.706,
+    0.048,
+    0.246
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635826",
+   "j": 17,
+   "date": "2027-03-20",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.797,
+    0.038,
+    0.165
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647892",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.316,
+    0.05,
+    0.634
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647893",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.983,
+    0.005,
+    0.012
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647894",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.732,
+    0.043,
+    0.226
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647895",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Créon",
+   "medoc": "dom",
+   "p": [
+    0.912,
+    0.02,
+    0.068
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647896",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.628,
+    0.05,
+    0.322
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636360",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.574,
+    0.052,
+    0.374
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636361",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Arcachon la Teste",
+   "medoc": "dom",
+   "p": [
+    0.959,
+    0.011,
+    0.03
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636362",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.829,
+    0.032,
+    0.138
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636363",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.546,
+    0.053,
+    0.401
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636364",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.662,
+    0.048,
+    0.29
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636365",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.481,
+    0.054,
+    0.465
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645835",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.943,
+    0.015,
+    0.042
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645836",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.385,
+    0.056,
+    0.558
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645837",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.866,
+    0.029,
+    0.105
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645838",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Pessacais 2",
+   "medoc": "dom",
+   "p": [
+    0.772,
+    0.041,
+    0.187
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645839",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.459,
+    0.058,
+    0.483
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645840",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.845,
+    0.032,
+    0.123
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635827",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.319,
+    0.053,
+    0.628
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635828",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Langonnais 2",
+   "medoc": "dom",
+   "p": [
+    0.699,
+    0.048,
+    0.252
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635829",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.642,
+    0.053,
+    0.305
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635830",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.795,
+    0.039,
+    0.166
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635831",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.82,
+    0.035,
+    0.145
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635832",
+   "j": 18,
+   "date": "2027-04-03",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.563,
+    0.056,
+    0.38
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647898",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.989,
+    0.003,
+    0.008
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647899",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.244,
+    0.045,
+    0.711
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647900",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Créon",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.301,
+    0.049,
+    0.65
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647901",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.532,
+    0.054,
+    0.415
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647903",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.76,
+    0.04,
+    0.2
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636366",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.841,
+    0.031,
+    0.128
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636367",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.33,
+    0.051,
+    0.62
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636368",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.133,
+    0.031,
+    0.836
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636369",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.84,
+    0.031,
+    0.129
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636370",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.897,
+    0.022,
+    0.081
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636371",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.647,
+    0.049,
+    0.304
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645841",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.195,
+    0.042,
+    0.762
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645842",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.747,
+    0.044,
+    0.209
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645843",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.628,
+    0.053,
+    0.319
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645844",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.283,
+    0.051,
+    0.667
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645845",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.477,
+    0.058,
+    0.465
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645846",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.425,
+    0.057,
+    0.517
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635833",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.871,
+    0.028,
+    0.101
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635834",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.637,
+    0.053,
+    0.31
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635835",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.569,
+    0.056,
+    0.375
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635836",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.345,
+    0.055,
+    0.6
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635837",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.286,
+    0.051,
+    0.663
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635838",
+   "j": 19,
+   "date": "2027-04-10",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.944,
+    0.015,
+    0.042
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647904",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.659,
+    0.048,
+    0.293
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647905",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.155,
+    0.035,
+    0.811
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647906",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Blanquefort 2",
+   "medoc": null,
+   "p": [
+    0.78,
+    0.038,
+    0.181
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647908",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Marmande 2",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.369,
+    0.052,
+    0.579
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647909",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Libourne",
+   "medoc": "dom",
+   "p": [
+    0.761,
+    0.04,
+    0.199
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636372",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.794,
+    0.037,
+    0.169
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636373",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.483,
+    0.054,
+    0.463
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636374",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.784,
+    0.038,
+    0.178
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636375",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Bazadais",
+   "medoc": "dom",
+   "p": [
+    0.696,
+    0.046,
+    0.258
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636376",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.156,
+    0.035,
+    0.809
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636377",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.208,
+    0.041,
+    0.751
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645847",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.876,
+    0.027,
+    0.096
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645848",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.753,
+    0.043,
+    0.203
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645849",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Isle 2",
+   "medoc": null,
+   "p": [
+    0.406,
+    0.057,
+    0.537
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645850",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.478,
+    0.058,
+    0.464
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645851",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.966,
+    0.01,
+    0.024
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645852",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Gond Pontouvre",
+   "medoc": "dom",
+   "p": [
+    0.576,
+    0.056,
+    0.368
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635839",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Bruges 33",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.28,
+    0.051,
+    0.669
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635840",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.509,
+    0.058,
+    0.433
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635841",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.739,
+    0.045,
+    0.216
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635842",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Arsac",
+   "medoc": "dom",
+   "p": [
+    0.701,
+    0.048,
+    0.25
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635843",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Cadillac Cérons",
+   "medoc": null,
+   "p": [
+    0.582,
+    0.056,
+    0.362
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635844",
+   "j": 20,
+   "date": "2027-05-01",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.413,
+    0.057,
+    0.53
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647910",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Brive",
+   "ext": "Créon",
+   "medoc": null,
+   "p": [
+    0.857,
+    0.029,
+    0.115
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647911",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Montpon-Ménestérol",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.692,
+    0.046,
+    0.262
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647913",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Blanquefort 2",
+   "ext": "Marmande 2",
+   "medoc": null,
+   "p": [
+    0.602,
+    0.051,
+    0.346
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647914",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Libourne",
+   "ext": "Agen",
+   "medoc": null,
+   "p": [
+    0.548,
+    0.053,
+    0.398
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647915",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Sarlat",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.382,
+    0.053,
+    0.566
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645853",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Pana Loisirs",
+   "ext": "Pessacais 2",
+   "medoc": null,
+   "p": [
+    0.34,
+    0.055,
+    0.606
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645854",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Objat Correze 2",
+   "medoc": null,
+   "p": [
+    0.615,
+    0.054,
+    0.331
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645855",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Capo Limoges 2",
+   "ext": "Territoire Charente 3",
+   "medoc": null,
+   "p": [
+    0.501,
+    0.058,
+    0.441
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645856",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Isle 2",
+   "ext": "Grand Périgueux Erm",
+   "medoc": null,
+   "p": [
+    0.478,
+    0.058,
+    0.464
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645857",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Gond Pontouvre",
+   "ext": "Béglais",
+   "medoc": null,
+   "p": [
+    0.81,
+    0.037,
+    0.153
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645858",
+   "j": 21,
+   "date": "2027-05-08",
+   "heure": null,
+   "dom": "Palais s/ Vienne",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.192,
+    0.042,
+    0.765
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636378",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Pe2M 2",
+   "ext": "Avenir Pailleton 2",
+   "medoc": null,
+   "p": [
+    0.777,
+    0.038,
+    0.184
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636379",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.594,
+    0.052,
+    0.354
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636380",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Bazadais",
+   "ext": "Arcachon la Teste",
+   "medoc": null,
+   "p": [
+    0.922,
+    0.018,
+    0.06
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636381",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Saint Médard d'Eyrans",
+   "ext": "Pays Castillonnais",
+   "medoc": null,
+   "p": [
+    0.503,
+    0.054,
+    0.443
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636382",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Gazinet Cestas 2",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.427,
+    0.054,
+    0.519
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636383",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Lormont Hauts de Garonne",
+   "ext": "Fronsadais",
+   "medoc": null,
+   "p": [
+    0.987,
+    0.004,
+    0.009
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635845",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Eysines 2",
+   "ext": "Belin-Beliet 2",
+   "medoc": null,
+   "p": [
+    0.82,
+    0.035,
+    0.144
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635846",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.774,
+    0.041,
+    0.185
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635847",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Arsac",
+   "ext": "Langonnais 2",
+   "medoc": null,
+   "p": [
+    0.592,
+    0.055,
+    0.352
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635848",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Canejan 3",
+   "ext": "Béglais 2",
+   "medoc": null,
+   "p": [
+    0.694,
+    0.049,
+    0.257
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635849",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Talence",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.888,
+    0.025,
+    0.087
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635850",
+   "j": 21,
+   "date": "2027-05-15",
+   "heure": null,
+   "dom": "Cadillac Cérons",
+   "ext": "Andernos Nord Bassin 3",
+   "medoc": null,
+   "p": [
+    0.269,
+    0.05,
+    0.681
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647916",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Léognan",
+   "ext": "Brive",
+   "medoc": null,
+   "p": [
+    0.54,
+    0.053,
+    0.407
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647919",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Coulounieix-Chamiers",
+   "ext": "Libourne",
+   "medoc": null,
+   "p": [
+    0.048,
+    0.015,
+    0.936
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647920",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Blanquefort 2",
+   "medoc": "dom",
+   "p": [
+    0.876,
+    0.026,
+    0.098
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647921",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Agen",
+   "ext": "Sarlat",
+   "medoc": null,
+   "p": [
+    0.598,
+    0.052,
+    0.35
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636384",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Haillan",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.782,
+    0.038,
+    0.18
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636385",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Avenir Pailleton 2",
+   "ext": "Bazadais",
+   "medoc": null,
+   "p": [
+    0.213,
+    0.042,
+    0.745
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636386",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Pays Castillonnais",
+   "ext": "Cubzaguais",
+   "medoc": null,
+   "p": [
+    0.4,
+    0.053,
+    0.547
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636387",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Arcachon la Teste",
+   "ext": "Gazinet Cestas 2",
+   "medoc": null,
+   "p": [
+    0.166,
+    0.036,
+    0.798
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636388",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Fronsadais",
+   "ext": "Saint Médard d'Eyrans",
+   "medoc": null,
+   "p": [
+    0.328,
+    0.05,
+    0.622
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636389",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": "dom",
+   "p": [
+    0.326,
+    0.05,
+    0.623
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645859",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Objat Correze 2",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.865,
+    0.029,
+    0.106
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645860",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Pessacais 2",
+   "ext": "Capo Limoges 2",
+   "medoc": null,
+   "p": [
+    0.512,
+    0.057,
+    0.43
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645861",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Grand Périgueux Erm",
+   "ext": "Léognan",
+   "medoc": null,
+   "p": [
+    0.831,
+    0.034,
+    0.135
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645862",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Territoire Charente 3",
+   "ext": "Gond Pontouvre",
+   "medoc": null,
+   "p": [
+    0.552,
+    0.057,
+    0.391
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645863",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Isle 2",
+   "medoc": "dom",
+   "p": [
+    0.523,
+    0.057,
+    0.42
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645864",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Béglais",
+   "ext": "Palais s/ Vienne",
+   "medoc": null,
+   "p": [
+    0.776,
+    0.041,
+    0.183
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635851",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Cubzaguais",
+   "ext": "Eysines 2",
+   "medoc": null,
+   "p": [
+    0.473,
+    0.058,
+    0.47
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635852",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Belin-Beliet 2",
+   "ext": "Arsac",
+   "medoc": null,
+   "p": [
+    0.678,
+    0.05,
+    0.272
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635853",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Béglais 2",
+   "ext": "Bruges 33",
+   "medoc": null,
+   "p": [
+    0.533,
+    0.057,
+    0.41
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635854",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Langonnais 2",
+   "ext": "Talence",
+   "medoc": null,
+   "p": [
+    0.154,
+    0.037,
+    0.809
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635855",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Andernos Nord Bassin 3",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.805,
+    0.037,
+    0.158
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635856",
+   "j": 22,
+   "date": "2027-05-22",
+   "heure": null,
+   "dom": "Médoc Handball",
+   "ext": "Cadillac Cérons",
+   "medoc": "dom",
+   "p": [
+    0.718,
+    0.047,
+    0.235
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647918",
+   "j": 22,
+   "date": "2027-05-23",
+   "heure": "16:00",
+   "dom": "Marmande 2",
+   "ext": "Montpon-Ménestérol",
+   "medoc": null,
+   "p": [
+    0.224,
+    0.043,
+    0.733
+   ],
+   "score": null
+  }
+ ]
+}

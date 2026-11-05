@@ -1,12 +1,9 @@
-# Serveur Supabase : comptes, packs et échanges
+# Serveur Supabase : mise en route et fonctionnement
 
-Le jeu peut tourner de deux façons, selon `config.js` :
-
-- **vide** (aujourd'hui) : sauvegarde sur le téléphone, sans comptes ni échanges ;
-- **rempli** : chaque joueur a un compte (e-mail + mot de passe ou Google), sa partie est sur le serveur,
-  et on peut échanger des cartes. C'est le serveur qui applique toutes les règles : modifier son téléphone ne sert à rien.
-
-Le site reste sur GitHub Pages. Supabase fournit les comptes, la base de données et le stockage des photos (offre gratuite).
+Le jeu tourne entièrement avec un serveur Supabase : comptes, cartes, matchs, paris et marché.
+Le site reste sur GitHub Pages ; Supabase fournit les comptes, la base de données et le stockage des photos (offre gratuite).
+**C'est le serveur qui applique toutes les règles** : modifier son téléphone ne sert à rien.
+Tant que `config.js` est vide, le jeu affiche « Le jeu ouvre bientôt ».
 
 ## Mise en route (une seule fois, environ 30 minutes)
 
@@ -21,7 +18,8 @@ Le site reste sur GitHub Pages. Supabase fournit les comptes, la base de donnée
 1. Menu **SQL Editor** → **New query**.
 2. Colle **tout** le contenu de [`supabase/schema.sql`](../supabase/schema.sql), puis **Run**. Il doit afficher « Success ».
 
-Ce fichier peut être relancé sans risque après une mise à jour du jeu : il ne supprime aucune donnée.
+Ce fichier peut être relancé sans risque après chaque mise à jour du jeu : il ne supprime aucune donnée,
+et il ajoute les nouveaux réglages sans écraser ceux que tu as modifiés.
 
 ### 3. Régler la connexion
 
@@ -43,8 +41,6 @@ Dans **Authentication** :
    (du genre `https://abcdefgh.supabase.co/auth/v1/callback`).
 3. Copie le *Client ID* et le *Client secret* dans **Authentication → Providers → Google**, puis active-le.
 
-Tant que ce n'est pas fait, le bouton « Continuer avec Google » affiche « La connexion Google n'est pas encore activée ».
-
 ### 5. Brancher le jeu
 
 Dans **Project Settings → API** (ou le bouton **Connect**), copie :
@@ -63,71 +59,68 @@ Commit et push sur `main` : 1 à 2 minutes plus tard, le jeu en ligne demande de
    update profils set role = 'admin' where pseudo = 'TonPseudo';
    ```
 
-### 7. Remplir le catalogue
+### 7. Remplir le catalogue et les matchs
 
-1. Ouvre l'outil (`admin.html`, ou 5 fois le logo dans le jeu) → **Compte** → connecte-toi.
-2. Touche **Synchroniser avec le site** : les 55 cartes de `data/cartes.json`, avec tes réglages (`data/perso.json`), partent sur le serveur.
+1. **Avant** : dans l'outil, donne un poste de jeu à chaque carte (filtre « Sans poste »). Le booster de départ tire un joueur par poste ;
+   tant qu'un poste n'est pas renseigné, il prend un joueur de champ au hasard.
+2. Ouvre l'outil (`admin.html`, ou 5 fois le logo dans le jeu) → **Compte** → connecte-toi.
+3. Touche **Synchroniser avec le site** : les cartes de `data/cartes.json` (avec tes réglages de `data/perso.json`)
+   et les matchs de `data/matchs.json` partent sur le serveur.
 
 Ensuite, « Publier » enregistre directement tes modifications sur le serveur (photos comprises) : le jeu est à jour tout de suite.
 Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/personal-access-tokens>.
 
 ## Au quotidien
 
-- **Nouvelles feuilles de match** : lance `scripts/export_cartes.py`, pousse `data/cartes.json`, puis dans l'outil **Synchroniser avec le site**.
-  Une carte absente du site n'est plus tirée dans les packs, mais reste dans les clubs de ceux qui l'ont.
-- **Changer un prix, une chance, une limite** : **Table Editor** → tables `regles` et `packs`. Le jeu suit au prochain chargement.
-- **Voir ce qui s'est passé** (litige, soupçon de triche) : table `mouvements` (packs, ventes, bonus, échanges, avec la date).
+- **Nouvelles feuilles de match** (chaque semaine) : lance `scripts/export_cartes.py`, pousse `data/cartes.json` et `data/matchs.json`,
+  puis dans l'outil **Synchroniser avec le site**. Les paris des matchs joués sont réglés à ce moment-là.
+  Pour ne mettre à jour que les matchs : bouton **Matchs et paris seulement**.
+  Une carte absente du site n'est plus tirée dans les boosters, mais reste dans les clubs de ceux qui l'ont.
+- **Changer un réglage** (chances des boosters, coûts, gains, limites du jour, divisions…) : **Table Editor** → table `parametres`,
+  colonne `valeurs`. Le jeu suit au prochain chargement.
+- **Voir ce qui s'est passé** (litige, soupçon de triche) : table `mouvements` (boosters, fusions, ventes, matchs, paris, transferts, avec la date).
 - **Offre gratuite** : un projet sans aucune visite pendant 7 jours est mis en pause par Supabase (un clic pour le relancer).
-  Avec des joueurs réguliers, ça n'arrive pas.
 
-Les anciennes parties sauvegardées sur les téléphones ne sont pas reprises : tout le monde repart de zéro avec le pack de bienvenue.
-On ne peut pas faire confiance à une sauvegarde locale, qui se modifie facilement.
+## Les règles du jeu (réglages par défaut, table `parametres`)
+
+| Quoi | Règle |
+|---|---|
+| **Paliers** | Bronze 50 → 59 · Argent 60 → 74 · Or 75 → 89 · Ultime 90 → 99, même pouvoir pour tous les joueurs. Une carte arrive au bas de son palier |
+| **Forme du joueur** | Les 6 stats réglées dans l'outil donnent les écarts (ex. TIR +4, DÉF −6), gardés à chaque palier |
+| **Booster de départ** | 7 joueurs, un par poste, alignés dans Mon 7 |
+| **Booster gratuit** | 1 joueur toutes les 30 minutes, 5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime |
+| **Entraînement** | Séance payée (40 / 80 / 150 / 300 pièces selon le palier) : +50 XP à la carte. 100 / 150 / 200 / 300 XP par point |
+| **Fusion** | 3 fois le même joueur au même palier → 1 au palier suivant (200 / 600 / 2 000 pièces). Les 3 moins entraînés sont pris |
+| **Vente** | 10 / 40 / 150 / 600 pièces (pas une carte de Mon 7 ni une carte au marché) |
+| **Niveau du compte** | XP gagnée partout ; chaque niveau donne des pièces et un booster bonus, tous les 5 niveaux un booster Or ou Ultime |
+| **Quêtes** | 3 par jour, tirées parmi 11 (boosters, entraînement, matchs, défis, paris, marché…) |
+| **Matchs** | Simulés sur le serveur : notes (−5 hors poste), forme, collectif, tactique (attaque / équilibre / défense), hasard |
+| **Championnat** | 4 divisions de 10 journées, adversaires de plus en plus forts, 20 points pour monter. 10 matchs par jour |
+| **Séance d'équipe** | +40 XP aux joueurs de Mon 7, 5 par jour |
+| **Défis** | Contre le 7 d'un autre joueur (il défend avec sa dernière tactique) : trophées, classement. 5 par jour, 2 par adversaire |
+| **Paris** | 1N2 sur les vrais matchs des 14 prochains jours (SG1, SG2, SF1, SF2). Cote = 0,92 / probabilité du modèle, entre 1,05 et 12. Mise de 10 à 300, fermés au coup d'envoi |
+| **Marché** | Annonce « ma carte contre telle carte à tel palier », 5 annonces au plus, 7 jours. La carte est réservée tant que l'annonce est ouverte ; note et XP sont gardées |
 
 ## Comment c'est construit
 
 | Fichier | Rôle |
 |---|---|
 | `supabase/schema.sql` | Tables, règles d'accès et toutes les actions du serveur |
-| `config.js` | Adresse du projet et clé publique (vide = mode local) |
-| `serveur.js` | `CompteServeur` : connexion, actions, échanges, copie hors ligne. Charge `supabase-js` 2.118.0 depuis jsDelivr |
-| `compte.js` | `CompteLocal` (mode sans serveur) et les règles par défaut |
-| `app.js` | Écrans : connexion, profil, boutique, club, Mon 7, échanges |
-| `admin.js` | Outil : publie sur Supabase (ou sur GitHub en mode local) |
-| `confidentialite.html` | Données personnelles (à compléter : adresse de contact) |
+| `config.js` | Adresse du projet et clé publique (vide = jeu fermé) |
+| `serveur.js` | `Compte` : connexion, actions, copie hors ligne. Charge `supabase-js` 2.118.0 depuis jsDelivr |
+| `cartes.js` | Paliers, forme des joueurs, rendu des cartes (partagé avec l'outil) |
+| `app.js` | Écrans : accueil, club, Mon 7, jouer, marché, paris, connexion |
+| `admin.js` | Outil : cartes, photos par palier, synchronisation (Supabase, ou GitHub sans serveur) |
+| `scripts/export_cartes.py` | `data/cartes.json` et `data/matchs.json` depuis `handball-pronos` |
 
-### Tables
-
-| Table | Contenu | Lisible par |
-|---|---|---|
-| `regles`, `packs` | Prix, chances, bonus, limites des échanges | tout le monde |
-| `cartes` | Catalogue : stats, note, rareté, photo, stats du site, réglages de l'outil | tout le monde |
-| `profils` | Pseudo, pièces, Mon 7, rôle (`joueur` ou `admin`) | le joueur lui-même |
-| `possessions` | Cartes de chaque joueur et nombre d'exemplaires | le joueur lui-même |
-| `echanges` | Propositions et leur statut | les deux joueurs concernés |
-| `mouvements` | Journal de tout ce qui bouge | personne depuis le jeu |
-
-**Aucune table n'est modifiable depuis le jeu.** Toutes les écritures passent par ces fonctions, qui vérifient tout et
-font chaque action d'un seul bloc :
-
-| Fonction | Rôle |
-|---|---|
-| `mon_etat`, `creer_profil`, `supprimer_mon_compte` | Compte (le profil demande l'accord « 15 ans ou parents d'accord ») |
-| `ouvrir_pack` | Tirage sur le serveur, même règle que `tirerPack` de `compte.js` |
-| `recuperer_bonus` | Une fois par jour, à l'heure de Paris |
-| `vendre`, `vendre_doublons` | On garde toujours un exemplaire |
-| `aligner`, `aligner_equipe` | Mon 7 : cartes possédées, gardien·ne au poste GB seulement |
-| `chercher_joueurs`, `club_de` | Trouver un joueur et voir ses cartes pour lui proposer un échange |
-| `proposer_echange` | 1 à 5 cartes de chaque côté, 10 propositions par jour, jamais le dernier exemplaire d'une carte du Mon 7 |
-| `repondre_echange` | Tout est revérifié au moment d'accepter (cartes vendues entre-temps…), puis échange d'un coup. Expire après 7 jours |
-| `annuler_echange`, `mes_echanges` | Annuler sa proposition, voir ses 50 derniers échanges |
-| `admin_publier_cartes` | Catalogue, réservé au rôle `admin` |
-
-Les photos sont dans le stockage `photos` : lisibles par tous, déposées et supprimées par l'admin seulement.
+**Aucune table n'est modifiable depuis le jeu.** Le jeu lit ce qui le concerne (ses cartes, ses quêtes, ses paris…) et passe
+par des fonctions du serveur pour tout le reste : `ouvrir_depart`, `ouvrir_booster`, `fusionner`, `entrainer`, `vendre`, `aligner`,
+`reclamer_quete`, `match_championnat`, `seance_equipe`, `defier`, `parier`, `publier_annonce`, `accepter_annonce`…
+Chacune vérifie tout et fait l'action d'un seul bloc. Les fonctions internes (tirage, XP, moteur de match) ne sont pas appelables.
 
 ### Ce qui a été vérifié
 
-Le schéma a été testé sur une base Postgres locale qui imite Supabase (78 vérifications), puis le jeu complet dans un navigateur
-contre ce faux serveur (41 vérifications) : inscription, profil, packs et garanties, bonus, ventes, Mon 7, échange entre deux joueurs,
-déconnexion, mot de passe oublié, hors ligne, suppression de compte, outil admin avec photo. Côté triche : écriture directe dans les tables,
-appel des fonctions internes, cartes qu'on n'a pas, double acceptation, échange avec soi-même, limite du jour, rôle admin.
-**Pas encore testé sur un vrai projet Supabase** : à vérifier lors de la mise en route (étapes 2 à 7).
+Le schéma a été testé sur une base Postgres locale qui imite Supabase (164 vérifications : règles, limites, tentatives de triche,
+équilibre du moteur de match sur 2 000 matchs par écart de niveau, chances des boosters sur 3 000 tirages, paris réglés, transferts),
+puis le jeu dans un navigateur de téléphone contre ce faux serveur (76 vérifications sur les trois parties).
+**Pas encore testé sur un vrai projet Supabase** : à vérifier lors de la mise en route.

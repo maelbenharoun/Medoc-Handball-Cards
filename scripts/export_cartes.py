@@ -7,7 +7,8 @@ même formule que la carte FUT du site (fonction FUT de template2.html.txt).
 Usage :
     python scripts/export_cartes.py ../handball-pronos/medoc/pipeline/teams
 
-Sortie : data/cartes.json (noms + notes uniquement, aucun numéro de licence).
+Sortie : data/cartes.json (noms + notes uniquement, aucun numéro de licence)
+         data/matchs.json (calendrier et résultats des poules SG1, SG2, SF1, SF2, pour les paris du jeu).
 """
 import json
 import sys
@@ -73,12 +74,33 @@ def slug(s):
     return "-".join("".join(c if c.isalnum() else " " for c in s).split())
 
 
+def matchs_de(key, d):
+    """Matchs à venir (avec les probabilités du modèle) et joués (avec le score) de la poule d'une équipe."""
+    noms = {tid: (t.get("short") or t.get("nom") or tid) for tid, t in d["teams"].items()}
+    club = str(d["club"])
+    base = {"equipe": key.upper(), "competition": f'{d.get("competition", "")} · {d.get("poule", "")}'.strip(" ·")}
+
+    def ligne(m, **extra):
+        dom, ext = str(m["home"]), str(m["away"])
+        return {**base, "rid": str(m["rid"]), "j": m.get("j"), "date": m["date"], "heure": m.get("heure"),
+                "dom": noms.get(dom, dom), "ext": noms.get(ext, ext),
+                "medoc": "dom" if dom == club else "ext" if ext == club else None, **extra}
+
+    a_venir = [ligne(m, p=m.get("p"), score=None) for m in d.get("calendar", []) if m.get("date")]
+    joues = [ligne(m, p=None, score=[m["hs"], m["as"]], forfait=m.get("forfait"))
+             for m in d.get("results", []) if m.get("date") and m.get("hs") is not None]
+    return joues + a_venir
+
+
 def main(src):
     src = Path(src)
+    matchs = {}
     par_nom = {}
     for key in EQUIPES:
         d = json.loads((src / key / "site_data.json").read_text(encoding="utf-8"))
         team = d["team"]
+        for m in matchs_de(key, d):
+            matchs[m["rid"]] = m
         for p in d["teams"][str(d["club"])].get("players", []):
             if not (p.get("mj") or 0):
                 continue  # inscrit mais pas encore joué cette saison
@@ -121,6 +143,10 @@ def main(src):
                   ", ".join(f"{avant[i]} ({i})" for i in partis))
     out.write_text(json.dumps({"saison": "2026-2027", "maj": date.today().isoformat(), "cartes": cartes},
                               ensure_ascii=False, indent=1), encoding="utf-8")
+    sortie = out.parent / "matchs.json"
+    liste = sorted(matchs.values(), key=lambda m: (m["date"], m.get("heure") or "", m["equipe"]))
+    sortie.write_text(json.dumps({"maj": date.today().isoformat(), "matchs": liste}, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"{len(liste)} matchs → {sortie}")
     compte = {}
     for c in cartes:
         compte[c["rarete"]] = compte.get(c["rarete"], 0) + 1

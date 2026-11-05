@@ -202,6 +202,16 @@ const CompteServeur = (() => {
     adversaires: () => rpc('adversaires'),
     classement: () => rpc('classement'),
     rencontres: () => rpc('mes_rencontres'),
+
+    // ── paris sur les vrais matchs ── (→ {aVenir, resultats, mesParis, min, max})
+    matchsParis: () => rpc('matchs_paris'),
+    parier: (rid, choix, mise) => rpc('parier', {p_rid: rid, p_choix: choix, p_mise: mise}),   // → {cote, gainPossible}
+
+    // ── marché des transferts ── (filtre : 'tout' | 'pour_moi' | 'mes')
+    marche: filtre => rpc('marche', {p_filtre: filtre}),
+    publierAnnonce: (ex, carte, palier) => rpc('publier_annonce', {p_ex: ex, p_carte: carte, p_palier: palier}),
+    retirerAnnonce: id => rpc('retirer_annonce', {p_id: id}),
+    accepterAnnonce: id => rpc('accepter_annonce', {p_id: id}),                   // → {recu, donne}
   };
 })();
 

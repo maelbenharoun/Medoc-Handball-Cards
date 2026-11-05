@@ -1,6 +1,6 @@
 'use strict';
 /* Médoc Hand Cards — jeu de cartes à collectionner avec les joueurs et joueuses du Médoc Handball.
-   Ce fichier : l'affichage (vues #accueil, #club, #equipe, #jouer, connexion, ouverture des boosters, matchs).
+   Ce fichier : l'affichage (vues #accueil, #club, #equipe, #jouer, #marche, #paris, connexion, boosters, matchs).
    Les cartes (paliers, stats, rendu) sont dans cartes.js, partagé avec l'outil admin.html ;
    le compte du joueur dans serveur.js : toutes les règles sont appliquées par le serveur (supabase/schema.sql). */
 
@@ -64,7 +64,7 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, compte: vueCompte};
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, marche: vueMarche, paris: vueParis, compte: vueCompte};
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
   const v = location.hash.slice(1);
@@ -358,6 +358,117 @@ function finMatch() {
     <button class="btn gold large" data-act="fin-match">Continuer</button>`;
 }
 
+// ── marché des transferts : une carte contre une carte ──────────────────────────
+const MKT = {filtre: 'tout', liste: null, charge: false, compo: null};
+const carteDe = (carte, palier, note) => PAR_ID[carte] ? vueExemplaire(PAR_ID[carte], {palier, note: note ?? PALIER[palier].min}) : null;
+function chargerMarche() {
+  if (MKT.charge || MKT.liste || Compte.horsLigne) return;
+  MKT.charge = true;
+  Compte.marche(MKT.filtre).then(l => { MKT.liste = l; }).catch(e => { MKT.liste = []; toast(e.message); })
+    .finally(() => { MKT.charge = false; if (vueCourante() === 'marche' && $('#overlay').hidden) route(true); });
+}
+function vueMarche() {
+  chargerMarche();
+  const L = MKT.liste;
+  const annonces = (L || []).map(a => {
+    const o = carteDe(a.offre.carte, a.offre.palier, a.offre.note), c = carteDe(a.cherche.carte, a.cherche.palier);
+    if (!o || !c) return '';
+    const fin = {conclue: a.moi ? `Échangée avec ${esc(a.acheteur || '?')}` : `Échangée avec ${esc(a.vendeur)}`, retiree: 'Retirée'}[a.statut];
+    const expire = new Date(a.expire_le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
+    return `<div class="ann${fin ? ' fini' : ''}"><div class="ann-l">
+        <div class="ann-c"><span>${a.moi ? 'Tu donnes' : 'Tu reçois'}</span>${carteHTML(o)}<small>${esc(o.nom)} · ${R_LABEL[o.rarete]} ${o.ovr}</small></div>
+        <div class="fleche">⇄</div>
+        <div class="ann-c"><span>${a.moi ? 'Tu reçois' : 'Tu donnes'}</span>${carteHTML(c)}<small>${esc(c.nom)} · ${R_LABEL[c.rarete]}</small></div></div>
+      <p class="ann-p">${a.moi ? 'Ton annonce' : `Proposée par <b>${esc(a.vendeur)}</b>`} · ${fin || 'jusqu’au ' + expire}</p>
+      ${a.statut !== 'ouverte' ? '' : a.moi ? `<button class="btn ghost petit" data-retirer-annonce="${a.id}">Retirer</button>`
+        : a.possible ? `<button class="btn gold petit" data-accepter="${a.id}">Accepter l’échange</button>` : '<p class="sub petit">Il te faut cette carte, au même palier, hors de ton 7.</p>'}</div>`;
+  }).join('');
+  return `<h1>Marché des transferts</h1>
+    <p class="sub">Échange une carte contre une carte avec les autres joueurs. Ta carte est réservée tant que l’annonce est ouverte (${PARAMS.annonce_jours || 7} jours au plus).</p>
+    <button class="btn gold large" data-act="annoncer">Proposer une de mes cartes</button>
+    <div class="filters" style="margin-top:14px">${[['tout', 'Toutes'], ['pour_moi', 'Pour moi'], ['mes', 'Mes annonces']]
+      .map(([k, l]) => `<button data-mfiltre="${k}" class="${MKT.filtre === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    ${L ? (annonces || `<p class="sub">${MKT.filtre === 'mes' ? 'Tu n’as pas d’annonce.' : MKT.filtre === 'pour_moi' ? 'Aucune annonce ne demande une carte que tu peux donner.' : 'Aucune annonce pour l’instant : lance la première !'}</p>`)
+      : '<p class="sub">Chargement…</p>'}`;
+}
+// Proposer : 1) une de mes cartes libres, 2) le joueur et le palier voulus
+function composerAnnonce() {
+  MKT.compo = MKT.compo || {ex: null, carte: null, palier: 'bronze', recherche: ''};
+  const k = MKT.compo;
+  const libres = EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]).sort(rangEx);
+  const o = k.ex && exParId(k.ex), c = k.carte && carteDe(k.carte, k.palier);
+  ouvrirOverlay(`<div class="sheet compo">
+    <h3>Nouvelle annonce</h3>
+    <h4>1. Ta carte à proposer</h4>
+    <div class="pickgrid">${libres.map(e => `<button class="pc${k.ex === e.id ? ' choisi' : ''}" data-offre="${e.id}">${carteHTML(vue(e))}</button>`).join('')
+      || '<p class="sub">Pas de carte libre : les cartes de ton 7 ne peuvent pas être proposées.</p>'}</div>
+    <h4>2. Ce que tu veux en échange</h4>
+    <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(k.recherche)}" data-cherche-carte autocomplete="off" spellcheck="false">
+    <div class="veut" id="liste-veut">${listeVeut()}</div>
+    <div class="filters">${PALIERS.map(p => `<button data-palier-veut="${p.id}" class="${k.palier === p.id ? 'on' : ''}">${p.nom}</button>`).join('')}</div>
+    <div class="resume">${o ? `Tu donnes <b>${esc(PAR_ID[o.carte].nom)} ${R_LABEL[o.palier]} ${o.note}</b>` : 'Choisis ta carte'}
+      · ${c ? `tu veux <b>${esc(c.nom)} ${R_LABEL[k.palier]}</b>` : 'choisis le joueur voulu'}</div>
+    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
+      <button class="btn gold" data-act="publier-annonce"${o && c ? '' : ' disabled'}>Publier</button></div></div>`);
+}
+function listeVeut() {
+  const k = MKT.compo, q = k.recherche.trim().toLowerCase();
+  const l = CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 12 : 8);
+  return l.map(c => `<button class="${k.carte === c.id ? 'on' : ''}" data-veut="${c.id}">${esc(c.nom)} <small>${c.equipe}</small></button>`).join('')
+    || '<p class="sub petit">Aucun joueur trouvé.</p>';
+}
+
+// ── paris sur les vrais matchs ──────────────────────────────────────────────────
+const PARIS = {data: null, charge: false, filtre: 'medoc'};
+const fr = n => Number(n).toFixed(2).replace('.', ',');   // cote : toujours 2 décimales
+function chargerParis() {
+  if (PARIS.charge || PARIS.data || Compte.horsLigne) return;
+  PARIS.charge = true;
+  Compte.matchsParis().then(d => { PARIS.data = d; }).catch(e => { PARIS.data = {aVenir: [], resultats: [], mesParis: []}; toast(e.message); })
+    .finally(() => { PARIS.charge = false; if (vueCourante() === 'paris' && $('#overlay').hidden) route(true); });
+}
+const issueNom = (m, choix) => choix === '1' ? m.dom : choix === '2' ? m.ext : 'Match nul';
+function vueParis() {
+  chargerParis();
+  const d = PARIS.data, f = PARIS.filtre;
+  const garde = m => f === 'tous' || (f === 'medoc' ? !!m.medoc : m.equipe === f);
+  let jour = '';
+  const avenir = (d?.aVenir || []).filter(garde).map(m => {
+    const j = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'});
+    const titre = j !== jour ? `<h3 class="jour">${j}</h3>` : ''; jour = j;
+    return titre + `<div class="pm"><small>${m.equipe} · J${m.journee ?? '?'}${m.heure ? ' · ' + m.heure : ''}</small>
+      <div class="pm-eq"><b class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</b><span>–</span><b class="${m.medoc === 'ext' ? 'med' : ''}">${esc(m.ext)}</b></div>
+      ${m.pari ? `<p class="pm-p">Ton pari : ${nb(m.pari.mise)} sur <b>${esc(issueNom(m, m.pari.choix))}</b> · cote ${fr(m.pari.cote)} · gain possible ${nb(Math.floor(m.pari.mise * m.pari.cote))}</p>`
+        : `<div class="pm-c">${['1', 'N', '2'].map(k => `<button data-pari="${m.rid}:${k}"><small>${k === 'N' ? 'Nul' : esc(k === '1' ? m.dom : m.ext)}</small><b>${fr(m.cotes[k])}</b></button>`).join('')}</div>`}</div>`;
+  }).join('');
+  const mes = (d?.mesParis || []).map(m => {
+    const x = m.pari, st = {en_cours: 'En cours', gagne: `Gagné : +${nb(x.gain)}`, perdu: 'Perdu'}[x.statut];
+    return `<div class="hist r-${x.statut === 'gagne' ? 'gagne' : x.statut === 'perdu' ? 'perdu' : 'nul'}"><b>${m.score ? m.score.join(' – ') : nb(x.mise)}</b>
+      <span>${esc(m.dom)} – ${esc(m.ext)} · ${esc(issueNom(m, x.choix))} à ${fr(x.cote)}</span><small>${st}</small></div>`;
+  }).join('');
+  return `<h1>Paris</h1>
+    <p class="sub">Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2. Les cotes viennent du modèle de pronostic de medochandballstats.com.
+      Pièces du jeu seulement : rien à acheter, rien à gagner en vrai.</p>
+    <div class="filters">${[['medoc', 'Médoc'], ['tous', 'Tous'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
+      .map(([k, l]) => `<button data-pfiltre="${k}" class="${f === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
+    ${!d ? '<p class="sub">Chargement…</p>' : avenir || '<p class="sub">Pas de match dans les deux prochaines semaines.</p>'}
+    ${mes ? `<h2>Mes paris</h2><div class="hists">${mes}</div>` : ''}`;
+}
+function fenetrePari(rid, choix) {
+  const m = PARIS.data.aVenir.find(x => x.rid === rid), c = m.cotes[choix];
+  const min = PARIS.data.min || 10, max = Math.min(PARIS.data.max || 300, S().pieces);
+  if (max < min) return toast('Pas assez de pièces pour parier');
+  const mise = Math.min(max, Math.max(min, 50));
+  ouvrirOverlay(`<div class="sheet"><h3>${esc(m.dom)} – ${esc(m.ext)}</h3>
+    <p class="sub">${m.equipe} · ${new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'})}${m.heure ? ' · ' + m.heure : ''}</p>
+    <p>Ton choix : <b>${esc(issueNom(m, choix))}</b> · cote <b>${fr(c)}</b></p>
+    <label class="stat-l mise"><span>Mise</span><input type="range" min="${min}" max="${max}" step="10" value="${mise}" data-mise>
+      <input class="champ" type="number" min="${min}" max="${max}" step="10" value="${mise}" data-mise inputmode="numeric"></label>
+    <p class="sub">Gain possible : <b id="gain-pari">${nb(Math.floor(mise * c))}</b> pièces (mise comprise). Les paris ferment au coup d’envoi.</p>
+    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
+      <button class="btn gold" data-valider-pari="${rid}:${choix}">Parier</button></div></div>`);
+}
+
 // ── connexion et profil ─────────────────────────────────────────────────────────
 let messageCompte = '';
 function vueCompte() {
@@ -457,7 +568,7 @@ function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) fermerOverlay(); return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -467,10 +578,31 @@ document.addEventListener('click', e => {
   if (a === 'dechirer') return dechirer();
   if (a === 'moi') return fenetreCompte();
   if (d.tactique) { JEU.tactique = d.tactique; return route(true); }
+  if (d.mfiltre) { MKT.filtre = d.mfiltre; MKT.liste = null; return route(true); }
+  if (a === 'annoncer') { MKT.compo = null; return composerAnnonce(); }
+  if (d.offre) { MKT.compo.ex = d.offre; return composerAnnonce(); }
+  if (d.veut) { MKT.compo.carte = d.veut; return composerAnnonce(); }
+  if (d.palierVeut) { MKT.compo.palier = d.palierVeut; return composerAnnonce(); }
+  if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
+  if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (a === 'passer') return finMatch();
   if (a === 'fin-match') { JEU.rencontres = null; JEU.adversaires = null; return fermerOverlay(); }
   if (a === 'classement') return fenetreClassement();
   if (occupe) return;
+  if (a === 'publier-annonce') {
+    const k = MKT.compo;
+    return action(Compte.publierAnnonce(k.ex, k.carte, k.palier), () => { toast('Annonce publiée'); MKT.compo = null; MKT.filtre = 'mes'; MKT.liste = null; fermerOverlay(); });
+  }
+  if (d.retirerAnnonce) return action(Compte.retirerAnnonce(d.retirerAnnonce), () => { toast('Annonce retirée : ta carte est revenue au club'); MKT.liste = null; route(true); });
+  if (d.accepter) {
+    const an = MKT.liste.find(x => x.id === d.accepter), o = PAR_ID[an.offre.carte], c = PAR_ID[an.cherche.carte];
+    if (!confirm(`Tu donnes ${c.nom} ${R_LABEL[an.cherche.palier]} (ton moins entraîné, hors Mon 7) et tu reçois ${o.nom} ${R_LABEL[an.offre.palier]} ${an.offre.note}. D’accord ?`)) return;
+    return action(Compte.accepterAnnonce(d.accepter), () => { toast(`${o.nom} rejoint ton club !`); vibrer([40, 60, 80]); MKT.liste = null; route(true); });
+  }
+  if (d.validerPari) {
+    const [rid, choix] = d.validerPari.split(':'), mise = +$('input.champ[data-mise]').value;
+    return action(Compte.parier(rid, choix, mise), r => { toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
+  }
   const tactique = JEU.tactique || S().tactique || 'equilibre';
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
@@ -528,6 +660,16 @@ document.addEventListener('submit', e => {
   });
   if (quoi === 'mdp') return action(Compte.nouveauMotDePasse(d.mdp), () => { toast('Mot de passe changé'); route(); });
   if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
+});
+// annonce : recherche du joueur voulu ; pari : mise et gain possible
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.chercheCarte !== undefined) { MKT.compo.recherche = t.value; $('#liste-veut').innerHTML = listeVeut(); return; }
+  if (t.dataset.mise !== undefined) {
+    document.querySelectorAll('[data-mise]').forEach(el => { if (el !== t) el.value = t.value; });
+    const [rid, choix] = $('[data-valider-pari]').dataset.validerPari.split(':');
+    $('#gain-pari').textContent = nb(Math.floor(+t.value * PARIS.data.aVenir.find(x => x.rid === rid).cotes[choix]));
+  }
 });
 // recherche d'un joueur à défier (après une petite pause dans la frappe)
 document.addEventListener('input', e => {

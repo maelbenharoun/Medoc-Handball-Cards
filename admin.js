@@ -163,12 +163,21 @@ function publierServeur() {
   if (!IDS_SERVEUR.length) return synchroniser();   // catalogue vide : on envoie tout
   return envoyer(Object.keys(BROUILLON).filter(id => PAR_ID[id]), false);
 }
+// Vrais matchs des poules (data/matchs.json) : mis à jour sur le serveur, et les paris dont le résultat est connu sont réglés
+async function envoyerMatchs(silencieux) {
+  try {
+    const d = await fetch('data/matchs.json', {cache: 'no-store'}).then(r => { if (!r.ok) throw new Error('data/matchs.json introuvable'); return r.json(); });
+    const {data, error} = await sbA.rpc('admin_publier_matchs', {p_matchs: d.matchs});
+    if (error) throw error;
+    toast(`${data.matchs} matchs à jour, ${data.parisRegles} pari${data.parisRegles > 1 ? 's' : ''} réglé${data.parisRegles > 1 ? 's' : ''}`);
+  } catch (e) { console.error(e); if (!silencieux) alert('Envoi des matchs impossible : ' + texteErreur(e)); }
+}
 function synchroniser() {
   if (!adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur.');
   const partis = IDS_SERVEUR.filter(id => !PAR_ID[id]);
   const msg = `Envoyer au serveur les ${SITE.length} cartes de data/cartes.json, avec tes réglages${Object.keys(BROUILLON).length ? ' et ton brouillon' : ''} ?`
     + (partis.length ? `\n\n${partis.length} carte(s) absente(s) du site ne seront plus tirées dans les packs (elles restent dans les clubs) : ${partis.join(', ')}` : '');
-  if (confirm(msg)) envoyer(SITE.map(c => c.id), true);
+  if (confirm(msg)) envoyer(SITE.map(c => c.id), true).then(() => envoyerMatchs(true));
 }
 function connexionAdmin(msg) {
   const o = $('#overlay'); o.hidden = false;
@@ -190,7 +199,7 @@ function vue() {
   const sansPoste = cartes().filter(c => !c.poste).length;
   $('#view').innerHTML = `<h1>Gestion des cartes</h1>
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
-    ${SERVEUR && adminOk ? '<p><button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button></p>' : ''}
+    ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs et paris seulement</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
     <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['sans', `Sans poste (${sansPoste})`]]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
@@ -392,6 +401,7 @@ document.addEventListener('click', e => {
   if (a === 'sansphoto') return retirerPhoto();
   if (a === 'publier') return SERVEUR ? publierServeur() : publier();
   if (a === 'synchro') return synchroniser();
+  if (a === 'matchs') return adminOk ? envoyerMatchs() : connexionAdmin('Connecte-toi avec le compte administrateur.');
   if (a === 'a-google') return sbA.auth.signInWithOAuth({provider: 'google', options: {redirectTo: urlRetour()}}).then(({error}) => error && alert(texteErreur(error)));
   if (a === 'a-deco') return sbA.auth.signOut().finally(() => { fermer(); charger(); });
   if (a === 'jeter') { if (confirm('Annuler toutes les modifications non publiées ?')) { BROUILLON = {}; sauverBrouillon(); vue(); } return; }
