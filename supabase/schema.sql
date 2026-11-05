@@ -47,7 +47,8 @@ insert into parametres values (1, '{
   "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
   "pvp_defense_trophees": {"gagne": 5, "nul": 0, "perdu": -5},
   "pari_min": 10, "pari_max": 300, "pari_marge": 0.92, "cote_min": 1.05, "cote_max": 12, "paris_jours": 14, "xp_pari": 10,
-  "annonces_max": 5, "annonce_jours": 7
+  "annonces_max": 5, "annonce_jours": 7,
+  "booster_poste_prix": 300, "seance_payante_prix": 150
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -538,6 +539,22 @@ begin
   return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
 end $$;
 
+-- Booster d'un poste, acheté en pièces : un joueur de ce poste (mêmes chances que le booster gratuit).
+-- Seuls les joueurs dont le poste est renseigné dans l'outil sont tirés.
+create or replace function ouvrir_booster_poste(p_poste text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); prix int := parami('booster_poste_prix'); c text; ex uuid;
+begin
+  if p_poste not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB') then raise exception 'Poste inconnu'; end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
+  select id into c from cartes where actif and poste = p_poste order by random() limit 1;
+  if c is null then raise exception 'Aucun joueur n’a encore ce poste'; end if;
+  ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:' || p_poste);
+  update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster');
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'poste', 'poste', p_poste, 'prix', prix, 'exemplaire', ex, 'carte', c));
+  return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
+end $$;
+
 -- Fusion : 3 exemplaires du même joueur au même palier (les moins entraînés) → 1 au palier suivant
 create or replace function fusionner(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); suivant text := palier_suivant(p_palier); n int := parami('fusion_nombre'); cout int;
@@ -805,6 +822,20 @@ begin
   perform progresser(p.user_id, 'seance');
   insert into rencontres (user_id, type, adversaire, detail) values (p.user_id, 'seance', 'Entraînement', jsonb_build_object('progres', progres));
   return jsonb_build_object('xpCarte', parami('seance_xp_carte'), 'progres', progres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Séance d'équipe payante : même gain que la séance gratuite, en pièces, sans limite par jour
+create or replace function seance_payante() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); prix int := parami('seance_payante_prix'); progres jsonb; niveaux jsonb;
+begin
+  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton Mon 7'; end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour cette séance', prix; end if;
+  update profils set pieces = pieces - prix where user_id = p.user_id;
+  progres := xp_equipe(p.equipe, parami('seance_xp_carte'));
+  niveaux := gagner_xp(p.user_id, parami('seance_xp'));
+  perform progresser(p.user_id, 'seance');
+  perform noter(p.user_id, 'seance-payante', jsonb_build_object('prix', prix, 'progres', progres));
+  return jsonb_build_object('xpCarte', parami('seance_xp_carte'), 'prix', prix, 'progres', progres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
 -- Défi contre le Mon 7 d'un autre joueur (il n'a pas besoin d'être connecté : il défend avec sa dernière tactique)
@@ -1120,9 +1151,9 @@ create policy "photos admin suppression" on storage.objects for delete to authen
 revoke execute on all functions in schema public from public, anon, authenticated;
 grant execute on function
   mon_etat(), creer_profil(text, boolean), supprimer_mon_compte(),
-  ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
+  ouvrir_depart(), ouvrir_booster(text), ouvrir_booster_poste(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
-  match_championnat(text), seance_equipe(), defier(text, text), adversaires(), classement(), mes_rencontres(),
+  match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
   matchs_paris(), parier(text, text, int),
   marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid), admin_publier_matchs(jsonb),
   admin_publier_cartes(jsonb, boolean), est_admin()

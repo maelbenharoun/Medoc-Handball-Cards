@@ -111,7 +111,7 @@ function minuteur() {
   }, 1000);
 }
 function vueAccueil() {
-  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {};
+  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixPoste = PARAMS.booster_poste_prix || 300;
   const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
   const quetes = (e.quetes || []).map(q => {
     const fini = q.progres >= q.objectif;
@@ -138,6 +138,13 @@ function vueAccueil() {
         <span class="b-txt"><b>Booster Or</b><small>Une carte Or ou Ultime</small></span></button>` : ''}
     </div>
     <p class="sub petit">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}. Un booster gratuit toutes les ${PARAMS.booster_minutes || 30} minutes, ${e.boosterMax} au plus en stock.</p>
+    <h2>Boosters par poste</h2>
+    <p class="sub petit">Un joueur du poste de ton choix pour ${nb(prixPoste)} pièces, avec les mêmes chances.</p>
+    <div class="postes-b">${POSTES_JEU.map(p => {
+      const n = CARTES.filter(c => c.actif !== false && c.poste === p).length;
+      return `<button class="bposte" data-bposte="${p}"${n && e.pieces >= prixPoste ? '' : ' disabled'} title="${POSTE_NOM[p]}"><b>${p}</b>
+        <small>${n ? `${n} joueur${n > 1 ? 's' : ''}` : 'aucun'}</small></button>`;
+    }).join('')}</div>
     <h2>Quêtes du jour</h2>
     <div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
     <h2>Ta collection</h2>
@@ -293,8 +300,9 @@ function vueJouer() {
       <button class="btn gold large" data-act="championnat"${complet && restant('championnat') ? '' : ' disabled'}>Jouer la journée ${sa.journee + 1}</button>
       <p class="sub petit centre">${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} restant${restant('championnat') > 1 ? 's' : ''} aujourd’hui</p></div>
     <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
-      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque.</p>
-      <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Lancer une séance</button></div>
+      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
+      <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
+      <button class="btn gold large" data-act="seance-payante"${e.equipe && Object.keys(e.equipe).length && e.pieces >= (PARAMS.seance_payante_prix || 150) ? '' : ' disabled'}>Séance payante · ${nb(PARAMS.seance_payante_prix || 150)} pièces</button></div>
     <div class="mode"><div class="mode-t"><b>Défis</b><span>${e.trophees || 0} 🏆</span></div>
       <p class="sub petit">Affronte le 7 d’un autre joueur (il défend avec sa dernière tactique). ${restant('defi')}/${l.defi || 5} défis restants aujourd’hui.</p>
       <input class="champ" type="search" placeholder="Chercher un joueur à défier" value="${esc(JEU.recherche)}" data-cherche-defi autocapitalize="off" autocomplete="off" spellcheck="false">
@@ -568,7 +576,7 @@ function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) fermerOverlay(); return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -606,7 +614,7 @@ document.addEventListener('click', e => {
   const tactique = JEU.tactique || S().tactique || 'equilibre';
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
-  if (a === 'seance') return action(Compte.seance(), r => {
+  if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
     const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
     ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton 7.</p>
       ${progres ? `<p class="sub">Ils progressent :<br>${progres}</p>` : '<p class="sub">Encore un peu de travail avant le prochain point.</p>'}
@@ -615,6 +623,7 @@ document.addEventListener('click', e => {
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : 'pk-argent');
+  if (d.bposte) return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), d.bposte, 'pk-or');
   if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); });
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);

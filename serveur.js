@@ -187,6 +187,7 @@ const CompteServeur = (() => {
     rafraichir: () => rpc('mon_etat').then(majEtat),
     ouvrirDepart: () => rpc('ouvrir_depart'),                                  // → {ids}
     ouvrirBooster: type => rpc('ouvrir_booster', {p_type: type}),               // 'gratuit' | 'bonus' | 'or' → {ids}
+    ouvrirBoosterPoste: poste => rpc('ouvrir_booster_poste', {p_poste: poste}),  // acheté en pièces → {ids}
     fusionner: (carte, palier) => rpc('fusionner', {p_carte: carte, p_palier: palier}),   // → {id, niveaux}
     entrainer: ex => rpc('entrainer', {p_ex: ex}),                              // → {avant, apres, niveaux}
     vendre: ex => rpc('vendre', {p_ex: ex}),                                    // → {gain}
@@ -198,6 +199,7 @@ const CompteServeur = (() => {
     // ── matchs ── (→ {match: {a, b, buts, resultat}, adversaire, gains, progres, finSaison, niveaux})
     matchChampionnat: tactique => rpc('match_championnat', {p_tactique: tactique}),
     seance: () => rpc('seance_equipe'),                                         // → {xpCarte, progres, niveaux}
+    seancePayante: () => rpc('seance_payante'),                                 // en pièces, sans limite par jour
     defier: (pseudo, tactique) => rpc('defier', {p_pseudo: pseudo, p_tactique: tactique}),
     adversaires: () => rpc('adversaires'),
     classement: () => rpc('classement'),
