@@ -1,15 +1,14 @@
 'use strict';
-/* Médoc Hand Cards — le compte du joueur : règles de l'économie, tirage des packs, sauvegarde.
+/* Médoc Hand Cards — le compte du joueur : règles de l'économie, tirage des packs, sauvegarde locale.
 
-   Aujourd'hui, la sauvegarde est locale (localStorage, clé mhc-v1). Avec le serveur Supabase
-   (voir docs/SERVEUR.md), SEUL CE FICHIER changera : chaque action renvoie une promesse avec son résultat,
-   comme le fera l'appel au serveur, et c'est le serveur qui appliquera les règles (prix, tirage, ventes)
-   pour qu'on ne puisse pas tricher en modifiant le téléphone.
-   Le reste du jeu ne fait que lire Compte.etat et appeler les actions ci-dessous ; il ne modifie jamais l'état. */
+   Deux comptes ont la même interface :
+   - CompteLocal (ce fichier) : sauvegarde sur le téléphone (localStorage, clé mhc-v1), sans comptes ni échanges ;
+   - CompteServeur (serveur.js) : serveur Supabase, qui applique lui-même les règles (supabase/schema.sql).
+   serveur.js choisit lequel devient « Compte » selon config.js.
+   Le reste du jeu ne fait que lire Compte.etat et appeler ses actions ; il ne modifie jamais l'état. */
 
-// ── règles du jeu (à reprendre telles quelles côté serveur) ─────────────────────
-const DEPART = 3000;        // pièces au premier lancement
-const BONUS_JOUR = 1500;
+// ── règles du jeu (en mode serveur, remplacées par les tables regles et packs) ─
+const REGLES = {depart: 3000, bonusJour: 1500, packBienvenue: 'or', echangeMaxCartes: 5};
 const VENTE = {bronze: 50, argent: 150, or: 400, elite: 1200};   // pièces pour un doublon
 // poids = chances relatives de chaque rareté pour une carte ; garanti = rareté minimale de la 1re carte
 const PACKS = [
@@ -18,9 +17,8 @@ const PACKS = [
   {id: 'or', nom: 'Or', prix: 3500, n: 5, poids: {bronze: 8, argent: 42, or: 42, elite: 8}, garanti: 'or', desc: '5 cartes, 1 or ou mieux garantie'},
   {id: 'elite', nom: 'Élite', prix: 9000, n: 3, poids: {bronze: 0, argent: 0, or: 70, elite: 30}, garanti: 'elite', desc: '3 cartes or, 1 élite garantie'},
 ];
-const PACK_BIENVENUE = 'or';   // premier pack offert
 
-// Tirage d'un pack : fonction pure (pas d'état, pas d'affichage) pour être portée telle quelle sur le serveur.
+// Tirage d'un pack : fonction pure (pas d'état, pas d'affichage). La fonction ouvrir_pack du serveur fait le même.
 // catalogue : [{id, rarete, ovr}] ; alea : nombre au hasard dans [0, 1[ ; renvoie les ids, meilleure carte d'abord.
 function tirerPack(pack, catalogue, alea = Math.random) {
   const rang = r => RARETES.indexOf(r);
@@ -41,27 +39,36 @@ function tirerPack(pack, catalogue, alea = Math.random) {
   return res.sort((a, b) => b.ovr - a.ovr).map(c => c.id);
 }
 
-// ── compte local (sera remplacé par les appels au serveur) ──────────────────────
-const Compte = (() => {
+// ── compte local ────────────────────────────────────────────────────────────────
+const CompteLocal = (() => {
   const CLE = 'mhc-v1';
   let catalogue = [], parId = {};
   let S = charger();
 
   function charger() {
     try { const s = JSON.parse(localStorage.getItem(CLE)); if (s && s.v === 1) return s; } catch (e) {}
-    return {v: 1, pieces: DEPART, possede: {}, equipe: {}, dernierBonus: '', packs: 0, bienvenue: false};
+    return {v: 1, pieces: REGLES.depart, possede: {}, equipe: {}, dernierBonus: '', packs: 0, bienvenue: false};
   }
   function sauver() { try { localStorage.setItem(CLE, JSON.stringify(S)); } catch (e) {} }
   const aujourdhui = () => new Date().toLocaleDateString('fr-CA');
   const refus = msg => Promise.reject(new Error(msg));
 
   return {
+    mode: 'local', pret: true, connecte: false, horsLigne: false,
     // état en lecture seule pour l'affichage : {pieces, possede: {id: nombre}, equipe: {poste: id}, dernierBonus, packs, bienvenue}
     get etat() { return S; },
-    // catalogue des cartes du jeu (sur le serveur, il sera dans la base)
-    init(cartes) { catalogue = cartes; parId = {}; cartes.forEach(c => parId[c.id] = c); return Promise.resolve(S); },
+    surChangement() {},
+    // charge le catalogue : data/cartes.json (site) + data/perso.json (réglages de l'outil) + brouillon de l'admin
+    async demarrer() {
+      const [d, p] = await Promise.all([fetch('data/cartes.json').then(r => r.json()),
+        fetch('data/perso.json').then(r => r.ok ? r.json() : {}).catch(() => ({}))]);
+      const brouillon = outilConnecte() ? lireBrouillon() : {};   // seulement dans le navigateur de l'admin
+      catalogue = fusionner(d.cartes, appliquerBrouillon(p.cartes || {}, brouillon));
+      parId = {}; catalogue.forEach(c => parId[c.id] = c);
+      return {cartes: catalogue, maj: d.maj, apercu: Object.keys(brouillon).length > 0};
+    },
     bonusDisponible: () => S.dernierBonus !== aujourdhui(),
-    packOffert: id => id === PACK_BIENVENUE && !S.bienvenue,
+    packOffert: id => id === REGLES.packBienvenue && !S.bienvenue,
 
     // → {ids: [id…], nouveaux: [id…]}  (enregistré avant l'animation : fermer l'app ne fait rien perdre)
     ouvrirPack(id) {
@@ -79,8 +86,8 @@ const Compte = (() => {
     // → {gain}
     recupererBonus() {
       if (!this.bonusDisponible()) return refus('Bonus déjà récupéré aujourd’hui');
-      S.dernierBonus = aujourdhui(); S.pieces += BONUS_JOUR; sauver();
-      return Promise.resolve({gain: BONUS_JOUR});
+      S.dernierBonus = aujourdhui(); S.pieces += REGLES.bonusJour; sauver();
+      return Promise.resolve({gain: REGLES.bonusJour});
     },
     // vend un exemplaire en double de la carte id → {gain}
     vendre(id) {

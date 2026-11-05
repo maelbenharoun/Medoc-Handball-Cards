@@ -1,133 +1,133 @@
-# Serveur (Supabase) : comptes, échanges de cartes
+# Serveur Supabase : comptes, packs et échanges
 
-Plan pour passer d'un jeu solo sauvegardé sur le téléphone à un jeu en ligne avec des comptes et des échanges.
-Rien de tout ça n'est en place : ce document dit ce qui est déjà prêt dans le code et ce qu'il restera à faire.
+Le jeu peut tourner de deux façons, selon `config.js` :
 
-## Le principe
+- **vide** (aujourd'hui) : sauvegarde sur le téléphone, sans comptes ni échanges ;
+- **rempli** : chaque joueur a un compte (e-mail + mot de passe ou Google), sa partie est sur le serveur,
+  et on peut échanger des cartes. C'est le serveur qui applique toutes les règles : modifier son téléphone ne sert à rien.
 
-**Le serveur devient la seule source de vérité.** Aujourd'hui, tout se passe dans le téléphone : on peut modifier sa sauvegarde
-(`localStorage`) et se donner des pièces ou des cartes. Sans échanges, ça ne gêne personne. Avec des échanges, une carte
-« trichée » pourrait être donnée à un autre joueur. Donc, avec le serveur :
+Le site reste sur GitHub Pages. Supabase fournit les comptes, la base de données et le stockage des photos (offre gratuite).
 
-- le téléphone **affiche** et **demande** (« ouvre un pack Or ») ;
-- le serveur **vérifie et décide** (assez de pièces ? quelles cartes sortent ?) et enregistre ;
-- aucune règle de l'économie ne reste applicable côté téléphone.
+## Mise en route (une seule fois, environ 30 minutes)
 
-Le site reste statique sur GitHub Pages. Supabase fournit les comptes, la base de données (Postgres) et le stockage des photos.
+### 1. Créer le projet
 
-## Déjà prêt dans le code
+1. Sur <https://supabase.com>, crée un compte puis **New project**.
+2. Nom : `medoc-hand-cards`. Choisis un mot de passe de base de données (garde-le, il ne sert pas dans le jeu).
+3. Région : **West EU (Paris)** (les données des joueurs restent en Europe).
 
-| Quoi | Où | Pourquoi |
+### 2. Créer la base
+
+1. Menu **SQL Editor** → **New query**.
+2. Colle **tout** le contenu de [`supabase/schema.sql`](../supabase/schema.sql), puis **Run**. Il doit afficher « Success ».
+
+Ce fichier peut être relancé sans risque après une mise à jour du jeu : il ne supprime aucune donnée.
+
+### 3. Régler la connexion
+
+Dans **Authentication** :
+
+- **Sign In / Providers → Email** : laisse « Enable » et « Confirm email » activés. Mets la longueur minimale du mot de passe à **8**.
+- **URL Configuration** :
+  - *Site URL* : `https://maelbenharoun.github.io/Medoc-Handball-Cards/`
+  - *Redirect URLs* : ajoute `https://maelbenharoun.github.io/Medoc-Handball-Cards/` et `https://maelbenharoun.github.io/Medoc-Handball-Cards/admin.html`
+- **Emails** : traduis les modèles « Confirm signup » et « Reset password » en français si tu veux.
+  **Important** : l'envoi d'e-mails fourni par Supabase est limité à quelques messages par heure et réservé aux essais.
+  Avant d'ouvrir le jeu à tout le club, branche un service d'envoi (*SMTP Settings*), par exemple Brevo ou Resend, qui ont une offre gratuite.
+
+### 4. Connexion Google (facultatif)
+
+1. Sur <https://console.cloud.google.com> : crée un projet, puis **APIs & Services → OAuth consent screen** (type « External », nom « Médoc Hand Cards »).
+2. **Credentials → Create credentials → OAuth client ID**, type « Web application ».
+   *Authorized redirect URIs* : l'adresse de rappel indiquée par Supabase dans **Authentication → Providers → Google**
+   (du genre `https://abcdefgh.supabase.co/auth/v1/callback`).
+3. Copie le *Client ID* et le *Client secret* dans **Authentication → Providers → Google**, puis active-le.
+
+Tant que ce n'est pas fait, le bouton « Continuer avec Google » affiche « La connexion Google n'est pas encore activée ».
+
+### 5. Brancher le jeu
+
+Dans **Project Settings → API** (ou le bouton **Connect**), copie :
+
+- *Project URL* → `supabaseUrl` dans [`config.js`](../config.js) ;
+- la clé **anon public** (ou **publishable**) → `supabaseCle`.
+
+**Jamais** la clé `service_role` ou `secret` : elle donne tous les droits. La clé « anon/publishable » est faite pour être publique.
+Commit et push sur `main` : 1 à 2 minutes plus tard, le jeu en ligne demande de se connecter.
+
+### 6. Devenir administrateur
+
+1. Dans le jeu, crée ton compte et ton profil comme un joueur.
+2. Dans **SQL Editor**, lance (avec ton pseudo) :
+   ```sql
+   update profils set role = 'admin' where pseudo = 'TonPseudo';
+   ```
+
+### 7. Remplir le catalogue
+
+1. Ouvre l'outil (`admin.html`, ou 5 fois le logo dans le jeu) → **Compte** → connecte-toi.
+2. Touche **Synchroniser avec le site** : les 55 cartes de `data/cartes.json`, avec tes réglages (`data/perso.json`), partent sur le serveur.
+
+Ensuite, « Publier » enregistre directement tes modifications sur le serveur (photos comprises) : le jeu est à jour tout de suite.
+Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/personal-access-tokens>.
+
+## Au quotidien
+
+- **Nouvelles feuilles de match** : lance `scripts/export_cartes.py`, pousse `data/cartes.json`, puis dans l'outil **Synchroniser avec le site**.
+  Une carte absente du site n'est plus tirée dans les packs, mais reste dans les clubs de ceux qui l'ont.
+- **Changer un prix, une chance, une limite** : **Table Editor** → tables `regles` et `packs`. Le jeu suit au prochain chargement.
+- **Voir ce qui s'est passé** (litige, soupçon de triche) : table `mouvements` (packs, ventes, bonus, échanges, avec la date).
+- **Offre gratuite** : un projet sans aucune visite pendant 7 jours est mis en pause par Supabase (un clic pour le relancer).
+  Avec des joueurs réguliers, ça n'arrive pas.
+
+Les anciennes parties sauvegardées sur les téléphones ne sont pas reprises : tout le monde repart de zéro avec le pack de bienvenue.
+On ne peut pas faire confiance à une sauvegarde locale, qui se modifie facilement.
+
+## Comment c'est construit
+
+| Fichier | Rôle |
+|---|---|
+| `supabase/schema.sql` | Tables, règles d'accès et toutes les actions du serveur |
+| `config.js` | Adresse du projet et clé publique (vide = mode local) |
+| `serveur.js` | `CompteServeur` : connexion, actions, échanges, copie hors ligne. Charge `supabase-js` 2.118.0 depuis jsDelivr |
+| `compte.js` | `CompteLocal` (mode sans serveur) et les règles par défaut |
+| `app.js` | Écrans : connexion, profil, boutique, club, Mon 7, échanges |
+| `admin.js` | Outil : publie sur Supabase (ou sur GitHub en mode local) |
+| `confidentialite.html` | Données personnelles (à compléter : adresse de contact) |
+
+### Tables
+
+| Table | Contenu | Lisible par |
 |---|---|---|
-| Toutes les actions qui modifient la sauvegarde passent par un seul module | `compte.js` (`Compte`) | Pour passer au serveur, on réécrit ce fichier, pas le jeu |
-| Chaque action renvoie une promesse avec son résultat (`{ids, nouveaux}`, `{gain}`…) et peut être refusée avec un message | `compte.js` | Même forme qu'un appel au serveur ; le jeu sait déjà afficher un refus |
-| Le tirage d'un pack est une fonction pure `tirerPack(pack, catalogue, alea)` | `compte.js` | Sert de référence à porter côté serveur (mêmes chances, même garantie) |
-| Les règles (prix, chances, ventes, bonus) sont regroupées | `compte.js` (`PACKS`, `VENTE`, `DEPART`, `BONUS_JOUR`) | Elles partiront sur le serveur ; le jeu ne gardera que l'affichage |
-| L'aperçu des modifications non publiées n'apparaît que dans le navigateur de l'admin | `cartes.js` (`outilConnecte`) | Les joueurs voient toujours les cartes officielles |
-| Alerte si une carte disparaît à l'export | `scripts/export_cartes.py` | L'id d'une carte doit rester stable : des joueurs la possèdent |
+| `regles`, `packs` | Prix, chances, bonus, limites des échanges | tout le monde |
+| `cartes` | Catalogue : stats, note, rareté, photo, stats du site, réglages de l'outil | tout le monde |
+| `profils` | Pseudo, pièces, Mon 7, rôle (`joueur` ou `admin`) | le joueur lui-même |
+| `possessions` | Cartes de chaque joueur et nombre d'exemplaires | le joueur lui-même |
+| `echanges` | Propositions et leur statut | les deux joueurs concernés |
+| `mouvements` | Journal de tout ce qui bouge | personne depuis le jeu |
 
-## La base de données (première version)
+**Aucune table n'est modifiable depuis le jeu.** Toutes les écritures passent par ces fonctions, qui vérifient tout et
+font chaque action d'un seul bloc :
 
-```sql
--- catalogue : les cartes du jeu (aujourd'hui cartes.json + perso.json fusionnés par cartes.js)
-create table cartes (
-  id text primary key,              -- nom simplifié, ne change jamais (ex. 'mael-benharoun')
-  nom text not null, equipe text not null, poste text, stats jsonb not null,
-  ovr int not null, rarete text not null, photo text, actif boolean default true,
-  stats_site jsonb                  -- stats de medochandballstats.com (matchs, buts…) pour la fiche
-);
+| Fonction | Rôle |
+|---|---|
+| `mon_etat`, `creer_profil`, `supprimer_mon_compte` | Compte (le profil demande l'accord « 15 ans ou parents d'accord ») |
+| `ouvrir_pack` | Tirage sur le serveur, même règle que `tirerPack` de `compte.js` |
+| `recuperer_bonus` | Une fois par jour, à l'heure de Paris |
+| `vendre`, `vendre_doublons` | On garde toujours un exemplaire |
+| `aligner`, `aligner_equipe` | Mon 7 : cartes possédées, gardien·ne au poste GB seulement |
+| `chercher_joueurs`, `club_de` | Trouver un joueur et voir ses cartes pour lui proposer un échange |
+| `proposer_echange` | 1 à 5 cartes de chaque côté, 10 propositions par jour, jamais le dernier exemplaire d'une carte du Mon 7 |
+| `repondre_echange` | Tout est revérifié au moment d'accepter (cartes vendues entre-temps…), puis échange d'un coup. Expire après 7 jours |
+| `annuler_echange`, `mes_echanges` | Annuler sa proposition, voir ses 50 derniers échanges |
+| `admin_publier_cartes` | Catalogue, réservé au rôle `admin` |
 
--- un compte joueur
-create table profils (
-  user_id uuid primary key references auth.users on delete cascade,
-  pseudo text unique not null,
-  pieces int not null default 3000 check (pieces >= 0),
-  packs_ouverts int not null default 0,
-  dernier_bonus date, bienvenue boolean default false,
-  equipe jsonb not null default '{}',   -- Mon 7 : {poste: exemplaire_id}
-  role text not null default 'joueur'   -- 'admin' pour Maël
-);
+Les photos sont dans le stockage `photos` : lisibles par tous, déposées et supprimées par l'admin seulement.
 
--- chaque carte possédée est un exemplaire unique : c'est ce qui s'échange
-create table exemplaires (
-  id uuid primary key default gen_random_uuid(),
-  carte_id text not null references cartes, proprietaire uuid not null references profils,
-  obtenu_le timestamptz default now(), origine text    -- 'pack:or', 'echange:<id>'…
-);
+### Ce qui a été vérifié
 
-create table echanges (
-  id uuid primary key default gen_random_uuid(),
-  de uuid not null references profils, vers uuid not null references profils,
-  offre uuid[] not null, demande uuid[] not null,      -- exemplaires proposés / demandés
-  statut text not null default 'propose',              -- propose, accepte, refuse, annule, expire
-  cree_le timestamptz default now(), traite_le timestamptz
-);
-
--- journal de tout ce qui bouge (pièces, cartes) : pour comprendre un litige ou repérer une triche
-create table mouvements (id bigserial primary key, user_id uuid, quoi text, detail jsonb, le timestamptz default now());
-```
-
-**Différence avec aujourd'hui** : la sauvegarde locale compte les cartes (`possede: {id: 3}`) ; le serveur garde des
-**exemplaires** (3 lignes), parce qu'on échange un exemplaire précis.
-
-## Les règles d'accès
-
-- Lecture : chacun lit le catalogue, son profil, ses exemplaires, ses échanges ; les pseudos et les cartes des autres
-  seulement pour proposer un échange.
-- **Aucune écriture directe** dans les tables par le téléphone (Row Level Security sans politique d'écriture).
-- Toutes les écritures passent par des fonctions du serveur (`security definer`), qui font chaque action en une seule transaction :
-
-| Fonction | Remplace dans `compte.js` | Vérifie |
-|---|---|---|
-| `ouvrir_pack(pack)` | `ouvrirPack` | pièces suffisantes ou pack de bienvenue ; tirage fait **sur le serveur** |
-| `recuperer_bonus()` | `recupererBonus` | une fois par jour (date du serveur, pas du téléphone) |
-| `vendre(exemplaire)` / `vendre_doublons()` | `vendre` / `vendreDoublons` | l'exemplaire est à lui, c'est un doublon, il n'est pas dans Mon 7 ni dans un échange en cours |
-| `aligner(poste, exemplaire)` / `aligner_equipe(…)` | `aligner` / `alignerEquipe` | l'exemplaire est à lui |
-| `proposer_echange(vers, offre, demande)` | nouveau | les exemplaires offerts sont à lui, les demandés à l'autre, aucun n'est déjà engagé |
-| `repondre_echange(id, accepte)` | nouveau | revérifie tout au moment d'accepter, puis échange les propriétaires d'un coup |
-| `annuler_echange(id)` | nouveau | seulement celui qui a proposé |
-
-Le tirage côté serveur reprend exactement `tirerPack` (mêmes poids, carte garantie en premier, pas deux fois la même carte dans un pack).
-
-## Le catalogue et l'outil admin
-
-1. Un script remplit la table `cartes` depuis `data/cartes.json` + `data/perso.json` (même fusion que `cartes.js`).
-2. Ensuite, l'outil `admin.html` écrit directement dans Supabase : connexion avec le compte de Maël (`role = 'admin'`),
-   photos dans le stockage Supabase. **Le jeton GitHub ne sert plus : le supprimer** sur github.com/settings/personal-access-tokens.
-3. Les stats du site continuent d'arriver chaque semaine par le script d'export. Elles ne touchent pas aux stats réglées à la main.
-
-## Les échanges : règles à décider
-
-- Échange carte contre carte seulement, ou aussi des pièces ? (Recommandé au début : cartes seulement, pour éviter le commerce de pièces.)
-- Limite d'échanges par jour, pour freiner les comptes créés juste pour donner leurs cartes à un compte principal.
-- Une carte alignée dans Mon 7 ne peut pas être échangée sans la retirer d'abord.
-- Une proposition expire au bout de quelques jours.
-
-## Les sauvegardes actuelles
-
-On ne peut pas faire confiance à une sauvegarde locale (elle se modifie facilement). Trois possibilités, à décider au moment du lancement :
-
-1. **Repartir de zéro** pour tout le monde avec le pack de bienvenue (le plus juste, recommandé) ;
-2. reprendre les cartes possédées, mais pas les pièces ;
-3. donner un bonus de départ selon le nombre de packs ouverts.
-
-## Données personnelles
-
-Avec des comptes, le jeu gardera des adresses e-mail : c'est une donnée personnelle (RGPD).
-
-- Une page « confidentialité » : quelles données, pourquoi, combien de temps, comment supprimer son compte.
-- **Moins de 15 ans : accord des parents** pour créer un compte (règle française). Beaucoup de licenciés sont mineurs.
-- Pseudo libre (pas forcément le vrai nom) et suppression du compte possible depuis le jeu.
-- Photos : toujours seulement avec l'accord de la personne (des parents pour un mineur).
-
-## Ordre des étapes
-
-1. Créer le projet Supabase (ou réutiliser celui de medochandballstats) et les tables ci-dessus.
-2. Remplir le catalogue avec le script.
-3. Écrire les fonctions du serveur (packs, bonus, ventes, Mon 7), avec des tests qui comparent au `tirerPack` du jeu.
-4. Réécrire `compte.js` pour appeler ces fonctions (connexion par lien magique envoyé par e-mail).
-   Choix à faire à ce moment-là : la bibliothèque officielle `supabase-js` (une dépendance, chargée depuis un CDN),
-   ou de simples `fetch` vers l'API de Supabase (aucune dépendance, un peu plus de code).
-5. Mode hors ligne : consulter son club sans réseau, mais ouvrir un pack ou échanger demande une connexion.
-6. Ajouter les échanges (écran « Échanges », liste des joueurs, propositions).
-7. Passer l'outil admin sur Supabase et supprimer le jeton GitHub.
+Le schéma a été testé sur une base Postgres locale qui imite Supabase (78 vérifications), puis le jeu complet dans un navigateur
+contre ce faux serveur (41 vérifications) : inscription, profil, packs et garanties, bonus, ventes, Mon 7, échange entre deux joueurs,
+déconnexion, mot de passe oublié, hors ligne, suppression de compte, outil admin avec photo. Côté triche : écriture directe dans les tables,
+appel des fonctions internes, cartes qu'on n'a pas, double acceptation, échange avec soi-même, limite du jour, rôle admin.
+**Pas encore testé sur un vrai projet Supabase** : à vérifier lors de la mise en route (étapes 2 à 7).

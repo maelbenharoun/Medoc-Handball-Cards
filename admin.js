@@ -1,7 +1,10 @@
 'use strict';
 /* Outil de gestion des cartes (admin.html) : poste de jeu, 6 stats, note forcée et photo de chaque carte.
    Les modifications vont d'abord dans un brouillon (localStorage, visible en aperçu dans le jeu du même navigateur),
-   puis « Publier » les enregistre dans le dépôt GitHub en un seul commit : data/perso.json + assets/photos/. */
+   puis « Publier » les enregistre :
+   - mode serveur (config.js rempli) : dans la base Supabase (table cartes) et son stockage de photos,
+     avec le compte administrateur ;
+   - sinon : dans le dépôt GitHub en un seul commit (data/perso.json + assets/photos/), avec un jeton. */
 
 const PHOTO_PX = 360;   // photos recadrées en carré 360×360, JPEG (les métadonnées, GPS compris, disparaissent)
 
@@ -96,11 +99,100 @@ async function publier() {
   vue();
 }
 
+// ── serveur Supabase ────────────────────────────────────────────────────────────
+const SERVEUR = !!(CONFIG.supabaseUrl && CONFIG.supabaseCle);
+let sbA = null, adminOk = false, emailAdmin = '', IDS_SERVEUR = [];
+const DOSSIER_PHOTOS = '/storage/v1/object/public/photos/';
+
+function marquerAdmin(oui) {   // le jeu de ce navigateur montre alors l'aperçu du brouillon
+  try { if (oui) localStorage.setItem(CLE_OUTIL_GITHUB, JSON.stringify({admin: true})); else localStorage.removeItem(CLE_OUTIL_GITHUB); } catch (e) {}
+}
+async function chargerServeur() {
+  sbA = await supabaseClient();
+  const session = (await sbA.auth.getSession()).data.session;
+  emailAdmin = session?.user?.email || '';
+  adminOk = false;
+  if (session) { const r = await sbA.rpc('est_admin'); adminOk = !r.error && r.data === true; }
+  marquerAdmin(adminOk);
+  const {data, error} = await sbA.from('cartes').select('id, reglages');
+  if (error) throw error;
+  IDS_SERVEUR = data.map(r => r.id);
+  if (!data.length) {   // premier lancement : on part des réglages de data/perso.json
+    PERSO = await fetch('data/perso.json', {cache: 'no-store'}).then(r => r.ok ? r.json() : {}).then(p => p.cartes || {}).catch(() => ({}));
+  } else { PERSO = {}; data.forEach(r => { if (r.reglages) PERSO[r.id] = r.reglages; }); }
+  SOURCE = !session ? 'pas connecté : touche « Compte »'
+    : !adminOk ? `<span class="warn">${esc(emailAdmin)} n’est pas administrateur</span>`
+    : !data.length ? '<span class="warn">catalogue du serveur vide : touche « Synchroniser avec le site »</span>'
+    : `serveur Supabase · ${esc(emailAdmin)}`;
+}
+// carte telle qu'enregistrée sur le serveur : stats du site + réglages, note et rareté calculées par cartes.js
+function ligneServeur(id, reglages) {
+  const site = PAR_ID[id], c = fusionnerCarte(site, reglages || {});
+  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, stats: c.s, ovr: c.ovr, rarete: c.rarete, photo: c.photo, site, reglages: reglages || null};
+}
+// envoie ces cartes au serveur (photos du brouillon déposées d'abord) ; complet : les autres ne sont plus tirées
+async function envoyer(ids, complet) {
+  const bouton = $('#publier .btn.gold'); if (bouton) { bouton.disabled = true; bouton.textContent = 'Publication…'; }
+  try {
+    const nouveau = {...PERSO}, lignes = [], aSupprimer = [];
+    for (const id of ids) {
+      let e = id in BROUILLON ? BROUILLON[id] : PERSO[id] || null;
+      if (e?.photo?.startsWith('data:')) {
+        const chemin = `${id}-${Date.now().toString(36)}.jpg`;   // nom unique : pas de vieille photo en cache
+        const blob = await (await fetch(e.photo)).blob();
+        const {error} = await sbA.storage.from('photos').upload(chemin, blob, {contentType: 'image/jpeg', cacheControl: '31536000'});
+        if (error) throw error;
+        e = {...e, photo: sbA.storage.from('photos').getPublicUrl(chemin).data.publicUrl};
+      }
+      const ancienne = PERSO[id]?.photo;
+      if (ancienne && ancienne !== e?.photo && ancienne.includes(DOSSIER_PHOTOS)) aSupprimer.push(ancienne.split(DOSSIER_PHOTOS)[1]);
+      lignes.push(ligneServeur(id, e));
+      if (e) nouveau[id] = e; else delete nouveau[id];
+    }
+    const {data, error} = await sbA.rpc('admin_publier_cartes', {p_cartes: lignes, p_complet: !!complet});
+    if (error) throw error;
+    if (aSupprimer.length) await sbA.storage.from('photos').remove(aSupprimer);   // anciennes photos remplacées
+    ids.forEach(id => delete BROUILLON[id]); sauverBrouillon();
+    PERSO = nouveau; IDS_SERVEUR = [...new Set([...IDS_SERVEUR, ...ids])];
+    toast(`Publié : ${data.cartes} carte${data.cartes > 1 ? 's' : ''}${data.retirees ? `, ${data.retirees} retirée${data.retirees > 1 ? 's' : ''} des packs` : ''}. Le jeu est à jour.`);
+    await charger();
+  } catch (e) {
+    console.error(e); alert('La publication a échoué : ' + texteErreur(e)); vue();
+  }
+}
+function publierServeur() {
+  if (!adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur pour publier.');
+  if (!IDS_SERVEUR.length) return synchroniser();   // catalogue vide : on envoie tout
+  return envoyer(Object.keys(BROUILLON).filter(id => PAR_ID[id]), false);
+}
+function synchroniser() {
+  if (!adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur.');
+  const partis = IDS_SERVEUR.filter(id => !PAR_ID[id]);
+  const msg = `Envoyer au serveur les ${SITE.length} cartes de data/cartes.json, avec tes réglages${Object.keys(BROUILLON).length ? ' et ton brouillon' : ''} ?`
+    + (partis.length ? `\n\n${partis.length} carte(s) absente(s) du site ne seront plus tirées dans les packs (elles restent dans les clubs) : ${partis.join(', ')}` : '');
+  if (confirm(msg)) envoyer(SITE.map(c => c.id), true);
+}
+function connexionAdmin(msg) {
+  const o = $('#overlay'); o.hidden = false;
+  o.innerHTML = `<div class="sheet"><h3>Compte administrateur</h3>
+    ${msg ? `<p class="sub warn">${esc(msg)}</p>` : ''}
+    ${emailAdmin ? `<p class="sub">Connecté : ${esc(emailAdmin)}${adminOk ? ' (administrateur)' : ' (pas administrateur)'}</p>
+      <div class="ed-btns"><button class="btn ghost" data-act="a-deco">Se déconnecter</button><button class="btn" data-act="fermer">Fermer</button></div>`
+    : `<form class="form" data-form="admin">
+        <input class="champ" type="email" name="email" placeholder="E-mail" autocomplete="email" required>
+        <input class="champ" type="password" name="mdp" placeholder="Mot de passe" autocomplete="current-password" required>
+        <button class="btn gold" type="submit">Se connecter</button></form>
+      <div class="ou"><span>ou</span></div><button class="btn ghost large" data-act="a-google">Continuer avec Google</button>
+      <button class="btn" data-act="fermer">Fermer</button>`}
+    <p class="sub petit">Même compte que dans le jeu. Il devient administrateur dans Supabase (docs/SERVEUR.md).</p></div>`;
+}
+
 // ── liste des cartes ────────────────────────────────────────────────────────────
 function vue() {
   const sansPoste = cartes().filter(c => !c.poste).length;
   $('#view').innerHTML = `<h1>Gestion des cartes</h1>
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
+    ${SERVEUR && adminOk ? '<p><button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
     <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['sans', `Sans poste (${sansPoste})`]]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
@@ -274,9 +366,12 @@ document.addEventListener('click', e => {
   if (a === 'enregistrer') return enregistrer();
   if (a === 'defaut') { ed.stats = null; ed.force = false; $('#force').checked = false; return majEditeur(); }
   if (a === 'sansphoto') { ed.photo = null; ed.img = null; dessiner(); majPhoto(); return majApercu(); }
-  if (a === 'publier') return publier();
+  if (a === 'publier') return SERVEUR ? publierServeur() : publier();
+  if (a === 'synchro') return synchroniser();
+  if (a === 'a-google') return sbA.auth.signInWithOAuth({provider: 'google', options: {redirectTo: urlRetour()}}).then(({error}) => error && alert(texteErreur(error)));
+  if (a === 'a-deco') return sbA.auth.signOut().finally(() => { fermer(); charger(); });
   if (a === 'jeter') { if (confirm('Annuler toutes les modifications non publiées ?')) { BROUILLON = {}; sauverBrouillon(); vue(); } return; }
-  if (a === 'reglages') return reglages();
+  if (a === 'reglages') return SERVEUR ? connexionAdmin() : reglages();
   if (a === 'r-ok') return validerReglages();
   if (a === 'oublier') { REGL.jeton = ''; sauverReglages(); fermer(); return charger(); }
 });
@@ -293,6 +388,16 @@ document.addEventListener('change', e => {
   if (e.target.id === 'fichier') return choisirFichier(e.target.files[0]);
   if (e.target.id === 'force') { ed.force = e.target.checked; majEditeur(); }
 });
+document.addEventListener('submit', async e => {
+  if (e.target.dataset.form !== 'admin') return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const {error} = await sbA.auth.signInWithPassword({email: d.email.trim(), password: d.mdp});
+  if (error) return connexionAdmin(texteErreur(error));
+  fermer(); await charger();
+  if (!adminOk) connexionAdmin('Ce compte n’est pas administrateur (voir docs/SERVEUR.md, étape « Devenir administrateur »).');
+  else toast('Connecté en administrateur');
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#overlay').hidden) fermer(); });
 
 // ── démarrage ───────────────────────────────────────────────────────────────────
@@ -300,7 +405,11 @@ async function charger() {
   try {
     const d = await fetch('data/cartes.json', {cache: 'no-store'}).then(r => r.json());
     SITE = d.cartes; SITE.forEach(c => PAR_ID[c.id] = c);
-    if (REGL.jeton) {
+    $('[data-act=reglages]').textContent = SERVEUR ? 'Compte' : 'GitHub';
+    if (SERVEUR) {
+      try { await chargerServeur(); }
+      catch (e) { console.error(e); PERSO = {}; SOURCE = `<span class="warn">Serveur : ${esc(texteErreur(e))}</span>`; }
+    } else if (REGL.jeton) {
       try { PERSO = await lirePersoGitHub(REGL.branche); SOURCE = `réglages lus sur GitHub (${esc(REGL.branche)})`; }
       catch (e) { PERSO = {}; SOURCE = `<span class="warn">GitHub : ${esc(erreurGitHub(e))}</span>`; }
     } else {

@@ -18,22 +18,26 @@
 <body>
 <header class="top">
   <div class="brand"><img src="assets/logo.png" alt=""><span>Médoc <b>Hand Cards</b></span></div>
-  <div class="coins" id="coins" aria-label="Pièces"><i class="coin"></i><b id="coinv">0</b></div>
+  <div class="haut-d"><div class="coins" id="coins" aria-label="Pièces" hidden><i class="coin"></i><b id="coinv">0</b></div>
+  <button class="moi" id="moi" data-act="moi" aria-label="Mon compte" hidden></button></div>
 </header>
 
-<main id="view"></main>
+<main id="view"><p class="sub">Chargement…</p></main>
 
-<nav class="tabs" aria-label="Navigation">
+<nav class="tabs" aria-label="Navigation" hidden>
   <a href="#boutique" data-tab="boutique"><svg viewBox="0 0 24 24"><path d="M4 7h16l-1.5 13h-13z M8 7a4 4 0 0 1 8 0"/></svg>Packs</a>
   <a href="#club" data-tab="club"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="9" rx="1.5"/><rect x="14" y="4" width="7" height="9" rx="1.5"/><rect x="3" y="15" width="7" height="5" rx="1.5"/><rect x="14" y="15" width="7" height="5" rx="1.5"/></svg>Club</a>
   <a href="#equipe" data-tab="equipe"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17 M3.5 12h17"/></svg>Mon 7</a>
+  <a href="#echanges" data-tab="echanges" hidden><svg viewBox="0 0 24 24"><path d="M4 8h13l-3.5-3.5 M20 16H7l3.5 3.5"/></svg>Échanges<b class="pastille" id="pastille" hidden></b></a>
 </nav>
 
 <div id="overlay" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="config.js"></script>
 <script src="cartes.js"></script>
 <script src="compte.js"></script>
+<script src="serveur.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

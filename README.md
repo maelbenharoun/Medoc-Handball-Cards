@@ -9,7 +9,9 @@ Chaque carte a un **poste de jeu** et **6 stats** propres au jeu (Tir, Passes, D
 - **Club** : l'album des 55 cartes, filtres par équipe, vente des doublons.
 - **Mon 7** : aligner 6 joueurs de champ + 1 gardien(ne) sur le demi-terrain (AG, ARG, DC, ARD, AD, PIV, GB). Un joueur hors de son poste perd 5 points ; bonus collectif quand on aligne des coéquipier(e)s. L'alignement automatique cherche la meilleure répartition.
 - Pièces, bonus quotidien de 1 500 pièces, premier pack Or offert.
-- Installable sur téléphone (PWA : « Ajouter à l'écran d'accueil ») et jouable hors ligne. La progression est sauvegardée sur le téléphone.
+- **Échanges** (avec le serveur) : chercher un joueur par son pseudo, lui proposer jusqu'à 5 cartes contre 5 des siennes, accepter ou refuser les propositions reçues.
+- **Comptes** (avec le serveur) : e-mail + mot de passe ou Google, pseudo, suppression du compte depuis le jeu. Voir [`docs/SERVEUR.md`](docs/SERVEUR.md).
+- Installable sur téléphone (PWA : « Ajouter à l'écran d'accueil »). Sans serveur, la progression est sauvegardée sur le téléphone ; avec, elle est sur le serveur et le club reste consultable hors ligne.
 
 ## Raretés
 
@@ -22,7 +24,7 @@ Chaque carte a un **poste de jeu** et **6 stats** propres au jeu (Tir, Passes, D
 
 La rareté dépend de la note générale, calculée à partir des 6 stats avec des poids selon le poste (un ailier compte surtout la Vitesse et le Tir, un demi-centre les Passes, un pivot le Physique…). La répartition ci-dessus est celle de départ : elle bouge quand on modifie les stats.
 
-Les seuils et les poids se règlent dans `cartes.js` (`SEUILS`, `POIDS`), les prix et chances des packs, les ventes et le bonus dans `compte.js` (`PACKS`, `VENTE`, `BONUS_JOUR`), le malus hors poste dans `app.js` (`MALUS_HORS_POSTE`).
+Les seuils et les poids se règlent dans `cartes.js` (`SEUILS`, `POIDS`), les prix et chances des packs, les ventes et le bonus dans `compte.js` (`PACKS`, `VENTE`, `REGLES`) et, avec le serveur, dans les tables `packs` et `regles` de Supabase. Le malus hors poste est dans `app.js` (`MALUS_HORS_POSTE`).
 
 ## Gérer les cartes (outil)
 
@@ -70,7 +72,10 @@ Le jeu est alors en ligne sur `https://maelbenharoun.github.io/medoc-handball-ca
 index.html            le jeu (en-tête, vue, onglets)
 style.css             design, cartes, animations
 cartes.js             cartes : postes, 6 stats, notes, raretés, rendu (partagé jeu + outil)
-compte.js             compte du joueur : règles de l'économie, tirage des packs, sauvegarde
+config.js             adresse et clé publique du serveur Supabase (vide = sans serveur)
+compte.js             compte sur le téléphone : règles par défaut, tirage, sauvegarde locale
+serveur.js            compte en ligne (Supabase) : connexion, actions, échanges
+confidentialite.html  données personnelles
 app.js                le jeu : affichage des vues et de l'ouverture des packs
 admin.html/.js/.css   l'outil de gestion des cartes
 sw.js                 cache hors ligne
@@ -78,7 +83,8 @@ manifest.webmanifest  installation sur téléphone
 data/cartes.json      les cartes du site (généré par le script)
 data/perso.json       les réglages du jeu (écrit par l'outil)
 scripts/export_cartes.py
-docs/SERVEUR.md       plan du serveur Supabase (comptes, échanges)
+docs/SERVEUR.md       mise en route du serveur Supabase
+supabase/schema.sql   base de données du serveur (à coller dans Supabase)
 assets/               logo du club, icônes, photos/ (ajoutées par l'outil)
 ```
 
@@ -88,4 +94,3 @@ assets/               logo du club, icônes, photos/ (ajoutées par l'outil)
 - Packs par équipe (Pack SF, Pack SG).
 - Défis : « Aligne un 7 100 % SF2 », « Note d'équipe 80+ » → récompenses en packs.
 - Mini-match contre un 7 adverse simulé avec le modèle de pronostic.
-- Comptes et échanges de cartes entre joueurs, avec Supabase : voir [`docs/SERVEUR.md`](docs/SERVEUR.md) (le code est déjà préparé).
