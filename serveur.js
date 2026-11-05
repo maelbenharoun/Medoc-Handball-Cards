@@ -86,7 +86,8 @@ const CompteServeur = (() => {
     const liste = cartes.map(r => {
       if (r.id in brouillon) return {...fusionnerCarte(r.site, brouillon[r.id] || {}), actif: r.actif};
       // le serveur fait foi : poste, forme du joueur et photos tels que publiés
-      const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, estGB: r.poste === 'GB', ecarts: r.ecarts || {},
+      const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
+        estGB: r.poste === 'GB', ecarts: r.ecarts || {},
         photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
       return vueExemplaire(base, {palier: 'bronze', note: PALIER.bronze.min});
     });

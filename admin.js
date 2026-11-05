@@ -1,5 +1,5 @@
 'use strict';
-/* Outil de gestion des cartes (admin.html) : poste de jeu, 6 stats, note forcée et photo de chaque carte.
+/* Outil de gestion des cartes (admin.html) : postes de jeu, 6 stats (forme du joueur) et une photo par palier de chaque carte.
    Les modifications vont d'abord dans un brouillon (localStorage, visible en aperçu dans le jeu du même navigateur),
    puis « Publier » les enregistre :
    - mode serveur (config.js rempli) : dans la base Supabase (table cartes) et son stockage de photos,
@@ -127,7 +127,7 @@ async function chargerServeur() {
 // carte telle qu'enregistrée sur le serveur : stats du site + réglages, note et rareté calculées par cartes.js
 function ligneServeur(id, reglages) {
   const site = PAR_ID[id], c = fusionnerCarte(site, reglages || {});
-  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site, reglages: reglages || null};
+  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, postes: c.postes, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site, reglages: reglages || null};
 }
 // envoie ces cartes au serveur (photos du brouillon déposées d'abord) ; complet : les autres ne sont plus tirées
 async function envoyer(ids, complet) {
@@ -218,7 +218,7 @@ function majListe() {
   $('#rows').innerHTML = liste.map(c => {
       const etat = c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '';
       return `<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
-        <small>${c.poste ? POSTE_NOM[c.poste] : 'Poste non défini'} · ${c.equipe}</small>
+        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'} · ${c.equipe}</small>
         <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
@@ -227,14 +227,15 @@ function majListe() {
 // Le palier choisi sert à la fois à l'aperçu (note du bas du palier) et à la photo qu'on règle
 function ouvrir(id) {
   const p = appliquerBrouillon(PERSO, BROUILLON)[id] || {}, c = fusionnerCarte(PAR_ID[id], p);
-  ed = {id, poste: p.poste || null, stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
+  // postes réglés à la main (le premier = principal) ; vide = valeur par défaut (GB pour un gardien du site)
+  ed = {id, postes: Array.isArray(p.postes) ? [...p.postes] : p.poste ? [p.poste] : [], stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
     photos: {...(p.photos || {})}, photo: p.photo || null, palier: 'bronze', img: null, cadre: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
     <div class="ed-haut"><div id="apercu"></div><div class="ed-note"><small>Palier</small><b id="note"></b><small id="note-site"></small></div></div>
     <div class="filters postes" id="paliers"></div>
     <h3>${esc(c.nom)} <small>${c.equipe}</small></h3>
-    <h4>Poste de jeu</h4><div class="filters postes" id="postes"></div>
+    <h4>Postes de jeu</h4><div class="filters postes" id="postes"></div><p class="sub petit" id="aide-postes"></p>
     <h4>Forme du joueur <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
     <h4 id="titre-photo">Photo</h4>
     <div class="photo"><canvas id="cadre" width="${PHOTO_PX}" height="${PHOTO_PX}"></canvas>
@@ -250,7 +251,7 @@ function ouvrir(id) {
 
 function entree() {
   const r = {};
-  if (ed.poste) r.poste = ed.poste;
+  if (ed.postes.length) r.postes = [...ed.postes];
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
   if (Object.keys(ed.photos).length) r.photos = {...ed.photos};
   if (ed.photo) r.photo = ed.photo;
@@ -263,13 +264,20 @@ function carteEd() {
     photos: e.photos && Object.fromEntries(Object.entries(e.photos).map(([k, v]) => [k, local(v)]))});
   return vueExemplaire(c, {palier: ed.palier, note: PALIER[ed.palier].min});
 }
-const posteEd = () => ed.poste || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : null);
+const posteEd = () => ed.postes[0] || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : null);   // poste principal
 
 function majEditeur() {
   const c = carteEd(), poste = posteEd();
-  const choix = PAR_ID[ed.id].poste === 'GB' ? POSTES_JEU : [...POSTES_JEU, ''];
   $('#paliers').innerHTML = PALIERS.map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
-  $('#postes').innerHTML = choix.map(p => `<button data-poste="${p}" class="${(ed.poste || '') === p || (!ed.poste && p === poste) ? 'on' : ''}">${p || 'Non défini'}</button>`).join('');
+  // plusieurs postes possibles : on touche pour ajouter ou retirer, le premier choisi est le principal (★)
+  $('#postes').innerHTML = POSTES_JEU.map(p => {
+    const i = c.postes.indexOf(p);
+    return `<button data-poste="${p}" class="${i >= 0 ? 'on' : ''}">${p}${i === 0 && c.postes.length > 1 ? ' ★' : ''}</button>`;
+  }).join('') + `<button data-poste="">Aucun</button>`;
+  const bonus = statsDu(poste).filter(([k]) => c.bonus?.[k]).map(([k, l]) => `${l} ${c.bonus[k] > 0 ? '+' : ''}${c.bonus[k]}`).join(' · ');
+  $('#aide-postes').textContent = (c.postes.length ? `${nomsPostes(c)}. ` : 'Aucun poste : joue partout sans malus. ')
+    + (c.postes.length > 1 ? `Principal : ${c.postes[0]} (le seul qui compte pour les boosters par poste). ` : '')
+    + 'Pas de malus à chacun de ses postes, −5 ailleurs. ' + (bonus ? `Bonus de ses postes sur les stats : ${bonus}.` : '');
   $('#stats').innerHTML = statsDu(poste).map(([k, , nom]) => `<label class="stat-l"><span>${nom}</span>
     <input type="range" min="1" max="99" value="${c.stats[k]}" data-stat="${k}"><input class="champ" type="number" min="1" max="99" value="${c.stats[k]}" data-stat="${k}" inputmode="numeric"></label>`).join('')
     + `<p class="sub petit">${ed.stats ? 'Réglée à la main.' : 'Par défaut, tirée des stats du site.'} Tous les joueurs ont la même note à palier égal :
@@ -293,7 +301,9 @@ function changerStat(k, v, source) {
 }
 function changerPoste(p) {
   const avantGB = posteEd() === 'GB';
-  ed.poste = p || null;
+  if (!p) ed.postes = [];
+  else if (ed.postes.includes(p)) ed.postes = ed.postes.filter(x => x !== p);
+  else ed.postes = [...(ed.postes.length ? ed.postes : PAR_ID[ed.id].poste === 'GB' ? ['GB'] : []), p];
   if (avantGB !== (posteEd() === 'GB')) ed.stats = null;   // champ ↔ gardien(ne) : autres stats, on repart des valeurs par défaut
   majEditeur();
 }

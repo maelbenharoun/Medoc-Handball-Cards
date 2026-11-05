@@ -27,10 +27,11 @@ const dansEquipe = id => Object.values(S().equipe || {}).includes(id);
 const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
   && EX().filter(e => e.carte === carte && e.palier === r && !e.verrou).length >= (PARAMS.fusion_nombre || 3));
 
-// Poste du terrain : GB pour les gardien(ne)s, les 6 autres pour les joueurs de champ.
-// Hors de son poste, une carte perd MALUS_HORS_POSTE points (sans poste renseigné, elle joue partout sans malus).
-const peutJouer = (c, slot) => slot === 'GB' ? c.estGB : !c.estGB;
-const horsPoste = (c, slot) => slot !== 'GB' && !!c.poste && c.poste !== slot;
+// Postes : au but seulement si GB fait partie de ses postes ; sur le terrain s'il a un poste de champ (ou aucun).
+// Hors de ses postes, une carte perd MALUS_HORS_POSTE points (sans poste renseigné, elle joue partout sans malus).
+const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
+const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
+const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
 const noteAuPoste = (c, slot) => c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0);
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
@@ -139,7 +140,7 @@ function vueAccueil() {
     </div>
     <p class="sub petit">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}. Un booster gratuit toutes les ${PARAMS.booster_minutes || 30} minutes, ${e.boosterMax} au plus en stock.</p>
     <h2>Boosters par poste</h2>
-    <p class="sub petit">Un joueur du poste de ton choix pour ${nb(prixPoste)} pièces, avec les mêmes chances.</p>
+    <p class="sub petit">Un joueur dont c’est le poste principal, pour ${nb(prixPoste)} pièces, avec les mêmes chances.</p>
     <div class="postes-b">${POSTES_JEU.map(p => {
       const n = CARTES.filter(c => c.actif !== false && c.poste === p).length;
       return `<button class="bposte" data-bposte="${p}"${n && e.pieces >= prixPoste ? '' : ' disabled'} title="${POSTE_NOM[p]}"><b>${p}</b>
@@ -200,7 +201,7 @@ function fiche(carte) {
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">
-    <h3>${esc(c.nom)} <small>${c.equipe} · ${c.poste ? POSTE_NOM[c.poste] : 'Joueur(se) de champ'}</small></h3>
+    <h3>${esc(c.nom)} <small>${c.equipe} · ${nomsPostes(c)}</small></h3>
     <div class="paliers">${paliers}</div>
     <div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
@@ -248,22 +249,29 @@ function autoEquipe() {
   // le meilleur exemplaire de chaque joueur, puis la meilleure répartition (malus hors poste compris)
   const meilleurs = Object.values(EX().filter(e => !e.verrou && PAR_ID[e.carte]).reduce((m, e) => {
     if (!m[e.carte] || rangEx(e, m[e.carte]) < 0) m[e.carte] = e; return m; }, {})).map(vue);
-  const equipe = {};
-  const gb = meilleurs.filter(c => c.estGB).sort((a, b) => b.ovr - a.ovr)[0];
-  if (gb) equipe.GB = gb.ex.id;
   // pour chaque ensemble de postes occupés (masque de bits), on garde le meilleur total trouvé
   const slots = POSTES.filter(x => !x.gb).map(x => x.id);
-  let best = new Map([[0, {total: 0, choix: {}}]]);
-  for (const c of meilleurs.filter(c => !c.estGB)) {
-    const suite = new Map(best);
-    for (const [masque, e] of best) slots.forEach((slot, i) => {
-      if (masque & (1 << i)) return;
-      const m = masque | (1 << i), total = e.total + noteAuPoste(c, slot);
-      if (!(suite.get(m)?.total >= total)) suite.set(m, {total, choix: {...e.choix, [slot]: c.ex.id}});
-    });
-    best = suite;
+  const terrain = sauf => {
+    let best = new Map([[0, {total: 0, choix: {}}]]);
+    for (const c of meilleurs.filter(c => c !== sauf && joueChamp(c))) {
+      const suite = new Map(best);
+      for (const [masque, e] of best) slots.forEach((slot, i) => {
+        if (masque & (1 << i)) return;
+        const m = masque | (1 << i), total = e.total + noteAuPoste(c, slot);
+        if (!(suite.get(m)?.total >= total)) suite.set(m, {total, choix: {...e.choix, [slot]: c.ex.id}});
+      });
+      best = suite;
+    }
+    return [...best.values()].reduce((a, e) => e.total > a.total ? e : a);
+  };
+  // chaque gardien(ne) possible (joueurs mixtes compris), et le meilleur terrain avec les autres
+  const gardiens = meilleurs.filter(c => peutJouer(c, 'GB')).sort((a, b) => b.ovr - a.ovr).slice(0, 6);
+  let mieux = {total: -1, choix: {}};
+  for (const g of gardiens.length ? gardiens : [null]) {
+    const t = terrain(g), total = t.total + (g ? g.ovr : 0);
+    if (total > mieux.total) mieux = {total, choix: g ? {GB: g.ex.id, ...t.choix} : t.choix};
   }
-  Object.assign(equipe, [...best.values()].reduce((a, e) => e.total > a.total ? e : a).choix);
+  const equipe = mieux.choix;
   action(Compte.alignerEquipe(equipe), () => { toast('Ton meilleur 7 est aligné'); route(true); });
 }
 

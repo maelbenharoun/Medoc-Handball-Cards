@@ -3,7 +3,7 @@
 
    Deux sources :
    - data/cartes.json : généré par scripts/export_cartes.py depuis medochandballstats.com (nom, équipe, stats du site) ;
-   - data/perso.json  : propre au jeu, rempli avec l'outil (admin.html) : poste de jeu, 6 stats, une photo par palier.
+   - data/perso.json  : propre au jeu, rempli avec l'outil (admin.html) : postes de jeu, 6 stats, une photo par palier.
    Une carte sans réglage dans perso.json reçoit un poste et des stats par défaut tirés des stats du site.
 
    Chaque joueur existe en 4 paliers, avec le même pouvoir pour tous (supabase/schema.sql fait foi) :
@@ -43,6 +43,27 @@ const POIDS = {
   GB: {ref: .35, pla: .25, rel: .10, men: .15, phy: .05, vit: .10},
 };
 
+// Bonus de chaque poste sur les stats (somme nulle : la note ne bouge pas, seule la forme change).
+// Un joueur à plusieurs postes prend la moyenne de leurs bonus : plus polyvalent, moins spécialisé.
+const BONUS_POSTE = {
+  AG: {vit: 4, tir: 2, pas: -1, def: -2, men: -1, phy: -2}, AD: {vit: 4, tir: 2, pas: -1, def: -2, men: -1, phy: -2},
+  ARG: {tir: 4, phy: 2, pas: -1, def: -2, men: -1, vit: -2}, ARD: {tir: 4, phy: 2, pas: -1, def: -2, men: -1, vit: -2},
+  DC: {pas: 4, men: 2, tir: -1, def: -2, phy: -2, vit: -1}, PIV: {phy: 4, def: 2, tir: 0, pas: -2, men: -2, vit: -2},
+};
+function bonusPostes(postes) {
+  const champ = (postes || []).filter(p => BONUS_POSTE[p]);
+  const b = {tir: 0, pas: 0, def: 0, men: 0, phy: 0, vit: 0};
+  for (const p of champ) for (const k in b) b[k] += BONUS_POSTE[p][k] / champ.length;
+  for (const k in b) b[k] = Math.round(b[k]);
+  return b;
+}
+// Postes d'une carte : la liste réglée dans l'outil (le premier = principal), sinon l'ancien poste unique,
+// sinon GB pour un gardien du site ; vide = joueur de champ sans poste (joue partout sans malus)
+function postesDe(p, c0) {
+  const l = (Array.isArray(p.postes) ? p.postes : p.poste ? [p.poste] : []).filter((x, i, t) => POSTES_JEU.includes(x) && t.indexOf(x) === i);
+  return l.length ? l : c0.poste === 'GB' ? ['GB'] : [];
+}
+
 const borne = (x, a, b) => Math.max(a, Math.min(b, Math.round(x)));
 
 function noteDepuisStats(s, poste) {
@@ -80,15 +101,17 @@ function statsValides(s, poste) {
 
 // Carte du site + réglages perso → carte du catalogue (au palier Bronze, note 50, pour l'affichage par défaut)
 function fusionnerCarte(c0, p = {}) {
-  const poste = POSTES_JEU.includes(p.poste) ? p.poste : (c0.poste === 'GB' ? 'GB' : null);
+  const postes = postesDe(p, c0), poste = postes[0] || null;   // poste principal : il donne la famille de stats (champ ou GB)
   const estGB = poste === 'GB';
   const profil = statsValides(p.stats, poste) ? {...p.stats} : statsParDefaut(c0, poste);
   const calc = noteDepuisStats(profil, poste);
-  const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc]));   // la forme du joueur
+  // la forme du joueur : ses stats moins sa note, plus le bonus de ses postes (joueurs de champ)
+  const bonus = estGB ? {} : bonusPostes(postes);
+  const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc + (bonus[k] || 0)]));
   const photos = {};
   for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
-  const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, estGB, stats: profil, calc, ecarts, photos, photo: p.photo || null,
-    perso: !!(p.poste || p.stats || p.photo || Object.keys(photos).length)};
+  const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null,
+    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || Object.keys(photos).length)};
   return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
 }
 // Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99
@@ -125,7 +148,9 @@ function appliquerBrouillon(perso, brouillon) {
 // ── rendu d'une carte ───────────────────────────────────────────────────────────
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const initiales = nom => nom.split(/[\s-]+/).filter(Boolean).map(m => m[0]).slice(0, 2).join('').toUpperCase();
-const posteAffiche = c => c.poste || 'JDC';
+// poste principal sur la carte (« + » s'il en a d'autres) ; nomsPostes : la liste complète
+const posteAffiche = c => c.postes?.length ? c.postes[0] + (c.postes.length > 1 ? '+' : '') : c.poste || 'JDC';
+const nomsPostes = c => c.postes?.length ? c.postes.map(p => POSTE_NOM[p]).join(', ') : 'Joueur(se) de champ';
 
 function silhouette(r) {
   const f = r === 'ultime' ? 'rgba(255,210,87,.16)' : 'rgba(0,0,0,.13)';

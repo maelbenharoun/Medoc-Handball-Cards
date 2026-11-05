@@ -87,6 +87,9 @@ Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/pers
 |---|---|
 | **Paliers** | Bronze 50 → 59 · Argent 60 → 74 · Or 75 → 89 · Ultime 90 → 99, même pouvoir pour tous les joueurs. Une carte arrive au bas de son palier |
 | **Forme du joueur** | Les 6 stats réglées dans l'outil donnent les écarts (ex. TIR +4, DÉF −6), gardés à chaque palier |
+| **Postes** | Plusieurs par joueur (le premier = principal). Pas de malus à ses postes, −5 ailleurs ; GB parmi ses postes = il peut aller au but. Bonus de stats par poste (ailier : vitesse, tir ; arrière : tir, physique ; demi-centre : passes, mental ; pivot : physique, défense), moyenné s'il en a plusieurs |
+| **Booster par poste** | 300 pièces : un joueur dont c'est le poste **principal** (avoir plusieurs postes ne donne pas plus de chances de sortir), mêmes chances de palier que le booster gratuit |
+| **Séance payante** | 150 pièces : +40 XP aux joueurs de Mon 7, sans limite (en plus des 5 séances gratuites par jour) |
 | **Booster de départ** | 7 joueurs, un par poste, alignés dans Mon 7 |
 | **Booster gratuit** | 1 joueur toutes les 30 minutes, 5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime |
 | **Entraînement** | Séance payée (40 / 80 / 150 / 300 pièces selon le palier) : +50 XP à la carte. 100 / 150 / 200 / 300 XP par point |

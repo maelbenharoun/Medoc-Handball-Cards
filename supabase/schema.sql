@@ -89,6 +89,10 @@ create table if not exists cartes (
 alter table cartes add column if not exists ecarts jsonb not null default '{}';   -- stat − note du profil : la forme du joueur
 alter table cartes add column if not exists photos jsonb not null default '{}';   -- une photo par palier
 alter table cartes add column if not exists photo text;
+-- tous les postes du joueur (le premier = principal, celui de la colonne poste) : il joue sans malus à chacun
+alter table cartes add column if not exists postes text[] not null default '{}'
+  check (postes <@ array['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB']);
+update cartes set postes = array[poste] where postes = '{}' and poste is not null;
 -- colonnes de la première version, plus utilisées
 alter table cartes add column if not exists ovr int;
 alter table cartes add column if not exists rarete text;
@@ -363,7 +367,8 @@ begin
   return r.key;
 end $$;
 
--- Joueur au hasard parmi les cartes en jeu (d'un poste donné si demandé ; sinon tous)
+-- Joueur au hasard parmi les cartes en jeu (d'un poste donné si demandé ; sinon tous).
+-- Par poste, seul le poste PRINCIPAL compte : un joueur à plusieurs postes n'a pas plus de chances de sortir.
 create or replace function tirer_carte(p_poste text default null, p_sauf text[] default '{}') returns text
 language plpgsql volatile security definer set search_path = public as $$
 declare c text;
@@ -423,9 +428,11 @@ begin
   if jsonb_typeof(p_equipe) <> 'object' then raise exception 'Équipe invalide'; end if;
   for l in select key, value from jsonb_each_text(p_equipe) loop
     if l.key not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB') then raise exception 'Poste inconnu'; end if;
+    -- au but : seulement si GB fait partie de ses postes ; sur le terrain : s'il a un poste de champ (ou aucun poste)
     if not exists (select 1 from exemplaires e join cartes c on c.id = e.carte_id
         where e.id::text = l.value and e.proprietaire = p_uid and e.verrou is null
-          and (l.key = 'GB') = (c.poste is not distinct from 'GB')) then
+          and case when l.key = 'GB' then 'GB' = any(c.postes)
+              else cardinality(c.postes) = 0 or exists (select 1 from unnest(c.postes) x where x <> 'GB') end) then
       raise exception 'Une carte ne peut pas jouer à ce poste, ou n’est plus dans ton club';
     end if;
   end loop;
@@ -540,7 +547,7 @@ begin
 end $$;
 
 -- Booster d'un poste, acheté en pièces : un joueur de ce poste (mêmes chances que le booster gratuit).
--- Seuls les joueurs dont le poste est renseigné dans l'outil sont tirés.
+-- Seuls les joueurs dont c'est le poste PRINCIPAL sont tirés : avoir plusieurs postes ne donne pas plus de chances de sortir.
 create or replace function ouvrir_booster_poste(p_poste text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); prix int := parami('booster_poste_prix'); c text; ex uuid;
 begin
@@ -675,7 +682,7 @@ end $$;
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- Force d'une équipe {poste: exemplaire} : attaque, défense, note, et les tireurs avec leur poids.
--- Chaque joueur : note de l'exemplaire (−5 hors de son poste) + sa forme (écarts) → ses 6 stats.
+-- Chaque joueur : note de l'exemplaire (−5 hors de ses postes) + sa forme (écarts, bonus de ses postes compris) → ses 6 stats.
 -- Attaque = tir, passes, vitesse des 6 joueurs de champ ; défense = défense, physique, mental + gardien(ne).
 create or replace function force_equipe(p_equipe jsonb, p_tactique text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
@@ -683,9 +690,10 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; eqs jsonb := '{}'; maxi int; coll int; t int := parami('tactique_bonus');
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
 begin
-  for l in select j.key as slot, e.note, c.poste, c.nom, c.equipe, c.ecarts
+  for l in select j.key as slot, e.note, c.postes, c.nom, c.equipe, c.ecarts
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
-    ne := l.note - case when l.slot <> 'GB' and l.poste is not null and l.poste <> l.slot then 5 else 0 end;
+    -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus)
+    ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then 5 else 0 end;
     n := n + 1; notes := notes + ne;
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'men')::int, 0)));
@@ -1095,11 +1103,13 @@ language plpgsql security definer set search_path = public as $$
 declare n int := 0;
 begin
   if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
-  insert into cartes (id, nom, equipe, poste, stats, ecarts, photos, photo, site, reglages, actif, maj)
-    select x ->> 'id', x ->> 'nom', x ->> 'equipe', x ->> 'poste', x -> 'stats', coalesce(x -> 'ecarts', '{}'),
+  insert into cartes (id, nom, equipe, poste, postes, stats, ecarts, photos, photo, site, reglages, actif, maj)
+    select x ->> 'id', x ->> 'nom', x ->> 'equipe', x ->> 'poste',
+      coalesce((select array_agg(v) from jsonb_array_elements_text(x -> 'postes') v), case when x ->> 'poste' is null then '{}' else array[x ->> 'poste'] end),
+      x -> 'stats', coalesce(x -> 'ecarts', '{}'),
       coalesce(x -> 'photos', '{}'), x ->> 'photo', x -> 'site', nullif(x -> 'reglages', 'null'::jsonb), true, now()
     from jsonb_array_elements(p_cartes) x
-    on conflict (id) do update set nom = excluded.nom, equipe = excluded.equipe, poste = excluded.poste, stats = excluded.stats,
+    on conflict (id) do update set nom = excluded.nom, equipe = excluded.equipe, poste = excluded.poste, postes = excluded.postes, stats = excluded.stats,
       ecarts = excluded.ecarts, photos = excluded.photos, photo = excluded.photo, site = excluded.site,
       reglages = excluded.reglages, actif = true, maj = now();
   if p_complet then
