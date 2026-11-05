@@ -30,7 +30,8 @@ function sauverBrouillon() {
 // Réglages publiés + brouillon → cartes affichées
 function persoCourant() {
   const p = appliquerBrouillon(PERSO, BROUILLON);
-  for (const id in p) if (PHOTOS_LOCALES[p[id].photo]) p[id] = {...p[id], photo: PHOTOS_LOCALES[p[id].photo]};
+  for (const id in p) p[id] = {...p[id], photo: p[id].photo && local(p[id].photo),
+    photos: p[id].photos && Object.fromEntries(Object.entries(p[id].photos).map(([k, v]) => [k, local(v)]))};
   return p;
 }
 function cartes() { return fusionner(SITE, persoCourant()); }
@@ -72,17 +73,15 @@ async function publier() {
     const actuel = await lirePersoGitHub(base);   // dernière version publiée (un autre appareil a pu publier entre-temps)
     const nouveau = {...actuel}, fichiers = [], locales = {};
     for (const id of ids) {
-      const e = BROUILLON[id];
-      let photo = e?.photo || null;
-      if (photo && photo.startsWith('data:')) {
-        const chemin = `assets/photos/${id}-${Date.now().toString(36)}.jpg`;   // nom unique : pas de vieille photo en cache
-        const blob = await gh('git/blobs', 'POST', {content: photo.split(',')[1], encoding: 'base64'});
+      const e = await deposerPhotos(id, BROUILLON[id], async (donnees, nom) => {
+        const chemin = `assets/photos/${nom}-${unique()}.jpg`;
+        const blob = await gh('git/blobs', 'POST', {content: donnees.split(',')[1], encoding: 'base64'});
         fichiers.push({path: chemin, mode: '100644', type: 'blob', sha: blob.sha});
-        locales[chemin] = photo; photo = chemin;
-      }
-      const ancienne = actuel[id]?.photo;
-      if (ancienne && ancienne !== photo && ancienne.startsWith('assets/photos/')) fichiers.push({path: ancienne, mode: '100644', type: 'blob', sha: null});
-      if (e) { nouveau[id] = {...e}; if (photo) nouveau[id].photo = photo; } else delete nouveau[id];
+        locales[chemin] = donnees; return chemin;
+      });
+      const gardees = photosDe(e);   // anciennes photos remplacées ou retirées : supprimées du dépôt
+      for (const v of photosDe(actuel[id])) if (!gardees.includes(v) && v.startsWith('assets/photos/')) fichiers.push({path: v, mode: '100644', type: 'blob', sha: null});
+      if (e) nouveau[id] = e; else delete nouveau[id];
     }
     fichiers.push({path: 'data/perso.json', mode: '100644', type: 'blob', content: textePerso(nouveau)});
     const arbre = await gh('git/trees', 'POST', {base_tree: arbreBase, tree: fichiers});
@@ -128,7 +127,7 @@ async function chargerServeur() {
 // carte telle qu'enregistrée sur le serveur : stats du site + réglages, note et rareté calculées par cartes.js
 function ligneServeur(id, reglages) {
   const site = PAR_ID[id], c = fusionnerCarte(site, reglages || {});
-  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, stats: c.s, ovr: c.ovr, rarete: c.rarete, photo: c.photo, site, reglages: reglages || null};
+  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site, reglages: reglages || null};
 }
 // envoie ces cartes au serveur (photos du brouillon déposées d'abord) ; complet : les autres ne sont plus tirées
 async function envoyer(ids, complet) {
@@ -136,16 +135,15 @@ async function envoyer(ids, complet) {
   try {
     const nouveau = {...PERSO}, lignes = [], aSupprimer = [];
     for (const id of ids) {
-      let e = id in BROUILLON ? BROUILLON[id] : PERSO[id] || null;
-      if (e?.photo?.startsWith('data:')) {
-        const chemin = `${id}-${Date.now().toString(36)}.jpg`;   // nom unique : pas de vieille photo en cache
-        const blob = await (await fetch(e.photo)).blob();
+      const e = await deposerPhotos(id, id in BROUILLON ? BROUILLON[id] : PERSO[id] || null, async (donnees, nom) => {
+        const chemin = `${nom}-${unique()}.jpg`;
+        const blob = await (await fetch(donnees)).blob();
         const {error} = await sbA.storage.from('photos').upload(chemin, blob, {contentType: 'image/jpeg', cacheControl: '31536000'});
         if (error) throw error;
-        e = {...e, photo: sbA.storage.from('photos').getPublicUrl(chemin).data.publicUrl};
-      }
-      const ancienne = PERSO[id]?.photo;
-      if (ancienne && ancienne !== e?.photo && ancienne.includes(DOSSIER_PHOTOS)) aSupprimer.push(ancienne.split(DOSSIER_PHOTOS)[1]);
+        return sbA.storage.from('photos').getPublicUrl(chemin).data.publicUrl;
+      });
+      const gardees = photosDe(e);   // anciennes photos remplacées ou retirées : supprimées du stockage
+      for (const v of photosDe(PERSO[id])) if (!gardees.includes(v) && v.includes(DOSSIER_PHOTOS)) aSupprimer.push(v.split(DOSSIER_PHOTOS)[1]);
       lignes.push(ligneServeur(id, e));
       if (e) nouveau[id] = e; else delete nouveau[id];
     }
@@ -212,33 +210,32 @@ function majListe() {
       const etat = c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '';
       return `<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
         <small>${c.poste ? POSTE_NOM[c.poste] : 'Poste non défini'} · ${c.equipe}</small>
-        <small>Note ${c.ovr}${c.ovr !== c.ovrSite ? ` (site ${c.ovrSite})` : ''} · ${R_LABEL[c.rarete]}${c.photo ? ' · photo' : ''}</small></div>${etat}</button>`;
+        <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
 
 // ── édition d'une carte ─────────────────────────────────────────────────────────
+// Le palier choisi sert à la fois à l'aperçu (note du bas du palier) et à la photo qu'on règle
 function ouvrir(id) {
   const p = appliquerBrouillon(PERSO, BROUILLON)[id] || {}, c = fusionnerCarte(PAR_ID[id], p);
   ed = {id, poste: p.poste || null, stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
-    force: Number.isFinite(p.ovr), ovr: Number.isFinite(p.ovr) ? p.ovr : c.ovr, photo: p.photo || null, img: null, cadre: null};
+    photos: {...(p.photos || {})}, photo: p.photo || null, palier: 'bronze', img: null, cadre: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
-    <div class="ed-haut"><div id="apercu"></div><div class="ed-note"><small>Note</small><b id="note"></b><small id="note-site"></small></div></div>
+    <div class="ed-haut"><div id="apercu"></div><div class="ed-note"><small>Palier</small><b id="note"></b><small id="note-site"></small></div></div>
+    <div class="filters postes" id="paliers"></div>
     <h3>${esc(c.nom)} <small>${c.equipe}</small></h3>
     <h4>Poste de jeu</h4><div class="filters postes" id="postes"></div>
-    <h4>Stats <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
-    <label class="chk"><input type="checkbox" id="force"> Forcer la note</label>
-    <input class="champ" type="number" id="ovr" min="1" max="99" inputmode="numeric">
-    <h4>Photo</h4>
+    <h4>Forme du joueur <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
+    <h4 id="titre-photo">Photo</h4>
     <div class="photo"><canvas id="cadre" width="${PHOTO_PX}" height="${PHOTO_PX}"></canvas>
       <div class="photo-ctl"><label class="btn ghost petit">Choisir une photo<input type="file" accept="image/*" id="fichier" hidden></label>
       <button class="btn ghost petit" data-act="sansphoto">Retirer</button>
       <div id="reglages-photo"></div></div></div>
-    <p class="note-photo">Photo seulement avec l’accord de la personne (de ses parents si elle est mineure) : le dépôt est public.</p>
+    <p class="note-photo">Une photo par palier (sinon celle du palier en dessous). Seulement avec l’accord de la personne (de ses parents si elle est mineure) : le jeu est public.</p>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="enregistrer">Enregistrer</button></div>
   </div>`;
-  $('#force').checked = ed.force;
-  if (ed.photo) { const img = new Image(); img.onload = () => { ed.img = img; ed.cadre = {z: 1, x: 50, y: 50, modifie: false}; dessiner(); majPhoto(); }; img.src = PHOTOS_LOCALES[ed.photo] || ed.photo; }
+  chargerPhoto();
   majEditeur();
 }
 
@@ -246,44 +243,44 @@ function entree() {
   const r = {};
   if (ed.poste) r.poste = ed.poste;
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
-  if (ed.force) r.ovr = ed.ovr;
+  if (Object.keys(ed.photos).length) r.photos = {...ed.photos};
   if (ed.photo) r.photo = ed.photo;
   return Object.keys(r).length ? r : null;
 }
+const local = u => PHOTOS_LOCALES[u] || u;
 function carteEd() {
   const e = entree() || {};
-  return fusionnerCarte(PAR_ID[ed.id], PHOTOS_LOCALES[e.photo] ? {...e, photo: PHOTOS_LOCALES[e.photo]} : e);
+  const c = fusionnerCarte(PAR_ID[ed.id], {...e, photo: e.photo && local(e.photo),
+    photos: e.photos && Object.fromEntries(Object.entries(e.photos).map(([k, v]) => [k, local(v)]))});
+  return vueExemplaire(c, {palier: ed.palier, note: PALIER[ed.palier].min});
 }
 const posteEd = () => ed.poste || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : null);
 
 function majEditeur() {
   const c = carteEd(), poste = posteEd();
   const choix = PAR_ID[ed.id].poste === 'GB' ? POSTES_JEU : [...POSTES_JEU, ''];
+  $('#paliers').innerHTML = PALIERS.map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
   $('#postes').innerHTML = choix.map(p => `<button data-poste="${p}" class="${(ed.poste || '') === p || (!ed.poste && p === poste) ? 'on' : ''}">${p || 'Non défini'}</button>`).join('');
   $('#stats').innerHTML = statsDu(poste).map(([k, , nom]) => `<label class="stat-l"><span>${nom}</span>
-    <input type="range" min="1" max="99" value="${c.s[k]}" data-stat="${k}"><input class="champ" type="number" min="1" max="99" value="${c.s[k]}" data-stat="${k}" inputmode="numeric"></label>`).join('')
-    + `<p class="sub petit">${ed.stats ? 'Stats réglées à la main.' : 'Stats par défaut, tirées des stats du site.'} Poids du poste ${poste || 'non défini'} : ${
-      statsDu(poste).map(([k, l]) => `${l} ${Math.round(POIDS[poste || 'JDC'][k] * 100)} %`).join(' · ')}</p>`;
-  $('#ovr').hidden = !ed.force;
-  if (!ed.force) ed.ovr = c.calc;
-  $('#ovr').value = ed.ovr;
+    <input type="range" min="1" max="99" value="${c.stats[k]}" data-stat="${k}"><input class="champ" type="number" min="1" max="99" value="${c.stats[k]}" data-stat="${k}" inputmode="numeric"></label>`).join('')
+    + `<p class="sub petit">${ed.stats ? 'Réglée à la main.' : 'Par défaut, tirée des stats du site.'} Tous les joueurs ont la même note à palier égal :
+      ces stats ne donnent que la forme du joueur (${statsDu(poste).map(([k, l]) => `${l} ${c.ecarts[k] >= 0 ? '+' : ''}${c.ecarts[k]}`).join(' · ')}),
+      gardée à chaque palier. Poids du poste ${poste || 'non défini'} : ${statsDu(poste).map(([k, l]) => `${l} ${Math.round(POIDS[poste || 'JDC'][k] * 100)} %`).join(' · ')}</p>`;
+  $('#titre-photo').textContent = `Photo ${R_LABEL[ed.palier]}`;
   majApercu();
 }
 function majApercu() {
-  const c = carteEd();
+  const c = carteEd(), p = PALIER[ed.palier];
   $('#apercu').innerHTML = carteHTML(c);
-  $('#note').textContent = c.ovr;
-  $('#note-site').textContent = `${R_LABEL[c.rarete]} · site ${c.ovrSite}${c.force ? ` · calculée ${c.calc}` : ''}`;
+  $('#note').textContent = p.min;
+  $('#note-site').textContent = `${p.nom} ${p.min}–${p.max}`;
 }
 
 function changerStat(k, v, source) {
-  const poste = posteEd();
-  if (!ed.stats) ed.stats = {...carteEd().s};
+  if (!ed.stats) ed.stats = {...carteEd().stats};
   ed.stats[k] = borne(+v || 1, 1, 99);
   document.querySelectorAll(`[data-stat="${k}"]`).forEach(el => { if (el !== source) el.value = ed.stats[k]; });
-  if (!ed.force) ed.ovr = noteDepuisStats(ed.stats, poste);
-  $('#ovr').value = ed.ovr;
-  majApercu();
+  majEditeur();
 }
 function changerPoste(p) {
   const avantGB = posteEd() === 'GB';
@@ -291,8 +288,18 @@ function changerPoste(p) {
   if (avantGB !== (posteEd() === 'GB')) ed.stats = null;   // champ ↔ gardien(ne) : autres stats, on repart des valeurs par défaut
   majEditeur();
 }
+function changerPalier(p) { ed.palier = p; chargerPhoto(); majEditeur(); }
 
-// Photo : recadrage carré (zoom + position) dans un canvas, puis JPEG
+// Photo du palier choisi : recadrage carré (zoom + position) dans un canvas, puis JPEG
+function chargerPhoto() {
+  ed.img = null; ed.cadre = null;
+  const src = ed.photos[ed.palier] || (ed.palier === 'bronze' ? ed.photo : null);
+  dessiner(); majPhoto();
+  if (!src) return;
+  const img = new Image();
+  img.onload = () => { if (!ed) return; ed.img = img; ed.cadre = {z: 1, x: 50, y: 50}; dessiner(); majPhoto(); };
+  img.src = local(src);
+}
 function dessiner() {
   const cv = $('#cadre'), x = cv.getContext('2d');
   x.fillStyle = '#1a1d22'; x.fillRect(0, 0, PHOTO_PX, PHOTO_PX);
@@ -308,7 +315,12 @@ function majPhoto() {
 let rafPhoto = 0;
 function photoDepuisCadre() {
   cancelAnimationFrame(rafPhoto);
-  rafPhoto = requestAnimationFrame(() => { dessiner(); ed.photo = $('#cadre').toDataURL('image/jpeg', .85); ed.cadre.modifie = true; majApercu(); });
+  rafPhoto = requestAnimationFrame(() => { dessiner(); ed.photos[ed.palier] = $('#cadre').toDataURL('image/jpeg', .85); majEditeur(); });
+}
+function retirerPhoto() {
+  delete ed.photos[ed.palier];
+  if (ed.palier === 'bronze') ed.photo = null;   // ancienne photo unique
+  chargerPhoto(); majEditeur();
 }
 function choisirFichier(f) {
   if (!f) return;
@@ -319,13 +331,24 @@ function choisirFichier(f) {
 }
 
 function enregistrer() {
-  if (ed.force) ed.ovr = borne(+$('#ovr').value || ed.ovr, 1, 99);
   const e = entree();
   if (memeEntree(e, PERSO[ed.id])) delete BROUILLON[ed.id]; else BROUILLON[ed.id] = e;
   if (!sauverBrouillon()) return;
   fermer(); toast('Enregistré dans le brouillon');
 }
 function fermer() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; ed = null; vue(); }
+
+// Photos d'une entrée (photo unique + une par palier) ; deposer(dataURL, nom) envoie une photo neuve et renvoie son adresse
+const photosDe = e => [e?.photo, ...Object.values(e?.photos || {})].filter(Boolean);
+const unique = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);   // nom unique : pas de vieille photo en cache
+async function deposerPhotos(id, e, deposer) {
+  if (!e) return e;
+  const r = {...e, photos: {...(e.photos || {})}};
+  if (r.photo?.startsWith('data:')) r.photo = await deposer(r.photo, id);
+  for (const [k, v] of Object.entries(r.photos)) if (v.startsWith('data:')) r.photos[k] = await deposer(v, `${id}-${k}`);
+  if (!Object.keys(r.photos).length) delete r.photos;
+  return r;
+}
 
 // ── réglages GitHub ─────────────────────────────────────────────────────────────
 function reglages(msg) {
@@ -356,16 +379,17 @@ async function validerReglages() {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-poste]');
+  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-poste],[data-palier]');
   if (!t) { if (e.target.id === 'overlay' && !ed) fermer(); return; }   // l'éditeur ne se ferme pas par erreur
   const a = t.dataset.act;
   if (t.dataset.ed) return ouvrir(t.dataset.ed);
   if (t.dataset.filtre) { filtre = t.dataset.filtre; return vue(); }
   if (t.dataset.poste !== undefined && ed) return changerPoste(t.dataset.poste);
+  if (t.dataset.palier && ed) return changerPalier(t.dataset.palier);
   if (a === 'fermer') return fermer();
   if (a === 'enregistrer') return enregistrer();
-  if (a === 'defaut') { ed.stats = null; ed.force = false; $('#force').checked = false; return majEditeur(); }
-  if (a === 'sansphoto') { ed.photo = null; ed.img = null; dessiner(); majPhoto(); return majApercu(); }
+  if (a === 'defaut') { ed.stats = null; return majEditeur(); }
+  if (a === 'sansphoto') return retirerPhoto();
   if (a === 'publier') return SERVEUR ? publierServeur() : publier();
   if (a === 'synchro') return synchroniser();
   if (a === 'a-google') return sbA.auth.signInWithOAuth({provider: 'google', options: {redirectTo: urlRetour()}}).then(({error}) => error && alert(texteErreur(error)));
@@ -381,12 +405,10 @@ document.addEventListener('input', e => {
   if (!ed) return;
   if (t.dataset.stat) return changerStat(t.dataset.stat, t.value, t);
   if (t.dataset.cadre) { ed.cadre[t.dataset.cadre] = t.dataset.cadre === 'z' ? t.value / 100 : +t.value; return photoDepuisCadre(); }
-  if (t.id === 'ovr') { ed.ovr = borne(+t.value || 1, 1, 99); return majApercu(); }
 });
 document.addEventListener('change', e => {
   if (!ed) return;
   if (e.target.id === 'fichier') return choisirFichier(e.target.files[0]);
-  if (e.target.id === 'force') { ed.force = e.target.checked; majEditeur(); }
 });
 document.addEventListener('submit', async e => {
   if (e.target.dataset.form !== 'admin') return;

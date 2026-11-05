@@ -3,14 +3,22 @@
 
    Deux sources :
    - data/cartes.json : généré par scripts/export_cartes.py depuis medochandballstats.com (nom, équipe, stats du site) ;
-   - data/perso.json  : propre au jeu, rempli avec l'outil (admin.html) : poste de jeu, 6 stats, note forcée, photo.
-   Une carte sans réglage dans perso.json reçoit un poste et des stats par défaut tirés des stats du site. */
+   - data/perso.json  : propre au jeu, rempli avec l'outil (admin.html) : poste de jeu, 6 stats, une photo par palier.
+   Une carte sans réglage dans perso.json reçoit un poste et des stats par défaut tirés des stats du site.
 
-// ── raretés ─────────────────────────────────────────────────────────────────────
-const RARETES = ['bronze', 'argent', 'or', 'elite'];
-const R_LABEL = {bronze: 'Bronze', argent: 'Argent', or: 'Or', elite: 'Élite'};
-const SEUILS = [[85, 'elite'], [72, 'or'], [60, 'argent'], [0, 'bronze']];   // note minimale de chaque rareté
-const rareteDe = note => SEUILS.find(([s]) => note >= s)[1];
+   Chaque joueur existe en 4 paliers, avec le même pouvoir pour tous (supabase/schema.sql fait foi) :
+   Bronze 50 → 59, Argent 60 → 74, Or 75 → 89, Ultime 90 → 99. La note d'un exemplaire vient de son palier
+   et de son entraînement ; les 6 stats réglées dans l'outil ne donnent que la forme du joueur (ses « écarts »). */
+
+// ── paliers ─────────────────────────────────────────────────────────────────────
+const PALIERS = [
+  {id: 'bronze', nom: 'Bronze', min: 50, max: 59}, {id: 'argent', nom: 'Argent', min: 60, max: 74},
+  {id: 'or', nom: 'Or', min: 75, max: 89}, {id: 'ultime', nom: 'Ultime', min: 90, max: 99},
+];
+const RARETES = PALIERS.map(p => p.id);
+const R_LABEL = Object.fromEntries(PALIERS.map(p => [p.id, p.nom]));
+const PALIER = Object.fromEntries(PALIERS.map(p => [p.id, p]));
+const palierSuivant = id => RARETES[RARETES.indexOf(id) + 1] || null;
 
 // ── postes et stats ─────────────────────────────────────────────────────────────
 const POSTES_JEU = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
@@ -70,15 +78,31 @@ function statsValides(s, poste) {
   return !!s && statsDu(poste).every(([k]) => Number.isFinite(s[k]) && s[k] >= 1 && s[k] <= 99);
 }
 
-// Carte du site + réglages perso → carte du jeu
+// Carte du site + réglages perso → carte du catalogue (au palier Bronze, note 50, pour l'affichage par défaut)
 function fusionnerCarte(c0, p = {}) {
   const poste = POSTES_JEU.includes(p.poste) ? p.poste : (c0.poste === 'GB' ? 'GB' : null);
   const estGB = poste === 'GB';
-  const s = statsValides(p.stats, poste) ? {...p.stats} : statsParDefaut(c0, poste);
-  const calc = noteDepuisStats(s, poste);
-  const ovr = Number.isFinite(p.ovr) ? borne(p.ovr, 1, 99) : calc;
-  return {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, estGB, s, calc, ovr, force: Number.isFinite(p.ovr),
-    rarete: rareteDe(ovr), photo: p.photo || null, perso: !!(p.poste || p.stats || p.photo || Number.isFinite(p.ovr))};
+  const profil = statsValides(p.stats, poste) ? {...p.stats} : statsParDefaut(c0, poste);
+  const calc = noteDepuisStats(profil, poste);
+  const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc]));   // la forme du joueur
+  const photos = {};
+  for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
+  const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, estGB, stats: profil, calc, ecarts, photos, photo: p.photo || null,
+    perso: !!(p.poste || p.stats || p.photo || Object.keys(photos).length)};
+  return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
+}
+// Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99
+function statsAuNiveau(c, note) {
+  return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(note + (c.ecarts?.[k] || 0), 1, 99)]));
+}
+// Photo d'un palier ; sinon celle du palier inférieur le plus proche ; sinon la photo unique ; sinon rien
+function photoPalier(c, palier) {
+  for (let i = RARETES.indexOf(palier); i >= 0; i--) if (c.photos?.[RARETES[i]]) return c.photos[RARETES[i]];
+  return c.photo || null;
+}
+// Ce qu'on affiche pour un exemplaire possédé : {palier, note, …} + la carte du catalogue
+function vueExemplaire(c, ex) {
+  return {...c, rarete: ex.palier, ovr: ex.note, s: statsAuNiveau(c, ex.note), photo: photoPalier(c, ex.palier), ex};
 }
 function fusionner(site, perso) {
   return site.map(c => fusionnerCarte(c, perso[c.id])).sort((a, b) => b.ovr - a.ovr || a.nom.localeCompare(b.nom, 'fr'));
@@ -104,11 +128,11 @@ const initiales = nom => nom.split(/[\s-]+/).filter(Boolean).map(m => m[0]).slic
 const posteAffiche = c => c.poste || 'JDC';
 
 function silhouette(r) {
-  const f = r === 'elite' ? 'rgba(255,210,87,.16)' : 'rgba(0,0,0,.13)';
+  const f = r === 'ultime' ? 'rgba(255,210,87,.16)' : 'rgba(0,0,0,.13)';
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="34" r="17" fill="${f}"/><path d="M18 100c0-22 14-36 32-36s32 14 32 36z" fill="${f}"/></svg>`;
 }
 
-// o : {cache, cls, note (note affichée selon le poste occupé), nouveau, qty, doublon (prix de vente)}
+// c : carte affichée (voir vueExemplaire) ; o : {cache, cls, note (selon le poste occupé), nouveau, qty, doublon (prix de vente)}
 function carteHTML(c, o = {}) {
   if (o.cache) return `<div class="card locked lr-${c.rarete}" data-id="${c.id}"><div class="c-top"><b class="c-ovr">?</b><span class="c-pos">${posteAffiche(c)}</span></div>
     <div class="c-face">${silhouette()}</div><div class="c-name">${esc(c.nom)}</div><div class="c-line"></div></div>`;

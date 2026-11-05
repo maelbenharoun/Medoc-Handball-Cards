@@ -1,8 +1,12 @@
 'use strict';
-/* Médoc Hand Cards — compte en ligne sur le serveur Supabase.
-   Même interface que CompteLocal (compte.js), plus la connexion et les échanges.
+/* Médoc Hand Cards — le compte du joueur, sur le serveur Supabase.
    Ici, on ne fait que demander : c'est le serveur (supabase/schema.sql) qui vérifie et applique les règles.
-   À la fin du fichier, « Compte » devient CompteServeur si config.js est rempli, sinon CompteLocal. */
+   Chaque action renvoie une promesse ; l'état reçu du serveur remplace Compte.etat.
+   À la fin du fichier, « Compte » devient CompteServeur si config.js est rempli, sinon CompteAbsent
+   (le jeu affiche alors qu'il n'est pas encore ouvert). */
+
+// Réglages du jeu (table parametres) : prix, chances, coûts… remplis au démarrage
+const PARAMS = {};
 
 // Bibliothèque officielle Supabase, version fixée, chargée seulement en mode serveur
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js';
@@ -51,14 +55,15 @@ const CompteServeur = (() => {
   const abonnes = [];
 
   function vide() {
-    return {profil: false, pseudo: '', role: '', pieces: 0, possede: {}, equipe: {}, dernierBonus: '', bonusDispo: false, packs: 0, bienvenue: true};
+    return {profil: false, pseudo: '', role: '', pieces: 0, niveau: 1, xp: 0, xpNiveau: 100, depart: true, boosters: 0, bonus: 0, bonusOr: 0,
+      boosterMax: 5, prochainBooster: null, equipe: {}, tactique: 'equilibre', exemplaires: [], quetes: [], recu: Date.now()};
   }
   const lireCache = () => { try { return JSON.parse(localStorage.getItem(CACHE)) || {}; } catch (e) { return {}; } };
   const ecrireCache = o => { try { localStorage.setItem(CACHE, JSON.stringify({...lireCache(), ...o})); } catch (e) {} };
   const prevenir = () => abonnes.forEach(f => { try { f(); } catch (e) { console.error(e); } });
   function majEtat(e) {
     if (!e) return;
-    S = {...vide(), ...e};
+    S = {...vide(), ...e, recu: Date.now()};   // recu : pour le compte à rebours du prochain booster
     if (session) ecrireCache({etat: S, utilisateur: session.user.id});
   }
   async function rpc(nom, args) {
@@ -69,24 +74,23 @@ const CompteServeur = (() => {
     return data;
   }
 
-  // Catalogue, règles et packs viennent du serveur ; l'affichage du jeu s'y adapte
+  // Catalogue et réglages du jeu viennent du serveur ; l'affichage du jeu s'y adapte
   async function telechargerCatalogue() {
-    const [cs, rg, pk] = await Promise.all([sb.from('cartes').select('*'), sb.from('regles').select('*').single(),
-      sb.from('packs').select('*').order('ordre')]);
-    for (const x of [cs, rg, pk]) if (x.error) throw x.error;
-    return {cartes: cs.data, regles: rg.data, packs: pk.data};
+    const [cs, pr] = await Promise.all([sb.from('cartes').select('*'), sb.from('parametres').select('valeurs').single()]);
+    for (const x of [cs, pr]) if (x.error) throw x.error;
+    return {cartes: cs.data, parametres: pr.data.valeurs};
   }
-  function appliquerCatalogue({cartes, regles, packs}) {
-    Object.assign(REGLES, {depart: regles.depart, bonusJour: regles.bonus_jour, packBienvenue: regles.pack_bienvenue,
-      echangeMaxCartes: regles.echange_max_cartes, echangesParJour: regles.echanges_par_jour});
-    Object.assign(VENTE, regles.vente);
-    PACKS.splice(0, PACKS.length, ...packs.map(p => ({id: p.id, nom: p.nom, prix: p.prix, n: p.n, poids: p.poids, garanti: p.garanti, desc: p.description})));
+  function appliquerCatalogue({cartes, parametres}) {
+    Object.assign(PARAMS, parametres);
     const brouillon = outilConnecte() ? lireBrouillon() : {};   // aperçu, seulement dans le navigateur de l'admin
-    const liste = cartes.map(r => r.id in brouillon && brouillon[r.id] !== undefined
-      ? {...fusionnerCarte(r.site, brouillon[r.id] || {}), actif: r.actif}
-      : {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, estGB: r.poste === 'GB', s: r.stats, ovr: r.ovr,
-         rarete: r.rarete, photo: r.photo, actif: r.actif});
-    liste.sort((a, b) => b.ovr - a.ovr || a.nom.localeCompare(b.nom, 'fr'));
+    const liste = cartes.map(r => {
+      if (r.id in brouillon) return {...fusionnerCarte(r.site, brouillon[r.id] || {}), actif: r.actif};
+      // le serveur fait foi : poste, forme du joueur et photos tels que publiés
+      const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, estGB: r.poste === 'GB', ecarts: r.ecarts || {},
+        photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
+      return vueExemplaire(base, {palier: 'bronze', note: PALIER.bronze.min});
+    });
+    liste.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     const maj = cartes.reduce((m, r) => r.maj > m ? r.maj : m, '');
     return {cartes: liste, maj: maj.slice(0, 10), apercu: Object.keys(brouillon).length > 0};
   }
@@ -179,24 +183,24 @@ const CompteServeur = (() => {
       session = null; S = vide(); prevenir();
     },
 
-    // ── jeu (mêmes actions que CompteLocal) ──
-    bonusDisponible: () => !!S.bonusDispo,
-    packOffert: id => id === REGLES.packBienvenue && !S.bienvenue,
-    ouvrirPack: id => rpc('ouvrir_pack', {p_pack: id}).then(d => ({ids: d.ids, nouveaux: d.nouveaux})),
-    recupererBonus: () => rpc('recuperer_bonus').then(d => ({gain: d.gain})),
-    vendre: id => rpc('vendre', {p_carte: id}).then(d => ({gain: d.gain})),
-    vendreDoublons: () => rpc('vendre_doublons').then(d => ({gain: d.gain})),
-    aligner: (poste, id) => rpc('aligner', {p_poste: poste, p_carte: id || null}).then(() => ({equipe: S.equipe})),
-    alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}).then(() => ({equipe: S.equipe})),
-
-    // ── échanges ──
-    echanges: () => rpc('mes_echanges'),
+    // ── cartes ── (chaque action renvoie la réponse du serveur ; « niveaux » = niveaux de compte gagnés)
+    rafraichir: () => rpc('mon_etat').then(majEtat),
+    ouvrirDepart: () => rpc('ouvrir_depart'),                                  // → {ids}
+    ouvrirBooster: type => rpc('ouvrir_booster', {p_type: type}),               // 'gratuit' | 'bonus' | 'or' → {ids}
+    fusionner: (carte, palier) => rpc('fusionner', {p_carte: carte, p_palier: palier}),   // → {id, niveaux}
+    entrainer: ex => rpc('entrainer', {p_ex: ex}),                              // → {avant, apres, niveaux}
+    vendre: ex => rpc('vendre', {p_ex: ex}),                                    // → {gain}
+    aligner: (poste, ex) => rpc('aligner', {p_poste: poste, p_ex: ex || null}),
+    alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}),
+    reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
     chercherJoueurs: texte => rpc('chercher_joueurs', {p_texte: texte}),
-    clubDe: pseudo => rpc('club_de', {p_pseudo: pseudo}),
-    proposerEchange: (pseudo, offre, demande) => rpc('proposer_echange', {p_pseudo: pseudo, p_offre: offre, p_demande: demande}),
-    repondreEchange: (id, accepte) => rpc('repondre_echange', {p_id: id, p_accepte: accepte}),
-    annulerEchange: id => rpc('annuler_echange', {p_id: id}),
   };
 })();
 
-const Compte = CONFIG.supabaseUrl && CONFIG.supabaseCle ? CompteServeur : CompteLocal;
+// config.js vide : le jeu n'est pas encore relié à son serveur
+const CompteAbsent = {
+  mode: 'absent', pret: false, connecte: false, horsLigne: false, recuperation: false, email: '', etat: {exemplaires: [], equipe: {}},
+  surChangement() {}, demarrer: () => Promise.resolve({cartes: [], maj: ''}),
+};
+
+const Compte = CONFIG.supabaseUrl && CONFIG.supabaseCle ? CompteServeur : CompteAbsent;

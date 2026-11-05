@@ -3,7 +3,7 @@
   "short_name": "Hand Cards",
   "description": "Ouvre des packs et collectionne les cartes des joueurs et joueuses du Médoc Handball (SG1, SG2, SF1, SF2).",
   "lang": "fr",
-  "start_url": "./#boutique",
+  "start_url": "./#accueil",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

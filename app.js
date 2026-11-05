@@ -1,8 +1,8 @@
 'use strict';
-/* Médoc Hand Cards — jeu de packs façon Ultimate Team avec les cartes de medochandballstats.com
-   Ce fichier : l'affichage (vues #boutique, #club, #equipe, #echanges, connexion, ouverture des packs).
-   Les cartes (stats, notes, rendu) sont dans cartes.js, partagé avec l'outil de gestion admin.html ;
-   le compte du joueur dans compte.js (sur le téléphone) ou serveur.js (serveur Supabase, voir docs/SERVEUR.md). */
+/* Médoc Hand Cards — jeu de cartes à collectionner avec les joueurs et joueuses du Médoc Handball.
+   Ce fichier : l'affichage (vues #accueil, #club, #equipe, connexion, ouverture des boosters).
+   Les cartes (paliers, stats, rendu) sont dans cartes.js, partagé avec l'outil admin.html ;
+   le compte du joueur dans serveur.js : toutes les règles sont appliquées par le serveur (supabase/schema.sql). */
 
 // Mon 7 : positions sur le demi-terrain (x, y en %) ; GB réservé aux gardien(ne)s, les autres postes aux joueurs de champ
 const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien
@@ -17,13 +17,26 @@ const S = () => Compte.etat;   // état du joueur, en lecture seule ici : les ch
 let filtre = 'tous', occupe = false;
 
 const $ = s => document.querySelector(s);
-const nb = n => n.toLocaleString('fr-FR');
+const nb = n => (n || 0).toLocaleString('fr-FR');
+const EX = () => S().exemplaires || [];
+const exParId = id => EX().find(e => e.id === id);
+const rangEx = (a, b) => RARETES.indexOf(b.palier) - RARETES.indexOf(a.palier) || b.note - a.note || b.xp - a.xp;
+const mesEx = carte => EX().filter(e => e.carte === carte).sort(rangEx);
+const vue = ex => vueExemplaire(PAR_ID[ex.carte], ex);   // carte affichable d'un exemplaire
+const dansEquipe = id => Object.values(S().equipe || {}).includes(id);
+const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
+  && EX().filter(e => e.carte === carte && e.palier === r && !e.verrou).length >= (PARAMS.fusion_nombre || 3));
+
 // Poste du terrain : GB pour les gardien(ne)s, les 6 autres pour les joueurs de champ.
 // Hors de son poste, une carte perd MALUS_HORS_POSTE points (sans poste renseigné, elle joue partout sans malus).
 const peutJouer = (c, slot) => slot === 'GB' ? c.estGB : !c.estGB;
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.poste && c.poste !== slot;
 const noteAuPoste = (c, slot) => c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0);
-const aligne = slot => { const c = PAR_ID[S().equipe[slot]]; return c && S().possede[c.id] && peutJouer(c, slot) ? c : null; };
+const aligne = slot => {
+  const e = exParId(S().equipe?.[slot]);
+  if (!e || !PAR_ID[e.carte]) return null;
+  const c = vue(e); return peutJouer(c, slot) ? c : null;
+};
 
 let piecesAffichees = null;
 function majPieces() {
@@ -31,81 +44,163 @@ function majPieces() {
   if (piecesAffichees !== null && v !== piecesAffichees) { const c = $('#coins'); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 220); }
   piecesAffichees = v; $('#coinv').textContent = nb(v);
 }
-// enchaîne une action du compte : une seule à la fois, message en cas de refus, pièces et vue à jour
+// enchaîne une action du compte : une seule à la fois, message en cas de refus, pièces et niveaux à jour
 function action(promesse, suite) {
   occupe = true;
-  return promesse.then(r => { occupe = false; majPieces(); return suite ? suite(r) : r; })
+  return promesse.then(r => { occupe = false; majPieces(); celebrer(r?.niveaux); return suite ? suite(r) : r; })
     .catch(e => { occupe = false; majPieces(); toast(e.message || 'Action impossible'); });
 }
 function toast(t) {
   const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t);
   toast.t = setTimeout(() => el.classList.remove('on'), Math.max(2200, t.length * 60));   // le temps de lire
 }
+// niveaux de compte gagnés pendant une action : récompenses à annoncer
+function celebrer(niveaux) {
+  if (!niveaux?.length) return;
+  const n = niveaux[niveaux.length - 1], pieces = niveaux.reduce((t, x) => t + x.pieces, 0);
+  const boosters = niveaux.map(x => x.booster === 'or' ? 'booster Or' : 'booster').join(', ');
+  setTimeout(() => toast(`Niveau ${n.niveau} ! +${nb(pieces)} pièces, +${boosters}`), 400);
+  vibrer([30, 40, 30]);
+}
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {boutique: vueBoutique, club: vueClub, equipe: vueEquipe, echanges: vueEchanges, compte: vueCompte};
-// onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à la boutique
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, compte: vueCompte};
+// onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
   const v = location.hash.slice(1);
-  if (v === 'echanges' && Compte.mode !== 'serveur') return 'boutique';
-  return VUES[v] && v !== 'compte' ? v : 'boutique';
+  return VUES[v] && v !== 'compte' ? v : 'accueil';
 }
 function route(garderDefilement) {
-  const v = Compte.pret ? vueCourante() : 'compte';   // en ligne : connexion et profil d'abord
+  const v = Compte.pret ? vueCourante() : 'compte';   // connexion et profil d'abord
   majEntete();
   document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v));
   $('#view').innerHTML = VUES[v]();
   if (!garderDefilement) window.scrollTo(0, 0);
+  minuteur();
 }
 function majEntete() {
-  const serveur = Compte.mode === 'serveur';
   $('#coins').hidden = !Compte.pret;
   $('.tabs').hidden = !Compte.pret;
-  $('.tabs [data-tab=echanges]').hidden = !serveur;
   const moi = $('#moi');
-  moi.hidden = !(serveur && Compte.pret);
-  moi.textContent = (S().pseudo || '?').slice(0, 1).toUpperCase();
-  const n = (ECH.liste || []).filter(e => !e.envoye && e.statut === 'propose').length;
-  const pastille = $('#pastille'); pastille.hidden = !n; pastille.textContent = n;
+  moi.hidden = !Compte.pret;
+  moi.textContent = S().niveau || 1;
+  moi.setAttribute('aria-label', `Mon compte, niveau ${S().niveau || 1}`);
+  const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0)
+    + (S().quetes || []).filter(q => q.progres >= q.objectif && !q.reclamee).length;
+  const pastille = $('#pastille'); pastille.hidden = !n || !Compte.pret; pastille.textContent = n;
   if (Compte.pret) majPieces();
 }
 
-const enJeu = () => CARTES.filter(c => c.actif !== false);   // cartes encore tirées dans les packs
-function nPossedees() { return CARTES.filter(c => S().possede[c.id]).length; }
-
-function vueBoutique() {
-  const bonus = Compte.bonusDisponible();
-  const packs = PACKS.map(p => `<button class="pack pk-${p.id}" data-pack="${p.id}" ${S().pieces < p.prix && !Compte.packOffert(p.id) ? 'disabled' : ''}>
-      <div class="pack-art"><img src="assets/logo.png" alt=""><span class="pn">${p.nom}</span></div>
-      <div class="pack-info"><small>${p.desc}</small>
-      <div class="price">${Compte.packOffert(p.id) ? 'Offert' : `<i class="coin"></i>${nb(p.prix)}`}</div></div></button>`).join('');
-  return `<h1>Boutique</h1>
-    <p class="sub">${enJeu().length} cartes à collectionner : SG1, SG2, SF1 et SF2, saison 2026-2027.</p>
-    ${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour ouvrir des packs.</p></div>' : ''}
-    ${bonus ? `<div class="daily"><p><b>Bonus du jour</b>${nb(REGLES.bonusJour)} pièces t’attendent</p><button class="btn gold" data-act="bonus">Récupérer</button></div>` : ''}
-    ${!S().bienvenue ? `<div class="daily"><p><b>Pack de bienvenue</b>Ton premier pack ${esc(PACKS.find(p => p.id === REGLES.packBienvenue)?.nom || '')} est offert</p><button class="btn gold" data-pack="${REGLES.packBienvenue}">Ouvrir</button></div>` : ''}
-    <div class="packs">${packs}</div>
-    <h2>Ta progression</h2>
-    <div class="stats-row"><div class="stat"><b>${nPossedees()}/${enJeu().length}</b><span>cartes</span></div>
-    <div class="stat"><b>${S().packs}</b><span>packs ouverts</span></div>
+// ── accueil : niveau, boosters, quêtes ──────────────────────────────────────────
+function secondesAvantBooster() {
+  const s = S().prochainBooster;
+  return s == null ? null : Math.max(0, Math.ceil(s - (Date.now() - S().recu) / 1000));
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function minuteur() {
+  clearInterval(minuteur.t);
+  if (!$('#minuteur')) return;
+  minuteur.t = setInterval(() => {
+    const el = $('#minuteur'); if (!el) return clearInterval(minuteur.t);
+    const s = secondesAvantBooster();
+    el.textContent = mmss(s || 0);
+    if (s === 0 && !minuteur.charge && !occupe) {   // un booster vient d'arriver
+      minuteur.charge = true; clearInterval(minuteur.t);
+      Compte.rafraichir().catch(() => {}).finally(() => { minuteur.charge = false; if ($('#overlay').hidden) route(true); });
+    }
+  }, 1000);
+}
+function vueAccueil() {
+  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {};
+  const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
+  const quetes = (e.quetes || []).map(q => {
+    const fini = q.progres >= q.objectif;
+    return `<div class="quete${q.reclamee ? ' faite' : ''}"><div><b>${esc(q.texte)}</b><small>${q.progres}/${q.objectif} · +${q.xp} XP · +${nb(q.pieces)} pièces</small>
+      <div class="bar"><i style="width:${100 * q.progres / q.objectif}%"></i></div></div>
+      ${q.reclamee ? '<span class="ok">✓</span>' : fini ? `<button class="btn gold petit" data-quete="${q.id}">Récupérer</button>` : ''}</div>`;
+  }).join('');
+  const differentes = new Set(EX().map(x => x.carte)).size;
+  return `<h1>Salut ${esc(e.pseudo)}</h1>
+    ${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
+    <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div>
+      <small>Chaque niveau : des pièces et un booster. Tous les ${PARAMS.niveau_or_tous || 5} niveaux : un booster Or.</small></div>
+    ${e.depart === false ? `<div class="daily depart"><p><b>Booster de départ</b>7 joueurs, un à chaque poste : ton premier 7 !</p>
+      <button class="btn gold" data-act="depart">Ouvrir</button></div>` : ''}
+    <h2>Boosters</h2>
+    <div class="boosters">
+      <button class="booster" data-booster="gratuit"${e.boosters < 1 ? ' disabled' : ''}>
+        <span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.boosters}</b></span>
+        <span class="b-txt"><b>Booster gratuit</b><small>${e.boosters}/${e.boosterMax} en stock · ${s == null ? 'stock plein' : `prochain dans <span id="minuteur">${mmss(s)}</span>`}</small></span>
+      </button>
+      ${e.bonus ? `<button class="booster bonus" data-booster="bonus"><span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.bonus}</b></span>
+        <span class="b-txt"><b>Booster bonus</b><small>Gagné en montant de niveau</small></span></button>` : ''}
+      ${e.bonusOr ? `<button class="booster orr" data-booster="or"><span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.bonusOr}</b></span>
+        <span class="b-txt"><b>Booster Or</b><small>Une carte Or ou Ultime</small></span></button>` : ''}
+    </div>
+    <p class="sub petit">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}. Un booster gratuit toutes les ${PARAMS.booster_minutes || 30} minutes, ${e.boosterMax} au plus en stock.</p>
+    <h2>Quêtes du jour</h2>
+    <div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
+    <h2>Ta collection</h2>
+    <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
+    <div class="stat"><b>${EX().length}</b><span>cartes</span></div>
     <div class="stat"><b>${noteEquipe().note || '–'}</b><span>note Mon 7</span></div></div>
-    <p class="sub" style="margin-top:18px">Notes sur 99 calculées à partir des 6 stats de chaque carte, selon son poste · stats de medochandballstats.com${MAJ ? ' du ' + esc(MAJ) : ''}.</p>`;
+    <p class="sub petit" style="margin-top:18px">4 paliers pour chaque joueur : ${PALIERS.map(p => `${p.nom} ${p.min}–${p.max}`).join(' · ')}.
+      Entraîne tes cartes pour les faire monter dans leur palier ; 3 fois le même joueur au même palier = 1 au palier suivant.</p>`;
 }
 
+// ── club : la collection ────────────────────────────────────────────────────────
+const enJeu = () => CARTES.filter(c => c.actif !== false);   // cartes encore tirées dans les boosters
 function vueClub() {
-  const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2'];
-  // une carte retirée du jeu n'apparaît plus que chez ceux qui l'ont
-  const liste = CARTES.filter(c => (filtre === 'tous' || c.equipe === filtre) && (c.actif !== false || S().possede[c.id]));
-  const eu = liste.filter(c => S().possede[c.id]).length;
-  const doublons = CARTES.reduce((a, c) => a + Math.max(0, (S().possede[c.id] || 0) - 1) * VENTE[c.rarete], 0);
+  const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2', 'fusion'];
+  const vus = CARTES.filter(c => (c.actif !== false || mesEx(c.id).length)
+    && (filtre === 'tous' || c.equipe === filtre || (filtre === 'fusion' && fusionsPossibles(c.id).length)));
+  const mes = vus.filter(c => mesEx(c.id).length).sort((a, b) => rangEx(mesEx(a.id)[0], mesEx(b.id)[0]));
+  const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
+  const nf = CARTES.filter(c => fusionsPossibles(c.id).length).length;
   return `<h1>Mon club</h1>
-    <p class="sub">${eu}/${liste.length} cartes${filtre === 'tous' ? '' : ' en ' + filtre}</p>
-    <div class="bar"><i style="width:${liste.length ? 100 * eu / liste.length : 0}%"></i></div>
-    <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${e === 'tous' ? 'Toutes' : e}</button>`).join('')}</div>
-    ${doublons ? `<div class="sellbar"><span>Doublons à vendre</span><button class="btn gold" data-act="vendre"><i class="coin"></i>+${nb(doublons)}</button></div>` : ''}
-    <div class="grid">${liste.map(c => carteHTML(c, S().possede[c.id] ? {qty: S().possede[c.id]} : {cache: true})).join('')}</div>`;
+    <p class="sub">${mes.length}/${vus.length} joueurs · ${EX().length} cartes. Touche une carte pour l’entraîner, la fusionner ou la vendre.</p>
+    <div class="bar"><i style="width:${vus.length ? 100 * mes.length / vus.length : 0}%"></i></div>
+    <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${
+      e === 'tous' ? 'Toutes' : e === 'fusion' ? `Fusions (${nf})` : e}</button>`).join('')}</div>
+    <div class="grid">${mes.map(c => {
+      const best = mesEx(c.id)[0], n = mesEx(c.id).length;
+      return carteHTML(vue(best), {qty: n, cls: fusionsPossibles(c.id).length ? 'peut-fusion' : ''});
+    }).join('')}${autres.map(c => carteHTML(c, {cache: true})).join('')}</div>
+    ${!mes.length && filtre === 'fusion' ? '<p class="sub">Aucune fusion possible : il faut 3 fois le même joueur au même palier.</p>' : ''}`;
 }
 
+// Fiche d'un joueur : ses 4 paliers, tes exemplaires, entraînement, fusion, vente
+function fiche(carte) {
+  const c = PAR_ID[carte], mes = mesEx(carte), n = PARAMS.fusion_nombre || 3;
+  const paliers = PALIERS.map(p => {
+    const a = mes.some(e => e.palier === p.id);
+    return `<div class="pal${a ? '' : ' absent'}">${carteHTML(vueExemplaire(c, {palier: p.id, note: p.min}))}<small>${p.nom} ${p.min}–${p.max}</small></div>`;
+  }).join('');
+  const lignes = mes.map(e => {
+    const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
+    const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
+    return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
+      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton 7' : ''}${e.verrou ? ' · au marché' : ''}</small>
+      ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
+      <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
+        ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
+  }).join('');
+  const fusions = RARETES.filter(r => palierSuivant(r)).map(r => {
+    const k = mes.filter(e => e.palier === r && !e.verrou).length;
+    if (!k) return '';
+    const cout = PARAMS.fusion_cout?.[r];
+    return k >= n ? `<button class="btn gold large" data-fusion="${carte}:${r}">Fusionner ${n} ${R_LABEL[r]} → 1 ${R_LABEL[palierSuivant(r)]} ${PALIER[palierSuivant(r)].min} · ${nb(cout)} pièces</button>`
+      : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
+  }).join('');
+  ouvrirOverlay(`<div class="sheet fiche">
+    <h3>${esc(c.nom)} <small>${c.equipe} · ${c.poste ? POSTE_NOM[c.poste] : 'Joueur(se) de champ'}</small></h3>
+    <div class="paliers">${paliers}</div>
+    <div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>
+    ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
+}
+
+// ── Mon 7 ───────────────────────────────────────────────────────────────────────
 function noteEquipe() {
   const places = POSTES.filter(p => aligne(p.id));
   if (!places.length) return {note: 0, collectif: 0, n: 0, hors: 0};
@@ -117,7 +212,6 @@ function noteEquipe() {
   const collectif = max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;   // bonus quand on aligne des coéquipier(e)s
   return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length, hors};
 }
-
 function vueEquipe() {
   const t = noteEquipe();
   const slots = POSTES.map(p => {
@@ -132,16 +226,51 @@ function vueEquipe() {
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement le meilleur 7</button>`;
 }
+function choisir(poste) {
+  // un même joueur ne joue qu'une fois : on écarte ceux déjà alignés à un autre poste
+  const ailleurs = new Set(Object.entries(S().equipe || {}).filter(([k]) => k !== poste).map(([, id]) => exParId(id)?.carte));
+  const ok = EX().filter(e => !e.verrou && PAR_ID[e.carte] && !ailleurs.has(e.carte) && peutJouer(PAR_ID[e.carte], poste))
+    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
+  ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
+    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>`).join('')
+      : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des boosters !</p>`}</div>
+    <div style="display:flex;gap:10px">${S().equipe?.[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
+    <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
+}
+function autoEquipe() {
+  // le meilleur exemplaire de chaque joueur, puis la meilleure répartition (malus hors poste compris)
+  const meilleurs = Object.values(EX().filter(e => !e.verrou && PAR_ID[e.carte]).reduce((m, e) => {
+    if (!m[e.carte] || rangEx(e, m[e.carte]) < 0) m[e.carte] = e; return m; }, {})).map(vue);
+  const equipe = {};
+  const gb = meilleurs.filter(c => c.estGB).sort((a, b) => b.ovr - a.ovr)[0];
+  if (gb) equipe.GB = gb.ex.id;
+  // pour chaque ensemble de postes occupés (masque de bits), on garde le meilleur total trouvé
+  const slots = POSTES.filter(x => !x.gb).map(x => x.id);
+  let best = new Map([[0, {total: 0, choix: {}}]]);
+  for (const c of meilleurs.filter(c => !c.estGB)) {
+    const suite = new Map(best);
+    for (const [masque, e] of best) slots.forEach((slot, i) => {
+      if (masque & (1 << i)) return;
+      const m = masque | (1 << i), total = e.total + noteAuPoste(c, slot);
+      if (!(suite.get(m)?.total >= total)) suite.set(m, {total, choix: {...e.choix, [slot]: c.ex.id}});
+    });
+    best = suite;
+  }
+  Object.assign(equipe, [...best.values()].reduce((a, e) => e.total > a.total ? e : a).choix);
+  action(Compte.alignerEquipe(equipe), () => { toast('Ton meilleur 7 est aligné'); route(true); });
+}
 
-// ── connexion et profil (mode serveur) ──────────────────────────────────────────
+// ── connexion et profil ─────────────────────────────────────────────────────────
 let messageCompte = '';
 function vueCompte() {
+  if (Compte.mode === 'absent') return `<div class="accueil"><img src="assets/logo.png" alt=""><h1>Médoc Hand Cards</h1>
+    <p class="sub">Le jeu ouvre bientôt ! Collectionne les cartes des joueurs et joueuses du Médoc Handball, entraîne-les et défie les autres supporters.</p></div>`;
   const msg = messageCompte ? `<div class="daily"><p>${esc(messageCompte)}</p></div>` : '';
   if (Compte.recuperation) return `<h1>Nouveau mot de passe</h1>
     <form class="form" data-form="mdp"><input class="champ" type="password" name="mdp" minlength="8" required autocomplete="new-password" placeholder="Nouveau mot de passe (8 caractères ou plus)">
     <button class="btn gold" type="submit">Enregistrer</button></form>`;
   if (!Compte.connecte) return `<div class="accueil"><img src="assets/logo.png" alt=""><h1>Médoc Hand Cards</h1>
-    <p class="sub">Connecte-toi pour ouvrir des packs, construire ton 7 et échanger tes cartes avec les autres joueurs du club.</p></div>${msg}
+    <p class="sub">Connecte-toi pour ouvrir tes boosters, entraîner tes joueurs et construire ton 7.</p></div>${msg}
     <form class="form" data-form="connexion">
       <input class="champ" type="email" name="email" placeholder="E-mail" autocomplete="email" required>
       <input class="champ" type="password" name="mdp" placeholder="Mot de passe (8 caractères ou plus)" autocomplete="current-password" minlength="8" required>
@@ -164,181 +293,47 @@ function vueCompte() {
     <button class="lien" data-act="deconnexion">Utiliser un autre compte</button>`;
 }
 function fenetreCompte() {
-  ouvrirOverlay(`<div class="sheet"><h3>${esc(S().pseudo)}</h3><p class="sub">${esc(Compte.email)}</p>
+  const e = S();
+  ouvrirOverlay(`<div class="sheet"><h3>${esc(e.pseudo)} <small>niveau ${e.niveau}</small></h3><p class="sub">${esc(Compte.email)}</p>
     <button class="btn ghost" data-act="deconnexion">Se déconnecter</button>
     <a class="btn ghost" href="confidentialite.html">Données personnelles</a>
     <button class="btn ghost danger" data-act="supprimer">Supprimer mon compte</button>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 function supprimerCompte() {
-  const p = prompt(`Supprimer définitivement ton compte, tes cartes et tes échanges ?\nPour confirmer, écris ton pseudo : ${S().pseudo}`);
+  const p = prompt(`Supprimer définitivement ton compte et tes cartes ?\nPour confirmer, écris ton pseudo : ${S().pseudo}`);
   if (p === null) return;
   if (p.trim() !== S().pseudo) return toast('Pseudo différent : rien n’a été supprimé');
   action(Compte.supprimerCompte(), () => { fermerOverlay(); toast('Ton compte a été supprimé'); });
 }
 
-// ── échanges (mode serveur) ─────────────────────────────────────────────────────
-const ECH = {liste: null, chargement: false, recherche: '', joueurs: [], compo: null, t: 0};
-// petites cartes d'un échange, avec les noms (illisibles sur une carte de 44 px)
-const mini = ids => { const cs = ids.map(id => PAR_ID[id]).filter(Boolean);
-  return `<div class="mini">${cs.map(c => carteHTML(c)).join('')}</div><p class="noms">${cs.map(c => `${esc(c.nom)} <b>${c.ovr}</b>`).join(' · ')}</p>`; };
-function chargerEchanges() {
-  if (ECH.chargement) return;
-  ECH.chargement = true;
-  Compte.echanges().then(l => { ECH.liste = l; }).catch(e => { ECH.liste = ECH.liste || []; toast(e.message); })
-    .finally(() => { ECH.chargement = false; majEntete(); if (Compte.pret && vueCourante() === 'echanges' && $('#overlay').hidden) route(true); });
-}
-function vueEchanges() {
-  if (!ECH.liste) chargerEchanges();
-  const L = ECH.liste || [];
-  const recues = L.filter(e => !e.envoye && e.statut === 'propose'), envoyees = L.filter(e => e.envoye && e.statut === 'propose');
-  const fini = L.filter(e => e.statut !== 'propose').slice(0, 10);
-  return `<h1>Échanges</h1>
-    <p class="sub">Échange des cartes avec les autres joueurs : jusqu’à ${REGLES.echangeMaxCartes} de chaque côté, ${REGLES.echangesParJour || 10} propositions par jour.</p>
-    <input class="champ" type="search" placeholder="Chercher le pseudo d’un joueur" value="${esc(ECH.recherche)}" data-cherche autocapitalize="off" autocomplete="off" spellcheck="false">
-    <div class="joueurs" id="joueurs">${joueursHTML()}</div>
-    ${!ECH.liste ? '<p class="sub">Chargement…</p>' : `
-    <h2>Reçues</h2>${recues.length ? recues.map(echangeHTML).join('') : '<p class="sub">Aucune proposition en attente.</p>'}
-    <h2>Envoyées</h2>${envoyees.length ? envoyees.map(echangeHTML).join('') : '<p class="sub">Aucune proposition en attente.</p>'}
-    ${fini.length ? `<h2>Historique</h2>${fini.map(echangeHTML).join('')}` : ''}`}`;
-}
-function joueursHTML() {
-  if (ECH.recherche.trim().length < 2) return '';
-  if (!ECH.joueurs.length) return '<p class="sub petit">Aucun joueur trouvé.</p>';
-  return ECH.joueurs.map(p => `<button class="joueur" data-joueur="${esc(p)}"><b>${esc(p)}</b><span>Proposer un échange ›</span></button>`).join('');
-}
-function majJoueurs() { const el = $('#joueurs'); if (el) el.innerHTML = joueursHTML(); }
-function echangeHTML(e) {
-  const recois = e.envoye ? e.demande : e.offre, donnes = e.envoye ? e.offre : e.demande;
-  const fin = {accepte: 'Accepté', refuse: 'Refusé', annule: 'Annulé', expire: 'Expiré'}[e.statut];
-  const date = new Date(e.cree_le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
-  const avec = e.avec ? `<b>${esc(e.avec)}</b>` : 'un compte supprimé';
-  return `<div class="ech${fin ? ' fini' : ''}">
-    <p class="ech-tete">${e.envoye ? 'Proposé à ' + avec : avec + ' te propose'} · ${date}${fin ? ` · <span class="st-${e.statut}">${fin}</span>` : ''}</p>
-    <div class="ech-l"><span>Tu reçois</span>${mini(recois)}</div>
-    <div class="ech-l"><span>Tu donnes</span>${mini(donnes)}</div>
-    ${fin ? '' : e.envoye ? `<div class="ech-btns"><button class="btn ghost petit" data-ech="${e.id}" data-rep="annuler">Annuler</button></div>`
-      : `<div class="ech-btns"><button class="btn ghost petit" data-ech="${e.id}" data-rep="refuser">Refuser</button><button class="btn gold petit" data-ech="${e.id}" data-rep="accepter">Accepter</button></div>`}
-  </div>`;
-}
-function repondre(id, rep) {
-  const suite = msg => () => { toast(msg); ECH.liste = null; route(true); };
-  if (rep === 'accepter') return action(Compte.repondreEchange(id, true), suite('Échange fait : les nouvelles cartes sont dans ton club'));
-  if (rep === 'refuser') return action(Compte.repondreEchange(id, false), suite('Échange refusé'));
-  if (rep === 'annuler') return action(Compte.annulerEchange(id), suite('Proposition annulée'));
-}
-
-// Composer une proposition : mes cartes à donner, les siennes à recevoir
-// (on garde toujours un exemplaire des cartes alignées dans Mon 7 : le serveur l'exige aussi)
-const dispo = (club, id) => (club.possede[id] || 0) - (Object.values(club.equipe || {}).includes(id) ? 1 : 0);
-function composer(pseudo) {
-  action(Compte.clubDe(pseudo), club => { ECH.compo = {pseudo: club.pseudo, club, offre: [], demande: [], cote: 'moi'}; dessinerCompo(); });
-}
-function ajouter(cote, id) {
-  const k = ECH.compo, club = cote === 'offre' ? {possede: S().possede, equipe: S().equipe} : k.club;
-  if (k[cote].length >= REGLES.echangeMaxCartes) return toast(`${REGLES.echangeMaxCartes} cartes au plus de chaque côté`);
-  if (k[cote].filter(x => x === id).length >= dispo(club, id)) return toast(cote === 'offre' ? 'Tu n’as pas d’autre exemplaire à donner' : 'Il n’en a pas d’autre');
-  k[cote].push(id); dessinerCompo();
-}
-function dessinerCompo() {
-  const k = ECH.compo, max = REGLES.echangeMaxCartes, moi = {possede: S().possede, equipe: S().equipe};
-  const choix = (cote, label) => `<div class="ech-l"><span>${label} (${k[cote].length}/${max})</span><div class="mini sel">${
-    k[cote].map((id, i) => `<button data-retire="${cote}:${i}" aria-label="Retirer ${esc(PAR_ID[id].nom)}">${carteHTML(PAR_ID[id])}</button>`).join('')
-    || '<em>Touche des cartes ci-dessous</em>'}</div>${k[cote].length ? `<p class="noms">${k[cote].map(id => esc(PAR_ID[id].nom)).join(' · ')} · touche une carte pour la retirer</p>` : ''}</div>`;
-  const club = k.cote === 'moi' ? moi : k.club, attr = k.cote === 'moi' ? 'donne' : 'recoit', cote = k.cote === 'moi' ? 'offre' : 'demande';
-  // mes doublons d'abord ; chez lui, d'abord les cartes que je n'ai pas
-  const cartes = CARTES.filter(c => dispo(club, c.id) > 0).sort((a, b) => k.cote === 'moi'
-    ? (moi.possede[b.id] > 1) - (moi.possede[a.id] > 1) || b.ovr - a.ovr
-    : !moi.possede[b.id] - !moi.possede[a.id] || b.ovr - a.ovr);
-  const grille = cartes.map(c => {
-    const reste = dispo(club, c.id) - k[cote].filter(x => x === c.id).length;
-    const neuve = k.cote === 'lui' && !moi.possede[c.id];
-    return `<button class="pc${reste <= 0 ? ' epuise' : ''}" data-${attr}="${c.id}">${carteHTML(c, {qty: reste})}${neuve ? '<span class="neuve">nouvelle</span>' : ''}</button>`;
-  }).join('');
-  ouvrirOverlay(`<div class="sheet compo"><h3>Échange avec ${esc(k.pseudo)}</h3>
-    ${choix('offre', 'Tu donnes')}${choix('demande', 'Tu reçois')}
-    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
-      <button class="btn gold" data-act="proposer"${k.offre.length && k.demande.length ? '' : ' disabled'}>Proposer</button></div>
-    <div class="filters"><button data-cote="moi" class="${k.cote === 'moi' ? 'on' : ''}">Mes cartes</button><button data-cote="lui" class="${k.cote === 'lui' ? 'on' : ''}">Cartes de ${esc(k.pseudo)}</button></div>
-    <div class="pickgrid">${grille || `<p class="sub">${k.cote === 'moi' ? 'Tu n’as pas de carte à donner (garde au moins un exemplaire de ton Mon 7).' : 'Pas de carte disponible.'}</p>`}</div>
-  </div>`);
-}
-function proposer() {
-  const k = ECH.compo;
-  action(Compte.proposerEchange(k.pseudo, k.offre, k.demande), () => { toast(`Proposition envoyée à ${k.pseudo}`); ECH.compo = null; ECH.liste = null; fermerOverlay(); });
-}
-
 // ── overlays ────────────────────────────────────────────────────────────────────
 function ouvrirOverlay(html) { const o = $('#overlay'); o.innerHTML = html; o.hidden = false; document.body.style.overflow = 'hidden'; }
-function fermerOverlay() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; route(); }
+function fermerOverlay() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; route(true); }
 
-function detail(id) {
-  const c = PAR_ID[id], q = S().possede[id] || 0;
-  ouvrirOverlay(`<div class="sheet detail">${carteHTML(c)}
-    <div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div>
-    <div><b>${c.record}</b><span>record</span></div><div><b>${c.tir ?? '–'}${c.tir != null ? ' %' : ''}</b><span>réussite tir</span></div><div><b>${R_LABEL[c.rarete]}</b><span>rareté</span></div></div>
-    <p class="sumline">${c.poste ? POSTE_NOM[c.poste] : 'Joueur(se) de champ'} · ${c.recrue ? 'Recrue cette saison · ' : ''}${q > 1 ? `${q} exemplaires` : '1 exemplaire'}</p>
-    <div style="display:flex;gap:10px;width:100%">${q > 1 ? `<button class="btn gold" style="flex:1" data-act="vendre1" data-id="${id}">Vendre 1 · +${VENTE[c.rarete]}</button>` : ''}
-    <button class="btn ghost" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
-}
-
-function choisir(poste) {
-  const p = POSTES.find(x => x.id === poste);
-  const dejaPris = new Set(Object.entries(S().equipe).filter(([k]) => k !== poste).map(([, v]) => v));
-  const ok = CARTES.filter(c => S().possede[c.id] && !dejaPris.has(c.id) && peutJouer(c, poste))
-    .sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
-  ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
-    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>`).join('')
-      : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des packs !</p>`}</div>
-    <div style="display:flex;gap:10px">${S().equipe[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
-    <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
-}
-
-function autoEquipe() {
-  const mine = CARTES.filter(c => S().possede[c.id]);
-  const equipe = {};
-  const gb = mine.filter(c => c.estGB).sort((a, b) => b.ovr - a.ovr)[0];
-  if (gb) equipe.GB = gb.id;
-  // meilleure répartition des joueurs de champ sur les 6 postes, malus hors poste compris :
-  // pour chaque ensemble de postes occupés (masque de bits), on garde le meilleur total trouvé
-  const slots = POSTES.filter(x => !x.gb).map(x => x.id);
-  let meilleurs = new Map([[0, {total: 0, choix: {}}]]);
-  for (const c of mine.filter(c => !c.estGB)) {
-    const suite = new Map(meilleurs);
-    for (const [masque, e] of meilleurs) slots.forEach((slot, i) => {
-      if (masque & (1 << i)) return;
-      const m = masque | (1 << i), total = e.total + noteAuPoste(c, slot);
-      if (!(suite.get(m)?.total >= total)) suite.set(m, {total, choix: {...e.choix, [slot]: c.id}});
-    });
-    meilleurs = suite;
-  }
-  Object.assign(equipe, [...meilleurs.values()].reduce((a, e) => e.total > a.total ? e : a).choix);
-  action(Compte.alignerEquipe(equipe), route);
-}
-
-// ── ouverture de pack ───────────────────────────────────────────────────────────
-function ouvrirPack(id) {
+// ── ouverture des boosters ──────────────────────────────────────────────────────
+// promesse : action du compte qui renvoie {ids} ; nom et cls : l'emballage montré avant d'ouvrir
+function ouvrirBooster(promesse, nom, cls) {
   if (occupe) return;
-  const p = PACKS.find(x => x.id === id);
-  action(Compte.ouvrirPack(id), ({ids, nouveaux}) => {
-    ouvrirPack.res = ids.filter(i => PAR_ID[i]).map(i => ({c: PAR_ID[i], nouveau: nouveaux.includes(i)}));
-    ouvrirOverlay(`<div class="opening"><button class="bigpack pk-${p.id}" data-act="dechirer" aria-label="Ouvrir le pack">
-        <div class="pack-art" style="position:absolute;inset:0"><img src="assets/logo.png" alt=""><span class="pn">${p.nom}</span></div></button>
-      <p class="tap">Touche le pack pour l’ouvrir</p></div>`);
+  const avant = new Set(EX().map(e => e.carte));
+  action(promesse, ({ids}) => {
+    ouvrirBooster.res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
+      .sort((a, b) => rangEx(a.c.ex, b.c.ex));
+    ouvrirOverlay(`<div class="opening"><button class="bigpack ${cls}" data-act="dechirer" aria-label="Ouvrir le booster">
+        <div class="pack-art" style="position:absolute;inset:0"><img src="assets/logo.png" alt=""><span class="pn">${nom}</span></div></button>
+      <p class="tap">Touche le booster pour l’ouvrir</p></div>`);
   });
 }
-
 function dechirer() {
-  const res = ouvrirPack.res, top = res[0].c;
+  const res = ouvrirBooster.res, top = res[0].c;
   $('.bigpack').classList.add('burst'); $('.tap').remove();
   vibrer(30);
-  setTimeout(() => (top.rarete === 'elite' || top.ovr >= 85) ? walkout(top, res) : montrer(res), 520);
+  setTimeout(() => RARETES.indexOf(top.rarete) >= RARETES.indexOf('or') ? walkout(top, res) : montrer(res), 520);
 }
-
-// Révélation façon « walkout » pour les grosses cartes : équipe → poste → carte
+// Révélation façon « walkout » pour les cartes Or et Ultime : équipe → poste → palier → carte
 function walkout(c, res) {
   const etapes = [`<div class="clue"><small>ÉQUIPE</small>${c.equipe}</div>`, `<div class="clue"><small>POSTE</small>${posteAffiche(c)}</div>`,
-    `<div class="clue"><small>NOTE</small>${c.ovr}</div>`];
+    `<div class="clue c-${c.rarete}"><small>PALIER</small>${R_LABEL[c.rarete]}</div>`];
   let i = 0;
   const pas = () => {
     if (i < etapes.length) { $('#overlay').innerHTML = `<div class="walk"><div class="rays"></div>${etapes[i]}<p class="tap">Touche pour continuer</p></div>`; vibrer(20); i++; }
@@ -347,52 +342,62 @@ function walkout(c, res) {
   pas();
   setTimeout(() => { $('#overlay').onclick = e => { e.stopPropagation(); pas(); }; }, 50);
 }
-
 function montrer(res) {
-  const nv = res.filter(r => r.nouveau).length;
-  // les doublons restent au club : on les vend depuis l'onglet Club
-  const html = res.map(({c, nouveau}, i) =>
-    carteHTML(c, {nouveau, doublon: !nouveau && VENTE[c.rarete], cls: i === 0 ? 'hero' : ''}).replace('class="card', `style="animation-delay:${i * 140}ms" class="card`)).join('');
-  const nd = res.length - nv;
+  const nv = res.filter(r => r.nouveau).length, n = PARAMS.fusion_nombre || 3;
+  const html = res.map(({c, nouveau}, i) => {
+    const memes = EX().filter(e => e.carte === c.id && e.palier === c.rarete).length;
+    const info = nouveau ? '' : memes >= n && palierSuivant(c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
+    return `<div class="rv" style="animation-delay:${i * 140}ms">${carteHTML(c, {nouveau, cls: i === 0 ? 'hero' : ''})}${info ? `<small>${info}</small>` : ''}</div>`;
+  }).join('');
   ouvrirOverlay(`<div class="sheet" style="align-items:center">
-    ${res[0].c.rarete === 'elite' ? '<div class="rays"></div>' : ''}
+    ${res[0].c.rarete === 'ultime' ? '<div class="rays"></div>' : ''}
     <div class="reveal">${html}</div>
-    <p class="sumline">${nv ? `<b>${nv} nouvelle${nv > 1 ? 's' : ''}</b> carte${nv > 1 ? 's' : ''}` : 'Pas de nouvelle carte'}${nd ? ` · ${nd} doublon${nd > 1 ? 's' : ''} à vendre dans le Club` : ''}</p>
+    <p class="sumline">${nv ? `<b>${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}</b>` : 'Déjà dans ton club'}</p>
     <button class="btn" data-act="fermer" style="width:100%">Envoyer au club</button></div>`);
 }
-
 function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-pack],[data-filtre],[data-slot],[data-choix],[data-joueur],[data-donne],[data-recoit],[data-retire],[data-cote],[data-ech],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk')) fermerOverlay(); return; }
-  const a = t.dataset.act;
-  if (t.dataset.pack) return ouvrirPack(t.dataset.pack);
-  if (t.dataset.filtre) { filtre = t.dataset.filtre; return route(); }
-  if (t.dataset.slot) return choisir(t.dataset.slot);
-  if (occupe) return;
-  if (t.dataset.choix) return action(Compte.aligner(t.dataset.poste, t.dataset.choix), fermerOverlay);
-  if (t.classList.contains('card') && !t.classList.contains('locked')) return detail(t.dataset.id);
-  if (a === 'dechirer') return dechirer();
+  const a = t.dataset.act, d = t.dataset;
+  if (d.filtre) { filtre = d.filtre; return route(true); }
+  if (d.slot) return choisir(d.slot);
+  if (t.classList.contains('card') && !t.classList.contains('locked')) return fiche(t.dataset.id);
   if (a === 'fermer') return fermerOverlay();
-  if (a === 'retirer') return action(Compte.aligner(t.dataset.poste, null), fermerOverlay);
-  if (a === 'auto') return autoEquipe();
-  if (a === 'bonus') return action(Compte.recupererBonus(), ({gain}) => { toast(`+${nb(gain)} pièces`); route(); });
-  if (a === 'vendre') return action(Compte.vendreDoublons(), ({gain}) => { toast(`Doublons vendus : +${nb(gain)}`); route(); });
-  if (a === 'vendre1') { const id = t.dataset.id; return action(Compte.vendre(id), () => detail(id)); }
+  if (a === 'dechirer') return dechirer();
   if (a === 'moi') return fenetreCompte();
+  if (occupe) return;
+  if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
+  if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
+    d.booster === 'or' ? 'pk-or' : 'pk-argent');
+  if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); });
+  if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
+  if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
+  if (a === 'auto') return autoEquipe();
+  if (d.entrainer) {
+    const carte = exParId(d.entrainer).carte;
+    return action(Compte.entrainer(d.entrainer), r => { toast(r.apres > r.avant ? `+1 ! Note ${r.apres}` : '+XP : encore un peu d’entraînement'); fiche(carte); });
+  }
+  if (d.vendre) {
+    const ex = exParId(d.vendre);
+    if (RARETES.indexOf(ex.palier) >= RARETES.indexOf('or') && !confirm(`Vendre cette carte ${R_LABEL[ex.palier]} ${ex.note} pour ${nb(PARAMS.vente?.[ex.palier])} pièces ?`)) return;
+    return action(Compte.vendre(d.vendre), r => { toast(`+${nb(r.gain)} pièces`); if (mesEx(ex.carte).length) fiche(ex.carte); else fermerOverlay(); });
+  }
+  if (d.fusion) {
+    const [carte, palier] = d.fusion.split(':');
+    return action(Compte.fusionner(carte, palier), r => {
+      const e = exParId(r.id);
+      ouvrirBooster.res = [{c: vue(e), nouveau: false}];
+      vibrer([40, 60, 80]);
+      montrer(ouvrirBooster.res);
+      toast(`Fusion réussie : ${PAR_ID[carte].nom} passe ${R_LABEL[e.palier]} !`);
+    });
+  }
   if (a === 'google') return action(Compte.google());
   if (a === 'deconnexion') return action(Compte.deconnexion(), () => { fermerOverlay(); toast('Déconnecté'); });
   if (a === 'supprimer') return supprimerCompte();
-  // échanges
-  if (t.dataset.joueur) return composer(t.dataset.joueur);
-  if (t.dataset.donne) return ajouter('offre', t.dataset.donne);
-  if (t.dataset.recoit) return ajouter('demande', t.dataset.recoit);
-  if (t.dataset.retire) { const [cote, i] = t.dataset.retire.split(':'); ECH.compo[cote].splice(+i, 1); return dessinerCompo(); }
-  if (t.dataset.cote) { ECH.compo.cote = t.dataset.cote; return dessinerCompo(); }
-  if (a === 'proposer') return proposer();
-  if (t.dataset.ech) return repondre(t.dataset.ech, t.dataset.rep);
 });
 // formulaires de connexion et de profil
 document.addEventListener('submit', e => {
@@ -411,22 +416,16 @@ document.addEventListener('submit', e => {
     route();
   });
   if (quoi === 'mdp') return action(Compte.nouveauMotDePasse(d.mdp), () => { toast('Mot de passe changé'); route(); });
-  if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#boutique'; route(); });
+  if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
 });
-// recherche d'un joueur pour échanger (après une petite pause dans la frappe)
-document.addEventListener('input', e => {
-  if (e.target.dataset.cherche === undefined) return;
-  ECH.recherche = e.target.value;
-  clearTimeout(ECH.t);
-  ECH.t = setTimeout(() => {
-    const q = ECH.recherche.trim();
-    if (q.length < 2) { ECH.joueurs = []; return majJoueurs(); }
-    Compte.chercherJoueurs(q).then(l => { ECH.joueurs = l; majJoueurs(); }).catch(er => toast(er.message));
-  }, 300);
-});
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => route());
 // le réseau revient : on recharge pour se reconnecter au serveur (hors ligne, rien n'est en cours)
 window.addEventListener('online', () => { if (Compte.horsLigne && $('#overlay').hidden) location.reload(); });
+// retour sur l'appli après un moment : boosters et quêtes à jour
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Compte.pret && !Compte.horsLigne && !occupe && $('#overlay').hidden)
+    Compte.rafraichir().then(() => route(true)).catch(() => {});
+});
 // Accès discret à l'outil de gestion des cartes : toucher 5 fois le logo
 $('.brand').addEventListener('click', () => {
   const t = Date.now(); if (t - (route.tapT || 0) > 1500) route.taps = 0; route.tapT = t;
@@ -434,7 +433,7 @@ $('.brand').addEventListener('click', () => {
 });
 
 // ── démarrage ───────────────────────────────────────────────────────────────────
-Compte.surChangement(() => { ECH.liste = null; if ($('#overlay').hidden) route(); else majEntete(); });
+Compte.surChangement(() => { if ($('#overlay').hidden) route(); else majEntete(); });
 Compte.demarrer().then(info => {
   CARTES = info.cartes; CARTES.forEach(c => PAR_ID[c.id] = c);
   MAJ = info.maj ? new Date(info.maj).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'}) : '';
@@ -443,10 +442,9 @@ Compte.demarrer().then(info => {
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
   else if (info.horsLigne) toast('Hors ligne : ton club reste consultable');
   else if (info.apercu) toast('Aperçu avec les modifications non publiées de l’outil');
-  if (Compte.mode === 'serveur' && Compte.pret && !Compte.horsLigne) chargerEchanges();   // pour la pastille de l'onglet
 }).catch(e => {
   console.error(e);
-  $('#view').innerHTML = '<h1>Oups</h1><p class="sub">Impossible de charger les cartes. Vérifie ta connexion et recharge la page.</p>';
+  $('#view').innerHTML = '<h1>Oups</h1><p class="sub">Impossible de joindre le serveur du jeu. Vérifie ta connexion et recharge la page.</p>';
 });
 
 // En ligne (https) : toujours. En local : seulement avec ?sw dans l'adresse, pour tester le hors-ligne
