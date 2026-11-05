@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<meta name="robots" content="noindex">
+<title>Outil cartes · Médoc Hand Cards</title>
+<link rel="icon" href="assets/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="outil">
+<header class="top">
+  <a class="brand" href="./"><img src="assets/logo.png" alt=""><span>Outil <b>cartes</b></span></a>
+  <button class="btn ghost petit" data-act="reglages" aria-label="Réglages GitHub">GitHub</button>
+</header>
+
+<main id="view"><p class="sub">Chargement des cartes…</p></main>
+
+<div class="publier" id="publier" hidden></div>
+<div id="overlay" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="cartes.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

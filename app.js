@@ -1,10 +1,9 @@
 'use strict';
 /* Médoc Hand Cards — jeu de packs façon Ultimate Team avec les cartes de medochandballstats.com
-   Tout tient dans ce fichier : données (data/cartes.json), sauvegarde (localStorage), vues (#boutique, #club, #equipe). */
+   Ce fichier : sauvegarde (localStorage), tirages, vues (#boutique, #club, #equipe).
+   Les cartes (stats, notes, rendu) sont dans cartes.js, partagé avec l'outil de gestion admin.html. */
 
 // ── réglages du jeu ─────────────────────────────────────────────────────────────
-const RARETES = ['bronze', 'argent', 'or', 'elite'];
-const R_LABEL = {bronze: 'Bronze', argent: 'Argent', or: 'Or', elite: 'Élite'};
 const VENTE = {bronze: 50, argent: 150, or: 400, elite: 1200};   // pièces pour un doublon
 const DEPART = 3000;                                               // pièces au premier lancement
 const BONUS_JOUR = 1500;
@@ -17,7 +16,8 @@ const PACKS = [
   {id: 'elite', nom: 'Élite', prix: 9000, n: 3, poids: {bronze: 0, argent: 0, or: 70, elite: 30}, garanti: 'elite', desc: '3 cartes or, 1 élite garantie'},
 ];
 
-// Mon 7 : positions sur le demi-terrain (x, y en %) ; GB réservé aux gardien(ne)s
+// Mon 7 : positions sur le demi-terrain (x, y en %) ; GB réservé aux gardien(ne)s, les autres postes aux joueurs de champ
+const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien
 const POSTES = [
   {id: 'AG', x: 12, y: 60}, {id: 'ARG', x: 27, y: 33}, {id: 'DC', x: 50, y: 18},
   {id: 'ARD', x: 73, y: 33}, {id: 'AD', x: 88, y: 60}, {id: 'PIV', x: 50, y: 57}, {id: 'GB', x: 50, y: 85, gb: true},
@@ -36,44 +36,21 @@ function charger() {
 function sauver() { try { localStorage.setItem(CLE, JSON.stringify(S)); } catch (e) {} }
 
 const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const nb = n => n.toLocaleString('fr-FR');
 const aujourdhui = () => new Date().toLocaleDateString('fr-CA');
 const rang = r => RARETES.indexOf(r);
-// note d'une carte à un poste : un(e) mixte JDC·GB dans les buts compte avec sa note GB
-const noteAuPoste = (c, poste) => poste === 'GB' ? (c.gb ?? c.ovr) : c.ovr;
+// Poste du terrain : GB pour les gardien(ne)s, les 6 autres pour les joueurs de champ.
+// Hors de son poste, une carte perd MALUS_HORS_POSTE points (sans poste renseigné, elle joue partout sans malus).
+const peutJouer = (c, slot) => slot === 'GB' ? c.estGB : !c.estGB;
+const horsPoste = (c, slot) => slot !== 'GB' && !!c.poste && c.poste !== slot;
+const noteAuPoste = (c, slot) => c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0);
+const aligne = slot => { const c = PAR_ID[S.equipe[slot]]; return c && S.possede[c.id] && peutJouer(c, slot) ? c : null; };
 
 function majPieces(delta) {
   if (delta) { S.pieces += delta; sauver(); const c = $('#coins'); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 220); }
   $('#coinv').textContent = nb(S.pieces);
 }
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); }
-
-// ── carte ───────────────────────────────────────────────────────────────────────
-const initiales = nom => nom.split(/[\s-]+/).filter(Boolean).map(m => m[0]).slice(0, 2).join('').toUpperCase();
-function statsCarte(c) {
-  if (c.poste === 'GB') return [[c.gb, 'GB'], [String(c.arr).replace('.', ','), 'ARR']];
-  const s = [[c.att, 'ATT'], [c.def, 'DÉF'], [c.tir ?? '–', 'TIR']];
-  if (c.poste === 'JDC·GB') s[2] = [c.gb, 'GB'];
-  return s;
-}
-function silhouette(r) {
-  const f = r === 'elite' ? 'rgba(255,210,87,.16)' : 'rgba(0,0,0,.13)';
-  return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="34" r="17" fill="${f}"/><path d="M18 100c0-22 14-36 32-36s32 14 32 36z" fill="${f}"/></svg>`;
-}
-function carteHTML(c, o = {}) {
-  if (o.note != null && o.note !== c.ovr) c = {...c, ovr: o.note};   // note affichée selon le poste occupé
-  if (o.cache) return `<div class="card locked lr-${c.rarete}" data-id="${c.id}"><div class="c-top"><b class="c-ovr">?</b><span class="c-pos">${c.poste}</span></div>
-    <div class="c-face">${silhouette()}</div><div class="c-name">${esc(c.nom)}</div><div class="c-line"></div></div>`;
-  const st = statsCarte(c);
-  return `<div class="card r-${c.rarete}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, note ${c.ovr}">
-    <div class="c-top"><b class="c-ovr">${c.ovr}</b><span class="c-pos">${c.poste}</span><span class="c-eq">${c.equipe}</span><img class="c-logo" src="assets/logo.png" alt=""></div>
-    <div class="c-face">${silhouette(c.rarete)}</div><div class="c-mono">${initiales(c.nom)}</div>
-    <div class="c-name">${esc(c.nom)}</div><div class="c-line"></div>
-    <div class="c-stats">${st.map(([v, l]) => `<span><b>${v}</b>${l}</span>`).join('')}</div>
-    ${o.nouveau ? '<span class="c-new">NOUVEAU</span>' : ''}${o.qty > 1 ? `<span class="qty">×${o.qty}</span>` : ''}
-    ${o.doublon ? `<span class="c-dup">Doublon · ${VENTE[c.rarete]} pièces</span>` : ''}</div>`;
-}
 
 // ── tirage ──────────────────────────────────────────────────────────────────────
 function tirerRarete(poids, min) {
@@ -122,7 +99,7 @@ function vueBoutique() {
     <div class="stats-row"><div class="stat"><b>${nPossedees()}/${CARTES.length}</b><span>cartes</span></div>
     <div class="stat"><b>${S.packs}</b><span>packs ouverts</span></div>
     <div class="stat"><b>${noteEquipe().note || '–'}</b><span>note Mon 7</span></div></div>
-    <p class="sub" style="margin-top:18px">Notes sur 99 calculées avec la formule de medochandballstats.com · cartes du ${esc(MAJ)}.</p>`;
+    <p class="sub" style="margin-top:18px">Notes sur 99 calculées à partir des 6 stats de chaque carte, selon son poste · stats de medochandballstats.com du ${esc(MAJ)}.</p>`;
 }
 
 function vueClub() {
@@ -139,27 +116,29 @@ function vueClub() {
 }
 
 function noteEquipe() {
-  const places = POSTES.filter(p => S.equipe[p.id] && PAR_ID[S.equipe[p.id]] && S.possede[S.equipe[p.id]]);
-  if (!places.length) return {note: 0, collectif: 0, n: 0};
-  const cs = places.map(p => PAR_ID[S.equipe[p.id]]);
-  const moy = places.reduce((a, p) => a + noteAuPoste(PAR_ID[S.equipe[p.id]], p.id), 0) / 7;   // une place vide compte 0
+  const places = POSTES.filter(p => aligne(p.id));
+  if (!places.length) return {note: 0, collectif: 0, n: 0, hors: 0};
+  const cs = places.map(p => aligne(p.id));
+  const moy = places.reduce((a, p) => a + noteAuPoste(aligne(p.id), p.id), 0) / 7;   // une place vide compte 0
+  const hors = places.filter(p => horsPoste(aligne(p.id), p.id)).length;
   const parEq = {}; cs.forEach(c => parEq[c.equipe] = (parEq[c.equipe] || 0) + 1);
   const max = Math.max(...Object.values(parEq));
   const collectif = max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;   // bonus quand on aligne des coéquipier(e)s
-  return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length};
+  return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length, hors};
 }
 
 function vueEquipe() {
   const t = noteEquipe();
   const slots = POSTES.map(p => {
-    const c = S.possede[S.equipe[p.id]] && PAR_ID[S.equipe[p.id]];
-    return `<button class="slot" data-slot="${p.id}" style="left:${p.x}%;top:${p.y}%">${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`;
+    const c = aligne(p.id), hors = c && horsPoste(c, p.id);
+    return `<button class="slot" data-slot="${p.id}" style="left:${p.x}%;top:${p.y}%">${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em></button>`;
   }).join('');
   return `<h1>Mon 7</h1>
-    <p class="sub">Touche un poste pour aligner une carte de ton club. Aligner des coéquipier(e)s de la même équipe donne un bonus collectif.</p>
+    <p class="sub">Touche un poste pour aligner une carte de ton club. Hors de son poste, un joueur perd ${MALUS_HORS_POSTE} points ; aligner des coéquipier(e)s de la même équipe donne un bonus collectif.</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
     <div class="pitch">${slots}</div>
+    ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement le meilleur 7</button>`;
 }
 
@@ -172,7 +151,7 @@ function detail(id) {
   ouvrirOverlay(`<div class="sheet detail">${carteHTML(c)}
     <div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div>
     <div><b>${c.record}</b><span>record</span></div><div><b>${c.tir ?? '–'}${c.tir != null ? ' %' : ''}</b><span>réussite tir</span></div><div><b>${R_LABEL[c.rarete]}</b><span>rareté</span></div></div>
-    <p class="sumline">${c.recrue ? 'Recrue cette saison · ' : ''}${q > 1 ? `${q} exemplaires` : '1 exemplaire'}</p>
+    <p class="sumline">${c.poste ? POSTE_NOM[c.poste] : 'Joueur(se) de champ'} · ${c.recrue ? 'Recrue cette saison · ' : ''}${q > 1 ? `${q} exemplaires` : '1 exemplaire'}</p>
     <div style="display:flex;gap:10px;width:100%">${q > 1 ? `<button class="btn gold" style="flex:1" data-act="vendre1" data-id="${id}">Vendre 1 · +${VENTE[c.rarete]}</button>` : ''}
     <button class="btn ghost" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
 }
@@ -180,10 +159,10 @@ function detail(id) {
 function choisir(poste) {
   const p = POSTES.find(x => x.id === poste);
   const dejaPris = new Set(Object.entries(S.equipe).filter(([k]) => k !== poste).map(([, v]) => v));
-  const ok = CARTES.filter(c => S.possede[c.id] && !dejaPris.has(c.id) && (p.gb ? c.poste !== 'JDC' : c.poste !== 'GB'))
+  const ok = CARTES.filter(c => S.possede[c.id] && !dejaPris.has(c.id) && peutJouer(c, poste))
     .sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
   ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
-    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${c.poste} · ${c.equipe}</small></div></button>`).join('')
+    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>`).join('')
       : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des packs !</p>`}</div>
     <div style="display:flex;gap:10px">${S.equipe[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
     <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
@@ -191,17 +170,23 @@ function choisir(poste) {
 
 function autoEquipe() {
   const mine = CARTES.filter(c => S.possede[c.id]);
-  const champ = sauf => mine.filter(c => c.id !== sauf && c.poste !== 'GB').sort((a, b) => b.ovr - a.ovr).slice(0, 6);
-  // on essaie chaque gardien(ne) possible (GB ou mixte) et on garde le 7 au meilleur total ;
-  // à égalité, on préfère un(e) vrai(e) gardien(ne) pour garder le ou la mixte sur le terrain
-  let best = {total: -1, gb: null, champ: champ(null)};
-  for (const g of mine.filter(c => c.poste !== 'JDC').sort((a, b) => (a.poste === 'GB' ? 0 : 1) - (b.poste === 'GB' ? 0 : 1))) {
-    const ch = champ(g.id), total = noteAuPoste(g, 'GB') + ch.reduce((a, c) => a + c.ovr, 0);
-    if (total > best.total) best = {total, gb: g, champ: ch};
-  }
   S.equipe = {};
-  if (best.gb) S.equipe.GB = best.gb.id;
-  POSTES.filter(x => !x.gb).forEach((p, i) => { if (best.champ[i]) S.equipe[p.id] = best.champ[i].id; });
+  const gb = mine.filter(c => c.estGB).sort((a, b) => b.ovr - a.ovr)[0];
+  if (gb) S.equipe.GB = gb.id;
+  // meilleure répartition des joueurs de champ sur les 6 postes, malus hors poste compris :
+  // pour chaque ensemble de postes occupés (masque de bits), on garde le meilleur total trouvé
+  const slots = POSTES.filter(x => !x.gb).map(x => x.id);
+  let meilleurs = new Map([[0, {total: 0, choix: {}}]]);
+  for (const c of mine.filter(c => !c.estGB)) {
+    const suite = new Map(meilleurs);
+    for (const [masque, e] of meilleurs) slots.forEach((slot, i) => {
+      if (masque & (1 << i)) return;
+      const m = masque | (1 << i), total = e.total + noteAuPoste(c, slot);
+      if (!(suite.get(m)?.total >= total)) suite.set(m, {total, choix: {...e.choix, [slot]: c.id}});
+    });
+    meilleurs = suite;
+  }
+  Object.assign(S.equipe, [...meilleurs.values()].reduce((a, e) => e.total > a.total ? e : a).choix);
   sauver(); route();
 }
 
@@ -231,7 +216,7 @@ function dechirer() {
 
 // Révélation façon « walkout » pour les grosses cartes : équipe → poste → carte
 function walkout(c, res) {
-  const etapes = [`<div class="clue"><small>ÉQUIPE</small>${c.equipe}</div>`, `<div class="clue"><small>POSTE</small>${c.poste}</div>`,
+  const etapes = [`<div class="clue"><small>ÉQUIPE</small>${c.equipe}</div>`, `<div class="clue"><small>POSTE</small>${posteAffiche(c)}</div>`,
     `<div class="clue"><small>NOTE</small>${c.ovr}</div>`];
   let i = 0;
   const pas = () => {
@@ -246,7 +231,7 @@ function montrer(res) {
   const nv = res.filter(r => r.nouveau).length;
   // les doublons restent au club : on les vend depuis l'onglet Club
   const html = res.map(({c, nouveau}, i) =>
-    carteHTML(c, {nouveau, doublon: !nouveau, cls: i === 0 ? 'hero' : ''}).replace('class="card', `style="animation-delay:${i * 140}ms" class="card`)).join('');
+    carteHTML(c, {nouveau, doublon: !nouveau && VENTE[c.rarete], cls: i === 0 ? 'hero' : ''}).replace('class="card', `style="animation-delay:${i * 140}ms" class="card`)).join('');
   const nd = res.length - nv;
   ouvrirOverlay(`<div class="sheet" style="align-items:center">
     ${res[0].c.rarete === 'elite' ? '<div class="rays"></div>' : ''}
@@ -279,12 +264,22 @@ document.addEventListener('click', e => {
   if (a === 'vendre1') { const c = PAR_ID[t.dataset.id]; S.possede[c.id]--; majPieces(VENTE[c.rarete]); return detail(c.id); }
 });
 window.addEventListener('hashchange', route);
+// Accès discret à l'outil de gestion des cartes : toucher 5 fois le logo
+$('.brand').addEventListener('click', () => {
+  const t = Date.now(); if (t - (route.tapT || 0) > 1500) route.taps = 0; route.tapT = t;
+  if (++route.taps >= 5) location.href = 'admin.html';
+});
 
 // ── démarrage ───────────────────────────────────────────────────────────────────
-fetch('data/cartes.json').then(r => r.json()).then(d => {
-  CARTES = d.cartes; MAJ = new Date(d.maj).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'});
+// data/perso.json : réglages propres au jeu faits avec l'outil (poste, 6 stats, photo) ; absent = valeurs par défaut
+const persoJSON = fetch('data/perso.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+Promise.all([fetch('data/cartes.json').then(r => r.json()), persoJSON]).then(([d, p]) => {
+  const brouillon = lireBrouillon();   // modifications de l'outil pas encore publiées (seulement dans ce navigateur)
+  CARTES = fusionner(d.cartes, appliquerBrouillon(p.cartes || {}, brouillon));
+  MAJ = new Date(d.maj).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'});
   CARTES.forEach(c => PAR_ID[c.id] = c);
   majPieces(0); route();
+  if (Object.keys(brouillon).length) toast('Aperçu avec les modifications non publiées de l’outil');
 }).catch(() => { $('#view').innerHTML = '<h1>Oups</h1><p class="sub">Impossible de charger les cartes. Vérifie ta connexion et recharge la page.</p>'; });
 
 // En ligne (https) : toujours. En local : seulement avec ?sw dans l'adresse, pour tester le hors-ligne
