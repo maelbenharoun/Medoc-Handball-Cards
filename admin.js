@@ -12,7 +12,7 @@ let SITE = [], PAR_ID = {}, PERSO = {}, SOURCE = '';
 let BROUILLON = lireBrouillon();
 let REGL = lireReglages();
 const PHOTOS_LOCALES = {};   // photos publiées pendant cette session, le temps que GitHub Pages les mette en ligne
-let filtre = 'tous', recherche = '', ed = null;
+let filtre = 'tous', filtrePoste = 'tous', tri = 'nom', recherche = '', ed = null;   // filtres : équipe, poste ; tri : nom ou poste
 
 const $ = s => document.querySelector(s);
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2600); }
@@ -196,13 +196,18 @@ function connexionAdmin(msg) {
 
 // ── liste des cartes ────────────────────────────────────────────────────────────
 function vue() {
-  const sansPoste = cartes().filter(c => !c.poste).length;
+  const toutes = cartes(), sansPoste = toutes.filter(c => !c.postes.length).length;
+  const parPoste = p => toutes.filter(c => c.postes.includes(p)).length;
   $('#view').innerHTML = `<h1>Gestion des cartes</h1>
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
     ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs et paris seulement</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
-    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['sans', `Sans poste (${sansPoste})`]]
+    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
+    <div class="filters">${[['tous', 'Tous les postes'], ...POSTES_JEU.map(p => [p, `${p} (${parPoste(p)})`]), ['sans', `Sans poste (${sansPoste})`]]
+      .map(([k, l]) => `<button data-fposte="${k}" class="${filtrePoste === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="filters tri"><span>Trier :</span>${[['nom', 'Nom'], ['poste', 'Poste']]
+      .map(([k, l]) => `<button data-tri="${k}" class="${tri === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div class="rows" id="rows"></div>`;
   majListe();
   const n = Object.keys(BROUILLON).length, pub = $('#publier');
@@ -213,12 +218,22 @@ function vue() {
 // la liste seule (la recherche ne redessine pas le champ, pour garder le clavier ouvert)
 function majListe() {
   const q = recherche.trim().toLowerCase();
-  const liste = cartes().filter(c => (filtre === 'tous' || c.equipe === filtre || (filtre === 'sans' && !c.poste))
-    && (!q || c.nom.toLowerCase().includes(q)));
+  // poste : le joueur apparaît à chacun de ses postes ; tri par poste = par poste principal, puis par nom
+  const rang = c => c.postes.length ? POSTES_JEU.indexOf(c.postes[0]) : POSTES_JEU.length;
+  const liste = cartes().filter(c => (filtre === 'tous' || c.equipe === filtre)
+    && (filtrePoste === 'tous' || (filtrePoste === 'sans' ? !c.postes.length : c.postes.includes(filtrePoste)))
+    && (!q || c.nom.toLowerCase().includes(q)))
+    .sort((a, b) => (tri === 'poste' ? rang(a) - rang(b) : 0) || a.nom.localeCompare(b.nom, 'fr'));
+  let groupe = null;
   $('#rows').innerHTML = liste.map(c => {
+      const g = c.postes.length ? POSTE_NOM[c.postes[0]] : 'Sans poste';
+      const titre = tri === 'poste' && g !== groupe ? `<h3 class="groupe">${g} <small>(${liste.filter(x => (x.postes.length ? POSTE_NOM[x.postes[0]] : 'Sans poste') === g).length})</small></h3>` : '';
+      groupe = g;
+      const principal = filtrePoste !== 'tous' && filtrePoste !== 'sans' && c.postes.length > 1
+        ? (c.postes[0] === filtrePoste ? ' · principal' : ` · principal ${c.postes[0]}`) : '';
       const etat = c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '';
-      return `<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
-        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'} · ${c.equipe}</small>
+      return `${titre}<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
+        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.equipe}</small>
         <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
@@ -398,11 +413,13 @@ async function validerReglages() {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-poste],[data-palier]');
+  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier]');
   if (!t) { if (e.target.id === 'overlay' && !ed) fermer(); return; }   // l'éditeur ne se ferme pas par erreur
   const a = t.dataset.act;
   if (t.dataset.ed) return ouvrir(t.dataset.ed);
   if (t.dataset.filtre) { filtre = t.dataset.filtre; return vue(); }
+  if (t.dataset.fposte) { filtrePoste = t.dataset.fposte; return vue(); }
+  if (t.dataset.tri) { tri = t.dataset.tri; return vue(); }
   if (t.dataset.poste !== undefined && ed) return changerPoste(t.dataset.poste);
   if (t.dataset.palier && ed) return changerPalier(t.dataset.palier);
   if (a === 'fermer') return fermer();

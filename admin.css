@@ -42,3 +42,10 @@
 .lab .champ { margin-top: 4px; }
 
 @media (max-width: 380px) { .photo { flex-direction: column; } }
+
+/* filtres par poste et tri */
+.filters + .filters { margin-top: -6px; }
+.filters.tri { align-items: center; }
+.filters.tri span { color: var(--muted); font-size: .85rem; font-weight: 700; flex: none; }
+.rows .groupe { margin: 10px 0 2px; font-size: .95rem; font-weight: 800; }
+.rows .groupe small { color: var(--muted); font-weight: 700; }
