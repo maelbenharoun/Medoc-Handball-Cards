@@ -2,6 +2,7 @@
 
 Sources (dépôt handball-pronos) : la ligne du joueur dans teams/<équipe>/site_data.json (saison en cours)
 et sa fiche dans joueurs.json (toutes ses saisons au club, déroulé des feuilles de match).
+Deux sections : « Cette saison » et « Stats rigolotes » (Maël a retiré « Au club », « Saison par saison » et « Derniers matchs »).
 Seulement des statistiques sportives : ni présence, ni horaires, ni trajets, ni numéro de licence.
 
 La fiche est une liste de sections {id, titre, style, lignes: [{id, l, v, d?}]} ; l'outil admin.html
@@ -168,30 +169,4 @@ def fiche(carte, p, J, club):
     # stats rigolotes
     S.append({"id": "fun", "titre": "Stats rigolotes", "style": "fun",
               "lignes": [{"id": c[0], "l": c[2], "v": c[3], "d": c[4]} for c in rigolotes(J, g, club)]})
-    # au club
-    deb = J.get("debut") or ""
-    L = [{"id": "depuis", "l": "Au club depuis", "v": f"{MOIS[int(deb[5:7]) - 1]} {deb[:4]}" if deb else "–"},
-         {"id": "n", "l": "Matchs au club", "v": str(J["n"])},
-         {"id": "buts", "l": "Buts au club", "v": str(J["buts"])},
-         {"id": "bpm", "l": "Buts par match", "v": f1(J.get("bpm") or 0)}]
-    va = J.get("v_avec") or [0, 0]
-    if va[1]:
-        L.append({"id": "vic", "l": f"Victoires quand {g('elle', 'il')} joue", "v": f"{va[0]} sur {va[1]} ({pct(va[0] / va[1])})"})
-    S.append({"id": "club", "titre": "Au club", "style": "lignes", "lignes": L})
-    # saison par saison (la plus récente d'abord)
-    L = []
-    for s in reversed(J.get("saisons") or []):
-        bil = f" · {s.get('g', 0)} V, {s.get('n', 0)} N, {s.get('p', 0)} D" if s.get("mj") else ""
-        L.append({"id": f"{s['saison']}-{s['equipe']}", "l": f"{s['saison']} · {s['equipe']}",
-                  "v": f"{s['mj']} match{'s' if s['mj'] > 1 else ''} · {s['buts']} but{'s' if s['buts'] > 1 else ''}{bil}"})
-    if L:
-        S.append({"id": "saisons", "titre": "Saison par saison", "style": "lignes", "lignes": L})
-    # derniers matchs
-    L = []
-    for d, eq, adv, lieu, score, b in J.get("last") or []:
-        bp, bc = (int(x) for x in score.split("-"))
-        res = "Victoire" if bp > bc else "Nul" if bp == bc else "Défaite"
-        L.append({"id": d, "l": f"{jour(d)} · {'contre' if lieu == 'dom' else 'à'} {adv}", "v": f"{res} {bp}-{bc} · {b} but{'s' if b > 1 else ''}"})
-    if L:
-        S.append({"id": "derniers", "titre": "Derniers matchs", "style": "lignes", "lignes": L})
     return S

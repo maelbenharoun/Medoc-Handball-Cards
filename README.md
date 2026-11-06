@@ -11,8 +11,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   Réflexes, Placement, Relance… pour les gardien·ne·s) gardent la forme du vrai joueur.
 - **Boosters** : un booster de départ de 7 joueurs (un par poste), puis un booster gratuit d'un joueur toutes les 30 minutes
   (5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime), et des boosters gagnés en montant de niveau.
-- **Fiche de chaque joueur** (toucher une carte) : sa saison, ses 5 stats rigolotes les plus marquantes (celles des fiches de medochandballstats.com),
-  sa carrière au club, saison par saison et ses derniers matchs. Tout se modifie dans l'outil.
+- **Fiche de chaque joueur** (toucher une carte) : sa saison et ses 5 stats rigolotes les plus marquantes (celles des fiches de medochandballstats.com).
+  Tout se modifie dans l'outil.
 - **Club** : entraîner ses cartes (de 50 à 59, de 60 à 74…), **fusionner** 3 fois le même joueur au même palier pour passer au palier suivant, vendre.
 - **Mon 7** : 6 joueurs de champ + 1 gardien(ne). Hors de son poste, un joueur perd 5 points ; bonus collectif entre coéquipier(e)s.
 - **Jouer** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes

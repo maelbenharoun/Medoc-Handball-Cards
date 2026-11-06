@@ -276,10 +276,11 @@ function ouvrir(id) {
       <button class="btn ghost petit" data-act="sansphoto">Retirer</button>
       <div id="reglages-photo"></div></div></div>
     <p class="note-photo">Une photo par palier (sinon celle du palier en dessous). Seulement avec l’accord de la personne (de ses parents si elle est mineure) : le jeu est public.</p>
-    <h4>Fiche du joueur <button class="lien" data-fi-tout>Tout remettre comme le site</button></h4>
-    <p class="sub petit">Ce que le jeu montre quand on touche la carte. Tout se change : texte, intitulés, valeurs, lignes et sections en plus, ou masqués.
-      Une ligne que tu ne touches pas suit les stats du site à chaque mise à jour. Uniquement des infos sportives (pas d’adresse, d’école, de date de naissance…).</p>
-    <div id="fiche-ed"></div>
+    <details class="fe-plie"><summary>Fiche du joueur (ce que le jeu montre quand on touche la carte)</summary>
+    <p class="sub petit">Tout se change : texte, intitulés, valeurs, lignes et sections en plus, ou masqués.
+      Une ligne que tu ne touches pas suit les stats du site à chaque mise à jour. Uniquement des infos sportives (pas d’adresse, d’école, de date de naissance…).
+      <button class="lien" data-fi-tout>Tout remettre comme le site</button></p>
+    <div id="fiche-ed"></div></details>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="enregistrer">Enregistrer</button></div>
   </div>`;
   $('#numero').value = ed.numero ?? '';

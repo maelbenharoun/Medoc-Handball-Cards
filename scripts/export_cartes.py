@@ -266,7 +266,7 @@ def main(src):
     club = valeurs_club(joueurs, {})
     for c in cartes:
         c["fiche"] = fiche(c, c.pop("_p"), joueurs.get(c["id"]), club)
-    print(f"fiches : {sum(len(c['fiche']) > 1 for c in cartes)}/{len(cartes)} avec leur carrière au club")
+    print(f"fiches : {sum(len(c['fiche']) > 1 for c in cartes)}/{len(cartes)} avec leurs stats rigolotes")
     nums = numeros(src.parent / "fdm.json", rids, cartes)
     for c in cartes:
         c["numero"] = nums.get(c["id"])
