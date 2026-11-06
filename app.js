@@ -627,6 +627,23 @@ function obAnim(el, frames, o) {
 const obPause = ms => OB.vite ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, ms); OB.attentes.push([t, r]); });
 const place = (x, y, s = 1, r = 0) => `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${r}deg) scale(${s})`;
 
+// Démo de l'ouverture (?demo, ?demo=ultime, ?demo=or, ?demo=argent, ?demo=bronze, ?demo=depart) : seulement l'animation,
+// avec des cartes du catalogue tirées au hasard ; rien n'est demandé au serveur ni ajouté au club.
+function demoBooster(type) {
+  const tous = CARTES.filter(c => c.actif !== false), hasard = a => a[Math.floor(Math.random() * a.length)];
+  if (!tous.length) return;
+  const tirer = () => { const ch = PARAMS.booster_chances || {bronze: 80, argent: 12, or: 7, ultime: 1}; let x = Math.random() * 100;
+    for (const r of RARETES) { x -= ch[r] || 0; if (x < 0) return r; } return 'bronze'; };
+  const n = type === 'depart' ? 7 : 1, pris = new Set(), res = [];
+  while (res.length < Math.min(n, tous.length)) {
+    const c = hasard(tous); if (pris.has(c.id)) continue; pris.add(c.id);
+    const palier = RARETES.includes(type) && !res.length ? type : type === 'depart' ? 'bronze' : tirer(), P = PALIER[palier];
+    res.push({c: vueExemplaire(c, {palier, note: P.min + Math.floor(Math.random() * (P.max - P.min + 1))}), nouveau: true});
+  }
+  res.sort((a, b) => RARETES.indexOf(b.c.rarete) - RARETES.indexOf(a.c.rarete) || b.c.ovr - a.c.ovr);
+  sceneBooster(res, type === 'depart' ? 'Départ' : 'Démo', type === 'depart' ? 'pk-depart' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-argent');
+  OB.demo = type || 'hasard';
+}
 function sceneBooster(res, nom, cls) {
   const W = innerWidth, H = innerHeight, n = res.length;
   const pw = Math.round(Math.min(W * .56, H * .33, 240)), ph = pw * 1.45;
@@ -660,7 +677,7 @@ function sceneBooster(res, nom, cls) {
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro');
-  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0});
+  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false});
   // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
   const packY = cy, s0 = pw * .8;
   el.querySelectorAll('.ob-c').forEach((c, i) => { c.style.transform = place(W / 2 + (i - (n - 1) / 2) * 2, packY + ph * .07, s0 / finales[i].w); });
@@ -789,8 +806,9 @@ function finBooster() {
   const nv = res.filter(r => r.nouveau).length;
   const info = res.length > 1 ? (nv ? `${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}` : 'Déjà dans ton club')
     : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton club` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
-  OB.el.querySelector('.ob-bas').innerHTML = `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
-  OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); envoyerAuClub(); });
+  OB.el.querySelector('.ob-bas').innerHTML = OB.demo ? `<p class="ob-info">Démo : rien n’est ajouté à ton club</p><button class="btn gold large ob-fin">Rejouer</button>`
+    : `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
+  OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
   OB.el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 500, fill: 'both'});
 }
 function toutReveler() {
@@ -970,6 +988,7 @@ const jourLocal = () => new Date().toLocaleDateString('sv');   // AAAA-MM-JJ, à
 function introDuJour() {
   const p = new URLSearchParams(location.search);
   if (p.has('intro')) return true;
+  if (p.has('demo')) return false;   // démo de l'ouverture des boosters : directement
   if (/access_token|type=|error=/.test(location.hash)) return false;   // retour d'un lien de connexion ou de confirmation
   try { if (localStorage.getItem(CLE_INTRO) === jourLocal()) return false; localStorage.setItem(CLE_INTRO, jourLocal()); } catch (e) {}
   return true;
@@ -1039,6 +1058,8 @@ Compte.demarrer().then(info => {
   MAJ = info.maj ? new Date(info.maj).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'}) : '';
   route();
   cartesIntro();
+  const demo = new URLSearchParams(location.search).get('demo');
+  if (demo !== null) demoBooster(demo);
   if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
   else if (info.horsLigne) toast('Hors ligne : ton club reste consultable');
