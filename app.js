@@ -9,12 +9,15 @@
 // ailiers et demi-centre devant, vers 10 m. x, y en mètres : x de −10 (touche gauche) à 10, y depuis notre ligne de but.
 const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien
 const POSTES = [{id: 'AG'}, {id: 'ARG'}, {id: 'DC'}, {id: 'ARD'}, {id: 'AD'}, {id: 'PIV'}, {id: 'GB', gb: true}];
+// Une carte sur le terrain fait 3 m de large (15 % de la largeur) : les places sont écartées d'au moins 3 m en largeur
+// ou 4,7 m en profondeur, pour que les cartes ne se chevauchent pas.
 const PLACEMENTS = {
-  '06': {AG: [-7.6, 2.1], ARG: [-4.7, 5.8], PIV: [-1.65, 6.9], DC: [1.65, 6.9], ARD: [4.7, 5.8], AD: [7.6, 2.1]},
-  '15': {AG: [-7.6, 2.1], ARG: [-4.3, 6], PIV: [0, 6.9], ARD: [4.3, 6], AD: [7.6, 2.1], DC: [0, 10.9]},
-  '33': {ARG: [-4.6, 5.9], PIV: [0, 6.7], ARD: [4.6, 5.9], AG: [-6.8, 10.3], DC: [0, 11.6], AD: [6.8, 10.3]},
+  '06': {AG: [-7.9, 2.2], ARG: [-4.75, 5.8], PIV: [-1.65, 6.9], DC: [1.65, 6.9], ARD: [4.75, 5.8], AD: [7.9, 2.2]},
+  '15': {AG: [-7.9, 2.2], ARG: [-4.4, 6], PIV: [0, 6.9], ARD: [4.4, 6], AD: [7.9, 2.2], DC: [0, 11.7]},
+  '33': {ARG: [-4.6, 5.9], PIV: [0, 6.8], ARD: [4.6, 5.9], AG: [-6.9, 10.8], DC: [0, 11.8], AD: [6.9, 10.8]},
 };
-const TERRAIN_H = 14, TERRAIN_B = 1.8;   // demi-terrain dessiné : jusqu'à 14 m de notre but, et 1,8 m derrière (le but)
+// terrain dessiné à l'échelle (rien d'étiré) : jusqu'à 14,8 m de notre but, et la zone de sécurité de 2 m derrière la ligne de but
+const TERRAIN_H = 14.8, TERRAIN_B = 2;
 
 // ── état ────────────────────────────────────────────────────────────────────────
 let CARTES = [], PAR_ID = {}, MAJ = '';
@@ -86,6 +89,7 @@ function route(garderDefilement) {
   document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === (ONGLET[v] || v)));
   $('#view').innerHTML = VUES[v]();
   if (!garderDefilement) window.scrollTo(0, 0);
+  observerScenes(); echelleScenes();
   minuteur();
 }
 function majEntete() {
@@ -136,6 +140,9 @@ const fondHand = () => `<div class="fond-hand" aria-hidden="true"><i class="fh-r
   <i class="fh-ballon b1"></i><i class="fh-ballon b2"></i><i class="fh-ballon b3"></i><i class="fh-ballon b4"></i>
   <i class="fh-eclat e1"></i><i class="fh-eclat e2"></i><i class="fh-eclat e3"></i><i class="fh-eclat e4"></i><i class="fh-eclat e5"></i></div>`;
 // Sachet : aluminium brillant aux bords dentelés, reflets holographiques ; un joueur en photo sur les boosters par poste
+// Les scènes animées de l'accueil (fond, sachets) s'arrêtent quand elles sortent de l'écran : moins de travail en défilant
+const VUE_SCENES = 'IntersectionObserver' in window ? new IntersectionObserver(l => l.forEach(x => x.target.classList.toggle('hors-vue', !x.isIntersecting))) : null;
+const observerScenes = () => VUE_SCENES && document.querySelectorAll('.scene-b:not([data-vue])').forEach(s => { s.dataset.vue = 1; VUE_SCENES.observe(s); });
 function sachetHTML({theme, nom, sous, photo, poste, pw}) {
   return `<span class="sachet ${theme}${photo ? ' avec-photo' : ''}"${poste ? ` data-p="${poste}"` : ''} style="--pw:${pw}px">${sachetInterieur({nom, sous, photo, poste})}</span>`;
 }
@@ -287,14 +294,17 @@ function bonusTactique(m, stats) {
 const pc100 = x => Math.round(x * 100) + ' %';
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
-  const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;
+  const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
   const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id);
     return `${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
-  const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, .95] : pl[p.id];
+  const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
-  // notre demi-terrain aux vraies mesures (20 m de large), notre but en bas : zone des 6 m, 9 m en pointillés, 7 m, 4 m
+  // notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
+  // deux quarts de cercle de 6 m centrés sur les poteaux, reliés par 3 m de ligne droite (15 m de large, 6 m de profondeur).
+  // 9 m : même tracé à 9 m, en pointillés, coupé par les lignes de touche ; 7 m : 1 m de long ; 4 m : 15 cm.
   const G = TERRAIN_H, n9 = G - Math.sqrt(81 - 8.5 * 8.5);
-  const terrain = `<svg class="pitch-l" viewBox="-10 0 20 ${H}" preserveAspectRatio="none" aria-hidden="true">
+  const terrain = `<svg class="pitch-l" viewBox="-10 0 20 ${H}" aria-hidden="true">
+    <rect class="aire" x="-10" y="0" width="20" height="${G}"/>
     <path class="zone" d="M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G} Z"/>
     <path d="M-10 ${G} H10 M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G}"/>
     <path class="neuf" d="M-10 ${n9} A9 9 0 0 1 -1.5 ${G - 9} H1.5 A9 9 0 0 1 10 ${n9}"/>
@@ -306,7 +316,8 @@ function vueEquipe() {
     <p class="sub">Touche un poste pour aligner une carte. Hors de son poste, un joueur perd ${MALUS_HORS_POSTE} points ; des coéquipier(e)s de la même équipe donnent un bonus collectif.</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
-    <div class="pitch">${terrain}<span class="pitch-dispo">Défense ${def[1]}</span>${slots}</div>
+    <p class="pitch-dispo">Placement en défense <b>${def[1]}</b><small>à changer dans Tactique, plus bas</small></p>
+    <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}${slots}</div>
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
@@ -405,12 +416,110 @@ function vueChampionnat() {
       <button class="lien" data-act="classement">Voir le classement des défis</button></div>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
 }
+// Gagner des pièces : 4 grandes tuiles animées (une scène par jeu) ; « ? » pour revoir le tuto
+const NOMS_TUILE = {'7m': 'Jet de 7 mètres', gardien: 'Arrêt réflexe', contre: 'Passe en contre', suspension: 'Tir en suspension'};
+const gainMini = k => { const m = S().minijeux || {}; return m.gains?.[k] ?? m.pieces ?? (k === 'gardien' ? 10 : 50); };
 function vuePieces() {
-  const e = S();
+  const e = S(), j = e.jet7m || {tirs: [], limite: 5, piecesBut: 50, bonus: 100}, m = e.minijeux || {};
+  const tuiles = [{k: '7m', attr: 'data-act="jet7m"', liste: j.tirs, lim: j.limite, succes: 'but', gain: `${j.piecesBut} par but`, unite: 'tir'},
+    ...Object.entries(MINI).map(([k, d]) => ({k, attr: `data-mini="${k}"`, liste: m[k] || [], lim: m.limites?.[k] || m.limite || 5, succes: d.succes,
+      gain: `${gainMini(k)} par ${k === 'gardien' ? 'arrêt' : 'but'}`, unite: k === 'gardien' ? 'tir' : 'essai'}))];
+  let essais = 0;
+  const html = tuiles.map((t, i) => {
+    const reste = Math.max(0, t.lim - t.liste.length), ok = t.liste.filter(x => x === t.succes).length; essais += reste;
+    // pastilles : une par essai ; à l'arrêt réflexe, une par série de 5 tirs (pleine si 5 arrêts)
+    const past = t.k === 'gardien' ? Array.from({length: Math.ceil(t.lim / SERIE)}, (_, i) => { const s = t.liste.slice(i * SERIE, i * SERIE + SERIE);
+        return `<i class="j7p${s.length === SERIE ? (s.every(x => x === 'arret') ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`; }).join('') + `<small>${ok}/${t.lim}</small>`
+      : Array.from({length: t.lim}, (_, i) => `<i class="j7p${t.liste[i] ? (t.liste[i] === t.succes ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
+    return `<div class="jeu-w" style="--i:${i}"><button class="jeu j-${t.k}" ${t.attr}${reste ? '' : ' disabled'}>
+      ${sceneJeu(t.k)}<b class="jeu-nom">${NOMS_TUILE[t.k]}</b><small class="jeu-gain"><i class="coin"></i>${t.gain}</small>
+      <span class="j7-pastilles petit">${past}</span>
+      <span class="jeu-go">${reste ? `Jouer · ${reste} ${t.unite}${reste > 1 ? 's' : ''}` : '✓ Reviens demain'}</span></button>
+      <button class="jeu-aide" data-tuto="${t.k}" aria-label="Comment jouer : ${NOMS_TUILE[t.k]}">?</button></div>`;
+  }).join('');
   return `${retour('jouer', 'Jouer')}<h1>Gagner des pièces</h1>
-    <p class="sub">Des mini-jeux de hand, chaque jour : de quoi ouvrir des boosters par poste et payer les séances.</p>
-    ${blocJet7m(e)}
-    ${blocMiniJeux(e)}`;
+    <p class="sub">4 mini-jeux de hand, chaque jour : de quoi ouvrir des boosters par poste et payer les séances.</p>
+    <p class="pieces-tete"><b>${essais}</b> essai${essais > 1 ? 's' : ''} aujourd’hui</p>
+    <div class="jeux">${html}</div>`;
+}
+// ── scènes animées des tuiles et des tutos : un décor fixe de 160 × 110, et des éléments qui ne bougent que par
+// transform et opacity (la carte graphique les déplace sans rien repeindre : fluide même sur un petit téléphone).
+// La scène est agrandie à la taille de sa tuile par --k (echelleScenes, après chaque affichage).
+const svgP = (vb, w, h, x, y, corps) => `<svg viewBox="${vb}" width="${w}" height="${h}" style="left:${x}px;top:${y}px">${corps}</svg>`;
+const PERSO = (maillot, short, bras) => svgP('-16 -46 32 48', 32, 48, -16, -46, `<path d="M-3.5,-15 L-6,0 M3.5,-15 L6,0" stroke="${short}" stroke-width="4" stroke-linecap="round"/>
+  <path d="${bras}" stroke="${maillot}" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+  <path d="M-6.5,-31 Q0,-34 6.5,-31 L5.5,-14 L-5.5,-14Z" fill="${maillot}"/><circle cy="-37" r="4.6" fill="#f1c7a1"/>`);
+const BRAS = {haut: 'M-6,-29 L-13,-41 M6,-29 L13,-41', tir: 'M-6,-29 L-10,-19 M6,-29 L9,-44'};
+const BALLE = svgP('-7 -7 14 14', 14, 14, -7, -7, '<circle r="5.5" fill="#ffd257" stroke="#b98f1a" stroke-width=".8"/><path d="M-5.5,0 Q0,-2.6 5.5,0 M0,-5.5 Q-2.6,0 0,5.5" stroke="#1d5b8f" stroke-width="1.2" fill="none"/>');
+const mv = (cls, corps, x, y) => `<span class="mv ${cls}"${x != null ? ` style="left:${x}px;top:${y}px"` : ''}>${corps}</span>`;
+const fond = corps => `<svg class="st-fond" viewBox="0 0 160 110">${corps}</svg>`;
+const TAP = '<i class="tap"></i>', cri = t => `<b class="cri">${t}</b>`;
+const filet = () => { let d = ''; for (let x = 50; x < 118; x += 9) d += `M${x},16 V70 `; for (let y = 25; y < 70; y += 9) d += `M42,${y} H118 `; return d; };
+const SCENES = {
+  // tir face au gardien : il bouge, le ballon part en lucarne, le filet tremble
+  '7m': () => fond('<path class="s-sol" d="M-10,110 L26,70 H134 L170,110Z"/><path class="s-l" d="M-6,106 Q80,82 166,106"/><path class="s-l" d="M78,80 h4"/>')
+    + `<svg class="st-fond mv a-filet" viewBox="0 0 160 110"><path class="s-filet" d="${filet()}"/></svg>`
+    + fond('<path class="s-cadre" d="M42,70 V16 H118 V70"/><path class="s-cadre r" d="M42,70 V16 H118 V70"/>')
+    + mv('a-gk', PERSO('#27a35a', '#145c32', BRAS.haut)) + mv('a-b7', BALLE) + mv('a-tap7', TAP, 80, 96) + mv('a-cri', cri('BUT !'), 80, 44),
+  // dans les buts : le tireur saute, la trajectoire s'affiche, on touche la zone, le gant arrête le ballon
+  gardien: () => fond('<path class="s-l p" d="M-4,40 Q80,12 164,40"/><path class="s-l" d="M-4,66 Q80,40 164,66"/><path class="s-zg" d="M58,60 V112 M102,60 V112 M14,86 H146"/>')
+    + mv('a-zone', '<i class="zone"></i>', 102, 60)
+    + fond('<path class="s-cadre" d="M14,112 V60 H146 V112"/><path class="s-cadre r" d="M14,112 V60 H146 V112"/>')
+    + `<svg class="st-fond mv a-traj" viewBox="0 0 160 110"><path class="s-traj" d="M85.6,8.7 Q112,26 124,74"/></svg>`
+    + mv('a-tireur', PERSO('#3b6fd8', '#1b2f66', BRAS.tir)) + mv('a-bg', BALLE) + mv('a-tapg', TAP, 124, 74)
+    + mv('a-gant', '<b class="gant">🧤</b>') + mv('a-burst', '<i class="burst"></i>', 122, 78) + mv('a-cri', cri('ARRÊT !'), 44, 100),
+  // vue du dessus, 2 contre 1 : le défenseur sort sur le porteur, le doigt dessine la passe, le partenaire marque
+  contre: () => fond('<path class="s-l" d="M30,0 Q30,34 62,36 H98 Q130,34 130,0"/><path class="s-l p" d="M8,0 Q10,54 62,56 H98 Q150,54 152,0"/><path class="s-but" d="M66,0 H94 V4 H66Z"/><path class="s-l" d="M0,108 H160"/>')
+    + `<span class="mvs mv a-fondu">${`<svg class="st-fond mv a-trace" viewBox="0 0 160 110"><path class="s-trace" d="M55,59 Q84,24 105,48"/></svg>`
+    + mv('a-D', '<i class="tok d"></i>') + mv('a-A', '<i class="tok m">7</i>') + mv('a-B', '<i class="tok m">11</i>') + mv('a-bc', BALLE) + mv('a-doigt', '<i class="doigt"></i>')}</span>`
+    + mv('a-cri c2', cri('BUT !'), 80, 22),
+  // de profil : la barre de course se remplit (touchers), l'appel, le saut au-dessus du contreur, le tir au sommet
+  suspension: () => fond('<path class="s-l f" d="M0,96 H160"/><path class="s-filet" d="M150,52 L160,48 M150,62 L160,58 M150,72 L160,68 M150,82 L160,78 M150,92 L160,88"/><path class="s-cadre" d="M150,97 V44 H166"/><path class="s-cadre r" d="M150,97 V44 H166"/>')
+    + `<span class="mvs mv a-fondu">${mv('a-barc', '<i class="barre"><i class="mv a-barre"></i></i>', 12, 101) + mv('a-taps', TAP, 40, 103)
+    + mv('a-ct', PERSO('#3b6fd8', '#1b2f66', BRAS.haut)) + mv('a-ts', PERSO('#f4f4f4', '#111', BRAS.tir)) + mv('a-bs', BALLE) + mv('a-tapa', TAP, 93, 16)}</span>`
+    + mv('a-cri c3', cri('BUT !'), 118, 26),
+};
+const sceneJeu = k => `<span class="stage st-${k}" aria-hidden="true"><span class="stage-i">${SCENES[k]()}</span></span>`;
+const echelleScenes = (racine = document) => racine.querySelectorAll('.stage').forEach(s => s.style.setProperty('--k', s.clientWidth / 160));
+window.addEventListener('resize', () => echelleScenes());
+// ── tuto rapide : à la première partie de chaque jeu (localStorage « mhc-tuto »), ou avec le « ? » de sa tuile ──
+const TUTOS = {
+  '7m': ['Le viseur se promène sur le but : <b>touche l’écran</b> pour viser, loin du gardien, dans les angles.',
+    'La jauge de puissance monte et descend : <b>touche encore</b> pour tirer, près du trait.',
+    'Trop fort, le tir part de travers ; trop faible, le gardien a le temps de l’arrêter.'],
+  gardien: ['Tu es dans les buts : le tireur arrive en face de toi.', 'Dès que le ballon part, <b>sa trajectoire s’affiche</b>.',
+    '<b>Touche vite la zone du but</b> où il va, avant qu’il n’arrive. 5 tirs enchaînés par série.'],
+  contre: ['2 contre 1 : tu dribbles vers le but, ton partenaire court à côté.',
+    '<b>Pose le doigt sur ton joueur et glisse</b> pour dessiner la passe, devant ton partenaire, dans sa course.',
+    'Si le défenseur part sur ton partenaire, <b>ne fais rien</b> : tu gardes le ballon et tu vas marquer.'],
+  suspension: ['<b>Touche vite, encore et encore</b>, pour remplir la barre de course.', 'Le saut part tout seul après l’appel : une seconde pour te préparer.',
+    'En l’air, <b>touche pour tirer au sommet du saut</b>, au-dessus du contreur. Barre pleine et tir au sommet : but à coup sûr !'],
+};
+const CLE_TUTO = 'mhc-tuto';
+const tutosVus = () => { try { return JSON.parse(localStorage.getItem(CLE_TUTO) || '[]'); } catch (e) { return []; } };
+const tutoVu = k => { try { const v = tutosVus(); if (!v.includes(k)) localStorage.setItem(CLE_TUTO, JSON.stringify([...v, k])); } catch (e) {} };
+function gainTuto(k) {
+  const e = S(), m = e.minijeux || {};
+  if (k === '7m') { const j = e.jet7m || {}; return `${j.piecesBut ?? 50} pièces par but · +${j.bonus ?? 100} pour un 5 sur 5 · ${j.limite ?? 5} tirs par jour`; }
+  return k === 'gardien' ? `${gainMini(k)} pièces par arrêt · 5 séries de 5 tirs par jour`
+    : `${gainMini(k)} pièces par but · ${m.limites?.[k] || m.limite || 5} essais par jour · +${m.bonus ?? 100} pour un 5 sur 5`;
+}
+function tuto(k, dans, revoir) {
+  if (!revoir && tutosVus().includes(k)) return Promise.resolve();
+  return new Promise(fini => {
+    const el = document.createElement('div');
+    el.className = `tuto j-${k}`; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Comment jouer : ' + NOMS_TUILE[k]);
+    el.innerHTML = `<div class="tuto-c"><small class="tuto-s">Comment jouer</small><h2>${NOMS_TUILE[k]}</h2>${sceneJeu(k)}
+      <ol class="tuto-e">${TUTOS[k].map((t, i) => `<li style="--i:${i}"><span>${i + 1}</span><p>${t}</p></li>`).join('')}</ol>
+      <p class="tuto-g"><i class="coin"></i>${gainTuto(k)}</p>
+      <button class="btn gold large tuto-ok">${revoir ? 'Compris !' : 'C’est parti !'}</button></div>`;
+    (dans || document.body).appendChild(el); echelleScenes(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.querySelector('.tuto-ok').addEventListener('click', e => {
+      e.stopPropagation(); tutoVu(k); el.classList.add('fin'); vibrer(10);
+      setTimeout(() => { el.remove(); fini(); }, moinsAnim() ? 0 : 280);
+    });
+  });
 }
 // ── parcours : poules (Départemental, Régional, National), tournois (International), Légendes ──
 const TOURS = ['Quart de finale', 'Demi-finale', 'Finale'];
@@ -607,31 +716,124 @@ function chargerParis() {
     .finally(() => { PARIS.charge = false; if (vueCourante() === 'paris' && $('#overlay').hidden) route(true); });
 }
 const issueNom = (m, choix) => choix === '1' ? m.dom : choix === '2' ? m.ext : 'Match nul';
+// couleurs des quatre poules (bandeau des matchs, filtres) et blason des clubs : le logo pour le Médoc, des initiales sinon
+const TEINTE_EQ = {SG1: '#4f8cff', SG2: '#1fc7b6', SF1: '#ff5c93', SF2: '#a979ff'};
+const teinteClub = n => { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const initialesClub = n => { const num = n.match(/\s(\d+)$/)?.[1] || '', mots = n.replace(/\s\d+$/, '').split(/[\s-]+/).filter(w => w.length > 2 || /^[A-ZÉ]/.test(w));
+  return ((mots.length > 1 ? mots[0][0] + mots[1][0] : (mots[0] || n).slice(0, 2)) + num).toUpperCase(); };
+const blason = (nom, med) => med ? '<i class="bl med" aria-hidden="true"><img src="assets/logo.png" alt=""></i>'
+  : `<i class="bl" style="--h:${teinteClub(nom)}" aria-hidden="true">${esc(initialesClub(nom))}</i>`;
+// probabilités tirées des cotes (inverse des cotes, ramené à 100 %)
+const probasCotes = c => { const i = ['1', 'N', '2'].map(k => 1 / c[k]), s = i[0] + i[1] + i[2]; return i.map(x => x / s); };
+const barreProbas = (p, noms) => `<div class="pm-proba" role="img" aria-label="${noms ? `${esc(noms[0])} ${Math.round(p[0] * 100)} %, nul ${Math.round(p[1] * 100)} %, ${esc(noms[1])} ${Math.round(p[2] * 100)} %` : 'Chances de chaque issue'}">
+  <i class="pp1" style="--p:${p[0]}"></i><i class="ppn" style="--p:${p[1]}"></i><i class="pp2" style="--p:${p[2]}"></i></div>
+  <div class="pm-pct"><span>${Math.round(p[0] * 100)} %</span><span>nul ${Math.round(p[1] * 100)} %</span><span>${Math.round(p[2] * 100)} %</span></div>`;
+const boutonsCotes = m => `<div class="pm-c">${['1', 'N', '2'].map(k => `<button data-pari="${m.rid}:${k}"><small>${k === 'N' ? 'Nul' : esc(k === '1' ? m.dom : m.ext)}</small><b>${fr(m.cotes[k])}</b></button>`).join('')}</div>`;
+const ticketPari = m => `<div class="pm-ticket"><span aria-hidden="true">🎟️</span><p>Ton pari : <b>${nb(m.pari.mise)}</b> sur <b>${esc(issueNom(m, m.pari.choix))}</b> · cote ${fr(m.pari.cote)}<small>gain possible ${nb(Math.floor(m.pari.mise * m.pari.cote))} pièces</small></p></div>`;
 function vueParis() {
   chargerParis();
   const d = PARIS.data, f = PARIS.filtre;
   const garde = m => f === 'tous' || (f === 'medoc' ? !!m.medoc : m.equipe === f);
-  let jour = '';
+  let jour = '', i = 0;
   const avenir = (d?.aVenir || []).filter(garde).map(m => {
     const j = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'});
     const titre = j !== jour ? `<h3 class="jour">${j}</h3>` : ''; jour = j;
-    return titre + `<div class="pm"><small>${m.equipe} · J${m.journee ?? '?'}${m.heure ? ' · ' + m.heure : ''}</small>
-      <div class="pm-eq"><b class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</b><span>–</span><b class="${m.medoc === 'ext' ? 'med' : ''}">${esc(m.ext)}</b></div>
-      ${m.pari ? `<p class="pm-p">Ton pari : ${nb(m.pari.mise)} sur <b>${esc(issueNom(m, m.pari.choix))}</b> · cote ${fr(m.pari.cote)} · gain possible ${nb(Math.floor(m.pari.mise * m.pari.cote))}</p>`
-        : `<div class="pm-c">${['1', 'N', '2'].map(k => `<button data-pari="${m.rid}:${k}"><small>${k === 'N' ? 'Nul' : esc(k === '1' ? m.dom : m.ext)}</small><b>${fr(m.cotes[k])}</b></button>`).join('')}</div>`}</div>`;
+    return titre + `<article class="pm${m.pari ? ' parie' : ''}" style="--eq:${TEINTE_EQ[m.equipe] || '#ffd257'};--i:${Math.min(i++, 8)}">
+      <header class="pm-h"><span class="pm-cat">${m.equipe}</span><small>J${m.journee ?? '?'}${m.heure ? ' · ' + m.heure : ''}</small></header>
+      <div class="pm-eq"><div class="pm-t">${blason(m.dom, m.medoc === 'dom')}<b class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</b></div>
+        <span class="pm-vs">VS</span>
+        <div class="pm-t">${blason(m.ext, m.medoc === 'ext')}<b class="${m.medoc === 'ext' ? 'med' : ''}">${esc(m.ext)}</b></div></div>
+      ${barreProbas(probasCotes(m.cotes))}
+      ${m.pari ? ticketPari(m) : boutonsCotes(m)}
+      <button class="pm-fiche" data-fiche="${m.rid}"><span aria-hidden="true">📊</span> Voir la fiche du match</button></article>`;
   }).join('');
   const mes = (d?.mesParis || []).map(m => {
     const x = m.pari, st = {en_cours: 'En cours', gagne: `Gagné : +${nb(x.gain)}`, perdu: 'Perdu'}[x.statut];
     return `<div class="hist r-${x.statut === 'gagne' ? 'gagne' : x.statut === 'perdu' ? 'perdu' : 'nul'}"><b>${m.score ? m.score.join(' – ') : nb(x.mise)}</b>
       <span>${esc(m.dom)} – ${esc(m.ext)} · ${esc(issueNom(m, x.choix))} à ${fr(x.cote)}</span><small>${st}</small></div>`;
   }).join('');
-  return `${retour('social', 'Social')}<h1>Paris</h1>
-    <p class="sub">Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2. Les cotes viennent du modèle de pronostic de medochandballstats.com.
-      Pièces du jeu seulement : rien à acheter, rien à gagner en vrai.</p>
-    <div class="filters">${[['medoc', 'Médoc'], ['tous', 'Tous'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
-      .map(([k, l]) => `<button data-pfiltre="${k}" class="${f === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
+  const enCours = (d?.mesParis || []).filter(m => m.pari.statut === 'en_cours').length;
+  return `${retour('social', 'Social')}
+    <div class="paris-hero"><span class="ph-ticket" aria-hidden="true">🎟️</span><h1>Paris</h1>
+      <p>Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2.</p>
+      <small>Cotes du modèle de pronostic de medochandballstats.com · pièces du jeu seulement : rien à acheter, rien à gagner en vrai.</small>
+      ${d ? `<div class="ph-chiffres"><span><b>${(d.aVenir || []).length}</b> matchs</span><span><b>${enCours}</b> pari${enCours > 1 ? 's' : ''} en cours</span></div>` : ''}</div>
+    <div class="filters paris-f">${[['medoc', 'Médoc'], ['tous', 'Tous'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
+      .map(([k, l]) => `<button data-pfiltre="${k}" class="${f === k ? 'on' : ''}" style="--eq:${TEINTE_EQ[k] || '#ffd257'}">${l || k}</button>`).join('')}</div>
     ${!d ? '<p class="sub">Chargement…</p>' : avenir || '<p class="sub">Pas de match dans les deux prochaines semaines.</p>'}
     ${mes ? `<h2>Mes paris</h2><div class="hists">${mes}</div>` : ''}`;
+}
+// ── fiche du match : résumé du « face-à-face » de medochandballstats.com (data/face.json, scripts/export_face.py) ──
+const FACE = {data: null, charge: null};
+const chargerFace = () => FACE.data ? Promise.resolve(FACE.data)
+  : FACE.charge ||= fetch('data/face.json', {cache: 'no-cache'}).then(r => r.ok ? r.json() : {matchs: {}}).catch(() => ({matchs: {}})).then(d => (FACE.data = d));
+const v1 = x => x == null ? '–' : x.toFixed(1).replace('.', ',');
+const sg1 = x => x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + v1(Math.abs(x));
+const pc = x => x == null ? '–' : Math.round(x * 100) + ' %';
+const verdictP = p => p >= .85 ? 'grande favorite' : p >= .65 ? 'favorite' : p >= .52 ? 'légère favorite' : p >= .4 ? 'dans un match ouvert' : p >= .2 ? 'outsider' : 'en grand danger';
+const serie = f => { if (!f) return null; let n = 0; while (n < f.length && f[n] === f[0]) n++; return {res: f[0], n}; };
+function fenetreFiche(rid) {
+  const m = PARIS.data?.aVenir.find(x => x.rid === rid); if (!m) return;
+  ouvrirOverlay('<div class="sheet fiche-m"><p class="sub">Chargement de la fiche…</p></div>');
+  chargerFace().then(F => { if (!$('.fiche-m')) return; $('#overlay').innerHTML = ficheMatchHTML(m, F.matchs?.[rid], F.home); });
+}
+function ficheMatchHTML(m, x, home) {
+  const date = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'});
+  const tete = `<header class="fm-h" style="--eq:${TEINTE_EQ[m.equipe] || '#ffd257'}"><span class="pm-cat">${m.equipe}</span><small>J${m.journee ?? '?'} · ${date}${m.heure ? ' · ' + m.heure : ''}</small>
+    <button class="fm-x" data-act="fermer" aria-label="Fermer">✕</button></header>
+    <div class="fm-eq"><div>${blason(m.dom, m.medoc === 'dom')}<b class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</b>${x?.dom.place ? `<small>${ordinal(x.dom.place)} · ${x.dom.pts} pts</small>` : ''}</div>
+      <span class="pm-vs">VS</span>
+      <div>${blason(m.ext, m.medoc === 'ext')}<b class="${m.medoc === 'ext' ? 'med' : ''}">${esc(m.ext)}</b>${x?.ext.place ? `<small>${ordinal(x.ext.place)} · ${x.ext.pts} pts</small>` : ''}</div></div>`;
+  const pied = `${m.pari ? ticketPari(m) : boutonsCotes(m)}
+    <a class="fm-site" href="https://medochandballstats.com" target="_blank" rel="noopener">Toute l’analyse sur medochandballstats.com ↗</a>`;
+  if (!x) return `<div class="sheet fiche-m">${tete}${barreProbas(probasCotes(m.cotes), [m.dom, m.ext])}
+    <p class="sub">La fiche de ce match n’est pas encore prête.</p>${pied}</div>`;
+  const L = x.dom, R = x.ext, p = x.p, fav = p[0] >= p[2] ? L : R, pf = Math.max(p[0], p[2]);
+  // le rapport de force, la forme, attaque contre défense : les phrases de l'analyse du site, en bref
+  const phrases = [];
+  phrases.push(['Le pronostic', `<b>${esc(fav.nom)}</b> part ${verdictP(pf)} (${pc(pf)}).${x.score ? ` Score probable : <b>${x.score[0]} – ${x.score[1]}</b>.` : ''}`]);
+  if (L.niveau != null && R.niveau != null) phrases.push(['Le rapport de force', `Niveau estimé face à une équipe moyenne de la poule : ${sg1(L.niveau)} buts pour ${esc(L.nom)}, ${sg1(R.niveau)} pour ${esc(R.nom)}.`
+    + (home != null && x.mu != null ? ` Avec l’avantage du terrain (${sg1(home)} pour ${esc(L.nom)}), l’écart attendu est de <b>${sg1(x.mu)} but${Math.abs(x.mu) >= 2 ? 's' : ''}</b> pour ${esc(L.nom)}.` : '')]);
+  const fm = t => { const s = serie(t.forme); if (!t.forme) return `${esc(t.nom)} n’a pas encore joué`;
+    const g = [...t.forme].filter(c => c === 'V').length;
+    return `${esc(t.nom)} : ${g} victoire${g > 1 ? 's' : ''} sur ses ${t.forme.length} derniers matchs${s && s.n >= 2 && s.res !== 'N' ? `, ${s.n} ${s.res === 'V' ? 'victoires' : 'défaites'} de suite` : ''}`; };
+  phrases.push(['La forme', `${fm(L)} ; ${fm(R)}.`]);
+  if (L.j && R.j) {
+    const ga = L.att - R.att, gd = R.def - L.def, nL = esc(L.nom), nR = esc(R.nom);   // > 0 : avantage à l'équipe qui reçoit
+    const att = ga > 0 ? nL : nR, def = gd > 0 ? nL : nR;
+    const fin = Math.abs(ga) < 1.5 && Math.abs(gd) < 1.5 ? 'Sur le papier, attaques et défenses s’équilibrent.'
+      : ga >= 1.5 && gd >= 1.5 ? `${nL} a l’avantage des deux côtés du terrain.` : ga <= -1.5 && gd <= -1.5 ? `${nR} a l’avantage des deux côtés du terrain.`
+      : att === def ? `L’écart se fait surtout ${Math.abs(ga) > Math.abs(gd) ? 'en attaque' : 'en défense'}, à l’avantage de ${att}.`
+      : `${att} marque davantage, ${def} défend mieux : un duel attaque contre défense.`;
+    phrases.push(['Attaque contre défense', `${nL} : ${ordinal(L.rangAtt)} attaque (${v1(L.att)} buts/match), ${ordinal(L.rangDef)} défense (${v1(L.def)} encaissés). ${nR} : ${ordinal(R.rangAtt)} attaque (${v1(R.att)}), ${ordinal(R.rangDef)} défense (${v1(R.def)}). ${fin}`]);
+  }
+  // le face-à-face en chiffres : la meilleure valeur de chaque ligne en couleur, et une barre qui montre qui domine
+  const bil = b => b.j ? `${b.g}V ${b.n}N ${b.p}D` : '–';
+  const formeH = f => f ? `<span class="fm-forme">${[...f].map(c => `<i class="f-${c}">${c}</i>`).join('')}</span>` : '–';
+  const lignes = [
+    ['Classement', L.place, R.place, L.place ? ordinal(L.place) : '–', R.place ? ordinal(R.place) : '–', false],
+    ['Points', L.pts, R.pts, L.pts ?? '–', R.pts ?? '–', true],
+    ['Niveau estimé', L.niveau, R.niveau, sg1(L.niveau), sg1(R.niveau), true],
+    ['Buts marqués / match', L.att, R.att, v1(L.att), v1(R.att), true],
+    ['Buts encaissés / match', L.def, R.def, v1(L.def), v1(R.def), false],
+    ['Écart moyen', L.gd, R.gd, sg1(L.gd), sg1(R.gd), true],
+    ['Bilan dom. / ext.', L.bilan.j ? L.bilan.g / L.bilan.j : null, R.bilan.j ? R.bilan.g / R.bilan.j : null, bil(L.bilan), bil(R.bilan), true],
+    ['Derniers matchs', L.forme ? [...L.forme].filter(c => c === 'V').length / L.forme.length : null, R.forme ? [...R.forme].filter(c => c === 'V').length / R.forme.length : null, formeH(L.forme), formeH(R.forme), true],
+    ['Plus large victoire', L.best, R.best, L.best ? '+' + L.best : '–', R.best ? '+' + R.best : '–', true],
+    ['Chance de finir 1er', L.p1, R.p1, pc(L.p1), pc(R.p1), true],
+  ];
+  const ff = lignes.map(([lab, a, b, da, db, haut], k) => {
+    const ok = a != null && b != null && a !== b, gauche = ok && (haut ? a > b : a < b);
+    // part de la barre : rapport des deux valeurs (rangs et valeurs négatives ramenés à une échelle positive)
+    let part = .5;
+    if (ok) { const lo = Math.min(a, b, 0), A = a - lo + .5, B = b - lo + .5; part = haut ? A / (A + B) : B / (A + B); }
+    return `<div class="fm-l" style="--k:${k}"><b class="${ok && gauche ? 'top' : ''}">${da}</b><span>${lab}</span><b class="${ok && !gauche ? 'top' : ''}">${db}</b>
+      <i class="fm-bar" style="--part:${Math.max(.08, Math.min(.92, part))}"></i></div>`;
+  }).join('');
+  const deja = x.deja.length ? `<h4>Déjà cette saison</h4>${x.deja.map(r => `<p class="fm-deja">${esc(r.dom)} <b>${r.score[0]} – ${r.score[1]}</b> ${esc(r.ext)}</p>`).join('')}` : '';
+  return `<div class="sheet fiche-m">${tete}${barreProbas(p, [L.nom, R.nom])}
+    <div class="fm-txt">${phrases.map(([t, s], k) => `<p style="--k:${k}"><b>${t}</b>${s}</p>`).join('')}</div>
+    <h4>Le face-à-face en chiffres</h4><div class="fm-ff">${ff}</div>${deja}${pied}</div>`;
 }
 function fenetrePari(rid, choix) {
   const m = PARIS.data.aVenir.find(x => x.rid === rid), c = m.cotes[choix];
@@ -1095,7 +1297,7 @@ function montee(avant, apres) {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],[data-mini],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -1117,6 +1319,7 @@ document.addEventListener('click', e => {
   if (d.palierVeut) { MKT.compo.palier = d.palierVeut; return composerAnnonce(); }
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
+  if (d.fiche) return fenetreFiche(d.fiche);
   if (a === 'passer') return finMatch();
   if (a === 'fin-match') { JEU.rencontres = null; JEU.adversaires = null; return fermerOverlay(); }
   if (a === 'classement') return fenetreClassement();
@@ -1156,6 +1359,7 @@ document.addEventListener('click', e => {
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
+  if (d.tuto) return tuto(d.tuto, null, true);
   if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
     const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
     ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton équipe.</p>
@@ -1281,14 +1485,6 @@ $('.brand').addEventListener('click', () => {
 const J7 = {};
 const RES7 = {but: ['But !', 'but'], arret: ['Arrêté !', 'rate'], dehors: ['À côté !', 'rate'], poteau: ['Poteau !', 'rate'], dessus: ['Au-dessus !', 'rate']};
 const titre7 = r => r.resultat === 'dehors' && r.y < 0 ? 'Au-dessus !' : r.resultat === 'poteau' && r.y < .05 ? 'Sur la barre !' : RES7[r.resultat][0];
-function blocJet7m(e) {
-  const j = e.jet7m || {tirs: [], limite: 5, piecesBut: 15, bonus: 25}, reste = j.limite - j.tirs.length, buts = j.tirs.filter(x => x === 'but').length;
-  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? (j.tirs[i] === 'but' ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
-  return `<div class="mode"><div class="mode-t"><b>Jet de 7 mètres</b><span>${buts} but${buts > 1 ? 's' : ''} aujourd’hui</span></div>
-    <p class="sub petit">Vise loin du gardien, dans les angles, puis règle la puissance. ${j.piecesBut} pièces par but, ${j.bonus} de plus pour un 5 sur 5 ; ${j.limite} tirs par jour.</p>
-    <div class="j7-pastilles">${pastilles}</div>
-    <button class="btn gold large" data-act="jet7m"${reste > 0 ? '' : ' disabled'}>${reste > 0 ? `Tirer · ${reste} tir${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''}` : 'Reviens demain'}</button></div>`;
-}
 // Démo (?demo=7m) : mêmes règles que tirer_7m, calculées dans la page, sans pièces ni serveur
 function tir7mDemo(x0, y0, f) {
   let x = x0, y = y0;
@@ -1318,7 +1514,7 @@ function ouvrirJet7m(demo) {
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) toucherJet7m(); });
   // la scène en 3D (jeux3d.js) : on attend qu'elle soit prête pour lancer le premier tir
   el.querySelector('.j7-aide').textContent = 'Chargement du terrain…';
-  jeux3d().then(m => m.jet7m(J7, el.querySelector('.t3'))).catch(() => null).then(ctl => {
+  Promise.all([jeux3d().then(m => m.jet7m(J7, el.querySelector('.t3'))).catch(() => null), tuto('7m', el)]).then(([ctl]) => {
     if (!J7.el) return;
     if (!ctl) { toast('Impossible de charger le terrain 3D : vérifie ta connexion'); return fermerJet7m(); }
     J7.ctl = ctl; nouveauTir();
@@ -1402,20 +1598,6 @@ const MINI = {
     texte: 'Touche vite pour remplir la barre de course : le saut part tout seul. En l’air, touche pour tirer au sommet du saut, au-dessus du contreur. Barre pleine et tir au sommet : but à coup sûr.',
     res: {but: 'But !', arret: 'Arrêté !', contre: 'Contré !', dehors: 'À côté !', poteau: 'Poteau !'}},
 };
-function blocMiniJeux(e) {
-  const m = e.minijeux || {limite: 5, pieces: 10, bonus: 20};
-  const lignes = Object.entries(MINI).map(([k, d]) => {
-    const l = m[k] || [], lim = m.limites?.[k] || m.limite || 5, reste = lim - l.length, ok = l.filter(x => x === d.succes).length;
-    // pastilles : une par essai ; au gardien, une par série de 5 (pleine si 5 arrêts)
-    const past = k === 'gardien' ? Array.from({length: Math.ceil(lim / SERIE)}, (_, i) => { const s = l.slice(i * SERIE, i * SERIE + SERIE);
-        return `<i class="j7p${s.length === SERIE ? (s.every(x => x === 'arret') ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`; }).join('') + `<small>${ok}/${lim}</small>`
-      : Array.from({length: lim}, (_, i) => `<i class="j7p${l[i] ? (l[i] === d.succes ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
-    return `<div class="mj-ligne"><span class="mj-ic" aria-hidden="true">${d.icone}</span><div><b>${d.nom}</b><div class="j7-pastilles petit">${past}</div></div>
-      <button class="btn gold petit" data-mini="${k}"${reste > 0 ? '' : ' disabled'}>${reste > 0 ? 'Jouer' : 'Demain'}</button></div>`;
-  }).join('');
-  return `<div class="mode"><div class="mode-t"><b>Mini-jeux</b><span>chaque jour</span></div>
-    <p class="sub petit">${m.pieces || 50} pièces par réussite (${m.gains?.gardien || 10} par arrêt, en 5 séries de 5 tirs) et ${m.bonus || 100} de bonus pour une journée parfaite.</p>${lignes}</div>`;
-}
 const mjAttendre = ms => new Promise(r => MJ.timers.push(setTimeout(r, moinsAnim() ? 0 : ms)));
 function ouvrirMini(jeu, demo) {
   if (!MINI[jeu]) return;
@@ -1430,7 +1612,8 @@ function ouvrirMini(jeu, demo) {
   Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0, serie: [], serieN: 0});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) MJ.toucher(e); });
-  miniEssai();
+  jeux3d().catch(() => {});   // la salle 3D se charge pendant le tuto
+  tuto(jeu, el).then(() => { if (MJ.el === el) miniEssai(); });
 }
 function fermerMini() { MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const SERIE = 5;   // l'arrêt réflexe : 5 tirs enchaînés par série
@@ -1491,7 +1674,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=32').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=33').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

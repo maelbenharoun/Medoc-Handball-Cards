@@ -34,7 +34,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
   directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
-- **Gagner des pièces** (Jouer) : le **jet de 7 mètres** (en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
+- **Gagner des pièces** (Jouer) : 4 grandes tuiles animées, une par mini-jeu, avec un **tuto rapide** à la première partie
+  de chaque jeu (le « ? » de la tuile le remontre). Le **jet de 7 mètres** (en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
   5 tirs par jour, 50 pièces par but, 100 de bonus pour un 5 sur 5.
 - **Mini-jeux en vraie 3D** (`jeux3d.js`, three.js chargé seulement à l'ouverture) : l'arrêt réflexe (caméra derrière ton but,
@@ -48,6 +49,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
 - **Social** : le **classement** (niveau de poule de chaque joueur), les **transferts** (une carte contre une carte du même palier),
   les **paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
+  Chaque match a sa **fiche** (« Voir la fiche du match ») : le face-à-face en chiffres et l'analyse du site, en bref.
 - **Ami(e)s** (la bulle en bas à droite, partout sauf pendant les mini-jeux) : ajouter un pseudo, puis pour chaque ami(e) : **messages**
   (pastille sur sa bulle), **échange** de n'importe quelles cartes (une proposition à la fois entre deux ami(e)s, 3 par jour),
   **défi** entre vos deux équipes (30 pièces au gagnant, 5 par jour).
@@ -85,6 +87,14 @@ Le script lit les `site_data.json` du dépôt `handball-pronos` et écrit :
 
 Il ne touche pas à `data/perso.json`. Ensuite : pousser, puis **Synchroniser avec le site** dans l'outil.
 
+La fiche des matchs à parier (5 semaines à venir) se met à jour à part, sans toucher aux cartes :
+
+```bash
+python scripts/export_face.py ../handball-pronos/medoc/pipeline/teams
+```
+
+Il écrit `data/face.json` : statistiques d'équipes seulement (classement, niveau estimé, buts, forme, bilan), aucun nom de joueur.
+
 ## Tester en local
 
 ```bash
@@ -110,10 +120,12 @@ sw.js                 cache hors ligne
 manifest.webmanifest  installation sur téléphone
 data/cartes.json      les cartes du site (généré par le script)
 data/matchs.json      les matchs des poules (généré par le script)
+data/face.json        la fiche des matchs à parier (scripts/export_face.py)
 data/adversaires.json les équipes du parcours (généré par le script)
 data/perso.json       les réglages des cartes (outil, mode sans serveur)
 scripts/export_cartes.py
 scripts/fiches.py     la fiche de chaque joueur (stats du site, stats rigolotes)
+scripts/export_face.py la fiche des matchs à parier (face-à-face du site)
 supabase/schema.sql   base de données et règles du serveur (à coller dans Supabase)
 docs/SERVEUR.md       mise en route du serveur et règles du jeu
 assets/               logo du club, icônes, photos/
