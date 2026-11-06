@@ -609,11 +609,11 @@ body.avec-intro { overflow: hidden; }
 /* ── mini-jeu : jet de 7 mètres ── */
 .j7-pastilles { display: flex; gap: 6px; }
 .j7p { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg); }
-.j7p.but { background: var(--accent); border-color: var(--accent); }
-.j7p.rate { background: #3a3f48; border-color: #3a3f48; }
+.j7p.j7p-ok { background: var(--accent); border-color: var(--accent); }   /* pas « .but » : déjà pris par le fil des matchs */
+.j7p.j7p-ko { background: #3a3f48; border-color: #3a3f48; }
 .j7 { position: fixed; inset: 0; z-index: 100; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none;
   background: radial-gradient(ellipse at 50% 25%, #2a3442, #12161c 55%), #0b0d10; }
-.j7-haut { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 16px; right: 12px; z-index: 5; display: flex; justify-content: space-between; align-items: center; }
+.j7-haut { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 16px; right: 12px; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
 .j7-score { font-weight: 900; font-size: 1rem; }
 .j7-quitter { padding: 7px 14px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(11, 13, 16, .6); color: var(--muted); font: inherit; font-size: .8rem; font-weight: 700; }
 .j7-terrain { position: absolute; inset: 0; }
@@ -667,3 +667,92 @@ body.avec-intro { overflow: hidden; }
 .j7-bas:empty { display: none; }
 .j7-bilan { margin: 0; text-align: center; font-weight: 900; font-size: 1.1rem; color: var(--accent); text-shadow: 0 2px 10px #000; }
 @media (prefers-reduced-motion: reduce) { .j7-aide { animation: none; } }
+
+/* ── trois autres mini-jeux ── */
+.mj-ligne { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.mj-ic { font-size: 1.5rem; text-align: center; }
+.mj-ligne b { display: block; font-size: .92rem; margin-bottom: 4px; }
+.j7-pastilles.petit .j7p { width: 14px; height: 14px; border-width: 1.5px; }
+.mj-scene { position: absolute; inset: 0; }
+.mj .j7-aide { z-index: 8; }
+.mj-gardien .j7-aide { bottom: auto; top: calc(100px + env(safe-area-inset-top)); }   /* en bas, il y a les mains du gardien */
+/* arrêt réflexe : on est dans le but, face au terrain */
+.g-salle { position: absolute; inset: -6%; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #34404f, #141920 70%); transform-origin: 50% 70%; }
+.g-salle.encaisse::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(229, 72, 77, .55); animation: ob-eclair .8s ease-out both; }
+.g-sol { position: absolute; left: -20%; right: -20%; top: 52%; bottom: 0; background: linear-gradient(180deg, #4a3523, #2a1e14); }
+.g-l6 { position: absolute; left: 10%; right: 10%; top: 62%; height: 120%; border: 3px solid rgba(255, 255, 255, .55); border-radius: 50% 50% 0 0; border-bottom: 0; }
+.g-l9 { position: absolute; left: 22%; right: 22%; top: 12%; height: 120%; border: 3px dashed rgba(255, 255, 255, .35); border-radius: 50% 50% 0 0; border-bottom: 0; }
+.g-tireur { position: absolute; left: 50%; top: 22%; width: min(34vw, 170px); transform: translate(-50%, 0) scale(.55); transform-origin: 50% 100%; z-index: 2; }
+.g-saut { will-change: transform; }
+.tireur { display: block; width: 100%; filter: drop-shadow(0 10px 12px rgba(0, 0, 0, .55)); }
+.tireur g { transform-box: view-box; } .t-bg { transform-origin: 37px 48px; } .t-bd { transform-origin: 63px 48px; }
+.g-cage { position: absolute; left: 9%; right: 9%; top: 15%; bottom: 17%; z-index: 4; }
+.g-pg, .g-pd, .g-barre { position: absolute; background: repeating-linear-gradient(0deg, #e5484d 0 26px, #f4f4f4 26px 52px); box-shadow: 0 0 20px rgba(0, 0, 0, .6); }
+.g-pg { left: -14px; top: -14px; bottom: -40px; width: 16px; } .g-pd { right: -14px; top: -14px; bottom: -40px; width: 16px; }
+.g-barre { left: -14px; right: -14px; top: -14px; height: 16px; background: repeating-linear-gradient(90deg, #e5484d 0 26px, #f4f4f4 26px 52px); }
+.g-z { position: absolute; width: 33.33%; height: 50%; }
+.g-z[data-z^="g"] { left: 0; } .g-z[data-z^="c"] { left: 33.33%; } .g-z[data-z^="d"] { left: 66.66%; }
+.g-z[data-z$="h"] { top: 0; } .g-z[data-z$="b"] { top: 50%; }
+.g-z::after { content: ""; position: absolute; inset: 6px; border-radius: 12px; border: 1px dashed rgba(255, 255, 255, .12); }
+.g-mains { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.g-main { position: absolute; top: 84%; width: 64px; height: 64px; transform: translate(-50%, -50%); border-radius: 46% 46% 40% 40%;
+  background: radial-gradient(circle at 40% 30%, #f1d1b0, #d9a77c 70%); box-shadow: 0 0 0 7px #1d5b8f, 0 12px 24px rgba(0, 0, 0, .55); }
+.g-mg { left: 26%; } .g-md { left: 74%; }
+.g-ballon, .c-ballon, .s-ballon { position: absolute; width: 30px; height: 30px; border-radius: 50%; z-index: 7; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 35% 30%, #fff, #f5d548 55%, #b98f1a); box-shadow: inset -3px -5px 6px rgba(0, 0, 0, .25), 0 6px 12px rgba(0, 0, 0, .5); transform: translate(-50%, -50%); }
+.g-eclat { position: absolute; width: 120px; height: 120px; border-radius: 50%; z-index: 8; pointer-events: none; border: 4px solid #fff; box-shadow: 0 0 30px #fff; }
+.g-chrono { position: absolute; left: 30%; right: 30%; top: calc(19% + env(safe-area-inset-top)); height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .12); z-index: 8; overflow: hidden; }
+.g-chrono i { position: absolute; inset: 0; background: linear-gradient(90deg, #e5484d, var(--accent)); transform-origin: 0 50%; }
+/* passe en contre : terrain vu de dessus */
+.c-terrain { position: absolute; left: 50%; top: calc(54px + env(safe-area-inset-top)); bottom: calc(110px + env(safe-area-inset-bottom)); aspect-ratio: 100 / 150; max-width: calc(100% - 24px); translate: -50% 0;
+  border-radius: 14px; overflow: hidden; background: repeating-linear-gradient(90deg, #b07a45 0 24px, #a8723f 24px 48px); box-shadow: 0 20px 40px rgba(0, 0, 0, .5); }
+.c-lignes { position: absolute; inset: 0; width: 100%; height: 100%; }
+.c-lignes * { fill: none; stroke: rgba(255, 255, 255, .8); stroke-width: .6; vector-effect: non-scaling-stroke; }
+.c-lignes .c-cage { fill: rgba(255, 255, 255, .85); }
+.c-terrain.but::after { content: "BUT"; position: absolute; left: 0; right: 0; top: 4%; text-align: center; font-weight: 900; font-size: 1.4rem; color: #fff; text-shadow: 0 0 20px var(--accent); animation: clue .5s both; }
+.c-j { position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%); z-index: 3; }
+.c-j b { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: #1d5b8f; color: #fff; font-weight: 900; font-size: .9rem;
+  border: 3px solid #fff; box-shadow: 0 6px 10px rgba(0, 0, 0, .45); }
+.c-j.r b { background: #c8372d; } .c-j.moi b { background: var(--accent); color: #1b1408; }
+.c-j.court b { animation: c-course .22s ease-in-out infinite alternate; }
+@keyframes c-course { from { transform: translateY(-2px) rotate(-6deg); } to { transform: translateY(2px) rotate(6deg); } }
+.c-j.balle b { box-shadow: 0 0 0 4px #f5d548, 0 6px 10px rgba(0, 0, 0, .45); }
+.c-cible { position: absolute; width: 46px; height: 46px; transform: translate(-50%, -50%); border-radius: 50%; border: 3px dashed rgba(255, 255, 255, .85); z-index: 2; }
+.c-cible.top { border: 3px solid #5bd68a; box-shadow: 0 0 18px #5bd68a; } .c-cible.moyen { border-color: var(--accent); } .c-cible.rate { border-color: #e5484d; }
+.c-cercle { position: absolute; width: 46px; height: 46px; transform: translate(-50%, -50%) scale(3.4); border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 0 12px rgba(255, 210, 87, .7); z-index: 2; }
+.c-ombre { position: absolute; width: 26px; height: 12px; border-radius: 50%; background: rgba(0, 0, 0, .35); transform: translate(-50%, -50%); z-index: 2; }
+.c-ballon { opacity: 1; width: 22px; height: 22px; }
+/* tir en suspension : vue de côté */
+.s-salle { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 70% 20%, #33404f, #12161c 70%); }
+.s-sol { position: absolute; left: 0; right: 0; top: 72%; bottom: 0; background: linear-gradient(180deg, #4a3523, #241a11); border-top: 2px solid rgba(255, 255, 255, .15); }
+.s-zone { position: absolute; left: 66%; right: 0; top: 0; height: 14px; background: rgba(91, 160, 214, .35); }
+.s-l9, .s-l6 { position: absolute; top: 0; width: 4px; height: 14px; }
+.s-l9 { left: 46%; background: repeating-linear-gradient(180deg, #fff 0 4px, transparent 4px 7px); } .s-l6 { left: 66%; background: #fff; }
+.s-t9, .s-t6 { position: absolute; top: 20px; translate: -50% 0; font-size: .7rem; font-weight: 800; color: var(--muted); }
+.s-t9 { left: 46%; } .s-t6 { left: 66%; }
+.s-cage { position: absolute; left: 88%; right: -4%; top: 30%; height: 42%; }
+.s-poteau { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: repeating-linear-gradient(180deg, #e5484d 0 18px, #f4f4f4 18px 36px); }
+.s-barre { position: absolute; left: 0; right: 0; top: 0; height: 10px; background: repeating-linear-gradient(90deg, #e5484d 0 18px, #f4f4f4 18px 36px); }
+.s-filet { position: absolute; left: 10px; right: 0; top: 10px; bottom: 0; transform-origin: 0 50%;
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .16) 0 1px, transparent 1px 9px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .16) 0 1px, transparent 1px 9px); }
+.s-perso { position: absolute; top: 72%; width: min(25vw, 130px); transform: translate(-50%, -100%); z-index: 3; }
+.s-gardien { left: 86%; } .s-d1 { left: 55%; } .s-d2 { left: 61%; }
+.s-joueur { left: 3%; z-index: 4; width: min(27vw, 140px); }
+.profil { display: block; width: 100%; overflow: visible; filter: drop-shadow(0 8px 8px rgba(0, 0, 0, .5)); }
+.profil.gauche { transform: scaleX(-1); }
+.profil g { transform-box: view-box; }
+.p-jav, .p-jar { transform-origin: 40px 78px; } .p-bav { transform-origin: 44px 40px; } .p-bar { transform-origin: 40px 40px; }
+.profil.court .p-jav { animation: s-jambe .3s ease-in-out infinite alternate; } .profil.court .p-jar { animation: s-jambe .3s ease-in-out infinite alternate-reverse; }
+.profil.court .p-bar { animation: s-jambe .3s ease-in-out infinite alternate-reverse; }
+@keyframes s-jambe { from { transform: rotate(-32deg); } to { transform: rotate(32deg); } }
+.profil.saute .p-jav { transform: rotate(-40deg); transition: transform .2s; } .profil.saute .p-jar { transform: rotate(25deg); transition: transform .2s; }
+.profil.saute .p-bav { transform: rotate(-200deg); transition: transform .25s; }            /* bras armé derrière la tête */
+.profil.tire .p-bav { transform: rotate(-40deg); transition: transform .12s cubic-bezier(.2, .9, .3, 1); }   /* le bras fouette vers l'avant */
+.profil.contre .p-bav, .profil.contre .p-bar { transform: rotate(-150deg); transition: transform .15s; }
+.s-ballon { width: 20px; height: 20px; }
+.s-sifflet { position: absolute; z-index: 9; padding: 6px 12px; border-radius: 10px; background: rgba(11, 13, 16, .85); font-weight: 900; color: #ff9b8f; white-space: nowrap; }
+.s-jauge { position: absolute; left: 16px; top: 30%; width: 10px; height: 30%; border-radius: 5px; background: rgba(255, 255, 255, .1); opacity: 0; transition: opacity .2s; z-index: 5; overflow: hidden; }
+.s-jauge.on { opacity: 1; }
+.s-jauge i { position: absolute; inset: 0; transform-origin: 50% 100%; transform: scaleY(0); background: linear-gradient(0deg, #e3b94a, #5bd68a 85%); }
+.s-jauge::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: #5bd68a; box-shadow: 0 0 8px #5bd68a; }
+@media (prefers-reduced-motion: reduce) { .c-j.court b, .profil.court g { animation: none; } }

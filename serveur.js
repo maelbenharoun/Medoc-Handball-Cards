@@ -201,6 +201,8 @@ const CompteServeur = (() => {
     matchChampionnat: tactique => rpc('match_championnat', {p_tactique: tactique}),
     seance: () => rpc('seance_equipe'),                                         // → {xpCarte, progres, niveaux}
     seancePayante: () => rpc('seance_payante'),                                 // en pièces, sans limite par jour
+    miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
+    miniJouer: (jeu, entrees) => rpc('mini_jouer', {p_jeu: jeu, p_entrees: entrees}),   // → {resultat, reussi, reponse, pieces, bonus, essais, restants}
     tirer7m: (x, y, puissance) => rpc('tirer_7m', {p_x: x, p_y: y, p_puissance: puissance}),   // mini-jeu → {resultat, x, y, vitesse, gardien, pieces, bonus, tirs, restants}
     defier: (pseudo, tactique) => rpc('defier', {p_pseudo: pseudo, p_tactique: tactique}),
     adversaires: () => rpc('adversaires'),

@@ -302,6 +302,7 @@ function vueJouer() {
     <p class="sub petit">${TACTIQUES.find(x => x[0] === t)[2]}. Elle sert aussi quand on te défie.</p>
     ${blocParcours(e, complet && restant('championnat') > 0, note, restant('championnat'))}
     ${blocJet7m(e)}
+    ${blocMiniJeux(e)}
     <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
       <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
       <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
@@ -849,7 +850,7 @@ function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],[data-mini],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) fermerOverlay(); return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -887,6 +888,7 @@ document.addEventListener('click', e => {
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
   if (a === 'jet7m') return ouvrirJet7m();
+  if (d.mini) return ouvrirMini(d.mini);
   if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
     const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
     ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton 7.</p>
@@ -988,7 +990,7 @@ const RES7 = {but: ['But !', 'but'], arret: ['Arrêté !', 'rate'], dehors: ['À
 const titre7 = r => r.resultat === 'dehors' && r.y < 0 ? 'Au-dessus !' : r.resultat === 'poteau' && r.y < .05 ? 'Sur la barre !' : RES7[r.resultat][0];
 function blocJet7m(e) {
   const j = e.jet7m || {tirs: [], limite: 5, piecesBut: 15, bonus: 25}, reste = j.limite - j.tirs.length, buts = j.tirs.filter(x => x === 'but').length;
-  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? ' ' + (RES7[j.tirs[i]] || RES7.dehors)[1] : ''}"></i>`).join('');
+  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? (j.tirs[i] === 'but' ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
   return `<div class="mode"><div class="mode-t"><b>Jet de 7 mètres</b><span>${buts} but${buts > 1 ? 's' : ''} aujourd’hui</span></div>
     <p class="sub petit">Vise loin du gardien, dans les angles, puis règle la puissance. ${j.piecesBut} pièces par but, ${j.bonus} de plus pour un 5 sur 5 ; ${j.limite} tirs par jour.</p>
     <div class="j7-pastilles">${pastilles}</div>
@@ -1137,6 +1139,384 @@ function animerTir(r) {
   });
 }
 
+// ── trois autres mini-jeux : l'arrêt réflexe (gardien), la passe en contre, le tir en suspension ──────────
+// Le jeu envoie ce que le joueur a fait (zone choisie, précision, moment du saut…) ; le serveur décide (mini_jouer).
+// 5 essais par jour pour chacun, 10 pièces par réussite, 20 de plus pour un 5 sur 5. Démo : ?demo=gardien, contre, suspension.
+const MJ = {};
+const MINI = {
+  gardien: {nom: 'L’arrêt réflexe', icone: '🧤', succes: 'arret',
+    texte: 'Tu es dans les buts : lis le bras du tireur et touche la zone où il va tirer, avant qu’il lâche le ballon.',
+    res: {arret: 'Arrêt !', but: 'But encaissé', tard: 'Trop tard !'}},
+  contre: {nom: 'La passe en contre', icone: '🏃', succes: 'but',
+    texte: 'Lance la contre-attaque : passe quand le cercle se pose sur la cible, devant ton ailier.',
+    res: {but: 'But !', arret: 'Arrêté par le gardien', interception: 'Interceptée !'}},
+  suspension: {nom: 'Le tir en suspension', icone: '🚀', succes: 'but',
+    texte: 'Prends ton appel juste avant la ligne des 6 m, puis tire tout en haut de ton saut.',
+    res: {but: 'But !', arret: 'Arrêté !', contre: 'Contré !', zone: 'Pied dans la zone !'}},
+};
+function blocMiniJeux(e) {
+  const m = e.minijeux || {limite: 5, pieces: 10, bonus: 20};
+  const lignes = Object.entries(MINI).map(([k, d]) => {
+    const l = m[k] || [], reste = (m.limite || 5) - l.length, ok = l.filter(x => x === d.succes).length;
+    const past = Array.from({length: m.limite || 5}, (_, i) => `<i class="j7p${l[i] ? (l[i] === d.succes ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
+    return `<div class="mj-ligne"><span class="mj-ic" aria-hidden="true">${d.icone}</span><div><b>${d.nom}</b><div class="j7-pastilles petit">${past}</div></div>
+      <button class="btn gold petit" data-mini="${k}"${reste > 0 ? '' : ' disabled'}>${reste > 0 ? 'Jouer' : 'Demain'}</button></div>`;
+  }).join('');
+  return `<div class="mode"><div class="mode-t"><b>Mini-jeux</b><span>5 essais par jour chacun</span></div>
+    <p class="sub petit">${m.pieces || 10} pièces par réussite, ${m.bonus || 20} de plus pour un 5 sur 5.</p>${lignes}</div>`;
+}
+const mjAttendre = ms => new Promise(r => MJ.timers.push(setTimeout(r, moinsAnim() ? 0 : ms)));
+const mjAnim = (el, frames, o) => el.animate(frames, {fill: 'forwards', ...o, duration: moinsAnim() ? 0 : o.duration, delay: moinsAnim() ? 0 : o.delay || 0}).finished.catch(() => {});
+function ouvrirMini(jeu, demo) {
+  if (!MINI[jeu]) return;
+  const m = demo ? {} : S().minijeux || {}, liste = demo ? [] : m[jeu] || [], limite = demo ? 5 : m.limite || 5;
+  if (liste.length >= limite) return toast('Reviens demain pour 5 nouveaux essais');
+  const el = document.createElement('div');
+  el.className = `j7 mj mj-${jeu}`;
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
+    <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro');
+  Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0});
+  el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) MJ.toucher(e); });
+  miniEssai();
+}
+function fermerMini() { MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function miniEssai() {
+  const el = MJ.el, n = MJ.liste.length, ok = MJ.liste.filter(x => x === MINI[MJ.jeu].succes).length;
+  el.querySelector('.j7-score').textContent = `Essai ${n + 1}/${MJ.limite} · ${ok} réussi${ok > 1 ? 's' : ''}`;
+  el.querySelector('.j7-resultat').hidden = true; el.querySelector('.j7-bas').innerHTML = '';
+  el.classList.remove('r-but', 'r-rate');
+  MJ.timers.forEach(clearTimeout); MJ.timers = []; cancelAnimationFrame(MJ.raf); MJ.toucher = null;
+  el.querySelectorAll('.mj-scene *').forEach(x => x.getAnimations().forEach(a => a.cancel()));
+  el.querySelector('.mj-scene').innerHTML = JEUX[MJ.jeu].scene();
+  JEUX[MJ.jeu].essai(el.querySelector('.mj-scene'), n);
+}
+const miniAide = t => { if (MJ.el) MJ.el.querySelector('.j7-aide').textContent = t; };
+function miniEnvoyer(entrees) {
+  if (!MJ.demo) return Compte.miniJouer(MJ.jeu, entrees);
+  const res = JEUX[MJ.jeu].demo(entrees), essais = [...MJ.liste, res.resultat];
+  return Promise.resolve({...res, reussi: res.resultat === MINI[MJ.jeu].succes, pieces: 0, bonus: 0, essais, restants: MJ.limite - essais.length});
+}
+function miniFin(r) {
+  const el = MJ.el; if (!el) return;
+  MJ.liste = r.essais; MJ.gains += r.pieces + r.bonus;
+  el.classList.add(r.reussi ? 'r-but' : 'r-rate');
+  vibrer(r.reussi ? [30, 40, 60] : 40);
+  miniAide('');
+  const box = el.querySelector('.j7-resultat');
+  box.innerHTML = `<b>${MINI[MJ.jeu].res[r.resultat] || r.resultat}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
+  box.hidden = false;
+  const n = MJ.liste.length, ok = MJ.liste.filter(x => x === MINI[MJ.jeu].succes).length;
+  el.querySelector('.j7-score').textContent = `Essai ${n}/${MJ.limite} · ${ok} réussi${ok > 1 ? 's' : ''}`;
+  el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large mj-suivant">Essai suivant</button>`
+    : MJ.demo ? `<p class="j7-bilan">${ok} sur ${MJ.limite} · démo : pas de pièces</p><button class="btn gold large mj-rejouer">Rejouer</button>`
+    : `<p class="j7-bilan">${ok} sur ${MJ.limite} · +${nb(MJ.gains)} pièces</p><button class="btn gold large mj-fin">Fermer</button>`;
+  el.querySelector('.mj-suivant')?.addEventListener('click', e => { e.stopPropagation(); miniEssai(); });
+  el.querySelector('.mj-rejouer')?.addEventListener('click', e => { e.stopPropagation(); MJ.liste = []; miniEssai(); });
+  el.querySelector('.mj-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
+}
+// position d'un élément dans la scène (centre, en px)
+const mjCentre = (el, scene) => { const a = el.getBoundingClientRect(), b = scene.getBoundingClientRect(); return {x: a.left + a.width / 2 - b.left, y: a.top + a.height / 2 - b.top}; };
+const mjBouge = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+
+// tireur de face (maillot rouge) : chaque bras peut armer le tir ; le ballon est dans la main du bras armé
+const TIREUR_SVG = `<svg viewBox="0 0 100 160" class="tireur" aria-hidden="true"><g stroke-linecap="round" stroke-linejoin="round">
+  <g class="t-jg"><path d="M44 96 L36 152" stroke="#2a2f38" stroke-width="12"/><path d="M28 154 h12" stroke="#fff" stroke-width="6"/></g>
+  <g class="t-jd"><path d="M56 96 L64 152" stroke="#2a2f38" stroke-width="12"/><path d="M60 154 h12" stroke="#fff" stroke-width="6"/></g>
+  <rect x="33" y="40" width="34" height="62" rx="12" fill="#c8372d"/><text x="50" y="80" text-anchor="middle" font-size="22" font-weight="900" fill="#fff" font-family="sans-serif">9</text>
+  <circle cx="50" cy="24" r="13" fill="#d9a77c"/><path d="M37 21 Q50 6 63 21" fill="#1a1a1a"/>
+  <g class="t-bg"><path d="M37 48 L28 92" stroke="#c8372d" stroke-width="11"/><circle cx="27" cy="95" r="6" fill="#d9a77c"/><circle class="t-balle" cx="27" cy="102" r="9" fill="#f5d548" stroke="#1d5b8f" stroke-width="2"/></g>
+  <g class="t-bd"><path d="M63 48 L72 92" stroke="#c8372d" stroke-width="11"/><circle cx="73" cy="95" r="6" fill="#d9a77c"/><circle class="t-balle" cx="73" cy="102" r="9" fill="#f5d548" stroke="#1d5b8f" stroke-width="2"/></g></g></svg>`;
+// joueur de profil (pour la suspension) : jambes qui courent, bras de tir
+const PROFIL_SVG = (couleur, num) => `<svg viewBox="0 0 80 130" class="profil" aria-hidden="true"><g stroke-linecap="round" stroke-linejoin="round">
+  <g class="p-jar"><path d="M38 78 L30 124" stroke="#2a2f38" stroke-width="10"/></g>
+  <g class="p-bar"><path d="M40 40 L30 70" stroke="${couleur}" stroke-width="9"/></g>
+  <rect x="28" y="32" width="24" height="50" rx="10" fill="${couleur}"/><text x="40" y="64" text-anchor="middle" font-size="15" font-weight="900" fill="#fff" font-family="sans-serif">${num}</text>
+  <circle cx="42" cy="20" r="11" fill="#d9a77c"/>
+  <g class="p-jav"><path d="M42 78 L50 124" stroke="#2a2f38" stroke-width="10"/></g>
+  <g class="p-bav"><path d="M44 40 L58 66" stroke="${couleur}" stroke-width="9"/><circle cx="59" cy="69" r="5" fill="#d9a77c"/></g></g></svg>`;
+
+const JEUX = {
+  // ── L'arrêt réflexe : on est dans les buts, face au tireur ──
+  gardien: {
+    scene: () => `<div class="g-salle"><div class="g-sol"><i class="g-l6"></i><i class="g-l9"></i></div>
+      <div class="g-tireur"><div class="g-saut">${TIREUR_SVG}</div></div>
+      <div class="g-cage"><i class="g-pg"></i><i class="g-pd"></i><i class="g-barre"></i>${['g', 'c', 'd'].map(c => ['h', 'b'].map(h => `<i class="g-z" data-z="${c}${h}"></i>`).join('')).join('')}</div>
+      <div class="g-mains"><i class="g-main g-mg"></i><i class="g-main g-md"></i></div>
+      <i class="g-ballon"></i><div class="g-chrono"><i></i></div></div>`,
+    async essai(sc, n) {
+      miniAide('Le tireur s’élance…');
+      let prep;
+      try { prep = MJ.demo ? {indice: (() => { const c = ['g', 'c', 'd'][Math.random() < .4 ? 0 : Math.random() < 2 / 3 ? 2 : 1], h = Math.random() < .5 ? 'h' : 'b';
+        MJ.secret = {colonne: c, hauteur: h}; return {colonne: Math.random() < .65 ? c : ['g', 'c', 'd'][Math.floor(Math.random() * 3)], hauteur: Math.random() < .65 ? h : h === 'h' ? 'b' : 'h'}; })()}
+        : await Compte.miniPreparer('gardien'); }
+      catch (e) { toast(e.message); return fermerMini(); }
+      const ind = prep.indice, tireur = sc.querySelector('.g-tireur'), saut = sc.querySelector('.g-saut'), vite = Math.max(.72, 1 - n * .06);
+      const course = 900 * vite, envol = 420 * vite, armer = 260 * vite, lacher = course + envol + armer;
+      // course d'élan : il grandit en approchant
+      mjAnim(tireur, [{transform: 'translate(-50%, 0) scale(.55)'}, {transform: 'translate(-50%, 0) scale(1)'}], {duration: course, easing: 'cubic-bezier(.4, 0, .6, 1)'});
+      saut.animate([{transform: 'translateY(0)'}, {transform: 'translateY(-3%)'}], {duration: 150 * vite, iterations: Math.round(course / (150 * vite)), direction: 'alternate'});
+      // le bras armé : celui du côté où il va tirer (l'indice), haut ou bas
+      const bras = ind.colonne === 'g' ? 't-bg' : 't-bd', angle = {gh: 150, gb: 72, ch: -175, cb: -28, dh: -150, db: -72}[ind.colonne + ind.hauteur];
+      sc.querySelectorAll('.t-balle').forEach(b => b.style.display = b.closest('.' + bras) ? '' : 'none');
+      const t0 = performance.now();
+      MJ.timers.push(setTimeout(() => {
+        miniAide('Plonge !');
+        mjAnim(saut, [{transform: 'translateY(0)'}, {transform: 'translateY(-16%)'}], {duration: envol, easing: 'cubic-bezier(.2, .8, .4, 1)'});
+        mjAnim(sc.querySelector('.' + bras), [{transform: 'rotate(0deg)'}, {transform: `rotate(${angle}deg)`}], {duration: envol + armer * .6, easing: 'cubic-bezier(.3, .7, .3, 1)'});
+        mjAnim(sc.querySelector('.g-chrono i'), [{transform: 'scaleX(1)'}, {transform: 'scaleX(0)'}], {duration: envol + armer + 300, easing: 'linear'});
+      }, moinsAnim() ? 0 : course));
+      let choisi = null;
+      const envoyer = async (ent) => {
+        MJ.toucher = null;
+        let r; try { r = await miniEnvoyer(ent); } catch (e) { toast(e.message); return fermerMini(); }
+        const reste = Math.max(0, t0 + lacher - performance.now());
+        await mjAttendre(reste);
+        if (MJ.el) await JEUX.gardien.tir(sc, r, ent, bras);
+        miniFin(r);
+      };
+      MJ.toucher = e => {
+        if (choisi) return;
+        const cage = sc.querySelector('.g-cage').getBoundingClientRect();
+        const fx = (e.clientX - cage.left) / cage.width, fy = (e.clientY - cage.top) / cage.height;
+        choisi = {colonne: fx < 1 / 3 ? 'g' : fx > 2 / 3 ? 'd' : 'c', hauteur: fy < .5 ? 'h' : 'b', temps: Math.round(performance.now() - t0 - lacher)};
+        vibrer(15); miniAide('');
+        JEUX.gardien.plonger(sc, choisi);
+        envoyer(choisi);
+      };
+      MJ.timers.push(setTimeout(() => { if (!choisi) { choisi = {colonne: 'c', hauteur: 'b', temps: 99999}; envoyer(choisi); } }, moinsAnim() ? 2500 : lacher + 300));
+    },
+    plonger(sc, z) {   // les mains du gardien partent vers la zone choisie, la vue suit le plongeon
+      const cage = sc.querySelector('.g-cage'), cx = {g: 1 / 6, c: .5, d: 5 / 6}[z.colonne], cy = z.hauteur === 'h' ? .28 : .72;
+      const scn = sc.getBoundingClientRect(), cr = cage.getBoundingClientRect();
+      const x = cr.left - scn.left + cr.width * cx, y = cr.top - scn.top + cr.height * cy, ec = Math.min(70, cr.width * .1);
+      for (const [m, dx, rot] of [['.g-mg', -ec, -25], ['.g-md', ec, 25]]) {
+        const el = sc.querySelector(m), c = mjCentre(el, sc);
+        mjAnim(el, [{transform: 'translate(-50%, -50%)'}, {transform: `translate(-50%, -50%) translate(${x + dx - c.x}px, ${y - c.y}px) rotate(${rot + (z.colonne === 'g' ? -30 : z.colonne === 'd' ? 30 : 0)}deg) scale(1.15)`}],
+          {duration: 230, easing: 'cubic-bezier(.2, .9, .3, 1.15)'});
+      }
+      mjAnim(sc.querySelector('.g-salle'), [{transform: 'none'}, {transform: `translateX(${z.colonne === 'g' ? 4 : z.colonne === 'd' ? -4 : 0}%) rotate(${z.colonne === 'g' ? -3 : z.colonne === 'd' ? 3 : 0}deg) translateY(${z.hauteur === 'b' ? -2 : 1}%)`}],
+        {duration: 320, easing: 'cubic-bezier(.2, .8, .3, 1)'});
+    },
+    async tir(sc, r, ent, bras) {   // le ballon part vers la vraie zone et grossit (il arrive vers nous)
+      const zone = r.reponse || {colonne: ent.colonne, hauteur: ent.hauteur};
+      const balle = sc.querySelector('.' + bras + ' .t-balle'), b = sc.querySelector('.g-ballon'), dep = mjCentre(balle, sc);
+      sc.querySelectorAll('.t-balle').forEach(x => x.style.display = 'none');
+      const cr = sc.querySelector('.g-cage').getBoundingClientRect(), scn = sc.getBoundingClientRect();
+      const cx = {g: .14, c: .5, d: .86}[zone.colonne] + (Math.random() - .5) * .06, cy = (zone.hauteur === 'h' ? .24 : .76) + (Math.random() - .5) * .06;
+      const ax = cr.left - scn.left + cr.width * cx, ay = cr.top - scn.top + cr.height * cy;
+      mjBouge(b, dep.x, dep.y); b.style.opacity = 1;
+      mjAnim(sc.querySelector('.' + bras), [{}, {transform: `rotate(${zone.colonne === 'g' ? 40 : zone.colonne === 'd' ? -40 : 0}deg)`}], {duration: 160});
+      await mjAnim(b, [{transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)'}, {transform: `translate(-50%, -50%) translate(${ax - dep.x}px, ${ay - dep.y}px) scale(2.3) rotate(400deg)`}],
+        {duration: r.resultat === 'tard' ? 380 : 430, easing: 'cubic-bezier(.5, 0, .9, .6)'});
+      const fin = `translate(-50%, -50%) translate(${ax - dep.x}px, ${ay - dep.y}px)`;
+      if (r.resultat === 'arret') {   // repoussé : il repart vers le terrain en tournant, l'écran tremble
+        const eclat = document.createElement('i'); eclat.className = 'g-eclat'; mjBouge(eclat, ax, ay); sc.querySelector('.g-salle').appendChild(eclat);
+        mjAnim(eclat, [{transform: 'translate(-50%, -50%) scale(.2)', opacity: 1}, {transform: 'translate(-50%, -50%) scale(2.4)', opacity: 0}], {duration: 450});
+        mjAnim(sc.querySelector('.g-salle'), [{translate: '0 0'}, {translate: '-6px 3px'}, {translate: '6px -3px'}, {translate: '-3px 2px'}, {translate: '0 0'}], {duration: 260});
+        await mjAnim(b, [{transform: fin + ' scale(2.3) rotate(400deg)'}, {transform: `${fin} translate(${(cx < .5 ? -1 : 1) * 120}px, -160px) scale(1) rotate(820deg)`, opacity: .2}],
+          {duration: 520, easing: 'cubic-bezier(.2, .7, .4, 1)'});
+      } else {   // il nous passe : il grossit encore et file dans le filet, les poteaux vibrent
+        mjAnim(sc.querySelector('.g-cage'), [{transform: 'scale(1)'}, {transform: 'scale(1.015)'}, {transform: 'scale(1)'}], {duration: 300, delay: 120});
+        sc.querySelector('.g-salle').classList.add('encaisse');
+        await mjAnim(b, [{transform: fin + ' scale(2.3) rotate(400deg)', opacity: 1, filter: 'blur(0)'}, {transform: `${fin} translate(${(cx - .5) * 160}px, ${(cy - .5) * 120}px) scale(4.2) rotate(560deg)`, opacity: 0, filter: 'blur(4px)'}],
+          {duration: 260, easing: 'ease-in'});
+      }
+    },
+    demo(ent) {
+      const s = MJ.secret || {colonne: 'c', hauteur: 'b'};
+      const resultat = ent.temps > 300 ? 'tard' : ent.colonne === s.colonne && (ent.hauteur === s.hauteur || Math.random() < .4) ? 'arret' : 'but';
+      return {resultat, reponse: s};
+    },
+  },
+
+  // ── La passe en contre : vue de dessus, l'ailier file, on lance quand le cercle se pose sur la cible ──
+  contre: {
+    scene: () => `<div class="c-terrain"><svg class="c-lignes" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="2" y="2" width="96" height="146" fill="none"/><path d="M2 75 H98"/><path d="M20 2 A30 30 0 0 0 80 2" /><path d="M14 2 A36 36 0 0 0 86 2" stroke-dasharray="3 3"/>
+        <path d="M20 148 A30 30 0 0 1 80 148"/><path d="M14 148 A36 36 0 0 1 86 148" stroke-dasharray="3 3"/><rect class="c-cage" x="42" y="0" width="16" height="2.5"/><rect class="c-cage" x="42" y="147.5" width="16" height="2.5"/></svg>
+      <i class="c-cible"></i><i class="c-cercle"></i>
+      <div class="c-j c-gardien r"><b>1</b></div><div class="c-j c-defenseur r"><b>4</b></div>
+      <div class="c-j c-ailier"><b>7</b></div><div class="c-j c-passeur moi"><b>1</b></div>
+      <i class="c-ombre"></i><i class="c-ballon"></i></div>`,
+    async essai(sc, n) {
+      const T = sc.querySelector('.c-terrain'), W = T.clientWidth, H = T.clientHeight, P = (x, y) => [x * W / 100, y * H / 150];
+      const q = s => sc.querySelector(s), vite = Math.max(.7, 1 - n * .07);
+      const pos = {passeur: P(50, 138), ailier0: P(16, 102), ailier1: P(14, 36), def0: P(32, 96), def1: P(26, 42), gardien: P(50, 6), cible: P(17, 44)};
+      mjBouge(q('.c-passeur'), ...pos.passeur); mjBouge(q('.c-ailier'), ...pos.ailier0); mjBouge(q('.c-defenseur'), ...pos.def0); mjBouge(q('.c-gardien'), ...pos.gardien);
+      mjBouge(q('.c-cible'), ...pos.cible); mjBouge(q('.c-cercle'), ...pos.cible); mjBouge(q('.c-ballon'), ...pos.passeur); mjBouge(q('.c-ombre'), ...pos.passeur);
+      miniAide('Passe quand le cercle touche la cible');
+      const duree = 2000 * vite;
+      // l'ailier part en sprint le long de la touche, le défenseur le poursuit
+      const course = (el, a, b, d, delai = 0) => el.animate([{left: a[0] + 'px', top: a[1] + 'px'}, {left: b[0] + 'px', top: b[1] + 'px'}], {duration: d, delay: delai, easing: 'cubic-bezier(.3, .2, .6, 1)', fill: 'forwards'});
+      q('.c-ailier').classList.add('court'); q('.c-defenseur').classList.add('court');
+      const runA = course(q('.c-ailier'), pos.ailier0, pos.ailier1, duree), runD = course(q('.c-defenseur'), pos.def0, pos.def1, duree * 1.08, 120);
+      // le cercle se resserre sur la cible
+      const t0 = performance.now(), dCercle = 1500 * vite, s0 = 3.4, s1 = .25;
+      const cercle = q('.c-cercle').animate([{transform: `translate(-50%, -50%) scale(${s0})`, opacity: .3}, {transform: `translate(-50%, -50%) scale(1)`, opacity: 1, offset: (s0 - 1) / (s0 - s1)},
+        {transform: `translate(-50%, -50%) scale(${s1})`, opacity: .4}], {duration: dCercle, delay: 250 * vite, easing: 'linear', fill: 'forwards'});
+      let fait = false;
+      const passer = async precision => {
+        if (fait) return; fait = true; MJ.toucher = null; miniAide('');
+        cercle.pause(); vibrer(15);
+        q('.c-cible').classList.add(precision > .7 ? 'top' : precision > .35 ? 'moyen' : 'rate');
+        let r; try { r = await miniEnvoyer({precision: Math.round(precision * 1000) / 1000}); } catch (e) { toast(e.message); return fermerMini(); }
+        await JEUX.contre.jouer(sc, r, precision, pos, runA, runD);
+        miniFin(r);
+      };
+      MJ.toucher = () => {
+        const t = (performance.now() - t0 - 250 * vite) / dCercle, s = t < 0 ? s0 : s0 + (s1 - s0) * Math.min(1, t);
+        passer(Math.max(0, 1 - Math.abs(s - 1) / 1.1));
+      };
+      MJ.timers.push(setTimeout(() => passer(0), moinsAnim() ? 2000 : 250 * vite + dCercle + 120));
+    },
+    async jouer(sc, r, precision, pos, runA, runD) {
+      const q = s => sc.querySelector(s), b = q('.c-ballon'), o = q('.c-ombre');
+      const p0 = mjCentre(q('.c-passeur'), sc);
+      const arrivee = 640, pause = () => { runA.pause(); runD.pause(); };
+      // point de chute : sur l'ailier si la passe est bonne, plus court (vers le défenseur) sinon
+      const ail = mjCentre(q('.c-ailier'), sc), def = mjCentre(q('.c-defenseur'), sc);
+      const vers = r.resultat === 'interception' ? {x: def.x - 8, y: def.y - 30} : {x: pos.cible[0] + (1 - precision) * 26, y: pos.cible[1] + (1 - precision) * 40};
+      // la passe : une cloche (le ballon grossit au sommet), son ombre file au sol
+      q('.c-passeur').animate([{transform: 'translate(-50%, -50%) scale(1)'}, {transform: 'translate(-50%, -50%) scale(1.25)'}, {transform: 'translate(-50%, -50%) scale(1)'}], {duration: 260});
+      mjAnim(o, [{left: p0.x + 'px', top: p0.y + 'px', transform: 'translate(-50%, -50%) scale(1)'}, {left: (p0.x + vers.x) / 2 + 'px', top: (p0.y + vers.y) / 2 + 'px', transform: 'translate(-50%, -50%) scale(.6)'},
+        {left: vers.x + 'px', top: vers.y + 'px', transform: 'translate(-50%, -50%) scale(1)'}], {duration: arrivee, easing: 'linear'});
+      runA.updatePlaybackRate(1.15);
+      await mjAnim(b, [{left: p0.x + 'px', top: p0.y + 'px', transform: 'translate(-50%, -50%) scale(1)'},
+        {left: (p0.x + vers.x) / 2 + 'px', top: (p0.y + vers.y) / 2 - 40 + 'px', transform: 'translate(-50%, -50%) scale(1.9)'},
+        {left: vers.x + 'px', top: vers.y + 'px', transform: 'translate(-50%, -50%) scale(1)'}], {duration: arrivee, easing: 'cubic-bezier(.4, .1, .6, .9)'});
+      if (r.resultat === 'interception') {   // le défenseur bondit sur le ballon et repart
+        pause(); runD.cancel(); mjBouge(q('.c-defenseur'), def.x, def.y);
+        await mjAnim(q('.c-defenseur'), [{left: def.x + 'px', top: def.y + 'px'}, {left: vers.x + 'px', top: vers.y + 'px'}], {duration: 180, easing: 'ease-out'});
+        q('.c-defenseur').classList.add('balle');
+        o.style.opacity = 0;
+        await Promise.all([mjAnim(q('.c-defenseur'), [{left: vers.x + 'px', top: vers.y + 'px'}, {left: vers.x + 30 + 'px', top: vers.y + 140 + 'px'}], {duration: 700, easing: 'ease-in-out'}),
+          mjAnim(b, [{left: vers.x + 'px', top: vers.y + 'px'}, {left: vers.x + 30 + 'px', top: vers.y + 140 + 'px'}], {duration: 700, easing: 'ease-in-out'})]);
+        return;
+      }
+      // l'ailier capte, s'envole vers le but et tire ; le gardien plonge
+      pause(); const a = mjCentre(q('.c-ailier'), sc); runA.cancel(); mjBouge(q('.c-ailier'), a.x, a.y); q('.c-ailier').classList.remove('court');
+      const saut = {x: a.x + 34, y: a.y - 70};
+      await Promise.all([mjAnim(q('.c-ailier'), [{left: a.x + 'px', top: a.y + 'px', transform: 'translate(-50%, -50%) scale(1)'}, {left: saut.x + 'px', top: saut.y + 'px', transform: 'translate(-50%, -50%) scale(1.35)'}], {duration: 420, easing: 'ease-out'}),
+        mjAnim(b, [{left: vers.x + 'px', top: vers.y + 'px'}, {left: saut.x + 8 + 'px', top: saut.y - 6 + 'px'}], {duration: 420, easing: 'ease-out'})]);
+      o.style.opacity = 0;
+      const g = mjCentre(q('.c-gardien'), sc), cage = {x: g.x + (r.resultat === 'but' ? -22 : -14), y: g.y - 4};
+      mjAnim(q('.c-gardien'), [{left: g.x + 'px'}, {left: (r.resultat === 'but' ? g.x + 26 : cage.x) + 'px'}], {duration: 300, easing: 'ease-out'});
+      await mjAnim(b, [{left: saut.x + 8 + 'px', top: saut.y - 6 + 'px', transform: 'translate(-50%, -50%) scale(1)'}, {left: cage.x + 'px', top: cage.y + 'px', transform: 'translate(-50%, -50%) scale(.8)'}], {duration: 320, easing: 'cubic-bezier(.3, .6, .4, 1)'});
+      if (r.resultat === 'but') q('.c-terrain').classList.add('but');
+      else await mjAnim(b, [{left: cage.x + 'px', top: cage.y + 'px'}, {left: cage.x - 40 + 'px', top: cage.y + 50 + 'px'}], {duration: 380, easing: 'ease-out'});
+      await mjAttendre(250);
+    },
+    demo(ent) {
+      const x = ent.precision;
+      return {resultat: x < .35 && Math.random() < .7 ? 'interception' : Math.random() < .35 + .5 * x ? 'but' : 'arret'};
+    },
+  },
+
+  // ── Le tir en suspension : vue de côté, appel avant les 6 m puis tir au sommet du saut ──
+  suspension: {
+    scene: () => `<div class="s-salle"><div class="s-sol"><i class="s-zone"></i><i class="s-l9"></i><i class="s-l6"></i><small class="s-t9">9 m</small><small class="s-t6">6 m</small></div>
+      <div class="s-cage"><i class="s-poteau"></i><i class="s-barre"></i><i class="s-filet"></i></div>
+      <div class="s-perso s-gardien">${PROFIL_SVG('#e5484d', 1).replace('class="profil"', 'class="profil gauche"')}</div>
+      <div class="s-perso s-def s-d1">${PROFIL_SVG('#c8372d', 4).replace('class="profil"', 'class="profil gauche"')}</div>
+      <div class="s-perso s-def s-d2">${PROFIL_SVG('#c8372d', 8).replace('class="profil"', 'class="profil gauche"')}</div>
+      <div class="s-perso s-joueur">${PROFIL_SVG('#1d5b8f', 7)}</div><i class="s-ballon"></i><div class="s-jauge"><i></i></div></div>`,
+    async essai(sc, n) {
+      const q = s => sc.querySelector(s), S0 = q('.s-salle'), W = S0.clientWidth, H = S0.clientHeight;
+      const sol = H * .72, x9 = W * .46, x6 = W * .66, j = q('.s-joueur'), vite = Math.max(.7, 1 - n * .07);
+      const xDep = W * .03, vCourse = (x6 - xDep) / (1500 * vite);   // px par ms
+      j.style.left = xDep + 'px'; j.style.top = sol + 'px';
+      j.querySelector('.profil').classList.add('court');
+      miniAide('Touche pour prendre ton appel');
+      let phase = 'course', t0 = performance.now(), appel = null, tAppel = 0, xAppel = 0, hauteur = null;
+      const Tvol = 950 * vite, Hsaut = H * .24;
+      const boucle = now => {
+        if (!MJ.el) return;
+        const t = now - t0;
+        if (phase === 'course') {
+          const x = xDep + vCourse * t; j.style.left = x + 'px';
+          if (x > x6 + W * .05) return decider({appel: 1.2, hauteur: 0});   // trop loin : pied dans la zone
+        } else if (phase === 'vol') {
+          const u = Math.min(1, (now - tAppel) / Tvol), y = Math.sin(Math.PI * u);
+          j.style.left = (xAppel + vCourse * .45 * (now - tAppel)) + 'px'; j.style.top = (sol - Hsaut * y) + 'px';
+          q('.s-jauge i').style.transform = `scaleY(${y})`;
+          if (u >= 1) { if (hauteur === null) return tirer(0); phase = 'fini'; }
+        }
+        if (phase !== 'fini') MJ.raf = requestAnimationFrame(boucle);
+      };
+      const decider = async ent => {
+        phase = 'fini'; cancelAnimationFrame(MJ.raf); MJ.toucher = null; miniAide('');
+        let r; try { r = await miniEnvoyer({appel: Math.round(ent.appel * 1000) / 1000, hauteur: Math.round(ent.hauteur * 1000) / 1000}); } catch (e) { toast(e.message); return fermerMini(); }
+        await JEUX.suspension.finir(sc, r, sol);
+        miniFin(r);
+      };
+      const tirer = async h => {   // au sommet ou pas : la hauteur du tir
+        hauteur = h; vibrer(15); miniAide('');
+        j.querySelector('.profil').classList.add('tire');
+        MJ.toucher = null;
+        let r; try { r = await miniEnvoyer({appel: Math.round(appel * 1000) / 1000, hauteur: Math.round(h * 1000) / 1000}); } catch (e) { toast(e.message); return fermerMini(); }
+        await JEUX.suspension.finir(sc, r, sol, h);
+        await mjAttendre(Math.max(0, Tvol - (performance.now() - tAppel)));
+        miniFin(r);
+      };
+      MJ.toucher = () => {
+        if (phase === 'course') {
+          const x = parseFloat(j.style.left);
+          appel = Math.max(0, (x - x9) / (x6 - x9));
+          if (appel > 1) return decider({appel, hauteur: 0});
+          phase = 'vol'; tAppel = performance.now(); xAppel = x; vibrer(10);
+          const pr = j.querySelector('.profil'); pr.classList.remove('court'); pr.classList.add('saute');
+          q('.s-jauge').classList.add('on');
+          miniAide('Tire tout en haut du saut !');
+        } else if (phase === 'vol' && hauteur === null) {
+          tirer(Math.sin(Math.PI * Math.min(1, (performance.now() - tAppel) / Tvol)));
+        }
+      };
+      MJ.raf = requestAnimationFrame(boucle);
+    },
+    async finir(sc, r, sol, h = 0) {
+      const q = s => sc.querySelector(s), b = q('.s-ballon'), j = q('.s-joueur');
+      if (r.resultat === 'zone') {   // coup de sifflet : il s'arrête, le pied dans la zone
+        j.querySelector('.profil').classList.remove('court', 'saute');
+        const s = document.createElement('i'); s.className = 's-sifflet'; s.textContent = '🟥 Zone !';
+        q('.s-salle').appendChild(s); mjBouge(s, mjCentre(j, sc).x, sol + 24);
+        await mjAnim(s, [{transform: 'translate(-50%, 0) scale(.4)', opacity: 0}, {transform: 'translate(-50%, 0) scale(1)', opacity: 1}], {duration: 300, easing: 'cubic-bezier(.2, 1.4, .4, 1)'});
+        await mjAttendre(400); return;
+      }
+      const main = mjCentre(j.querySelector('.p-bav circle'), sc), cage = q('.s-cage').getBoundingClientRect(), scn = sc.getBoundingClientRect();
+      const lucarne = {x: cage.left - scn.left + cage.width * .55, y: cage.top - scn.top + cage.height * .18};
+      mjBouge(b, main.x, main.y); b.style.opacity = 1;
+      if (r.resultat === 'contre') {   // le défenseur le plus proche saute bras levés et renvoie le ballon
+        const d = q('.s-d2'); d.querySelector('.profil').classList.add('contre');
+        const dc = mjCentre(d, sc);
+        mjAnim(d, [{transform: 'translate(-50%, -100%)'}, {transform: 'translate(-50%, -125%)'}, {transform: 'translate(-50%, -100%)'}], {duration: 520, easing: 'ease-out'});
+        await mjAnim(b, [{left: main.x + 'px', top: main.y + 'px'}, {left: dc.x - 4 + 'px', top: dc.y - 50 + 'px'}], {duration: 200, easing: 'linear'});
+        await mjAnim(b, [{left: dc.x - 4 + 'px', top: dc.y - 50 + 'px'}, {left: dc.x - 90 + 'px', top: sol + 'px'}], {duration: 520, easing: 'cubic-bezier(.3, 0, .7, 1)'});
+        return;
+      }
+      if (r.resultat === 'arret') {   // le gardien s'étire bras en l'air et le dévie
+        const g = q('.s-gardien'); g.querySelector('.profil').classList.add('contre');
+        const gc = mjCentre(g, sc);
+        mjAnim(g, [{transform: 'translate(-50%, -100%)'}, {transform: 'translate(-50%, -112%)'}, {transform: 'translate(-50%, -100%)'}], {duration: 520, easing: 'ease-out'});
+        await mjAnim(b, [{left: main.x + 'px', top: main.y + 'px'}, {left: gc.x - 6 + 'px', top: gc.y - 70 + 'px'}], {duration: 260, easing: 'cubic-bezier(.3, .6, .4, 1)'});
+        await mjAnim(b, [{left: gc.x - 6 + 'px', top: gc.y - 70 + 'px'}, {left: gc.x - 40 + 'px', top: sol + 'px'}], {duration: 460, easing: 'cubic-bezier(.3, 0, .7, 1)'});
+        return;
+      }
+      // but : le ballon file en cloche dans la lucarne, le filet se gonfle
+      await mjAnim(b, [{left: main.x + 'px', top: main.y + 'px'}, {left: (main.x + lucarne.x) / 2 + 'px', top: Math.min(main.y, lucarne.y) - 18 + 'px', offset: .5}, {left: lucarne.x + 'px', top: lucarne.y + 'px'}],
+        {duration: 300, easing: 'cubic-bezier(.2, .6, .5, 1)'});
+      mjAnim(q('.s-filet'), [{transform: 'scaleX(1)'}, {transform: 'scaleX(1.2)'}, {transform: 'scaleX(1)'}], {duration: 380});
+      await mjAnim(b, [{left: lucarne.x + 'px', top: lucarne.y + 'px'}, {left: lucarne.x + 18 + 'px', top: lucarne.y + 50 + 'px'}], {duration: 360, easing: 'ease-in'});
+    },
+    demo(ent) {
+      const x = ent.appel, y = ent.hauteur;
+      return {resultat: x > 1 ? 'zone' : y < .45 && Math.random() < .5 ? 'contre' : Math.random() < Math.min(.9, .2 + .35 * y + .35 * x) ? 'but' : 'arret'};
+    },
+  },
+};
+
 // ── intro : le logo du club au milieu, 10 cartes autour ; on touche le logo, les cartes s'envolent ─────
 // Une fois par jour (?intro dans l'adresse pour la revoir). Le jeu se charge et s'affiche dessous pendant ce temps.
 const INTRO_CARTES = [   // [carte, palier, note, place autour du logo : 0 = en haut, puis dans le sens des aiguilles d'une montre]
@@ -1221,6 +1601,7 @@ Compte.demarrer().then(info => {
   cartesIntro();
   const demo = new URLSearchParams(location.search).get('demo');
   if (demo === '7m') ouvrirJet7m(true);
+  else if (MINI[demo]) ouvrirMini(demo, true);
   else if (demo !== null) demoBooster(demo);
   if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
