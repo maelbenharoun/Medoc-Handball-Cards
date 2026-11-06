@@ -95,6 +95,19 @@ function route(garderDefilement) {
   // une musique par partie du jeu : Accueil, Club et Équipe, Jouer, Social
   Son.theme({club: 'club', equipe: 'club', jouer: 'jouer', social: 'social'}[ONGLET[v] || v] || 'accueil');
   minuteur();
+  if (v === 'accueil') departAuto();
+}
+// booster de départ jamais ouvert (demande de Maël : des comptes ne l'ouvraient pas) : il s'ouvre tout seul en arrivant
+// sur l'accueil, juste après la création du pseudo ou à la visite suivante ; une fois par visite, après l'intro du jour
+function departAuto() {
+  if (departAuto.fait || !Compte.pret || S().depart !== false) return;
+  clearTimeout(departAuto.t);
+  departAuto.t = setTimeout(() => {
+    if (departAuto.fait || S().depart !== false || vueCourante() !== 'accueil') return;
+    if (occupe || !$('#overlay').hidden || document.body.classList.contains('avec-intro') || MD.el) return departAuto();   // plus tard
+    departAuto.fait = true;
+    ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
+  }, 700);
 }
 function majEntete() {
   $('#coins').hidden = !Compte.pret;
