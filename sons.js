@@ -122,7 +122,8 @@ const Son = (() => {
   // Social : mi bémol majeur, 80 BPM · mini-jeux : sportif, mi mineur, 128 BPM.
   // Changement de partie : fondu de la musique, le nouveau thème démarre à son début.
   const musique = (() => {
-    const M = () => busMusique;
+    let voie = null;   // le gain du thème en cours (ses notes déjà prévues restent sur l'ancienne voie, qui s'efface)
+    const M = () => voie || busMusique;
     const grosse = (q, vol = .9) => note(150, q, .16, {type: 'sine', vol, glisse: 42, bus: M()});
     const claque = (q, vol = .55) => { bruit(q, .16, {type: 'bandpass', f: 1900, q: .9, vol, bus: M()}); bruit(q, .05, {type: 'highpass', f: 6000, vol: vol * .35, bus: M()}); };
     const charley = (q, vol, long = .03) => bruit(q, long, {type: 'highpass', f: 8000, vol, bus: M()});
@@ -185,6 +186,8 @@ const Son = (() => {
       },
     };
     let actif = false, prochain = 0, pas = 0, minuteur = null, theme = THEMES.accueil, voulu = 'accueil';
+    const DEPART = 4 * 16;   // on entre dans un thème à sa 5e mesure : la mélodie est là tout de suite (pas d'intro presque vide)
+    const nouvelleVoie = () => { const g = ctx.createGain(); g.gain.value = 1; g.connect(busMusique); return g; };
     function planifier() {
       while (prochain < ctx.currentTime + .25) {
         const P = 60 / theme.bpm / 4, mesure = Math.floor(pas / 16) % theme.grille.length, k = pas % 16;
@@ -193,17 +196,20 @@ const Son = (() => {
       }
     }
     return {
-      lancer() { if (actif || !ctx) return; actif = true; theme = THEMES[voulu] || THEMES.accueil; prochain = ctx.currentTime + .1; pas = 0; minuteur = setInterval(planifier, 60); },
+      lancer() { if (actif || !ctx) return; actif = true; theme = THEMES[voulu] || THEMES.accueil; voie = nouvelleVoie(); prochain = ctx.currentTime + .05; pas = DEPART;
+        minuteur = setInterval(planifier, 60); },
       arreter() { actif = false; clearInterval(minuteur); },
-      // une autre partie du jeu : fondu, puis le nouveau thème depuis son début
+      // une autre partie du jeu : le nouveau thème part tout de suite, l'ancien s'efface en 0,3 s par-dessus (aucun blanc)
       changer(nom) {
         if (!THEMES[nom] || nom === voulu) return;
         voulu = nom;
         if (!actif || !ctx) return;
-        const g = busMusique.gain; g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(0, ctx.currentTime, .12);
-        clearTimeout(musique.t);
-        musique.t = setTimeout(() => { if (voulu !== nom) return; theme = THEMES[nom]; pas = 0; prochain = ctx.currentTime + .05;
-          g.setTargetAtTime(niveauMusique(), ctx.currentTime + .05, .35); }, 450);
+        const ancienne = voie, t = ctx.currentTime;
+        if (ancienne) { ancienne.gain.cancelScheduledValues(t); ancienne.gain.setValueAtTime(ancienne.gain.value, t); ancienne.gain.linearRampToValueAtTime(0, t + .3);
+          setTimeout(() => ancienne.disconnect(), 1500); }
+        voie = nouvelleVoie(); voie.gain.setValueAtTime(0, t); voie.gain.linearRampToValueAtTime(1, t + .12);
+        theme = THEMES[nom]; pas = DEPART; prochain = t + .02;
+        planifier();
       },
     };
   })();

@@ -575,9 +575,12 @@ function tuto(k, dans, revoir) {
       <p class="tuto-g"><i class="coin"></i>${gainTuto(k)}</p>
       <button class="btn gold large tuto-ok">${revoir ? 'Compris !' : 'C’est parti !'}</button></div>`;
     (dans || document.body).appendChild(el); echelleScenes(el);
+    const coucheT = () => { el.remove(); fini(); };   // seul (« ? » d'une tuile) : le retour le ferme ; dans un jeu, le retour ferme le jeu
+    if (!dans) ouvrirCouche(coucheT);
     el.addEventListener('pointerdown', e => e.stopPropagation());
     el.querySelector('.tuto-ok').addEventListener('click', e => {
       e.stopPropagation(); tutoVu(k); el.classList.add('fin'); vibrer(10);
+      if (!dans) quitterCouche(coucheT);
       setTimeout(() => { el.remove(); fini(); }, moinsAnim() ? 0 : 280);
     });
   });
@@ -1052,8 +1055,24 @@ function supprimerCompte() {
 }
 
 // ── overlays ────────────────────────────────────────────────────────────────────
-function ouvrirOverlay(html) { const o = $('#overlay'); o.innerHTML = html; o.hidden = false; document.body.style.overflow = 'hidden'; }
-function fermerOverlay() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; route(true); }
+// ── bouton retour du téléphone (demande de Maël) : il ferme d'abord ce qui est ouvert (fiche, fenêtre, mini-jeu, tuto,
+// booster…), du plus récent au plus ancien. Chaque « couche » ouverte ajoute une étape à l'historique ; la fermer depuis le jeu
+// la retire (history.back, dont le retour est ignoré).
+const COUCHES = [];
+let retoursIgnores = 0;
+function ouvrirCouche(fermer) { COUCHES.push(fermer); try { history.pushState({mhc: COUCHES.length}, ''); } catch (e) {} }
+function quitterCouche(fermer) {
+  const i = COUCHES.lastIndexOf(fermer); if (i < 0) return;
+  COUCHES.splice(i, 1); retoursIgnores++; history.back();
+}
+addEventListener('popstate', () => {
+  if (retoursIgnores > 0) { retoursIgnores--; return; }
+  const f = COUCHES.pop(); if (f) f();
+});
+const coucheOverlay = () => { SOC.panneau = null; fermerOverlay(true); };
+function ouvrirOverlay(html) { const o = $('#overlay'); if (o.hidden) ouvrirCouche(coucheOverlay); o.innerHTML = html; o.hidden = false; document.body.style.overflow = 'hidden'; }
+function cacherOverlay(parRetour) { const o = $('#overlay'); if (!parRetour) quitterCouche(coucheOverlay); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; }
+function fermerOverlay(parRetour) { cacherOverlay(parRetour); route(true); }
 
 // ── ouverture des boosters ──────────────────────────────────────────────────────
 // Mise en scène (même esprit que l'intro) : le booster flotte et brille ; au toucher, une découpe lumineuse court le long
@@ -1132,7 +1151,7 @@ function sceneBooster(res, nom, cls, deco = {}) {
     <button class="ob-passer" hidden>Tout révéler</button>
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true);
+  document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheOB);
   Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false});
   // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
   const packY = cy, s0 = pw * .8;
@@ -1267,7 +1286,7 @@ function finBooster() {
     : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton club` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
   OB.el.querySelector('.ob-bas').innerHTML = OB.demo ? `<p class="ob-info">Démo : rien n’est ajouté à ton club</p><button class="btn gold large ob-fin">Rejouer</button>`
     : `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
-  OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
+  OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { quitterCouche(coucheOB); OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
   OB.el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 500, fill: 'both'});
 }
 function toutReveler() {
@@ -1276,7 +1295,14 @@ function toutReveler() {
   OB.attentes.forEach(([t, r]) => { clearTimeout(t); r(); });
   if (['indices', 'retourner'].includes(OB.etape)) toucherHeros();
 }
+// retour pendant l'ouverture d'un booster : d'abord tout révéler, puis (une fois tout montré) envoyer au club
+function coucheOB() {
+  if (!OB.el) return;
+  if (OB.el.querySelector('.ob-fin')) { OB.parRetour = true; return envoyerAuClub(); }
+  toutReveler(); ouvrirCouche(coucheOB);
+}
 function envoyerAuClub() {
+  if (!OB.parRetour) quitterCouche(coucheOB); OB.parRetour = false;
   const el = OB.el, cible = document.querySelector('.tabs:not([hidden]) a[data-tab="club"]')?.getBoundingClientRect();
   const tx = cible ? cible.left + cible.width / 2 : innerWidth / 2, ty = cible ? cible.top + cible.height / 2 : innerHeight + 80;
   const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true);
@@ -1315,8 +1341,10 @@ function montee(avant, apres) {
   document.body.appendChild(el); document.body.classList.add('avec-intro');
   const q = x => el.querySelector(x), vite = moinsAnim();
   const anim = (x, f, o) => x.animate(f, {fill: 'forwards', ...o, duration: vite ? 0 : o.duration, delay: vite ? 0 : o.delay || 0}).finished.catch(() => {});
-  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); Son.discret(false); route(true); };
-  q('.mt-bas button').addEventListener('click', fin);
+  const coucheM = () => fin(true);
+  const fin = parRetour => { if (!parRetour) quitterCouche(coucheM); el.remove(); document.body.classList.remove('avec-intro'); Son.discret(false); route(true); };
+  ouvrirCouche(coucheM);
+  q('.mt-bas button').addEventListener('click', () => fin());
   (async () => {
     // 1. les trois cartes arrivent, puis se rejoignent au centre
     const cs = [...el.querySelectorAll('.mt-c')];
@@ -1441,7 +1469,7 @@ document.addEventListener('click', e => {
     const avant = vueExemplaire(PAR_ID[carte], {palier, note: avantEx?.note ?? PALIER[palier].max});
     return action(Compte.fusionner(carte, palier), r => {
       const e = exParId(r.id);
-      $('#overlay').hidden = true; $('#overlay').innerHTML = ''; document.body.style.overflow = '';
+      cacherOverlay();
       montee(avant, vue(e));
     });
   }
@@ -1561,7 +1589,7 @@ function ouvrirJet7m(demo) {
     <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux');
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux'); ouvrirCouche(coucheJ7);
   Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0, demo: !!demo});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) { Son.jouer('tap'); toucherJet7m(); } });
@@ -1573,7 +1601,8 @@ function ouvrirJet7m(demo) {
     J7.ctl = ctl; nouveauTir();
   });
 }
-function fermerJet7m() { Son.discret(false); cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
+const coucheJ7 = () => fermerJet7m(true);
+function fermerJet7m(parRetour) { if (parRetour !== true) quitterCouche(coucheJ7); Son.discret(false); cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const vaEtVient = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
 function nouveauTir() {
   const el = J7.el, n = J7.tirs.length, buts = J7.tirs.filter(x => x === 'but').length;
@@ -1662,14 +1691,15 @@ function ouvrirMini(jeu, demo) {
   el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
     <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux');
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux'); ouvrirCouche(coucheMini);
   Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0, serie: [], serieN: 0});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) { Son.jouer('tap'); MJ.toucher(e); } });
   jeux3d().catch(() => {});   // la salle 3D se charge pendant le tuto
   tuto(jeu, el).then(() => { if (MJ.el === el) miniEssai(); });
 }
-function fermerMini() { Son.discret(false); MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
+const coucheMini = () => fermerMini(true);
+function fermerMini(parRetour) { if (parRetour !== true) quitterCouche(coucheMini); Son.discret(false); MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const SERIE = 5;   // l'arrêt réflexe : 5 tirs enchaînés par série
 function scoreMini() {
   const ok = MJ.liste.filter(x => x === MINI[MJ.jeu].succes).length;
@@ -1730,7 +1760,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=40').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=41').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

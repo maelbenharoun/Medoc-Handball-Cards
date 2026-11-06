@@ -359,7 +359,7 @@ $$;
 create or replace function matchs_a_jour(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
 declare p profils; minutes int := parami('match_minutes'); maxi int := parami('match_stock_max'); n int;
 begin
-  select * into p from profils where user_id = p_uid;
+  select * into p from profils where user_id = p_uid for update;   -- deux appels à la fois : le second attend (pas de double recharge)
   if p.matchs >= maxi then update profils set matchs_maj = now() where user_id = p_uid; return; end if;
   n := floor(extract(epoch from now() - p.matchs_maj) / (minutes * 60));
   if n <= 0 then return; end if;
@@ -370,7 +370,7 @@ end $$;
 create or replace function boosters_a_jour(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
 declare p profils; minutes int := parami('booster_minutes'); maxi int := parami('booster_stock_max'); n int;
 begin
-  select * into p from profils where user_id = p_uid;
+  select * into p from profils where user_id = p_uid for update;   -- deux appels à la fois : le second attend (pas de double recharge)
   if p.boosters >= maxi then
     update profils set boosters_maj = now() where user_id = p_uid;
     return;
@@ -2021,6 +2021,9 @@ to authenticated;
 
 -- Écarts des cartes déjà publiées : remis à la nouvelle règle (sans effet s'ils le sont déjà)
 select normaliser_ecarts();
+-- Heures de recharge parties dans le futur (deux appels simultanés, avant le verrou) : ramenées à maintenant
+update profils set boosters_maj = now() where boosters_maj > now();
+update profils set matchs_maj = now() where matchs_maj > now();
 
 -- Synchro des matchs toutes les 3 h (UTC) : demande du fichier, lecture 5, 15 et 25 minutes après (la réponse arrive en quelques
 -- secondes). Les scores du lundi (action « resultats » à 3 h 17 UTC) sont relus à 6 h UTC : paris payés vers 7 h l'hiver à Paris.
