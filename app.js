@@ -119,6 +119,9 @@ function secondesAvantBooster() {
   const s = S().prochainBooster;
   return s == null ? null : Math.max(0, Math.ceil(s - (Date.now() - S().recu) / 1000));
 }
+// matchs de championnat disponibles : la réserve (1 toutes les 2 h, 10 au plus) ; avec un serveur pas encore à jour,
+// l'ancienne limite du jour
+const matchsDispo = e => e.matchs ?? Math.max(0, (e.limites?.championnat || 0) - (e.jour?.championnat || 0));
 // le prochain match de championnat (1 toutes les 2 h, 10 en réserve au plus)
 function secondesAvantMatch() {
   const s = S().prochainMatch;
@@ -398,7 +401,7 @@ function vueJouer() {
     + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
   return `<h1>Jouer</h1>
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
-      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchs ?? 0}/${e.matchMax || 10} match${(e.matchs ?? 0) > 1 ? 's' : ''} en réserve (1 toutes les 2 h) · de la Promotion aux Légendes</small></a>
+      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>`;
 }
@@ -413,7 +416,7 @@ function vueChampionnat() {
   return `${retour('jouer', 'Jouer')}<h1>Championnat</h1>
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
     <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
-    ${blocParcours(e, complet && (e.matchs ?? 0) > 0, note, e.matchs ?? 0)}
+    ${blocParcours(e, complet && matchsDispo(e) > 0, note, matchsDispo(e))}
     <p class="sub petit">Pour entraîner un joueur : touche sa carte dans le Club. Pour défier quelqu’un : la bulle Ami(e)s, en bas à droite.</p>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
 }
@@ -538,8 +541,9 @@ function echelleParcours(pc) {
 function blocParcours(e, peut, note, reste) {
   const pc = e.parcours;
   if (!pc) return '';
-  const pm = secondesAvantMatch(), max = e.matchMax || 10;
-  const resteTxt = `<p class="sub petit centre recharge-m"><b>${reste}/${max}</b> match${reste > 1 ? 's' : ''} en réserve${pm != null ? ` · prochain dans <b id="minuteur-match">${mmss(pm)}</b>` : ' · réserve pleine'}</p>`;
+  const pm = secondesAvantMatch(), max = e.matchMax;
+  const resteTxt = max ? `<p class="sub petit centre recharge-m"><b>${reste}/${max}</b> match${reste > 1 ? 's' : ''} en réserve${pm != null ? ` · prochain dans <b id="minuteur-match">${mmss(pm)}</b>` : ' · réserve pleine'}</p>`
+    : `<p class="sub petit centre">${reste} match${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''} aujourd’hui</p>`;
   const titre = pc.type === 'legendes' ? esc(pc.nom) : `${esc(pc.groupe)} · ${esc(pc.nom)}`;
   let corps = '';
   if (pc.type === 'poule') {
