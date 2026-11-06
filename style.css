@@ -1020,9 +1020,8 @@ body.avec-intro { overflow: hidden; }
 .fh-terrain .tir { stroke-dasharray: 4 4; }
 @keyframes fh-tirets { to { stroke-dashoffset: -40; } }
 .fh-ballon { position: absolute; bottom: -40px; width: 26px; aspect-ratio: 1; border-radius: 50%; opacity: .5; will-change: transform;
-  background: radial-gradient(circle at 35% 30%, #fff, #f5d548 45%, #b98f1a 75%); box-shadow: inset -3px -4px 6px rgba(0, 0, 0, .3);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E %3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle r='48'/%3E%3C/clipPath%3E%3CradialGradient id='o' cx='35%25' cy='30%25' r='75%25'%3E %3Cstop offset='0' stop-color='#fff' stop-opacity='.55'/%3E%3Cstop offset='.45' stop-color='#fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='#000' stop-opacity='.38'/%3E%3C/radialGradient%3E%3C/defs%3E %3Cg clip-path='url(#c)'%3E%3Crect x='-50' y='-50' width='100' height='100' fill='#f2cf3b'/%3E %3Cpath d='M-60,-22 C-35,-44 -15,0 10,-22 S45,-44 60,-22' fill='none' stroke='#1f4f9a' stroke-width='9'/%3E %3Cpath d='M-60,8 C-35,-14 -15,30 10,8 S45,-14 60,8' fill='none' stroke='#1f4f9a' stroke-width='9'/%3E %3Cpath d='M-60,36 C-35,14 -15,58 10,36 S45,14 60,36' fill='none' stroke='#1f4f9a' stroke-width='9'/%3E %3Cpath d='M-60,-6 C-30,22 0,-34 30,-6 S60,10 70,-6' fill='none' stroke='#fff' stroke-width='4'/%3E %3Ccircle r='48' fill='url(#o)'/%3E%3C/g%3E%3Ccircle r='47.5' fill='none' stroke='#1b2f55' stroke-opacity='.5' stroke-width='1.5'/%3E%3C/svg%3E") center / contain no-repeat;   /* le ballon de hand du jeu (comme texBallon de jeux3d.js) */
   animation: fh-ballon 12s linear infinite; }
-.fh-ballon::before { content: ""; position: absolute; inset: 18% -6%; border: 2px solid rgba(29, 91, 143, .7); border-radius: 50%; }
 .fh-ballon.b1 { left: 8%; animation-delay: -2s; } .fh-ballon.b2 { left: 78%; width: 18px; animation-duration: 15s; animation-delay: -9s; }
 .fh-ballon.b3 { left: 45%; width: 14px; animation-duration: 18s; animation-delay: -5s; opacity: .35; } .fh-ballon.b4 { left: 92%; width: 22px; animation-duration: 14s; animation-delay: -12s; }
 @keyframes fh-ballon { from { transform: translateY(0) rotate(0); } to { transform: translateY(-520px) rotate(540deg); } }
@@ -1230,3 +1229,17 @@ button.retour { border: 0; background: none; padding: 0; cursor: pointer; text-a
   animation: tuto-ok 1.8s ease-out infinite 1.2s; }
 @keyframes tuto-ok { 0% { opacity: .9; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.08, 1.35); } }
 @media (prefers-reduced-motion: reduce) { .jeu-w, .jeu::after, .mv, .tuto, .tuto-c, .tuto-e li, .tuto-ok::after { animation: none; } .mv.a-cri, .a-traj, .a-zone, .stage .tap { opacity: 0; } }
+
+.semaine { margin: 22px 0 0; font-size: 1.15rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+.semaine::after { content: ""; flex: 1; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(255, 210, 87, .6), transparent); }
+.semaine + .jour { margin-top: 8px; }
+.ph-lundi { display: inline-block; margin-top: 8px; padding: 3px 9px; border-radius: 99px; background: rgba(0, 0, 0, .25); font-weight: 800; }
+
+/* réglages du son (fenêtre du compte) */
+.sons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.son-b { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); font-weight: 800; }
+.son-b span { font-size: 1.2rem; } .son-b b { margin-left: auto; font-size: .8rem; color: var(--muted); }
+.son-b.on { border-color: rgba(255, 210, 87, .5); background: rgba(255, 210, 87, .08); } .son-b.on b { color: var(--accent); }
+
+.ph-chiffres { flex-wrap: wrap; } .ph-chiffres .plein { background: rgba(0, 0, 0, .45); color: #ffd6d6; }
+.pm-c button:disabled { opacity: .45; filter: saturate(.3); }

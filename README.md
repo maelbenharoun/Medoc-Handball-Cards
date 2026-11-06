@@ -32,8 +32,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   si elle est spécialisée, 0 % si elle est à l'opposé.
 - **Jouer** : deux portes. **Championnat** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
   tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
-  directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
-  défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
+  directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Matchs simulés selon les notes,
+  les postes et la tactique. Pour entraîner un joueur : sa carte, dans le Club ; les défis se font entre ami(e)s.
 - **Gagner des pièces** (Jouer) : 4 grandes tuiles animées, une par mini-jeu, avec un **tuto rapide** à la première partie
   de chaque jeu (le « ? » de la tuile le remontre). Le **jet de 7 mètres** (en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
@@ -49,7 +49,11 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
 - **Social** : le **classement** (niveau de poule de chaque joueur), les **transferts** (une carte contre une carte du même palier),
   les **paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
-  Chaque match a sa **fiche** (« Voir la fiche du match ») : le face-à-face en chiffres et l'analyse du site, en bref.
+  Chaque match a sa **fiche** (« Voir la fiche du match ») : le pronostic et le face-à-face en chiffres du site.
+  3 paris au plus par semaine. Les matchs sont rangés par semaine ; les paris gagnants sont **payés automatiquement le lundi matin** (voir plus bas).
+- **Musique et bruitages** (`sons.js`) : un thème original et tous les bruitages (boosters, révélations par palier, fusion,
+  sifflet, tirs, filet, poteau, foule, pièces…) sont synthétisés dans le navigateur (Web Audio) : aucun fichier son.
+  Musique et bruitages se coupent séparément dans la fenêtre du compte.
 - **Ami(e)s** (la bulle en bas à droite, partout sauf pendant les mini-jeux) : ajouter un pseudo, puis pour chaque ami(e) : **messages**
   (pastille sur sa bulle), **échange** de n'importe quelles cartes (une proposition à la fois entre deux ami(e)s, 3 par jour),
   **défi** entre vos deux équipes (30 pièces au gagnant, 5 par jour).
@@ -95,6 +99,14 @@ python scripts/export_face.py ../handball-pronos/medoc/pipeline/teams
 
 Il écrit `data/face.json` : statistiques d'équipes seulement (classement, niveau estimé, buts, forme, bilan), aucun nom de joueur.
 
+### Paiement automatique des paris (lundi matin)
+
+Rien à faire : l'action GitHub **resultats** (`.github/workflows/resultats.yml`, lundi et jeudi à 3 h 17 UTC) lit les scores et
+les horaires des 4 poules sur ffhandball.fr (`scripts/resultats_ffhb.py`) et met à jour `data/matchs.json`. Le serveur relit ce
+fichier à 5 h et 7 h UTC (pg_cron et pg_net, fin de `supabase/schema.sql`), met les matchs à jour et paie les paris gagnants.
+Les probabilités des matchs à venir restent celles de `scripts/export_cartes.py` (à relancer de temps en temps).
+Pour lancer l'action à la main : onglet Actions du dépôt → resultats → Run workflow.
+
 ## Tester en local
 
 ```bash
@@ -126,6 +138,8 @@ data/perso.json       les réglages des cartes (outil, mode sans serveur)
 scripts/export_cartes.py
 scripts/fiches.py     la fiche de chaque joueur (stats du site, stats rigolotes)
 scripts/export_face.py la fiche des matchs à parier (face-à-face du site)
+scripts/resultats_ffhb.py les scores des matchs à parier (action GitHub « resultats »)
+sons.js               musique et bruitages (synthétisés, sans fichier)
 supabase/schema.sql   base de données et règles du serveur (à coller dans Supabase)
 docs/SERVEUR.md       mise en route du serveur et règles du jeu
 assets/               logo du club, icônes, photos/

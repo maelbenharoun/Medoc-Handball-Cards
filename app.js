@@ -50,14 +50,15 @@ const aligne = slot => {
 let piecesAffichees = null;
 function majPieces() {
   const v = S().pieces;
-  if (piecesAffichees !== null && v !== piecesAffichees) { const c = $('#coins'); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 220); }
+  if (piecesAffichees !== null && v !== piecesAffichees) { const c = $('#coins'); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 220);
+    if (v > piecesAffichees) Son.jouer('piece'); }
   piecesAffichees = v; $('#coinv').textContent = nb(v);
 }
 // enchaîne une action du compte : une seule à la fois, message en cas de refus, pièces et niveaux à jour
 function action(promesse, suite) {
   occupe = true;
   return promesse.then(r => { occupe = false; majPieces(); celebrer(r?.niveaux); return suite ? suite(r) : r; })
-    .catch(e => { occupe = false; majPieces(); toast(e.message || 'Action impossible'); });
+    .catch(e => { occupe = false; majPieces(); Son.jouer('erreur'); toast(e.message || 'Action impossible'); });
 }
 function toast(t) {
   const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t);
@@ -66,6 +67,7 @@ function toast(t) {
 // niveaux de compte gagnés pendant une action : récompenses à annoncer
 function celebrer(niveaux) {
   if (!niveaux?.length) return;
+  Son.jouer('niveau');
   const n = niveaux[niveaux.length - 1], pieces = niveaux.reduce((t, x) => t + x.pieces, 0);
   const boosters = niveaux.map(x => x.booster === 'or' ? 'booster Or' : 'booster').join(', ');
   setTimeout(() => toast(`Niveau ${n.niveau} ! +${nb(pieces)} pièces, +${boosters}`), 400);
@@ -107,6 +109,8 @@ function majEntete() {
   // ami(e)s : la bulle, avec une pastille pour les demandes, les échanges proposés et les messages non lus
   const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
   $('#bulle-amis').hidden = !Compte.pret; pa.hidden = !so || !Compte.pret; pa.textContent = so;
+  if (Compte.pret && so > (majEntete.so ?? so)) Son.jouer('notif');
+  majEntete.so = so;
   if (Compte.pret) majPieces();
 }
 
@@ -236,7 +240,7 @@ function fiche(carte) {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
     return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
-      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · au marché' : ''}</small>
+      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
         ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
@@ -369,24 +373,25 @@ function autoEquipe() {
   action(Compte.alignerEquipe(equipe), () => { toast('Ta meilleure équipe est alignée'); route(true); });
 }
 
-// ── jouer : championnat, séance, défis ──────────────────────────────────────────
-const JEU = {adversaires: null, rencontres: null, recherche: '', joueurs: [], t: 0, charge: false};
+// ── jouer : le championnat (les défis passent par les ami(e)s, l'entraînement par le Club) ───────────────
+const JEU = {rencontres: null, charge: false};
 const RES = {gagne: 'Victoire', nul: 'Match nul', perdu: 'Défaite'};
 function chargerJeu(force) {
-  if (JEU.charge || (!force && JEU.adversaires && JEU.rencontres) || Compte.horsLigne) return;
+  if (JEU.charge || (!force && JEU.rencontres) || Compte.horsLigne) return;
   JEU.charge = true;
-  Promise.all([Compte.adversaires(), Compte.rencontres()]).then(([a, r]) => { JEU.adversaires = a; JEU.rencontres = r; })
+  Compte.rencontres().then(r => { JEU.rencontres = r; })
     .catch(e => toast(e.message)).finally(() => { JEU.charge = false; if (vueCourante() === 'championnat' && $('#overlay').hidden) route(true); });
 }
-// Jouer : deux grandes portes, le championnat (matchs, entraînements, défis) et les mini-jeux pour gagner des pièces
+// Jouer : deux grandes portes, le championnat (les matchs du parcours) et les mini-jeux pour gagner des pièces
 function vueJouer() {
   const e = S(), j = e.jour || {}, l = e.limites || {}, pc = e.parcours;
   const restant = k => Math.max(0, (l[k] || 0) - (j[k] || 0));
-  const mj = e.minijeux || {}, essais = ['gardien', 'contre', 'suspension'].reduce((t, k) => t + Math.max(0, (mj.limites?.[k] || 5) - (mj[k] || []).length), 0)
+  const mj = e.minijeux || {}, essais = seriesRestantes((mj.gardien || []).length, mj.limites?.gardien || 25)
+    + ['contre', 'suspension'].reduce((t, k) => t + Math.max(0, (mj.limites?.[k] || 5) - (mj[k] || []).length), 0)
     + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
   return `<h1>Jouer</h1>
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
-      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} aujourd’hui · entraînements · défis</small></a>
+      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} aujourd’hui · ton parcours, de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>`;
 }
@@ -395,8 +400,6 @@ function vueChampionnat() {
   const e = S(), j = e.jour || {}, l = e.limites || {};
   const complet = noteEquipe().n === 7, note = noteEquipe().note;
   const restant = (k) => Math.max(0, (l[k] || 0) - (j[k] || 0));
-  const adv = (JEU.adversaires || []).map(x => `<div class="adv"><div><b>${esc(x.pseudo)}</b><small>niveau ${x.niveau} · 7 de ${x.note ?? '–'} · ${x.trophees} 🏆</small></div>
-    <button class="btn gold petit" data-defier="${esc(x.pseudo)}"${complet && restant('defi') ? '' : ' disabled'}>Défier</button></div>`).join('');
   const histo = (JEU.rencontres || []).slice(0, 8).map(r => `<div class="hist r-${r.resultat}"><b>${r.score ? r.score.join(' – ') : ''}</b>
     <span>${{championnat: 'Championnat', defi: 'Défi', defi_ami: 'Défi ami(e)', defense_ami: 'Défi ami(e) reçu'}[r.type] || 'Défendu'} · ${esc(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
   const T = tactiqueActuelle(), ta = TACT_ATT.find(x => x[0] === T.att)[1], td = TACT_DEF.find(x => x[0] === T.def)[1];
@@ -404,32 +407,26 @@ function vueChampionnat() {
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
     <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
     ${blocParcours(e, complet && restant('championnat') > 0, note, restant('championnat'))}
-    <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
-      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton équipe, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
-      <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
-      <button class="btn gold large" data-act="seance-payante"${e.equipe && Object.keys(e.equipe).length && e.pieces >= (PARAMS.seance_payante_prix || 150) ? '' : ' disabled'}>Séance payante · ${nb(PARAMS.seance_payante_prix || 150)} pièces</button></div>
-    <div class="mode"><div class="mode-t"><b>Défis</b><span>${e.trophees || 0} 🏆</span></div>
-      <p class="sub petit">Affronte l’équipe d’un autre joueur (il défend avec sa tactique). ${restant('defi')}/${l.defi || 5} défis restants aujourd’hui.</p>
-      <input class="champ" type="search" placeholder="Chercher un joueur à défier" value="${esc(JEU.recherche)}" data-cherche-defi autocapitalize="off" autocomplete="off" spellcheck="false">
-      <div id="joueurs-defi">${joueursDefi()}</div>
-      ${JEU.adversaires ? (adv || '<p class="sub petit">Pas encore d’adversaire avec une équipe complète.</p>') : '<p class="sub petit">Chargement…</p>'}
-      <button class="lien" data-act="classement">Voir le classement des défis</button></div>
+    <p class="sub petit">Pour entraîner un joueur : touche sa carte dans le Club. Pour défier quelqu’un : la bulle Ami(e)s, en bas à droite.</p>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
 }
 // Gagner des pièces : 4 grandes tuiles animées (une scène par jeu) ; « ? » pour revoir le tuto
 const NOMS_TUILE = {'7m': 'Jet de 7 mètres', gardien: 'Arrêt réflexe', contre: 'Passe en contre', suspension: 'Tir en suspension'};
+const seriesRestantes = (faits, lim) => Math.max(0, Math.ceil(lim / SERIE) - Math.ceil(faits / SERIE));   // une série commencée compte
 const gainMini = k => { const m = S().minijeux || {}; return m.gains?.[k] ?? m.pieces ?? (k === 'gardien' ? 10 : 50); };
 function vuePieces() {
   const e = S(), j = e.jet7m || {tirs: [], limite: 5, piecesBut: 50, bonus: 100}, m = e.minijeux || {};
   const tuiles = [{k: '7m', attr: 'data-act="jet7m"', liste: j.tirs, lim: j.limite, succes: 'but', gain: `${j.piecesBut} par but`, unite: 'tir'},
     ...Object.entries(MINI).map(([k, d]) => ({k, attr: `data-mini="${k}"`, liste: m[k] || [], lim: m.limites?.[k] || m.limite || 5, succes: d.succes,
-      gain: `${gainMini(k)} par ${k === 'gardien' ? 'arrêt' : 'but'}`, unite: k === 'gardien' ? 'tir' : 'essai'}))];
+      gain: `${gainMini(k)} par ${k === 'gardien' ? 'arrêt' : 'but'}`, unite: k === 'gardien' ? 'série' : 'essai'}))];
   let essais = 0;
   const html = tuiles.map((t, i) => {
-    const reste = Math.max(0, t.lim - t.liste.length), ok = t.liste.filter(x => x === t.succes).length; essais += reste;
+    const ok = t.liste.filter(x => x === t.succes).length;
+    // l'arrêt réflexe se compte en séries de 5 tirs (5 séries par jour, et non 25 tirs)
+    const reste = t.k === 'gardien' ? seriesRestantes(t.liste.length, t.lim) : Math.max(0, t.lim - t.liste.length); essais += reste;
     // pastilles : une par essai ; à l'arrêt réflexe, une par série de 5 tirs (pleine si 5 arrêts)
     const past = t.k === 'gardien' ? Array.from({length: Math.ceil(t.lim / SERIE)}, (_, i) => { const s = t.liste.slice(i * SERIE, i * SERIE + SERIE);
-        return `<i class="j7p${s.length === SERIE ? (s.every(x => x === 'arret') ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`; }).join('') + `<small>${ok}/${t.lim}</small>`
+        return `<i class="j7p${s.length === SERIE ? (s.every(x => x === 'arret') ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`; }).join('') + `<small>${ok} arrêt${ok > 1 ? 's' : ''}</small>`
       : Array.from({length: t.lim}, (_, i) => `<i class="j7p${t.liste[i] ? (t.liste[i] === t.succes ? ' j7p-ok' : ' j7p-ko') : ''}"></i>`).join('');
     return `<div class="jeu-w" style="--i:${i}"><button class="jeu j-${t.k}" ${t.attr}${reste ? '' : ' disabled'}>
       ${sceneJeu(t.k)}<b class="jeu-nom">${NOMS_TUILE[t.k]}</b><small class="jeu-gain"><i class="coin"></i>${t.gain}</small>
@@ -589,18 +586,6 @@ function texteEtape(r) {
   if (r.type === 'tournoi') return x.passe ? `Qualifié pour la ${(TOURS[x.tour + 1] || '').toLowerCase()}` : '';
   return `Série ${x.v} – ${x.d}`;
 }
-function joueursDefi() {
-  if (JEU.recherche.trim().length < 2) return '';
-  if (!JEU.joueurs.length) return '<p class="sub petit">Aucun joueur trouvé.</p>';
-  return JEU.joueurs.map(p => `<div class="adv"><div><b>${esc(p)}</b></div><button class="btn gold petit" data-defier="${esc(p)}">Défier</button></div>`).join('');
-}
-function fenetreClassement() {
-  action(Compte.classement(), c => ouvrirOverlay(`<div class="sheet"><h3>Classement des défis</h3>
-    <p class="sub">Tu es ${c.rang}${c.rang === 1 ? 'er' : 'e'} avec ${c.trophees} 🏆</p>
-    <div class="classe">${c.top.map((x, i) => `<div class="${x.pseudo === S().pseudo ? 'moi-l' : ''}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b><small>niv. ${x.niveau}</small><em>${x.trophees} 🏆</em></div>`).join('')}</div>
-    <button class="btn" data-act="fermer">Fermer</button></div>`));
-}
-
 // Match raconté minute par minute (60 minutes en 7 secondes), puis le résultat et les gains
 const MATCH = {};
 function jouerMatch(promesse, type) {
@@ -614,6 +599,7 @@ function jouerMatch(promesse, type) {
       <div class="fil" id="fil"></div>
       <div id="fin-match"><button class="btn ghost large" data-act="passer">Voir le résultat</button></div></div>`);
     MATCH.t = setInterval(() => avancerMatch(MATCH.minute + 1), 115);
+    Son.jouer('sifflet');
   });
 }
 function avancerMatch(m) {
@@ -635,6 +621,7 @@ function finMatch() {
   if (!$('#fin-match') || $('#fin-match').dataset.fait) return;
   $('#fin-match').dataset.fait = 1;
   vibrer(res === 'gagne' ? [40, 60, 80] : 30);
+  Son.jouer('buzzer'); setTimeout(() => Son.jouer(res === 'gagne' ? 'victoire' : res === 'nul' ? 'nul' : 'defaite'), 450);
   const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join(' · ');
   $('#fin-match').innerHTML = `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
       ${tab ? `<small class="tab">Tirs au but ${tab.a} – ${tab.b} : ${tab.a > tab.b ? 'gagnés' : 'perdus'}</small>` : ''}
@@ -693,7 +680,7 @@ function composerAnnonce() {
     <h4>2. Ce que tu veux en échange</h4>
     <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(k.recherche)}" data-cherche-carte autocomplete="off" spellcheck="false">
     <div class="veut" id="liste-veut">${listeVeut()}</div>
-    <p class="sub petit">Même palier que ta carte : ${o ? R_LABEL[o.palier] : '–'} (au marché, on n’échange que des cartes de même valeur).</p>
+    <p class="sub petit">Même palier que ta carte : ${o ? R_LABEL[o.palier] : '–'} (aux transferts, on n’échange que des cartes de même valeur).</p>
     <div class="resume">${o ? `Tu donnes <b>${esc(PAR_ID[o.carte].nom)} ${R_LABEL[o.palier]} ${o.note}</b>` : 'Choisis ta carte'}
       · ${c ? `tu veux <b>${esc(c.nom)} ${R_LABEL[k.palier]}</b>` : 'choisis le joueur voulu'}</div>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
@@ -728,16 +715,24 @@ const probasCotes = c => { const i = ['1', 'N', '2'].map(k => 1 / c[k]), s = i[0
 const barreProbas = (p, noms) => `<div class="pm-proba" role="img" aria-label="${noms ? `${esc(noms[0])} ${Math.round(p[0] * 100)} %, nul ${Math.round(p[1] * 100)} %, ${esc(noms[1])} ${Math.round(p[2] * 100)} %` : 'Chances de chaque issue'}">
   <i class="pp1" style="--p:${p[0]}"></i><i class="ppn" style="--p:${p[1]}"></i><i class="pp2" style="--p:${p[2]}"></i></div>
   <div class="pm-pct"><span>${Math.round(p[0] * 100)} %</span><span>nul ${Math.round(p[1] * 100)} %</span><span>${Math.round(p[2] * 100)} %</span></div>`;
-const boutonsCotes = m => `<div class="pm-c">${['1', 'N', '2'].map(k => `<button data-pari="${m.rid}:${k}"><small>${k === 'N' ? 'Nul' : esc(k === '1' ? m.dom : m.ext)}</small><b>${fr(m.cotes[k])}</b></button>`).join('')}</div>`;
+// 3 paris au plus par semaine (serveur : paris_par_semaine) : une fois atteint, les cotes restent visibles mais grisées
+const parisRestants = () => { const d = PARIS.data; return d ? Math.max(0, (d.parSemaine ?? 3) - (d.cetteSemaine || 0)) : 0; };
+const boutonsCotes = m => `<div class="pm-c">${['1', 'N', '2'].map(k => `<button data-pari="${m.rid}:${k}"${parisRestants() ? '' : ' disabled'}><small>${k === 'N' ? 'Nul' : esc(k === '1' ? m.dom : m.ext)}</small><b>${fr(m.cotes[k])}</b></button>`).join('')}</div>`;
 const ticketPari = m => `<div class="pm-ticket"><span aria-hidden="true">🎟️</span><p>Ton pari : <b>${nb(m.pari.mise)}</b> sur <b>${esc(issueNom(m, m.pari.choix))}</b> · cote ${fr(m.pari.cote)}<small>gain possible ${nb(Math.floor(m.pari.mise * m.pari.cote))} pièces</small></p></div>`;
 function vueParis() {
   chargerParis();
   const d = PARIS.data, f = PARIS.filtre;
   const garde = m => f === 'tous' || (f === 'medoc' ? !!m.medoc : m.equipe === f);
-  let jour = '', i = 0;
+  let jour = '', sem = '', i = 0;
+  // semaine du lundi au dimanche : les paris de la semaine sont payés le lundi matin, ceux d'après restent ouverts
+  const lundi = x => { const t = new Date(x + 'T12:00'); t.setDate(t.getDate() - (t.getDay() + 6) % 7); return t.toLocaleDateString('sv'); };
+  const ceLundi = lundi(new Date().toLocaleDateString('sv'));
+  const nomSem = l => l <= ceLundi ? 'Cette semaine' : (new Date(l + 'T12:00') - new Date(ceLundi + 'T12:00')) / 864e5 < 8 ? 'La semaine prochaine'
+    : 'Semaine du ' + new Date(l + 'T12:00').toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'});
   const avenir = (d?.aVenir || []).filter(garde).map(m => {
     const j = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'});
-    const titre = j !== jour ? `<h3 class="jour">${j}</h3>` : ''; jour = j;
+    const w = nomSem(lundi(m.date)), titreSem = w !== sem ? `<h2 class="semaine">${w}</h2>` : ''; sem = w;
+    const titre = titreSem + (j !== jour ? `<h3 class="jour">${j}</h3>` : ''); jour = j;
     return titre + `<article class="pm${m.pari ? ' parie' : ''}" style="--eq:${TEINTE_EQ[m.equipe] || '#ffd257'};--i:${Math.min(i++, 8)}">
       <header class="pm-h"><span class="pm-cat">${m.equipe}</span><small>J${m.journee ?? '?'}${m.heure ? ' · ' + m.heure : ''}</small></header>
       <div class="pm-eq"><div class="pm-t">${blason(m.dom, m.medoc === 'dom')}<b class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</b></div>
@@ -755,9 +750,11 @@ function vueParis() {
   const enCours = (d?.mesParis || []).filter(m => m.pari.statut === 'en_cours').length;
   return `${retour('social', 'Social')}
     <div class="paris-hero"><span class="ph-ticket" aria-hidden="true">🎟️</span><h1>Paris</h1>
-      <p>Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2.</p>
+      <p>Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2, jusqu’à deux semaines à l’avance.</p>
+      <small class="ph-lundi">Les paris gagnants sont payés automatiquement le lundi matin.</small>
       <small>Cotes du modèle de pronostic de medochandballstats.com · pièces du jeu seulement : rien à acheter, rien à gagner en vrai.</small>
-      ${d ? `<div class="ph-chiffres"><span><b>${(d.aVenir || []).length}</b> matchs</span><span><b>${enCours}</b> pari${enCours > 1 ? 's' : ''} en cours</span></div>` : ''}</div>
+      ${d ? `<div class="ph-chiffres"><span><b>${(d.aVenir || []).length}</b> matchs</span><span><b>${enCours}</b> pari${enCours > 1 ? 's' : ''} en cours</span>
+        <span class="${parisRestants() ? '' : 'plein'}"><b>${parisRestants()}/${d.parSemaine ?? 3}</b> pari${parisRestants() > 1 ? 's' : ''} restant${parisRestants() > 1 ? 's' : ''} cette semaine</span></div>` : ''}</div>
     <div class="filters paris-f">${[['medoc', 'Médoc'], ['tous', 'Tous'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
       .map(([k, l]) => `<button data-pfiltre="${k}" class="${f === k ? 'on' : ''}" style="--eq:${TEINTE_EQ[k] || '#ffd257'}">${l || k}</button>`).join('')}</div>
     ${!d ? '<p class="sub">Chargement…</p>' : avenir || '<p class="sub">Pas de match dans les deux prochaines semaines.</p>'}
@@ -771,7 +768,6 @@ const v1 = x => x == null ? '–' : x.toFixed(1).replace('.', ',');
 const sg1 = x => x == null ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + v1(Math.abs(x));
 const pc = x => x == null ? '–' : Math.round(x * 100) + ' %';
 const verdictP = p => p >= .85 ? 'grande favorite' : p >= .65 ? 'favorite' : p >= .52 ? 'légère favorite' : p >= .4 ? 'dans un match ouvert' : p >= .2 ? 'outsider' : 'en grand danger';
-const serie = f => { if (!f) return null; let n = 0; while (n < f.length && f[n] === f[0]) n++; return {res: f[0], n}; };
 function fenetreFiche(rid) {
   const m = PARIS.data?.aVenir.find(x => x.rid === rid); if (!m) return;
   ouvrirOverlay('<div class="sheet fiche-m"><p class="sub">Chargement de la fiche…</p></div>');
@@ -789,24 +785,8 @@ function ficheMatchHTML(m, x, home) {
   if (!x) return `<div class="sheet fiche-m">${tete}${barreProbas(probasCotes(m.cotes), [m.dom, m.ext])}
     <p class="sub">La fiche de ce match n’est pas encore prête.</p>${pied}</div>`;
   const L = x.dom, R = x.ext, p = x.p, fav = p[0] >= p[2] ? L : R, pf = Math.max(p[0], p[2]);
-  // le rapport de force, la forme, attaque contre défense : les phrases de l'analyse du site, en bref
-  const phrases = [];
-  phrases.push(['Le pronostic', `<b>${esc(fav.nom)}</b> part ${verdictP(pf)} (${pc(pf)}).${x.score ? ` Score probable : <b>${x.score[0]} – ${x.score[1]}</b>.` : ''}`]);
-  if (L.niveau != null && R.niveau != null) phrases.push(['Le rapport de force', `Niveau estimé face à une équipe moyenne de la poule : ${sg1(L.niveau)} buts pour ${esc(L.nom)}, ${sg1(R.niveau)} pour ${esc(R.nom)}.`
-    + (home != null && x.mu != null ? ` Avec l’avantage du terrain (${sg1(home)} pour ${esc(L.nom)}), l’écart attendu est de <b>${sg1(x.mu)} but${Math.abs(x.mu) >= 2 ? 's' : ''}</b> pour ${esc(L.nom)}.` : '')]);
-  const fm = t => { const s = serie(t.forme); if (!t.forme) return `${esc(t.nom)} n’a pas encore joué`;
-    const g = [...t.forme].filter(c => c === 'V').length;
-    return `${esc(t.nom)} : ${g} victoire${g > 1 ? 's' : ''} sur ses ${t.forme.length} derniers matchs${s && s.n >= 2 && s.res !== 'N' ? `, ${s.n} ${s.res === 'V' ? 'victoires' : 'défaites'} de suite` : ''}`; };
-  phrases.push(['La forme', `${fm(L)} ; ${fm(R)}.`]);
-  if (L.j && R.j) {
-    const ga = L.att - R.att, gd = R.def - L.def, nL = esc(L.nom), nR = esc(R.nom);   // > 0 : avantage à l'équipe qui reçoit
-    const att = ga > 0 ? nL : nR, def = gd > 0 ? nL : nR;
-    const fin = Math.abs(ga) < 1.5 && Math.abs(gd) < 1.5 ? 'Sur le papier, attaques et défenses s’équilibrent.'
-      : ga >= 1.5 && gd >= 1.5 ? `${nL} a l’avantage des deux côtés du terrain.` : ga <= -1.5 && gd <= -1.5 ? `${nR} a l’avantage des deux côtés du terrain.`
-      : att === def ? `L’écart se fait surtout ${Math.abs(ga) > Math.abs(gd) ? 'en attaque' : 'en défense'}, à l’avantage de ${att}.`
-      : `${att} marque davantage, ${def} défend mieux : un duel attaque contre défense.`;
-    phrases.push(['Attaque contre défense', `${nL} : ${ordinal(L.rangAtt)} attaque (${v1(L.att)} buts/match), ${ordinal(L.rangDef)} défense (${v1(L.def)} encaissés). ${nR} : ${ordinal(R.rangAtt)} attaque (${v1(R.att)}), ${ordinal(R.rangDef)} défense (${v1(R.def)}). ${fin}`]);
-  }
+  // demande de Maël : seulement le pronostic et le face-à-face (plus de rapport de force, de forme ni d'attaque contre défense)
+  const prono = `<b>${esc(fav.nom)}</b> part ${verdictP(pf)} (${pc(pf)}).${x.score ? ` Score probable : <b>${x.score[0]} – ${x.score[1]}</b>.` : ''}`;
   // le face-à-face en chiffres : la meilleure valeur de chaque ligne en couleur, et une barre qui montre qui domine
   const bil = b => b.j ? `${b.g}V ${b.n}N ${b.p}D` : '–';
   const formeH = f => f ? `<span class="fm-forme">${[...f].map(c => `<i class="f-${c}">${c}</i>`).join('')}</span>` : '–';
@@ -832,7 +812,7 @@ function ficheMatchHTML(m, x, home) {
   }).join('');
   const deja = x.deja.length ? `<h4>Déjà cette saison</h4>${x.deja.map(r => `<p class="fm-deja">${esc(r.dom)} <b>${r.score[0]} – ${r.score[1]}</b> ${esc(r.ext)}</p>`).join('')}` : '';
   return `<div class="sheet fiche-m">${tete}${barreProbas(p, [L.nom, R.nom])}
-    <div class="fm-txt">${phrases.map(([t, s], k) => `<p style="--k:${k}"><b>${t}</b>${s}</p>`).join('')}</div>
+    <div class="fm-txt"><p style="--k:0"><b>Le pronostic</b>${prono}</p></div>
     <h4>Le face-à-face en chiffres</h4><div class="fm-ff">${ff}</div>${deja}${pied}</div>`;
 }
 function fenetrePari(rid, choix) {
@@ -991,6 +971,8 @@ function vueCompte() {
 function fenetreCompte() {
   const e = S();
   ouvrirOverlay(`<div class="sheet"><h3>${esc(e.pseudo)} <small>niveau ${e.niveau}</small></h3><p class="sub">${esc(Compte.email)}</p>
+    <div class="sons">${[['musique', '🎵', 'Musique'], ['effets', '🔊', 'Bruitages']].map(([k, ic, l]) =>
+      `<button class="son-b${Son.reglages[k] ? ' on' : ''}" data-act="son-${k}" aria-pressed="${Son.reglages[k]}"><span aria-hidden="true">${ic}</span>${l}<b>${Son.reglages[k] ? 'Oui' : 'Non'}</b></button>`).join('')}</div>
     <button class="btn ghost" data-act="deconnexion">Se déconnecter</button>
     <a class="btn ghost" href="confidentialite.html">Données personnelles</a>
     <button class="btn ghost danger" data-act="supprimer">Supprimer mon compte</button>
@@ -1084,7 +1066,7 @@ function sceneBooster(res, nom, cls, deco = {}) {
     <button class="ob-passer" hidden>Tout révéler</button>
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro');
+  document.body.classList.add('avec-intro'); Son.discret(true);
   Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false});
   // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
   const packY = cy, s0 = pw * .8;
@@ -1114,7 +1096,7 @@ async function dechirerBooster() {
     {transform: 'translate(-50%, -51.5%) rotate(0) scale(1.03)'}], {duration: 520, easing: 'cubic-bezier(.2, .9, .3, 1)'});
   // 2. la découpe : une étoile file le long du pointillé, avec sa traînée et des étincelles
   const coupe = $o('.ob-coupe'), lw = coupe.offsetWidth;
-  vibrer(25);
+  vibrer(25); Son.jouer('dechire');
   obAnim($o('.ob-etoile'), [{transform: 'translate(-50%, -50%) scale(.6)', opacity: 1}, {transform: `translate(${lw}px, 0) translate(-50%, -50%) scale(1.2)`, opacity: 1}], {duration: 280, easing: 'cubic-bezier(.6, 0, .25, 1)'});
   obAnim($o('.ob-trace'), [{transform: 'scaleX(0)', opacity: 1}, {transform: 'scaleX(1)', opacity: 1}], {duration: 280, easing: 'cubic-bezier(.6, 0, .25, 1)'});
   if (!OB.vite) etincelles(coupe, lw);
@@ -1135,6 +1117,7 @@ async function dechirerBooster() {
     {transform: place(W / 2 + (i - (cartes.length - 1) / 2) * 2, OB.dansSachet - ph * .88 - i * 3, OB.pw * .8 / finales[i].w)}],
     {duration: 560, delay: i * 40, easing: 'cubic-bezier(.25, .8, .35, 1)'})));   // tout entière sortie du sachet avant de passer devant
   el.classList.add('sorti');   // les cartes passent devant le booster
+  Son.jouer('envol');
   obAnim(pack, [{transform: 'translate(-50%, -51.5%) scale(1.03)', opacity: 1}, {transform: 'translate(-50%, -10%) scale(.9)', opacity: 0}], {duration: 520, easing: 'cubic-bezier(.5, 0, .75, .2)'});
   await Promise.all(cartes.map((c, i) => {
     const f = finales[i], d = OB.dansSachet - ph * .88;
@@ -1157,6 +1140,7 @@ function etincelles(coupe, lw) {
   }
 }
 function souffle() {
+  Son.jouer('souffle');
   const s = OB.el.querySelector('.ob-souffle');
   const anneau = document.createElement('i'); anneau.className = 'ob-anneau'; s.appendChild(anneau);
   anneau.animate([{transform: 'translate(-50%, -50%) scale(.1)', opacity: 1}, {transform: 'translate(-50%, -50%) scale(2.6)', opacity: 0}], {duration: 700, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'forwards'});
@@ -1187,7 +1171,7 @@ function indiceSuivant() {
   if (OB.indice === 3) OB.el.classList.add('t-haut');
   vibrer(20);
 }
-function retourner(c) { c.classList.add('vu'); }
+function retourner(c) { c.classList.add('vu'); if (c.dataset.i !== '0') Son.jouer('retourne'); }
 function toucherHeros() {
   if (!['retourner', 'indices'].includes(OB.etape) && !OB.vite) return;
   if (OB.etape === 'indices') { OB.el.querySelector('.ob-indice').hidden = true; }
@@ -1197,6 +1181,7 @@ function toucherHeros() {
   h.classList.remove('attente');
   retourner(h);
   if (RARETES.indexOf(OB.res[0].c.rarete) >= RARETES.indexOf('or')) OB.el.classList.add('t-haut');
+  Son.jouer('revele-' + ({elite: 'ultime'}[OB.res[0].c.rarete] || OB.res[0].c.rarete));
   vibrer(RARETES.indexOf(OB.res[0].c.rarete) >= RARETES.indexOf('or') ? [40, 60, 80] : 30);
   if (!OB.vite) {   // éclair et onde à la couleur du palier
     const s = OB.el.querySelector('.ob-souffle'), f = OB.finales[0];
@@ -1231,6 +1216,7 @@ function envoyerAuClub() {
   const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true);
     document.querySelector('.tabs a[data-tab="club"]')?.animate([{transform: 'scale(1)'}, {transform: 'scale(1.25)'}, {transform: 'scale(1)'}], {duration: 380}); };
   el.querySelector('.ob-bas').style.visibility = 'hidden';
+  Son.jouer('envol'); Son.discret(false);
   if (moinsAnim()) { el.animate([{opacity: 1}, {opacity: 0}], {duration: 200, fill: 'forwards'}).onfinish = fin; return; }
   const cartes = [...el.querySelectorAll('.ob-c')];
   cartes.forEach((c, i) => c.animate([{transform: c.style.transform, opacity: 1}, {transform: place(tx, ty, .08, 0), opacity: .3}],
@@ -1263,11 +1249,12 @@ function montee(avant, apres) {
   document.body.appendChild(el); document.body.classList.add('avec-intro');
   const q = x => el.querySelector(x), vite = moinsAnim();
   const anim = (x, f, o) => x.animate(f, {fill: 'forwards', ...o, duration: vite ? 0 : o.duration, delay: vite ? 0 : o.delay || 0}).finished.catch(() => {});
-  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true); };
+  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); Son.discret(false); route(true); };
   q('.mt-bas button').addEventListener('click', fin);
   (async () => {
     // 1. les trois cartes arrivent, puis se rejoignent au centre
     const cs = [...el.querySelectorAll('.mt-c')];
+    Son.discret(true); Son.jouer('fusion');
     await Promise.all(cs.map((c, i) => anim(c, [{transform: `translate(${(i - 1) * 120}%, 60%) rotate(${(i - 1) * 12}deg) scale(.6)`, opacity: 0},
       {transform: `translate(${(i - 1) * 105}%, 0) rotate(${(i - 1) * 8}deg)`, opacity: 1}], {duration: 450, delay: i * 90, easing: 'cubic-bezier(.2, .8, .3, 1)'})));
     vibrer(20);
@@ -1278,7 +1265,7 @@ function montee(avant, apres) {
     q('.mt-carte').style.opacity = 1;
     await anim(q('.mt-carte'), [{transform: 'scale(.6)', opacity: 0}, {transform: 'scale(1.08)', opacity: 1, offset: .6}, {transform: 'scale(1)', opacity: 1}], {duration: 420, easing: 'cubic-bezier(.2, 1.3, .4, 1)'});
     await anim(q('.mt-carte'), [{transform: 'rotate(0)'}, {transform: 'rotate(-2deg)'}, {transform: 'rotate(2deg)'}, {transform: 'rotate(0)'}], {duration: 360, delay: 120});
-    el.classList.add('retourne');
+    el.classList.add('retourne'); Son.jouer('montee');
     await new Promise(r => setTimeout(r, vite ? 0 : 520));
     el.classList.add('haut'); vibrer([40, 60, 80]);
     anim(q('.mt-titre'), [{opacity: 0, transform: 'translateY(-14px) scale(.8)'}, {opacity: 1, transform: 'none'}], {duration: 420, easing: 'cubic-bezier(.2, 1.4, .4, 1)'});
@@ -1297,7 +1284,11 @@ function montee(avant, apres) {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  const b = e.target.closest('button, a[href], .grid .card');
+  if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
+}, true);
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -1321,8 +1312,7 @@ document.addEventListener('click', e => {
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (d.fiche) return fenetreFiche(d.fiche);
   if (a === 'passer') return finMatch();
-  if (a === 'fin-match') { JEU.rencontres = null; JEU.adversaires = null; return fermerOverlay(); }
-  if (a === 'classement') return fenetreClassement();
+  if (a === 'fin-match') { JEU.rencontres = null; return fermerOverlay(); }
   if (occupe) return;
   if (d.tac) {   // choix tactique : gardé tout de suite sur le serveur
     const [cle, v] = d.tac.split(':'), T = tactiqueActuelle(); T[cle] = v;
@@ -1352,26 +1342,20 @@ document.addEventListener('click', e => {
   }
   if (d.validerPari) {
     const [rid, choix] = d.validerPari.split(':'), mise = +$('input.champ[data-mise]').value;
-    return action(Compte.parier(rid, choix, mise), r => { toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
+    return action(Compte.parier(rid, choix, mise), r => { Son.jouer('pari'); toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
   }
   const tactique = (T => `${T.att}:${T.def}`)(tactiqueActuelle());
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
-  if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
+  if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
   if (d.tuto) return tuto(d.tuto, null, true);
-  if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
-    const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
-    ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton équipe.</p>
-      ${progres ? `<p class="sub">Ils progressent :<br>${progres}</p>` : '<p class="sub">Encore un peu de travail avant le prochain point.</p>'}
-      <button class="btn" data-act="fermer">Fermer</button></div>`);
-  });
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
   if (d.bposte) { const bp = BOOSTERS_POSTE.find(x => x[0] === d.bposte);
     return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), POSTE_NOM[d.bposte], 'pk-poste', {poste: d.bposte, photo: bp && photoSachet(bp[1], bp[2])}); }
-  if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
+  if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
@@ -1430,17 +1414,6 @@ document.addEventListener('input', e => {
     const [rid, choix] = $('[data-valider-pari]').dataset.validerPari.split(':');
     $('#gain-pari').textContent = nb(Math.floor(+t.value * PARIS.data.aVenir.find(x => x.rid === rid).cotes[choix]));
   }
-});
-// recherche d'un joueur à défier (après une petite pause dans la frappe)
-document.addEventListener('input', e => {
-  if (e.target.dataset.chercheDefi === undefined) return;
-  JEU.recherche = e.target.value;
-  clearTimeout(JEU.t);
-  JEU.t = setTimeout(() => {
-    const q = JEU.recherche.trim(), maj = () => { const el = $('#joueurs-defi'); if (el) el.innerHTML = joueursDefi(); };
-    if (q.length < 2) { JEU.joueurs = []; return maj(); }
-    Compte.chercherJoueurs(q).then(l => { JEU.joueurs = l; maj(); }).catch(er => toast(er.message));
-  }, 300);
 });
 // carrousel des boosters par poste : glisser vers la gauche ou la droite
 let glisse = null;
@@ -1508,10 +1481,10 @@ function ouvrirJet7m(demo) {
     <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro');
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.ambiance('salle');
   Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0, demo: !!demo});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
-  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) toucherJet7m(); });
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) { Son.jouer('tap'); toucherJet7m(); } });
   // la scène en 3D (jeux3d.js) : on attend qu'elle soit prête pour lancer le premier tir
   el.querySelector('.j7-aide').textContent = 'Chargement du terrain…';
   Promise.all([jeux3d().then(m => m.jet7m(J7, el.querySelector('.t3'))).catch(() => null), tuto('7m', el)]).then(([ctl]) => {
@@ -1520,7 +1493,7 @@ function ouvrirJet7m(demo) {
     J7.ctl = ctl; nouveauTir();
   });
 }
-function fermerJet7m() { cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function fermerJet7m() { Son.ambiance(null); Son.discret(false); cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const vaEtVient = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
 function nouveauTir() {
   const el = J7.el, n = J7.tirs.length, buts = J7.tirs.filter(x => x === 'but').length;
@@ -1554,7 +1527,7 @@ function toucherJet7m() {
     J7.el.classList.add('puissance'); J7.el.querySelector('.j7-aide').textContent = 'Touche pour tirer'; J7.ctl.armer();
     boucleJet7m();
   } else if (J7.phase === 'puissance') {
-    J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20);
+    J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20); Son.jouer('tir');
     J7.el.classList.add('tir'); J7.el.querySelector('.j7-aide').textContent = '';
     const x = Math.round(J7.x * 1000) / 1000, y = Math.round(J7.y * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
     (J7.demo ? tir7mDemo(x, y, f) : Compte.tirer7m(x, y, f)).then(animerTir).catch(e => { toast(e.message); fermerJet7m(); });
@@ -1569,6 +1542,7 @@ function animerTir(r) {
     const cls = (RES7[r.resultat] || RES7.dehors)[1];
     el.classList.add('r-' + cls);
     vibrer(r.resultat === 'but' ? [30, 40, 60] : 40);
+    Son.jouer({but: 'but', arret: 'arret', poteau: 'poteau'}[r.resultat] || 'rate');
     const box = el.querySelector('.j7-resultat');
     box.innerHTML = `<b>${titre7(r)}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
     box.hidden = false;
@@ -1608,14 +1582,14 @@ function ouvrirMini(jeu, demo) {
   el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
     <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro');
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.ambiance('salle');
   Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0, serie: [], serieN: 0});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
-  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) MJ.toucher(e); });
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) { Son.jouer('tap'); MJ.toucher(e); } });
   jeux3d().catch(() => {});   // la salle 3D se charge pendant le tuto
   tuto(jeu, el).then(() => { if (MJ.el === el) miniEssai(); });
 }
-function fermerMini() { MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function fermerMini() { Son.ambiance(null); Son.discret(false); MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const SERIE = 5;   // l'arrêt réflexe : 5 tirs enchaînés par série
 function scoreMini() {
   const ok = MJ.liste.filter(x => x === MINI[MJ.jeu].succes).length;
@@ -1645,6 +1619,8 @@ function miniFin(r) {
   MJ.liste = r.essais; MJ.gains += r.pieces + r.bonus;
   el.classList.add(r.reussi ? 'r-but' : 'r-rate');
   vibrer(r.reussi ? [30, 40, 60] : 40);
+  // l'arrêt réflexe : une parade fait lever la salle, un but encaissé la fait soupirer
+  Son.jouer(MJ.jeu === 'gardien' ? (r.reussi ? 'parade' : 'encaisse') : r.reussi ? 'but' : {arret: 'arret', poteau: 'poteau'}[r.resultat] || 'rate');
   miniAide('');
   const box = el.querySelector('.j7-resultat');
   box.innerHTML = `<b>${MINI[MJ.jeu].res[r.resultat] || r.resultat}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
@@ -1674,7 +1650,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=33').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=34').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
@@ -1774,7 +1750,7 @@ function sortieIntro() {
   if (!el || INTRO.parti) return;
   if (!INTRO.pret && !INTRO.demande) { INTRO.demande = true; el.classList.add('attente'); setTimeout(() => { INTRO.pret = true; sortieIntro(); }, 1800); return; }
   INTRO.parti = true;
-  vibrer(25);
+  vibrer(25); Son.jouer('intro');
   const fin = () => { el.remove(); INTRO.el = null; document.body.classList.remove('avec-intro'); };
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.animate([{opacity: 1}, {opacity: 0}], {duration: 250, fill: 'forwards'}).onfinish = fin; return; }
   el.classList.add('sortie');

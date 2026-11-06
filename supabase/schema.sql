@@ -41,7 +41,7 @@ insert into parametres values (1, '{
   "pvp_pieces": {"gagne": 80, "nul": 40, "perdu": 20},
   "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
   "pvp_defense_trophees": {"gagne": 5, "nul": 0, "perdu": -5},
-  "pari_min": 10, "pari_max": 300, "pari_marge": 0.92, "cote_min": 1.05, "cote_max": 12, "paris_jours": 14, "xp_pari": 10,
+  "pari_min": 10, "pari_max": 300, "pari_marge": 0.92, "cote_min": 1.05, "cote_max": 12, "paris_jours": 14, "xp_pari": 10, "paris_par_semaine": 3,
   "annonces_max": 5, "annonce_jours": 7,
   "booster_poste_prix": 300, "seance_payante_prix": 150,
   "parcours": [
@@ -70,7 +70,7 @@ insert into parametres values (1, '{
   "tournoi_ecart": 2, "legendes_manches": 5,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
   "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
-  "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
+  "synchro_matchs_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/matchs.json", "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
   "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
   "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
   "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.10, "tactique_pente": 0.4,
@@ -379,11 +379,10 @@ language sql immutable as $$
          ('vente', 2, 40, 80, 'Vends 2 cartes en trop'),
          ('equipe', 1, 30, 60, 'Modifie ton équipe'),
          ('championnat', 3, 80, 200, 'Joue 3 matchs de championnat'),
-         ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi)'),
-         ('defi', 2, 80, 150, 'Lance 2 défis'),
-         ('seance', 1, 40, 80, 'Fais une séance d’entraînement d’équipe'),
+         ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi entre ami(e)s)'),
+         ('defi', 2, 80, 150, 'Défie 2 fois tes ami(e)s'),
          ('pari', 1, 40, 80, 'Fais un pari sur un vrai match du club'),
-         ('marche', 1, 40, 100, 'Publie ou accepte une annonce au marché')
+         ('marche', 1, 40, 100, 'Publie ou accepte une annonce aux transferts')
 $$;
 
 -- 3 quêtes par jour, choisies au hasard mais toujours les mêmes pour un joueur et un jour
@@ -746,7 +745,7 @@ declare p profils := moi(); e exemplaires; gain int;
 begin
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
-  if e.verrou is not null then raise exception 'Cette carte est au marché des transferts'; end if;
+  if e.verrou is not null then raise exception 'Cette carte est proposée aux transferts'; end if;
   if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
     raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
   end if;
@@ -1443,6 +1442,11 @@ create or replace function match_json(m matchs, p_uid uuid) returns jsonb langua
 $$;
 
 -- Matchs des prochains jours, et résultats de la dernière semaine
+-- paris faits cette semaine (du lundi au dimanche, heure de Paris) : 3 au plus (réglage paris_par_semaine)
+create or replace function paris_semaine(p_uid uuid) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from paris where user_id = p_uid
+    and (cree_le at time zone 'Europe/Paris')::date >= date_trunc('week', aujourdhui())::date
+$$;
 create or replace function matchs_paris() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi();
 begin
@@ -1453,7 +1457,8 @@ begin
       where m.score_dom is not null and m.date >= aujourdhui() - 7), '[]'),
     'mesParis', coalesce((select jsonb_agg(match_json(m, p.user_id) order by x.cree_le desc) from paris x join matchs m on m.rid = x.rid
       where x.user_id = p.user_id and x.cree_le >= now() - interval '30 days'), '[]'),
-    'min', parami('pari_min'), 'max', parami('pari_max'));
+    'min', parami('pari_min'), 'max', parami('pari_max'),
+    'parSemaine', parami('paris_par_semaine'), 'cetteSemaine', paris_semaine(p.user_id));
 end $$;
 
 create or replace function parier(p_rid text, p_choix text, p_mise int) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -1469,6 +1474,9 @@ begin
   end if;
   if p.pieces < p_mise then raise exception 'Pas assez de pièces'; end if;
   if exists (select 1 from paris where user_id = p.user_id and rid = p_rid) then raise exception 'Tu as déjà parié sur ce match'; end if;
+  if paris_semaine(p.user_id) >= parami('paris_par_semaine') then
+    raise exception 'Déjà % paris cette semaine : de nouveaux lundi', parami('paris_par_semaine');
+  end if;
   c := cote(case p_choix when '1' then m.p1 when 'N' then m.pn else m.p2 end);
   insert into paris (user_id, rid, choix, mise, cote) values (p.user_id, p_rid, p_choix, p_mise, c);
   update profils set pieces = pieces - p_mise where user_id = p.user_id;
@@ -1526,7 +1534,9 @@ begin
       where p.user_id in (a.vendeur, a.acheteur) and (a.statut = 'ouverte' or a.conclue_le >= now() - interval '7 days')), '[]');
   end if;
   return coalesce((select jsonb_agg(j order by (j ->> 'cree_le') desc) from (
-    select annonce_json(a) j from annonces a where a.statut = 'ouverte' and a.vendeur <> p.user_id order by a.cree_le desc limit 100) t
+    -- « Toutes » montre aussi mes propres annonces (demande de Maël) ; « Pour moi » seulement celles des autres
+    select annonce_json(a) j from annonces a where a.statut = 'ouverte' and (p_filtre <> 'pour_moi' or a.vendeur <> p.user_id)
+    order by a.cree_le desc limit 100) t
     where p_filtre <> 'pour_moi' or (j ->> 'possible')::boolean), '[]');
 end $$;
 
@@ -1537,7 +1547,7 @@ begin
   perform expirer_annonces();
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
-  if e.verrou is not null then raise exception 'Cette carte est déjà au marché'; end if;
+  if e.verrou is not null then raise exception 'Cette carte est déjà proposée aux transferts'; end if;
   if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
     raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
   end if;
@@ -1545,7 +1555,7 @@ begin
   if not exists (select 1 from cartes where id = p_carte) then raise exception 'Joueur inconnu'; end if;
   if p_carte = e.carte_id and p_palier = e.palier then raise exception 'Tu cherches la même carte que celle que tu proposes'; end if;
   -- demande de Maël : on n'échange au marché que des cartes de même valeur (même palier) ; entre ami(e)s, tout est permis
-  if p_palier <> e.palier then raise exception 'Au marché, on échange seulement des cartes du même palier'; end if;
+  if p_palier <> e.palier then raise exception 'Aux transferts, on échange seulement des cartes du même palier'; end if;
   if (select count(*) from annonces where vendeur = p.user_id and statut = 'ouverte') >= parami('annonces_max') then
     raise exception 'Tu as déjà % annonces ouvertes', parami('annonces_max');
   end if;
@@ -1575,7 +1585,7 @@ begin
   select * into a from annonces where id = p_id for update;
   if not found or a.statut <> 'ouverte' then raise exception 'Cette annonce n’est plus ouverte'; end if;
   if a.vendeur = p.user_id then raise exception 'C’est ton annonce'; end if;
-  if a.palier_cherche <> a.offre ->> 'palier' then raise exception 'Au marché, on échange seulement des cartes du même palier'; end if;
+  if a.palier_cherche <> a.offre ->> 'palier' then raise exception 'Aux transferts, on échange seulement des cartes du même palier'; end if;
   select * into v from profils where user_id = a.vendeur for update;
   select e.id into mon_ex from exemplaires e where e.proprietaire = p.user_id and e.carte_id = a.carte_cherchee and e.palier = a.palier_cherche
     and e.verrou is null and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = e.id::text)
@@ -1696,6 +1706,9 @@ begin
   insert into rencontres (user_id, type, adversaire, score, resultat, detail) values
     (p.user_id, 'defi_ami', a.pseudo, array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('pieces', g_moi)),
     (a.user_id, 'defense_ami', p.pseudo, array[(r ->> 'b')::int, (r ->> 'a')::int], res_d, jsonb_build_object('pieces', g_lui));
+  -- les quêtes « défis » et « victoires » : les défis se font entre ami(e)s
+  perform progresser(p.user_id, 'defi');
+  if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;
   perform noter(p.user_id, 'defi-ami', jsonb_build_object('contre', a.pseudo, 'resultat', res, 'pieces', g_moi));
   if g_lui > 0 then perform noter(a.user_id, 'defi-ami-gagne', jsonb_build_object('contre', p.pseudo, 'pieces', g_lui)); end if;
   return jsonb_build_object('match', r, 'adversaire', a.pseudo, 'note', fa -> 'note', 'noteAdversaire', fb -> 'note',
@@ -1752,7 +1765,7 @@ begin
   if (select count(*) from echanges where de = p.user_id and cree_le >= debut_du_jour()) >= parami('echanges_amis_par_jour') then
     raise exception 'Tu as déjà proposé % échanges aujourd’hui : reviens demain', parami('echanges_amis_par_jour');
   end if;
-  if not carte_libre(p.user_id, p_donne) then raise exception 'Ta carte doit être à toi, hors de ton équipe et du marché'; end if;
+  if not carte_libre(p.user_id, p_donne) then raise exception 'Ta carte doit être à toi, hors de ton équipe et des transferts'; end if;
   if not carte_libre(a.user_id, p_demande) then raise exception 'Cette carte n’est plus disponible'; end if;
   if exists (select 1 from echanges where statut = 'ouvert' and (donne = p_donne or demande = p_demande)) then raise exception 'Un échange est déjà proposé avec cette carte'; end if;
   -- une seule proposition à la fois entre deux ami(e)s (demande de Maël)
@@ -1776,7 +1789,7 @@ begin
   select * into v from profils where user_id = x.de for update;
   if not sont_amis(p.user_id, x.de) then raise exception 'Vous n’êtes plus ami(e)s'; end if;
   if not carte_libre(x.de, x.donne) then raise exception 'Sa carte n’est plus disponible'; end if;
-  if not carte_libre(p.user_id, x.demande) then raise exception 'Ta carte doit être hors de ton équipe et du marché'; end if;
+  if not carte_libre(p.user_id, x.demande) then raise exception 'Ta carte doit être hors de ton équipe et des transferts'; end if;
   update exemplaires set proprietaire = p.user_id where id = x.donne;
   update exemplaires set proprietaire = x.de where id = x.demande;
   update echanges set statut = 'accepte', fini_le = now() where id = p_id;
@@ -1844,10 +1857,10 @@ begin
 end $$;
 
 -- Vrais matchs (data/matchs.json) : ajout ou mise à jour, puis règlement des paris dont le résultat est connu
-create or replace function admin_publier_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+create or replace function maj_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare n int; regles int;
 begin
-  if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
+  if jsonb_typeof(p_matchs) <> 'array' then raise exception 'Liste de matchs invalide'; end if;
   insert into matchs (rid, equipe, competition, journee, date, heure, dom, ext, medoc, p1, pn, p2, score_dom, score_ext, forfait, maj)
     select x ->> 'rid', x ->> 'equipe', x ->> 'competition', (x ->> 'j')::int, (x ->> 'date')::date, x ->> 'heure', x ->> 'dom', x ->> 'ext',
       x ->> 'medoc', (x -> 'p' ->> 0)::numeric, (x -> 'p' ->> 1)::numeric, (x -> 'p' ->> 2)::numeric,
@@ -1862,8 +1875,49 @@ begin
       score_dom = excluded.score_dom, score_ext = excluded.score_ext, forfait = excluded.forfait, maj = now();
   n := jsonb_array_length(p_matchs);
   regles := regler_paris();
-  perform noter(auth.uid(), 'admin-matchs', jsonb_build_object('matchs', n, 'paris_regles', regles));
   return jsonb_build_object('matchs', n, 'parisRegles', regles);
+end $$;
+create or replace function admin_publier_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare r jsonb;
+begin
+  if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
+  r := maj_matchs(p_matchs);
+  perform noter(auth.uid(), 'admin-matchs', jsonb_build_object('matchs', r -> 'matchs', 'paris_regles', r -> 'parisRegles'));
+  return r;
+end $$;
+
+-- Paiement automatique des paris (demande de Maël : « le lundi matin, les paris gagnants payés tout seuls ») :
+-- l'action GitHub « resultats » lit les scores sur ffhandball.fr (lundi et jeudi, très tôt) et met à jour data/matchs.json
+-- dans le dépôt ; le serveur relit ce fichier (pg_net) puis met à jour les matchs et règle les paris (pg_cron, en bas du fichier).
+-- Le fichier n'est modifiable que par le dépôt : personne ne peut envoyer de faux scores. Fonctions internes (pas accordées au jeu).
+create table if not exists synchro_matchs (
+  id bigserial primary key, demande bigint, demande_le timestamptz not null default now(),
+  lu_le timestamptz, resultat jsonb
+);
+revoke all on synchro_matchs from anon, authenticated;
+create or replace function synchro_matchs_demander() returns bigint language plpgsql security definer set search_path = public as $$
+declare d bigint;
+begin
+  d := net.http_get(url := param('synchro_matchs_url') #>> '{}', timeout_milliseconds := 20000);
+  insert into synchro_matchs (demande) values (d);
+  return d;
+end $$;
+-- lit la dernière réponse arrivée (quelques minutes après la demande) ; sans réponse valable, rien ne change
+create or replace function synchro_matchs_lire() returns jsonb language plpgsql security definer set search_path = public as $$
+declare s synchro_matchs; rep record; r jsonb;
+begin
+  select * into s from synchro_matchs where lu_le is null order by id desc limit 1;
+  if not found then return null; end if;
+  select status_code, content into rep from net._http_response where id = s.demande;
+  if not found then return null; end if;   -- pas encore arrivée : on réessaiera au passage suivant
+  begin
+    if rep.status_code <> 200 then raise exception 'réponse %', rep.status_code; end if;
+    r := maj_matchs(rep.content::jsonb -> 'matchs');
+  exception when others then r := jsonb_build_object('erreur', sqlerrm);
+  end;
+  update synchro_matchs set lu_le = now(), resultat = r where id = s.id;
+  perform noter(null, 'synchro-matchs', r);
+  return r;
 end $$;
 
 -- Vraies équipes du parcours (data/adversaires.json : {"niveaux": {"1": [noms…], …}}) : remplace toute la liste.
@@ -1911,6 +1965,19 @@ to authenticated;
 
 -- Écarts des cartes déjà publiées : remis à la nouvelle règle (sans effet s'ils le sont déjà)
 select normaliser_ecarts();
+
+-- Paiement des paris le lundi matin : demande du fichier des matchs à 5 h et 7 h (UTC : 6 h et 8 h l'hiver à Paris,
+-- 7 h et 9 h l'été), lecture 5 minutes après, et toutes les 10 minutes du lundi matin si une demande attend encore.
+-- Le jeudi aussi, pour suivre les matchs déplacés. Seulement sur Supabase (pg_cron et pg_net) : ignoré ailleurs.
+do $cron$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') and exists (select 1 from pg_available_extensions where name = 'pg_net') then
+    create extension if not exists pg_net;
+    create extension if not exists pg_cron;
+    perform cron.schedule('mhc-matchs-demande', '0 5,7 * * 1,4', 'select public.synchro_matchs_demander()');
+    perform cron.schedule('mhc-matchs-lecture', '5-55/10 5-8 * * 1,4', 'select public.synchro_matchs_lire()');
+  end if;
+end $cron$;
 -- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue
 with x as (update annonces set statut = 'retiree' where statut = 'ouverte' and palier_cherche <> offre ->> 'palier' returning exemplaire)
 update exemplaires set verrou = null where id in (select exemplaire from x);
