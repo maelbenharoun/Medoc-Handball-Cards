@@ -69,7 +69,8 @@ insert into parametres values (1, '{
   "poule_equipes": 8, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
   "tournoi_ecart": 2, "legendes_manches": 5,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
-  "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2
+  "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
+  "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 15, "jet7m_bonus_parfait": 25
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -230,7 +231,8 @@ create index if not exists mouvements_user on mouvements (user_id, le);
 
 -- Parcours : les vraies équipes de chaque niveau (data/adversaires.json, envoyé par l'outil ; noms de clubs seulement)
 create table if not exists equipes_reelles (niveau int not null, nom text not null, primary key (niveau, nom));
-alter table profils add column if not exists parcours jsonb;   -- poule ou tournoi en cours, palmarès (voir match_championnat)
+alter table profils add column if not exists parcours jsonb;
+alter table profils add column if not exists jet7m jsonb;      -- mini-jeu du jet de 7 m : {jour, tirs: ['but', 'arret', …]}   -- poule ou tournoi en cours, palmarès (voir match_championnat)
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Accès : lecture seulement de ce qui nous concerne, aucune écriture directe
@@ -462,6 +464,8 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       else greatest(0, ceil(extract(epoch from p.boosters_maj + make_interval(mins => parami('booster_minutes')) - now())))::int end,
     'equipe', p.equipe, 'tactique', p.tactique,
     'parcours', parcours_vue(p.parcours),
+    'jet7m', jsonb_build_object('tirs', case when p.jet7m ->> 'jour' = aujourdhui()::text then p.jet7m -> 'tirs' else '[]'::jsonb end,
+      'limite', parami('jet7m_tirs_par_jour'), 'piecesBut', parami('jet7m_pieces_but'), 'bonus', parami('jet7m_bonus_parfait')),
     'trophees', p.trophees,
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
@@ -1064,6 +1068,45 @@ begin
     'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
+-- Mini-jeu : jet de 7 mètres. Le jeu envoie la visée (0 = poteau gauche, 1 = poteau droit) et la puissance (0 à 1)
+-- arrêtées par le joueur sur les barres qui bougent ; le serveur fait plonger le gardien et décide du résultat.
+-- Le jeu ne peut pas prouver ses touches : c'est la limite du jour (5 tirs, 100 pièces au plus) qui borne la triche.
+create or replace function tirer_7m(p_visee numeric, p_puissance numeric) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); j jsonb; tirs jsonb; n int; zone text; gardien text; ecart numeric; force numeric; p_arret numeric;
+  res text; v_pieces int := 0; v_bonus int := 0;
+begin
+  if p_visee is null or p_puissance is null or p_visee < 0 or p_visee > 1 or p_puissance < 0 or p_puissance > 1 then
+    raise exception 'Tir invalide';
+  end if;
+  j := case when p.jet7m ->> 'jour' = aujourdhui()::text then p.jet7m else jsonb_build_object('jour', aujourdhui(), 'tirs', '[]'::jsonb) end;
+  tirs := j -> 'tirs'; n := jsonb_array_length(tirs);
+  if n >= parami('jet7m_tirs_par_jour') then
+    raise exception 'Tu as tiré tes % jets de 7 m du jour : reviens demain', parami('jet7m_tirs_par_jour');
+  end if;
+  zone := case when p_visee < 1 / 3.0 then 'g' when p_visee > 2 / 3.0 then 'd' else 'c' end;
+  gardien := case when random() < .35 then 'g' when random() < .35 / .65 then 'd' else 'c' end;   -- 35 % gauche, 35 % droite, 30 % reste au centre
+  ecart := abs(p_visee - .5) * 2;                       -- 0 au centre, 1 au poteau
+  force := greatest(0, 1 - abs(p_puissance - .8) / .5); -- 1 à 80 % de puissance
+  if p_puissance > .93 then res := 'dessus';
+  elsif ecart > .93 then res := 'poteau';
+  else
+    p_arret := case when gardien = zone and zone = 'c' then .85 - .35 * force                  -- au centre, face au gardien : risqué
+                    when gardien = zone then .8 - .45 * force - .2 * greatest(0, ecart - .6)   -- bien plongé : il faut de la force et de l'angle
+                    when p_puissance < .35 then .55                                          -- tir trop mou : il revient dessus
+                    when zone = 'c' then .2                                                  -- au centre, il peut l'arrêter du pied
+                    else .04 end;
+    res := case when random() < p_arret then 'arret' else 'but' end;
+  end if;
+  tirs := tirs || to_jsonb(res);
+  if res = 'but' then v_pieces := parami('jet7m_pieces_but'); end if;
+  if jsonb_array_length(tirs) = parami('jet7m_tirs_par_jour')
+     and not exists (select 1 from jsonb_array_elements_text(tirs) x where x <> 'but') then v_bonus := parami('jet7m_bonus_parfait'); end if;
+  update profils set pieces = pieces + v_pieces + v_bonus, jet7m = jsonb_build_object('jour', aujourdhui(), 'tirs', tirs) where user_id = p.user_id;
+  perform noter(p.user_id, 'jet7m', jsonb_build_object('visee', p_visee, 'puissance', p_puissance, 'gardien', gardien, 'resultat', res, 'pieces', v_pieces + v_bonus));
+  return jsonb_build_object('resultat', res, 'zone', zone, 'gardien', gardien, 'pieces', v_pieces, 'bonus', v_bonus, 'tirs', tirs,
+    'restants', parami('jet7m_tirs_par_jour') - jsonb_array_length(tirs), 'etat', etat_de(p.user_id));
+end $$;
+
 -- Séance d'entraînement d'équipe : de l'expérience pour les joueurs alignés, sans risque
 create or replace function seance_equipe() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); progres jsonb; niveaux jsonb;
@@ -1427,7 +1470,7 @@ grant execute on function
   ouvrir_depart(), ouvrir_booster(text), ouvrir_booster_poste(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
   match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
-  matchs_paris(), parier(text, text, int),
+  matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric),
   marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;

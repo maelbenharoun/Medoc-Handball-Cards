@@ -24,6 +24,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
   directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
+- **Jet de 7 mètres** (onglet Jouer) : une barre de visée va et vient le long du but, puis une jauge de puissance ; le serveur fait plonger le gardien.
+  5 tirs par jour, 15 pièces par but, 25 de plus pour un 5 sur 5 (100 pièces par jour au plus).
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
 - **Paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
 - **Marché des transferts** : une carte contre une carte avec les autres joueurs.

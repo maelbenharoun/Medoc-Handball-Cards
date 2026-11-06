@@ -301,6 +301,7 @@ function vueJouer() {
     <div class="filters">${TACTIQUES.map(([k, n]) => `<button data-tactique="${k}" class="${t === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="sub petit">${TACTIQUES.find(x => x[0] === t)[2]}. Elle sert aussi quand on te défie.</p>
     ${blocParcours(e, complet && restant('championnat') > 0, note, restant('championnat'))}
+    ${blocJet7m(e)}
     <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
       <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
       <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
@@ -885,6 +886,7 @@ document.addEventListener('click', e => {
   const tactique = JEU.tactique || S().tactique || 'equilibre';
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
+  if (a === 'jet7m') return ouvrirJet7m();
   if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
     const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
     ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton 7.</p>
@@ -975,6 +977,116 @@ $('.brand').addEventListener('click', () => {
   const t = Date.now(); if (t - (route.tapT || 0) > 1500) route.taps = 0; route.tapT = t;
   if (++route.taps >= 5) location.href = 'admin.html';
 });
+
+// ── mini-jeu : jet de 7 mètres ───────────────────────────────────────────────────
+// Une barre de visée va et vient le long du but, puis une jauge de puissance monte et descend : on touche pour
+// arrêter chacune. Le serveur fait plonger le gardien et décide du résultat (tirer_7m). 5 tirs par jour.
+const J7 = {};
+const RES7 = {but: ['But !', 'but'], arret: ['Arrêté !', 'rate'], dessus: ['Au-dessus !', 'rate'], poteau: ['Poteau !', 'rate']};
+function blocJet7m(e) {
+  const j = e.jet7m || {tirs: [], limite: 5, piecesBut: 15, bonus: 25}, reste = j.limite - j.tirs.length, buts = j.tirs.filter(x => x === 'but').length;
+  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? ' ' + RES7[j.tirs[i]][1] : ''}"></i>`).join('');
+  return `<div class="mode"><div class="mode-t"><b>Jet de 7 mètres</b><span>${buts} but${buts > 1 ? 's' : ''} aujourd’hui</span></div>
+    <p class="sub petit">Arrête la visée puis la puissance au bon moment. ${j.piecesBut} pièces par but, ${j.bonus} de plus pour un 5 sur 5 ; ${j.limite} tirs par jour.</p>
+    <div class="j7-pastilles">${pastilles}</div>
+    <button class="btn gold large" data-act="jet7m"${reste > 0 ? '' : ' disabled'}>${reste > 0 ? `Tirer · ${reste} tir${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''}` : 'Reviens demain'}</button></div>`;
+}
+const GARDIEN_SVG = `<svg viewBox="0 0 100 120" aria-hidden="true"><g stroke-linecap="round">
+  <path d="M38 40 L14 16 M62 40 L86 16" stroke="#1d5b8f" stroke-width="11"/><circle cx="12" cy="14" r="6" fill="#e8c4a0"/><circle cx="88" cy="14" r="6" fill="#e8c4a0"/>
+  <path d="M43 86 L30 116 M57 86 L70 116" stroke="#14171c" stroke-width="12"/>
+  <rect x="33" y="32" width="34" height="58" rx="11" fill="#1d5b8f"/><text x="50" y="69" text-anchor="middle" font-size="20" font-weight="900" fill="#ffd257" font-family="sans-serif">1</text>
+  <circle cx="50" cy="20" r="12" fill="#e8c4a0"/><path d="M38 17 Q50 3 62 17" fill="#3b2a1a"/></g></svg>`;
+function ouvrirJet7m() {
+  const j = S().jet7m || {tirs: [], limite: 5};
+  if (j.tirs.length >= j.limite) return toast('Reviens demain pour 5 nouveaux tirs');
+  const el = document.createElement('div');
+  el.className = 'j7';
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
+    <div class="j7-terrain"><div class="j7-but"><div class="j7-filet"></div><div class="j7-gardien">${GARDIEN_SVG}</div>
+      <div class="j7-visee"><i></i></div></div>
+      <div class="j7-sol"><i class="j7-ligne6"></i><i class="j7-ligne7"></i></div><div class="j7-ballon"></div></div>
+    <div class="j7-jauge" aria-hidden="true"><i class="j7-vert"></i><i class="j7-rouge"></i><i class="j7-niveau"></i><small>Puissance</small></div>
+    <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro');
+  Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0});
+  el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button')) toucherJet7m(); });
+  nouveauTir();
+}
+function fermerJet7m() { cancelAnimationFrame(J7.raf); J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function nouveauTir() {
+  const el = J7.el, n = J7.tirs.length;
+  el.querySelector('.j7-score').textContent = `Tir ${n + 1}/${J7.limite} · ${J7.tirs.filter(x => x === 'but').length} but${J7.tirs.filter(x => x === 'but').length > 1 ? 's' : ''}`;
+  el.querySelector('.j7-resultat').hidden = true; el.querySelector('.j7-bas').innerHTML = '';
+  el.classList.remove('puissance', 'tir', 'r-but', 'r-rate');
+  for (const q of ['.j7-gardien', '.j7-ballon', '.j7-filet']) { const x = el.querySelector(q); x.getAnimations().forEach(a => a.cancel()); x.style.transform = ''; }
+  el.querySelector('.j7-aide').textContent = 'Touche pour viser';
+  Object.assign(J7, {phase: 'visee', t0: performance.now(), periodeV: Math.max(.8, 1.3 - n * .1), periodeP: Math.max(.75, 1.05 - n * .06), visee: .5, puissance: 0});
+  cancelAnimationFrame(J7.raf);
+  const tri = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };   // va-et-vient de 0 à 1
+  const boucle = now => {
+    const t = (now - J7.t0) / 1000;
+    if (J7.phase === 'visee') { J7.visee = tri(t, J7.periodeV); el.querySelector('.j7-visee').style.left = (J7.visee * 100) + '%'; }
+    if (J7.phase === 'puissance') { J7.puissance = tri(t, J7.periodeP); el.querySelector('.j7-niveau').style.bottom = (J7.puissance * 100) + '%'; }
+    if (J7.phase === 'visee' || J7.phase === 'puissance') J7.raf = requestAnimationFrame(boucle);
+  };
+  el.querySelector('.j7-niveau').style.bottom = '0%';
+  J7.raf = requestAnimationFrame(boucle);
+}
+function toucherJet7m() {
+  if (J7.phase === 'visee') {
+    J7.phase = 'puissance'; J7.t0 = performance.now(); vibrer(10);
+    J7.el.classList.add('puissance'); J7.el.querySelector('.j7-aide').textContent = 'Touche pour tirer';
+    cancelAnimationFrame(J7.raf);
+    const tri = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
+    const boucle = now => { if (J7.phase !== 'puissance') return; J7.puissance = tri((now - J7.t0) / 1000, J7.periodeP);
+      J7.el.querySelector('.j7-niveau').style.bottom = (J7.puissance * 100) + '%'; J7.raf = requestAnimationFrame(boucle); };
+    J7.raf = requestAnimationFrame(boucle);
+  } else if (J7.phase === 'puissance') {
+    J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20);
+    J7.el.classList.add('tir'); J7.el.querySelector('.j7-aide').textContent = '';
+    const v = Math.round(J7.visee * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
+    Compte.tirer7m(v, f).then(r => animerTir(r, v, f)).catch(e => { toast(e.message); fermerJet7m(); });
+  }
+}
+function animerTir(r, v, f) {
+  const el = J7.el; if (!el) return;
+  J7.tirs = r.tirs; J7.gains += r.pieces + r.bonus;
+  const but = el.querySelector('.j7-but').getBoundingClientRect(), ballon = el.querySelector('.j7-ballon'), b0 = ballon.getBoundingClientRect();
+  // point visé dans le but : haut si la puissance est bonne, au milieu sinon ; au-dessus de la barre si trop fort
+  // le dessin suit le résultat du serveur : arrêt = le gardien va au ballon ; but alors qu'il a deviné = au-dessus des bras, ou entre les jambes au centre
+  const devine = r.resultat === 'but' && r.gardien === r.zone;
+  const hauteur = r.resultat === 'dessus' ? -.25 : devine ? (r.zone === 'c' ? .86 : .1) : f > .6 ? .3 : .6;
+  const x = but.left + but.width * (r.resultat === 'poteau' ? (v < .5 ? 0 : 1) : v), y = but.top + but.height * hauteur;
+  const dx = x - (b0.left + b0.width / 2), dy = y - (b0.top + b0.height / 2), vite = moinsAnim() ? 0 : 1;
+  const gardien = el.querySelector('.j7-gardien');
+  const cote = r.resultat === 'arret' ? r.zone : r.gardien, court = devine && cote !== 'c';
+  const plongeon = {g: `translate(${court ? -40 : -62}%, 8%) rotate(${court ? -45 : -62}deg)`, d: `translate(${court ? 40 : 62}%, 8%) rotate(${court ? 45 : 62}deg)`,
+    c: devine ? 'translateY(-14%) scale(1.04)' : 'translateY(-6%) scale(1.06)'}[cote];
+  gardien.animate([{transform: 'none'}, {transform: plongeon}], {duration: 360 * vite, delay: 60 * vite, easing: 'cubic-bezier(.2, .8, .3, 1)', fill: 'forwards'});
+  const frames = [{transform: 'translate(0, 0) scale(1)'}, {transform: `translate(${dx}px, ${dy}px) scale(.42)`}];
+  if (r.resultat === 'arret') frames.push({transform: `translate(${dx + (v < .5 ? -1 : 1) * 70}px, ${dy + 90}px) scale(.5)`, opacity: .6});
+  if (r.resultat === 'poteau') frames.push({transform: `translate(${dx + (v < .5 ? -1 : 1) * 60}px, ${dy + 40}px) scale(.4)`, opacity: .5});
+  if (r.resultat === 'dessus') frames.push({transform: `translate(${dx * 1.2}px, ${dy - 80}px) scale(.3)`, opacity: 0});
+  const a = ballon.animate(frames, {duration: (r.resultat === 'but' ? 380 : 620) * vite, easing: 'cubic-bezier(.25, .7, .4, 1)', fill: 'forwards'});
+  a.finished.then(() => {
+    if (!J7.el) return;
+    if (r.resultat === 'but') el.querySelector('.j7-filet').animate([{transform: 'scale(1)'}, {transform: 'scale(1.04, 1.07)'}, {transform: 'scale(1)'}], {duration: 360 * vite});
+    const [titre, cls] = RES7[r.resultat];
+    el.classList.add('r-' + cls);
+    vibrer(r.resultat === 'but' ? [30, 40, 60] : 40);
+    const box = el.querySelector('.j7-resultat');
+    box.innerHTML = `<b>${titre}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
+    box.hidden = false;
+    const n = J7.tirs.length, buts = J7.tirs.filter(t => t === 'but').length;
+    el.querySelector('.j7-score').textContent = `Tir ${n}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
+    el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large j7-suivant">Tir suivant</button>`
+      : `<p class="j7-bilan">${buts} sur ${J7.limite} · +${nb(J7.gains)} pièces</p><button class="btn gold large j7-fin">Fermer</button>`;
+    el.querySelector('.j7-suivant')?.addEventListener('click', e => { e.stopPropagation(); nouveauTir(); });
+    el.querySelector('.j7-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
+  });
+}
 
 // ── intro : le logo du club au milieu, 10 cartes autour ; on touche le logo, les cartes s'envolent ─────
 // Une fois par jour (?intro dans l'adresse pour la revoir). Le jeu se charge et s'affiche dessous pendant ce temps.
