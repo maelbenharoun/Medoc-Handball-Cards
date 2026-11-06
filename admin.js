@@ -430,11 +430,14 @@ function chargerPhoto() {
   dessiner(); majPhoto();
   if (!src) return;
   const img = new Image();
+  // photo déjà publiée (stockage Supabase, autre adresse) : demandée avec CORS, sinon le cadre serait « contaminé »
+  // et le navigateur refuserait d'enregistrer ensuite toute nouvelle photo (elle disparaissait à l'enregistrement)
+  if (!src.startsWith('data:') && !src.startsWith('blob:')) img.crossOrigin = 'anonymous';
   img.onload = () => { if (!ed) return; ed.img = img; ed.cadre = {z: 1, x: 50, y: 50}; dessiner(); majPhoto(); };
   img.src = local(src);
 }
-function dessiner() {
-  const cv = $('#cadre'), x = cv.getContext('2d');
+function dessiner(cv = $('#cadre')) {
+  const x = cv.getContext('2d');
   x.clearRect(0, 0, PHOTO_L, PHOTO_H);   // fond transparent (damier dessiné par la page)
   if (!ed.img) return;
   const {z, x: px, y: py} = ed.cadre, w = ed.img.naturalWidth, h = ed.img.naturalHeight;
@@ -448,7 +451,15 @@ function majPhoto() {
 let rafPhoto = 0;
 function photoDepuisCadre() {
   cancelAnimationFrame(rafPhoto);
-  rafPhoto = requestAnimationFrame(() => { dessiner(); ed.photos[ed.palier] = exporterPhoto($('#cadre')); majEditeur(); });
+  rafPhoto = requestAnimationFrame(() => {
+    dessiner();
+    // la photo enregistrée est dessinée dans un cadre neuf : jamais bloquée par une ancienne photo affichée
+    const cv = document.createElement('canvas'); cv.width = PHOTO_L; cv.height = PHOTO_H;
+    dessiner(cv);
+    try { ed.photos[ed.palier] = exporterPhoto(cv); }
+    catch (e) { console.error(e); toast('Cette photo ne peut pas être recadrée : choisis à nouveau le fichier'); return; }
+    majEditeur();
+  });
 }
 function retirerPhoto() {
   delete ed.photos[ed.palier];

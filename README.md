@@ -6,6 +6,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 
 ## Ce qu'on peut faire
 
+- **Intro du jour** : à la première ouverture de la journée, le logo du club au milieu et 10 cartes autour (`INTRO_CARTES` dans `app.js`) ;
+  toucher le logo fait s'envoler les cartes et ouvre le jeu (ou la connexion). `?intro` dans l'adresse pour la revoir.
 - **Cartes à 4 paliers**, avec le même pouvoir pour tous les joueurs : Bronze 50 → 59, Argent 60 → 74, Or 75 → 89, Ultime 90 → 99.
   Une carte arrive au bas de son palier ; chaque palier a sa photo. Les 6 stats (Tir, Passes, Défense, Mental, Physique, Vitesse ;
   Réflexes, Placement, Relance… pour les gardien·ne·s) gardent la forme du vrai joueur.

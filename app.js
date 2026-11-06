@@ -776,12 +776,87 @@ $('.brand').addEventListener('click', () => {
   if (++route.taps >= 5) location.href = 'admin.html';
 });
 
+// ── intro : le logo du club au milieu, 10 cartes autour ; on touche le logo, les cartes s'envolent ─────
+// Une fois par jour (?intro dans l'adresse pour la revoir). Le jeu se charge et s'affiche dessous pendant ce temps.
+const INTRO_CARTES = [   // [carte, palier, note, place autour du logo : 0 = en haut, puis dans le sens des aiguilles d'une montre]
+  ['wassia-donzow', 'ultime', 96, 0], ['julie-valentin', 'ultime', 92, 5], ['amandine-faugerolles', 'or', 87, 2], ['lilian-clet', 'or', 83, 7],
+  ['ingrid-cnudde', 'argent', 66, 1], ['cecilia-ennelin', 'argent', 64, 6], ['mael-benharoun', 'argent', 62, 3], ['yohann-besnard', 'argent', 61, 8],
+  ['victoire-grivet', 'bronze', 53, 4], ['sebastien-schumi', 'bronze', 52, 9]];
+const CLE_INTRO = 'mhc-intro';
+const INTRO = {el: null, parti: false, demande: false, pret: false};
+const jourLocal = () => new Date().toLocaleDateString('sv');   // AAAA-MM-JJ, à l'heure du téléphone
+function introDuJour() {
+  const p = new URLSearchParams(location.search);
+  if (p.has('intro')) return true;
+  if (/access_token|type=|error=/.test(location.hash)) return false;   // retour d'un lien de connexion ou de confirmation
+  try { if (localStorage.getItem(CLE_INTRO) === jourLocal()) return false; localStorage.setItem(CLE_INTRO, jourLocal()); } catch (e) {}
+  return true;
+}
+function ouvrirIntro() {
+  if (!introDuJour()) return;
+  const el = document.createElement('div');
+  el.id = 'intro'; el.className = 'intro';
+  el.innerHTML = `<div class="intro-cartes"></div>
+    <button class="intro-logo" aria-label="Lancer le jeu"><img src="assets/logo.png" alt="Médoc Handball"></button>
+    <p class="intro-tap">Touche le logo</p>
+    <button class="intro-passer">Passer</button>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro');
+  el.querySelector('.intro-logo').addEventListener('click', sortieIntro);
+  el.querySelector('.intro-passer').addEventListener('click', sortieIntro);
+  INTRO.el = el;
+}
+// Les cartes arrivent une fois le catalogue chargé et leurs photos prêtes (2,5 s au plus)
+function cartesIntro() {
+  if (!INTRO.el || INTRO.parti) return;
+  const W = innerWidth, H = innerHeight, w = Math.round(Math.max(72, Math.min(W * .25, H * .17, 170))), h = w / .69;
+  const cartes = INTRO_CARTES.filter(([id]) => PAR_ID[id]).map(([id, palier, note, place]) => ({c: vueExemplaire(PAR_ID[id], {palier, note}), place}));
+  const photos = cartes.map(x => x.c.photo).filter(Boolean).map(src => new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = src; }));
+  Promise.race([Promise.all(photos), new Promise(r => setTimeout(r, 2500))]).then(() => {
+    if (INTRO.parti) return;
+    INTRO.el.querySelector('.intro-cartes').innerHTML = cartes.map(({c, place}, i) => {
+      const a = [-90, -50, -15, 15, 50, 90, 130, 165, 195, 230][place] * Math.PI / 180;   // autour du logo, sur une ellipse qui suit l'écran, plus serrée sur les côtés
+      const x = Math.min(W - w / 2 + 6, Math.max(w / 2 - 6, W / 2 + Math.cos(a) * W * .39));
+      const y = Math.min(H - h / 2 - 8, Math.max(h / 2 + 8, H / 2 + Math.sin(a) * H * .37));
+      const r = Math.round((Math.cos(a) * 9 + ((place * 7) % 5) - 2) * 10) / 10;   // penchées vers l'extérieur
+      return `<div class="intro-carte" style="left:${x}px;top:${y}px;--i:${i};--r:${r}deg;--d:${3.4 + (place % 4) * .45}s">
+        <div class="ic-a"><div class="ic-f">${carteHTML(c).replace('class="card', `style="--w:${w}px" class="card`)}</div></div></div>`;
+    }).join('');
+    INTRO.pret = true;
+    if (INTRO.demande) sortieIntro();
+  });
+}
+function sortieIntro() {
+  const el = INTRO.el;
+  if (!el || INTRO.parti) return;
+  if (!INTRO.pret && !INTRO.demande) { INTRO.demande = true; el.classList.add('attente'); setTimeout(() => { INTRO.pret = true; sortieIntro(); }, 1800); return; }
+  INTRO.parti = true;
+  vibrer(25);
+  const fin = () => { el.remove(); INTRO.el = null; document.body.classList.remove('avec-intro'); };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.animate([{opacity: 1}, {opacity: 0}], {duration: 250, fill: 'forwards'}).onfinish = fin; return; }
+  el.classList.add('sortie');
+  const W = innerWidth, H = innerHeight, loin = Math.max(W, H) * 1.25;
+  el.querySelectorAll('.intro-carte').forEach((c, i) => {
+    const b = c.getBoundingClientRect(), dx = b.left + b.width / 2 - W / 2, dy = b.top + b.height / 2 - H / 2, n = Math.hypot(dx, dy) || 1;
+    const tourne = (dx >= 0 ? 1 : -1) * (25 + (i % 3) * 12);
+    c.animate([{transform: 'translate(-50%, -50%)'},
+               {transform: `translate(-50%, -50%) translate(${dx / n * -14}px, ${dy / n * -14}px) scale(1.04)`, offset: .18},
+               {transform: `translate(-50%, -50%) translate(${dx / n * loin}px, ${dy / n * loin}px) rotate(${tourne}deg) scale(1.15)`}],
+      {duration: 720, delay: (i % 5) * 35, easing: 'cubic-bezier(.5, 0, .75, .2)', fill: 'forwards'});
+  });
+  el.querySelector('.intro-logo').animate([{transform: 'scale(1)', opacity: 1}, {transform: 'scale(.88)', opacity: 1, offset: .2}, {transform: 'scale(1.5)', opacity: 0}],
+    {duration: 650, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards'});
+  el.animate([{opacity: 1}, {opacity: 1, offset: .45}, {opacity: 0}], {duration: 900, fill: 'forwards'}).onfinish = fin;
+}
+ouvrirIntro();
+
 // ── démarrage ───────────────────────────────────────────────────────────────────
 Compte.surChangement(() => { if ($('#overlay').hidden) route(); else majEntete(); });
 Compte.demarrer().then(info => {
   CARTES = info.cartes; CARTES.forEach(c => PAR_ID[c.id] = c);
   MAJ = info.maj ? new Date(info.maj).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'}) : '';
   route();
+  cartesIntro();
   if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
   else if (info.horsLigne) toast('Hors ligne : ton club reste consultable');
@@ -789,6 +864,7 @@ Compte.demarrer().then(info => {
 }).catch(e => {
   console.error(e);
   $('#view').innerHTML = '<h1>Oups</h1><p class="sub">Impossible de joindre le serveur du jeu. Vérifie ta connexion et recharge la page.</p>';
+  INTRO.pret = true; if (INTRO.demande) sortieIntro();
 });
 
 // En ligne (https) : toujours. En local : seulement avec ?sw dans l'adresse, pour tester le hors-ligne

@@ -16,3 +16,5 @@
 - Seule dépendance autorisée : `supabase-js` (version fixée dans `serveur.js`, chargée depuis jsDelivr en mode serveur).
 - Après une modification des fichiers servis, changer `VERSION` dans `sw.js` pour que les téléphones récupèrent la nouvelle version, et mettre le même numéro dans les `?v=` des fichiers appelés par `index.html` et `admin.html` (sinon le navigateur garde l'ancienne version jusqu'à 10 minutes).
 - Tester sur une largeur de téléphone (390 px) avant de pousser.
+- Intro du jour (`ouvrirIntro`/`sortieIntro` dans `app.js`) : 10 cartes choisies par Maël dans `INTRO_CARTES` (carte, palier, note, place autour du logo), stats au niveau de la carte comme dans le jeu. Une fois par jour (`localStorage` « mhc-intro »), `?intro` pour la forcer.
+- Outil, photos : une photo déjà publiée (stockage Supabase) est chargée avec `crossOrigin` et la photo enregistrée est dessinée dans un canvas neuf ; sinon le canvas est « contaminé » et `toDataURL` échoue (la photo disparaissait à l'enregistrement).
