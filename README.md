@@ -104,7 +104,7 @@ Il écrit `data/face.json` : statistiques d'équipes seulement (classement, nive
 Rien à faire : l'action GitHub **resultats** (`.github/workflows/resultats.yml`, lundi et jeudi à 3 h 17 UTC) lit les scores et
 les horaires des 4 poules sur ffhandball.fr (`scripts/resultats_ffhb.py`) et met à jour `data/matchs.json`. Le serveur relit ce
 fichier à 5 h et 7 h UTC (pg_cron et pg_net, fin de `supabase/schema.sql`), met les matchs à jour et paie les paris gagnants.
-Les probabilités des matchs à venir restent celles de `scripts/export_cartes.py` (à relancer de temps en temps).
+Les cotes et les fiches des matchs suivent le site tout seuls : l'action GitHub **site** (`.github/workflows/site.yml`, toutes les heures) relit la page publique de medochandballstats.com et, dès qu'il a été republié, refait `data/matchs.json` et `data/face.json` (`scripts/depuis_site.py`, sans jamais effacer un score déjà connu). Le serveur relit le fichier toutes les 3 h ; il ne paie que les matchs d'avant le lundi de la semaine, donc le lundi matin.
 Pour lancer l'action à la main : onglet Actions du dépôt → resultats → Run workflow.
 
 ## Tester en local

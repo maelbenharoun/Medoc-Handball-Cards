@@ -121,7 +121,7 @@ def main():
     print("\n".join(changes) or "rien de nouveau")
     if changes and not essai:
         d["maj"] = date.today().isoformat()
-        d["matchs"].sort(key=lambda m: (m["date"], m.get("heure") or "", m["equipe"]))
+        d["matchs"].sort(key=lambda m: (m["date"], m.get("heure") or "", m["equipe"], m["rid"]))
         FICHIER.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"{len(changes)} changements → {FICHIER}")
 

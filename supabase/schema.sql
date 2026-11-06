@@ -1536,11 +1536,14 @@ begin
 end $$;
 
 -- Règle les paris des matchs qui ont un résultat (appelé à chaque envoi des matchs par l'outil)
-create or replace function regler_paris() returns int language plpgsql security definer set search_path = public as $$
+-- règle les paris des matchs joués ; p_avant : seulement les matchs d'avant cette date (la synchro automatique ne paie
+-- que les matchs d'avant le lundi de la semaine : les paris sont payés le lundi matin)
+drop function if exists regler_paris();
+create or replace function regler_paris(p_avant date default null) returns int language plpgsql security definer set search_path = public as $$
 declare x record; n int := 0; gagne boolean;
 begin
   for x in select pa.*, issue(m) as res from paris pa join matchs m on m.rid = pa.rid
-      where pa.statut = 'en_cours' and m.score_dom is not null and m.score_ext is not null for update of pa loop
+      where pa.statut = 'en_cours' and m.score_dom is not null and m.score_ext is not null and (p_avant is null or m.date < p_avant) for update of pa loop
     gagne := x.choix = x.res;
     update paris set statut = case when gagne then 'gagne' else 'perdu' end, gain = case when gagne then floor(x.mise * x.cote) else 0 end,
       regle_le = now() where id = x.id;
@@ -1907,7 +1910,8 @@ begin
 end $$;
 
 -- Vrais matchs (data/matchs.json) : ajout ou mise à jour, puis règlement des paris dont le résultat est connu
-create or replace function maj_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+drop function if exists maj_matchs(jsonb);
+create or replace function maj_matchs(p_matchs jsonb, p_regler_avant date default null) returns jsonb language plpgsql security definer set search_path = public as $$
 declare n int; regles int;
 begin
   if jsonb_typeof(p_matchs) <> 'array' then raise exception 'Liste de matchs invalide'; end if;
@@ -1924,7 +1928,7 @@ begin
       p2 = case when excluded.score_dom is null then excluded.p2 else coalesce(matchs.p2, excluded.p2) end,
       score_dom = excluded.score_dom, score_ext = excluded.score_ext, forfait = excluded.forfait, maj = now();
   n := jsonb_array_length(p_matchs);
-  regles := regler_paris();
+  regles := regler_paris(p_regler_avant);
   return jsonb_build_object('matchs', n, 'parisRegles', regles);
 end $$;
 create or replace function admin_publier_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -1937,8 +1941,10 @@ begin
 end $$;
 
 -- Paiement automatique des paris (demande de Maël : « le lundi matin, les paris gagnants payés tout seuls ») :
--- l'action GitHub « resultats » lit les scores sur ffhandball.fr (lundi et jeudi, très tôt) et met à jour data/matchs.json
--- dans le dépôt ; le serveur relit ce fichier (pg_net) puis met à jour les matchs et règle les paris (pg_cron, en bas du fichier).
+-- l'action GitHub « resultats » lit les scores sur ffhandball.fr (lundi et jeudi, très tôt) et l'action « site » reprend les
+-- cotes de medochandballstats.com dès qu'il est republié ; toutes deux mettent à jour data/matchs.json dans le dépôt.
+-- Le serveur relit ce fichier toutes les 3 h (pg_net, pg_cron en bas du fichier) : matchs et cotes à jour, et paiement des
+-- paris des matchs d'avant le lundi de la semaine (donc le lundi matin, ou le jour suivant si le lundi a échoué).
 -- Le fichier n'est modifiable que par le dépôt : personne ne peut envoyer de faux scores. Fonctions internes (pas accordées au jeu).
 create table if not exists synchro_matchs (
   id bigserial primary key, demande bigint, demande_le timestamptz not null default now(),
@@ -1962,7 +1968,7 @@ begin
   if not found then return null; end if;   -- pas encore arrivée : on réessaiera au passage suivant
   begin
     if rep.status_code <> 200 then raise exception 'réponse %', rep.status_code; end if;
-    r := maj_matchs(rep.content::jsonb -> 'matchs');
+    r := maj_matchs(rep.content::jsonb -> 'matchs', date_trunc('week', aujourdhui())::date);   -- paie les matchs d'avant ce lundi
   exception when others then r := jsonb_build_object('erreur', sqlerrm);
   end;
   update synchro_matchs set lu_le = now(), resultat = r where id = s.id;
@@ -2016,16 +2022,16 @@ to authenticated;
 -- Écarts des cartes déjà publiées : remis à la nouvelle règle (sans effet s'ils le sont déjà)
 select normaliser_ecarts();
 
--- Paiement des paris le lundi matin : demande du fichier des matchs à 5 h et 7 h (UTC : 6 h et 8 h l'hiver à Paris,
--- 7 h et 9 h l'été), lecture 5 minutes après, et toutes les 10 minutes du lundi matin si une demande attend encore.
--- Le jeudi aussi, pour suivre les matchs déplacés. Seulement sur Supabase (pg_cron et pg_net) : ignoré ailleurs.
+-- Synchro des matchs toutes les 3 h (UTC) : demande du fichier, lecture 5, 15 et 25 minutes après (la réponse arrive en quelques
+-- secondes). Les scores du lundi (action « resultats » à 3 h 17 UTC) sont relus à 6 h UTC : paris payés vers 7 h l'hiver à Paris.
+-- Seulement sur Supabase (pg_cron et pg_net) : ignoré ailleurs.
 do $cron$
 begin
   if exists (select 1 from pg_available_extensions where name = 'pg_cron') and exists (select 1 from pg_available_extensions where name = 'pg_net') then
     create extension if not exists pg_net;
     create extension if not exists pg_cron;
-    perform cron.schedule('mhc-matchs-demande', '0 5,7 * * 1,4', 'select public.synchro_matchs_demander()');
-    perform cron.schedule('mhc-matchs-lecture', '5-55/10 5-8 * * 1,4', 'select public.synchro_matchs_lire()');
+    perform cron.schedule('mhc-matchs-demande', '0 */3 * * *', 'select public.synchro_matchs_demander()');
+    perform cron.schedule('mhc-matchs-lecture', '5,15,25 */3 * * *', 'select public.synchro_matchs_lire()');
   end if;
 end $cron$;
 -- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue

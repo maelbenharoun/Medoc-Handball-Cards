@@ -1,12 +1,12 @@
 name: resultats
 # Scores et horaires des matchs à parier, lus sur ffhandball.fr (scripts/resultats_ffhb.py) : lundi et jeudi à 3 h 17 UTC.
-# Le serveur relit data/matchs.json à 5 h et 7 h UTC et paie les paris gagnants (pg_cron, supabase/schema.sql).
+# Le serveur relit data/matchs.json toutes les 3 h et paie le lundi matin les paris des matchs de la semaine passée (pg_cron).
 on:
   schedule:
     - cron: '17 3 * * 1,4'
   workflow_dispatch:
 concurrency:
-  group: resultats
+  group: donnees-matchs
   cancel-in-progress: false
 permissions:
   contents: write

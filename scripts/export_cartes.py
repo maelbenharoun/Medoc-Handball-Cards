@@ -285,7 +285,7 @@ def main(src):
     out.write_text(json.dumps({"saison": "2026-2027", "maj": date.today().isoformat(), "cartes": cartes},
                               ensure_ascii=False, indent=1), encoding="utf-8")
     sortie = out.parent / "matchs.json"
-    liste = sorted(matchs.values(), key=lambda m: (m["date"], m.get("heure") or "", m["equipe"]))
+    liste = sorted(matchs.values(), key=lambda m: (m["date"], m.get("heure") or "", m["equipe"], m["rid"]))
     sortie.write_text(json.dumps({"maj": date.today().isoformat(), "matchs": liste}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(liste)} matchs → {sortie}")
     racine = src.resolve().parents[2]
