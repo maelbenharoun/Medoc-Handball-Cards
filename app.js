@@ -201,10 +201,10 @@ function fiche(carte) {
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">
-    <h3>${esc(c.nom)} <small>${c.equipe} · ${nomsPostes(c)}</small></h3>
+    <h3>${esc(c.nom)} <small>${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
     <div class="paliers">${paliers}</div>
-    <div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
+    <div class="fiche-j">${ficheHTML(c.fiche) || `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 

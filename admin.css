@@ -51,3 +51,18 @@
 .filters.tri span { color: var(--muted); font-size: .85rem; font-weight: 700; flex: none; }
 .rows .groupe { margin: 10px 0 2px; font-size: .95rem; font-weight: 800; }
 .rows .groupe small { color: var(--muted); font-weight: 700; }
+
+/* éditeur de la fiche du joueur */
+#fiche-ed { display: flex; flex-direction: column; gap: 10px; }
+#fiche-ed textarea { resize: vertical; font: inherit; }
+.fe-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+.fe-sec.off, .fe-l.off { opacity: .5; }
+.fe-tete { display: flex; gap: 6px; align-items: center; }
+.fe-tete .champ { margin: 0; font-weight: 800; flex: 1; min-width: 0; }
+.fe-l { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.fe-l .champ { margin: 0; padding: 8px 10px; font-size: .88rem; min-width: 0; }
+.fe-l textarea, .fe-l .fe-b { grid-column: 1 / -1; }
+.fe-l.modif .champ { border-color: var(--accent); }
+.fe-b { display: flex; gap: 14px; flex-wrap: wrap; }
+.fe-b .lien { padding: 0; font-size: .8rem; }
+.fe-ajout { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }

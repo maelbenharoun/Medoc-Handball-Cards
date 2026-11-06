@@ -457,3 +457,21 @@ h2 { font-size: 1.05rem; font-weight: 800; margin: 26px 0 10px; letter-spacing: 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* fiche du joueur : stats du site (export_cartes.py) et réglages de l'outil */
+.fiche-j { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+.f-intro { margin: 0; font-size: .92rem; line-height: 1.45; color: var(--ink); }
+.f-sec h4 { margin: 0 0 6px; font-size: .95rem; font-weight: 800; }
+.f-l { margin: 0; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+.f-l > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 12px; background: var(--bg2); }
+.f-l > div + div { border-top: 1px solid var(--line); }
+.f-l dt { color: var(--muted); font-size: .85rem; min-width: 0; }
+.f-l dd { margin: 0; font-weight: 800; font-size: .9rem; text-align: right; font-variant-numeric: tabular-nums; }
+.f-l dd.court { white-space: nowrap; flex: none; }   /* « Victoire 38-31 · 8 buts » sur une ligne */
+.f-l dd small { display: block; color: var(--muted); font-weight: 600; font-size: .75rem; }
+.f-fun { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.f-fun > div { padding: 10px 12px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--line); min-width: 0; }
+.f-fun > div:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* nombre impair : la dernière prend toute la largeur */
+.f-fun small { display: block; color: var(--accent); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.f-fun b { display: block; font-size: 1.6rem; font-weight: 900; line-height: 1.1; margin: 2px 0; }
+.f-fun p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.35; }

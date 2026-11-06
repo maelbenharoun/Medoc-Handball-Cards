@@ -114,8 +114,32 @@ function fusionnerCarte(c0, p = {}) {
   const ok = n => Number.isInteger(n) && n >= 0 && n <= 99;
   const numero = ok(p.numero) ? p.numero : ok(c0.numero) ? c0.numero : null;
   const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null, numero,
-    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length)};
+    fiche: ficheDe(c0.fiche, p.fiche),
+    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length || p.fiche)};
   return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
+}
+// Fiche d'un joueur : les sections tirées des stats du site (export_cartes.py) + ce que l'outil y change.
+// auto : [{id, titre, style: 'lignes' | 'fun', lignes: [{id, l, v, d?}]}]
+// f (réglages.fiche) : {intro, titres: {section: titre}, caches: [id de section ou « section.ligne »],
+//   lignes: {« section.ligne »: {l?, v?, d?}}, ajouts: [{s, id, l, v, d?}], sections: [{id, titre, style}]}
+// Les lignes non touchées suivent les stats du site à chaque mise à jour.
+function ficheDe(auto, f) {
+  f = f || {};
+  const caches = new Set(f.caches || []), modif = f.lignes || {};
+  const secs = [...(auto || []).map(s => ({...s, auto: true, lignes: s.lignes.map(x => ({...x, auto: true}))})),
+    ...(f.sections || []).map(s => ({id: s.id, titre: s.titre || '', style: s.style === 'fun' ? 'fun' : 'lignes', lignes: []}))];
+  for (const a of f.ajouts || []) secs.find(s => s.id === a.s)?.lignes.push({id: a.id, l: a.l || '', v: a.v || '', d: a.d || '', ajout: true});
+  return {intro: f.intro || '', sections: secs.map(s => ({...s, titre: f.titres?.[s.id] ?? s.titre, cache: caches.has(s.id),
+    lignes: s.lignes.map(x => { const k = s.id + '.' + x.id, m = modif[k] || {};
+      return {...x, cle: k, l: m.l ?? x.l, v: m.v ?? x.v, d: m.d ?? x.d ?? '', modifie: x.auto && !!modif[k], cache: caches.has(k)}; })}))};
+}
+// La fiche affichée dans le jeu (sans ce qui est masqué)
+function ficheHTML(fi) {
+  if (!fi) return '';
+  const secs = fi.sections.filter(s => !s.cache).map(s => ({...s, lignes: s.lignes.filter(x => !x.cache && (x.l || x.v))})).filter(s => s.lignes.length);
+  return (fi.intro ? `<p class="f-intro">${esc(fi.intro)}</p>` : '') + secs.map(s => `<section class="f-sec"><h4>${esc(s.titre)}</h4>${s.style === 'fun'
+    ? `<div class="f-fun">${s.lignes.map(x => `<div><small>${esc(x.l)}</small><b>${esc(x.v)}</b>${x.d ? `<p>${esc(x.d)}</p>` : ''}</div>`).join('')}</div>`
+    : `<dl class="f-l">${s.lignes.map(x => `<div><dt>${esc(x.l)}</dt><dd${String(x.v).length <= 26 ? ' class="court"' : ''}>${esc(x.v)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</dd></div>`).join('')}</dl>`}</section>`).join('');
 }
 // Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99
 function statsAuNiveau(c, note) {

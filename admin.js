@@ -260,7 +260,7 @@ function ouvrir(id) {
   const p = appliquerBrouillon(PERSO, BROUILLON)[id] || {}, c = fusionnerCarte(PAR_ID[id], p);
   // postes réglés à la main (le premier = principal) ; vide = valeur par défaut (GB pour un gardien du site)
   ed = {id, postes: Array.isArray(p.postes) ? [...p.postes] : p.poste ? [p.poste] : [], stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
-    numero: Number.isInteger(p.numero) ? p.numero : null,
+    numero: Number.isInteger(p.numero) ? p.numero : null, fiche: JSON.parse(JSON.stringify(p.fiche || {})),
     photos: {...(p.photos || {})}, photo: p.photo || null, palier: 'bronze', img: null, cadre: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
@@ -276,9 +276,14 @@ function ouvrir(id) {
       <button class="btn ghost petit" data-act="sansphoto">Retirer</button>
       <div id="reglages-photo"></div></div></div>
     <p class="note-photo">Une photo par palier (sinon celle du palier en dessous). Seulement avec l’accord de la personne (de ses parents si elle est mineure) : le jeu est public.</p>
+    <h4>Fiche du joueur <button class="lien" data-fi-tout>Tout remettre comme le site</button></h4>
+    <p class="sub petit">Ce que le jeu montre quand on touche la carte. Tout se change : texte, intitulés, valeurs, lignes et sections en plus, ou masqués.
+      Une ligne que tu ne touches pas suit les stats du site à chaque mise à jour. Uniquement des infos sportives (pas d’adresse, d’école, de date de naissance…).</p>
+    <div id="fiche-ed"></div>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="enregistrer">Enregistrer</button></div>
   </div>`;
   $('#numero').value = ed.numero ?? '';
+  majFiche();
   // sans numéro réglé à la main, la carte prend celui des feuilles de match
   $('#numero').placeholder = Number.isInteger(PAR_ID[id].numero) ? `Feuilles de match : ${PAR_ID[id].numero}` : 'Ex. 10';
   chargerPhoto();
@@ -292,7 +297,78 @@ function entree() {
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
   if (Object.keys(ed.photos).length) r.photos = {...ed.photos};
   if (ed.photo) r.photo = ed.photo;
+  const f = ficheNette(ed.fiche);
+  if (f) r.fiche = f;
   return Object.keys(r).length ? r : null;
+}
+
+// ── fiche du joueur : ed.fiche ne garde que ce qui diffère des stats du site (voir ficheDe dans cartes.js) ──
+function ficheNette(f) {
+  const r = {};
+  if (f.intro?.trim()) r.intro = f.intro.trim().slice(0, 800);
+  if (f.titres && Object.keys(f.titres).length) r.titres = f.titres;
+  if (f.caches?.length) r.caches = [...new Set(f.caches)];
+  if (f.lignes && Object.keys(f.lignes).length) r.lignes = f.lignes;
+  if (f.sections?.length) r.sections = f.sections;
+  if (f.ajouts?.length) r.ajouts = f.ajouts;
+  return Object.keys(r).length ? r : null;
+}
+const ficheAuto = () => PAR_ID[ed.id].fiche || [];
+function majFiche() {
+  const fi = ficheDe(ficheAuto(), ed.fiche), a = v => esc(v ?? '');
+  $('#fiche-ed').innerHTML = `<label class="lab">Présentation (facultatif)<textarea class="champ" rows="3" maxlength="800" data-fi-intro
+      placeholder="Ex. Capitaine de la SF1, au club depuis les moins de 11 ans.">${a(fi.intro)}</textarea></label>`
+    + fi.sections.map(sec => `<div class="fe-sec${sec.cache ? ' off' : ''}">
+      <div class="fe-tete"><input class="champ" data-fi-titre="${a(sec.id)}" value="${a(sec.titre)}" placeholder="Titre de la section">
+        <button class="btn ghost petit" data-fi-cache="${a(sec.id)}">${sec.cache ? 'Afficher' : 'Masquer'}</button>
+        ${sec.auto ? '' : `<button class="btn ghost petit" data-fi-suppr-sec="${a(sec.id)}">Supprimer</button>`}</div>
+      ${sec.lignes.map(x => `<div class="fe-l${x.cache ? ' off' : ''}${x.modifie ? ' modif' : ''}">
+        <input class="champ" data-fi-champ="l" data-fi-cle="${a(x.cle)}" value="${a(x.l)}" placeholder="Intitulé">
+        <input class="champ" data-fi-champ="v" data-fi-cle="${a(x.cle)}" value="${a(x.v)}" placeholder="Valeur">
+        ${sec.style === 'fun' || x.d ? `<textarea class="champ" rows="2" data-fi-champ="d" data-fi-cle="${a(x.cle)}" placeholder="Phrase">${a(x.d)}</textarea>` : ''}
+        <div class="fe-b">${x.modifie ? `<button class="lien" data-fi-reset="${a(x.cle)}">↺ Valeur du site</button>` : ''}
+          <button class="lien" data-fi-cache="${a(x.cle)}">${x.cache ? 'Afficher' : 'Masquer'}</button>
+          ${x.ajout ? `<button class="lien" data-fi-suppr="${a(x.cle)}">Supprimer</button>` : ''}</div></div>`).join('')}
+      <button class="lien" data-fi-ajout="${a(sec.id)}">+ Ajouter une ligne</button></div>`).join('')
+    + `<p class="fe-ajout"><button class="btn ghost petit" data-fi-sec="lignes">+ Section de lignes</button>
+      <button class="btn ghost petit" data-fi-sec="fun">+ Section « stats rigolotes »</button></p>`;
+}
+function ficheSaisie(t) {
+  const f = ed.fiche;
+  if (t.dataset.fiIntro !== undefined) { f.intro = t.value; return; }
+  if (t.dataset.fiTitre !== undefined) {
+    const id = t.dataset.fiTitre, ajoutee = (f.sections || []).find(x => x.id === id), auto = ficheAuto().find(x => x.id === id);
+    if (ajoutee) ajoutee.titre = t.value;
+    else { f.titres = f.titres || {}; if (auto && t.value === auto.titre) delete f.titres[id]; else f.titres[id] = t.value; }
+    return;
+  }
+  const cle = t.dataset.fiCle, champ = t.dataset.fiChamp;
+  const [sid, ...reste] = cle.split('.'), lid = reste.join('.');
+  const ajout = (f.ajouts || []).find(x => x.s === sid && x.id === lid);
+  if (ajout) { ajout[champ] = t.value; return; }
+  const auto = ficheAuto().find(x => x.id === sid)?.lignes.find(x => x.id === lid) || {};
+  f.lignes = f.lignes || {};
+  const m = {...(f.lignes[cle] || {})};
+  if (t.value === (auto[champ] ?? '')) delete m[champ]; else m[champ] = t.value;
+  if (Object.keys(m).length) f.lignes[cle] = m; else delete f.lignes[cle];
+}
+function ficheClic(t) {
+  const f = ed.fiche, d = t.dataset;
+  if (d.fiTout !== undefined) { if (confirm('Effacer tous tes changements de la fiche et reprendre les stats du site ?')) ed.fiche = {}; }
+  else if (d.fiCache) { const c = new Set(f.caches || []); c.has(d.fiCache) ? c.delete(d.fiCache) : c.add(d.fiCache); f.caches = [...c]; }
+  else if (d.fiReset) { if (f.lignes) delete f.lignes[d.fiReset]; }
+  else if (d.fiSuppr) { const [sid, ...r] = d.fiSuppr.split('.'); f.ajouts = (f.ajouts || []).filter(x => !(x.s === sid && x.id === r.join('.'))); }
+  else if (d.fiSupprSec) {
+    if (!confirm('Supprimer cette section et ses lignes ?')) return;
+    f.sections = (f.sections || []).filter(x => x.id !== d.fiSupprSec); f.ajouts = (f.ajouts || []).filter(x => x.s !== d.fiSupprSec);
+  }
+  else if (d.fiAjout) (f.ajouts = f.ajouts || []).push({s: d.fiAjout, id: 'a' + unique(), l: '', v: ''});
+  else if (d.fiSec) {
+    const id = 's' + unique();
+    (f.sections = f.sections || []).push({id, titre: d.fiSec === 'fun' ? 'Stats rigolotes' : 'Nouvelle section', style: d.fiSec});
+    (f.ajouts = f.ajouts || []).push({s: id, id: 'a' + unique(), l: '', v: ''});
+  }
+  majFiche();
 }
 const local = u => PHOTOS_LOCALES[u] || u;
 function carteEd() {
@@ -435,10 +511,11 @@ async function validerReglages() {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier]');
+  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier],[data-fi-tout],[data-fi-cache],[data-fi-reset],[data-fi-suppr],[data-fi-suppr-sec],[data-fi-ajout],[data-fi-sec]');
   if (!t) { if (e.target.id === 'overlay' && !ed) fermer(); return; }   // l'éditeur ne se ferme pas par erreur
   const a = t.dataset.act;
   if (t.dataset.ed) return ouvrir(t.dataset.ed);
+  if (ed && Object.keys(t.dataset).some(k => /^fi[A-Z]/.test(k))) return ficheClic(t);
   if (t.dataset.filtre) { filtre = t.dataset.filtre; return vue(); }
   if (t.dataset.fposte) { filtrePoste = t.dataset.fposte; return vue(); }
   if (t.dataset.tri) { tri = t.dataset.tri; return vue(); }
@@ -463,6 +540,7 @@ document.addEventListener('input', e => {
   if (t.dataset.recherche !== undefined) { recherche = t.value; return majListe(); }
   if (!ed) return;
   if (t.dataset.stat) return changerStat(t.dataset.stat, t.value, t);
+  if (t.dataset.fiIntro !== undefined || t.dataset.fiTitre !== undefined || t.dataset.fiCle) return ficheSaisie(t);
   if (t.id === 'numero') { ed.numero = t.value === '' ? null : borne(+t.value, 0, 99); return majApercu(); }
   if (t.dataset.cadre) { ed.cadre[t.dataset.cadre] = t.dataset.cadre === 'z' ? t.value / 100 : +t.value; return photoDepuisCadre(); }
 });

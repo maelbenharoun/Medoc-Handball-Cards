@@ -7,7 +7,7 @@ même formule que la carte FUT du site (fonction FUT de template2.html.txt).
 Usage :
     python scripts/export_cartes.py ../handball-pronos/medoc/pipeline/teams
 
-Sortie : data/cartes.json (noms, notes et numéro de maillot uniquement, aucun numéro de licence)
+Sortie : data/cartes.json (noms, notes, numéro de maillot et fiche de stats sportives, aucun numéro de licence)
          data/matchs.json (calendrier et résultats des poules SG1, SG2, SF1, SF2, pour les paris du jeu)
          data/adversaires.json (vraies équipes par niveau du parcours : noms de clubs seulement).
 """
@@ -17,6 +17,8 @@ import sys
 import unicodedata
 from datetime import date
 from pathlib import Path
+
+from fiches import fiche, valeurs_club
 
 EQUIPES = ["sg1", "sg2", "sf1", "sf2"]
 
@@ -250,6 +252,7 @@ def main(src):
                 "bpm": round(p.get("bpm") or 0, 1),
                 "record": p.get("max") or 0,
                 "recrue": bool(p.get("recrue")),
+                "_p": p,
             }
             # Une seule carte par personne : l'équipe où elle a le plus joué
             old = par_nom.get(carte["id"])
@@ -257,6 +260,13 @@ def main(src):
                 par_nom[carte["id"]] = carte
 
     cartes = sorted(par_nom.values(), key=lambda c: (-c["ovr"], c["nom"]))
+    # fiche de chaque joueur (stats du site, toutes ses saisons au club, stats rigolotes)
+    jf = src.parent / "joueurs.json"
+    joueurs = json.loads(jf.read_text(encoding="utf-8"))["joueurs"] if jf.exists() else {}
+    club = valeurs_club(joueurs, {})
+    for c in cartes:
+        c["fiche"] = fiche(c, c.pop("_p"), joueurs.get(c["id"]), club)
+    print(f"fiches : {sum(len(c['fiche']) > 1 for c in cartes)}/{len(cartes)} avec leur carrière au club")
     nums = numeros(src.parent / "fdm.json", rids, cartes)
     for c in cartes:
         c["numero"] = nums.get(c["id"])
