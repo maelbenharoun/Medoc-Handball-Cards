@@ -92,6 +92,8 @@ function route(garderDefilement) {
   $('#view').innerHTML = VUES[v]();
   if (!garderDefilement) window.scrollTo(0, 0);
   observerScenes(); echelleScenes();
+  // une musique par partie du jeu : Accueil, Club et Équipe, Jouer, Social
+  Son.theme({club: 'club', equipe: 'club', jouer: 'jouer', social: 'social'}[ONGLET[v] || v] || 'accueil');
   minuteur();
 }
 function majEntete() {
@@ -171,11 +173,12 @@ function vueAccueil() {
   const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixPoste = PARAMS.booster_poste_prix || 300;
   const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
   const i = CARROUSEL.i, n = BOOSTERS_POSTE.length;
-  const voisins = [-1, 0, 1].map(d => (i + d + n) % n);
-  const carrousel = voisins.map((k, j) => {
-    const [poste, carte, palier] = BOOSTERS_POSTE[k], nbJ = CARTES.filter(c => c.actif !== false && c.poste === poste).length;
-    return `<button class="car-it ${['gauche', 'centre', 'droite'][j]}" data-car="${k}" aria-label="Booster ${POSTE_NOM[poste]}"${j === 1 ? ' aria-current="true"' : ''}>
-      ${sachetHTML({theme: 'pk-poste', nom: POSTE_NOM[poste], sous: `${nbJ} joueur${nbJ > 1 ? 's' : ''}`, photo: photoSachet(carte, palier), poste, pw: j === 1 ? 168 : 118})}</button>`;
+  // les 7 sachets sont là, placés en cercle par transform (seuls le choisi et ses deux voisins se voient) : en changeant de
+  // poste, ils tournent avec une animation, et suivent le doigt pendant qu'on glisse (placerCarrousel)
+  const carrousel = BOOSTERS_POSTE.map(([poste, carte, palier], k) => {
+    const nbJ = CARTES.filter(c => c.actif !== false && c.poste === poste).length;
+    return `<button class="car-it${k === i ? ' centre' : ''}" data-car="${k}" style="${styleCar(ecartCar(k, i))}" aria-label="Booster ${POSTE_NOM[poste]}"${k === i ? ' aria-current="true"' : ''}>
+      ${sachetHTML({theme: 'pk-poste', nom: POSTE_NOM[poste], sous: `${nbJ} joueur${nbJ > 1 ? 's' : ''}`, photo: photoSachet(carte, palier), poste, pw: 168})}</button>`;
   }).join('');
   const [posteSel] = BOOSTERS_POSTE[i], nSel = CARTES.filter(c => c.actif !== false && c.poste === posteSel).length;
   return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
@@ -199,6 +202,36 @@ function vueAccueil() {
       <button class="btn-penche" data-bposte="${posteSel}"${nSel && e.pieces >= prixPoste ? '' : ' disabled'}>Acheter · ${nb(prixPoste)} pièces</button>
       <div class="car-points">${BOOSTERS_POSTE.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
     </section>`;
+}
+// ── carrousel des boosters par poste : place de chaque sachet selon son écart au choisi (d, fractionnaire pendant un glissé)
+const ecartCar = (k, i) => { const n = BOOSTERS_POSTE.length; let d = ((k - i) % n + n) % n; if (d > n / 2) d -= n; return d; };
+function styleCar(d) {
+  const a = Math.min(Math.abs(d), 2), sg = Math.sign(d);
+  const x = sg * (a <= 1 ? a * 79 : 79 + (a - 1) * 70), echelle = 1 - .3 * Math.min(a, 1), r = sg * 8 * Math.min(a, 1);
+  const op = a <= 1 ? 1 - .55 * a : Math.max(0, .45 * (2 - a) / 1);
+  return `transform: translate(-50%, -50%) translateX(${x.toFixed(2)}%) rotate(${r.toFixed(2)}deg) scale(${echelle.toFixed(3)}); opacity: ${op.toFixed(3)};`
+    + ` z-index: ${10 - Math.round(a * 3)}; pointer-events: ${a < 1.5 ? 'auto' : 'none'};`;
+}
+function placerCarrousel(decalage = 0) {
+  document.querySelectorAll('.carrousel .car-it').forEach(el => {
+    const d = ecartCar(+el.dataset.car, CARROUSEL.i) + decalage;
+    el.style.cssText = styleCar(d);
+    el.classList.toggle('centre', !decalage && d === 0); el.toggleAttribute('aria-current', !decalage && d === 0);
+  });
+}
+// un autre poste choisi : les sachets tournent jusqu'à leur place ; le titre, le bouton d'achat et les points suivent
+function choisirCarrousel(k) {
+  const n = BOOSTERS_POSTE.length, sc = $('.carrousel');
+  CARROUSEL.i = ((k % n) + n) % n;
+  if (!sc) return route(true);
+  placerCarrousel();
+  const [poste] = BOOSTERS_POSTE[CARROUSEL.i], nSel = CARTES.filter(c => c.actif !== false && c.poste === poste).length, prix = PARAMS.booster_poste_prix || 300;
+  const scene = sc.closest('.scene-b');
+  scene.querySelector('.scene-t b').textContent = POSTE_NOM[poste];
+  const achat = scene.querySelector('[data-bposte]'); achat.dataset.bposte = poste; achat.disabled = !(nSel && S().pieces >= prix);
+  scene.querySelectorAll('.car-points i').forEach((x, j) => x.classList.toggle('on', j === CARROUSEL.i));
+  sc.querySelector('.car-fl.g').dataset.car = (CARROUSEL.i - 1 + n) % n; sc.querySelector('.car-fl.d').dataset.car = (CARROUSEL.i + 1) % n;
+  Son.jouer('envol');
 }
 // Quêtes du jour : dans une fenêtre, depuis l'icône en haut à droite
 function fenetreQuetes() {
@@ -1316,7 +1349,7 @@ document.addEventListener('click', e => {
   if (a === 'amis') { SOC.amis = null; return panneauAmis(); }
   if (d.ami) return ficheAmi(d.ami);
   if (d.amiMessage) { SOC.conv = null; return conversationAmi(d.amiMessage); }
-  if (d.car !== undefined) { CARROUSEL.i = +d.car; return route(true); }
+  if (d.car !== undefined) return choisirCarrousel(+d.car);
   if (d.echDonne) { SOC.echange.donne = d.echDonne; return fenetreEchange(); }
   if (d.echDemande) { SOC.echange.demande = d.echDemande; return fenetreEchange(); }
   if (d.mfiltre) { MKT.filtre = d.mfiltre; MKT.liste = null; return route(true); }
@@ -1432,12 +1465,22 @@ document.addEventListener('input', e => {
   }
 });
 // carrousel des boosters par poste : glisser vers la gauche ou la droite
+// les sachets suivent le doigt (un sachet par tiers d'écran), puis tournent jusqu'au poste le plus proche
 let glisse = null;
-document.addEventListener('pointerdown', e => { if (e.target.closest('[data-carrousel]')) glisse = {x: e.clientX, y: e.clientY}; });
+const PAS_CAR = () => 133;   // px : l'écart entre deux sachets (79 % de 168 px)
+document.addEventListener('pointerdown', e => { if (e.target.closest('[data-carrousel]')) glisse = {x: e.clientX, y: e.clientY, actif: false}; });
+document.addEventListener('pointermove', e => {
+  if (!glisse) return; const dx = e.clientX - glisse.x, dy = e.clientY - glisse.y;
+  if (!glisse.actif && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { glisse.actif = true; $('.carrousel')?.classList.add('glisse'); }
+  if (glisse.actif) placerCarrousel(dx / PAS_CAR());
+});
+document.addEventListener('pointercancel', () => { if (glisse?.actif) { $('.carrousel')?.classList.remove('glisse'); placerCarrousel(); } glisse = null; });
 document.addEventListener('pointerup', e => {
-  if (!glisse) return; const dx = e.clientX - glisse.x, dy = e.clientY - glisse.y; glisse = null;
-  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
-  const n = BOOSTERS_POSTE.length; CARROUSEL.i = (CARROUSEL.i + (dx < 0 ? 1 : -1) + n) % n; CARROUSEL.sens = dx < 0 ? 1 : -1; route(true);
+  if (!glisse) return; const dx = e.clientX - glisse.x, dy = e.clientY - glisse.y, actif = glisse.actif; glisse = null;
+  $('.carrousel')?.classList.remove('glisse');
+  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) { if (actif) placerCarrousel(); return; }
+  const pas = Math.max(1, Math.round(Math.abs(dx) / PAS_CAR()));
+  choisirCarrousel(CARROUSEL.i + (dx < 0 ? pas : -pas));
   const bloque = ev => { ev.stopPropagation(); ev.preventDefault(); };   // pas de clic sur le sachet juste après un glissé
   document.addEventListener('click', bloque, {capture: true, once: true}); setTimeout(() => document.removeEventListener('click', bloque, {capture: true}), 350);
 });
@@ -1666,7 +1709,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=36').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=37').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

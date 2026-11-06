@@ -1040,16 +1040,15 @@ body.avec-intro { overflow: hidden; }
 .ob { background: radial-gradient(ellipse at 50% 40%, #1d2c50, #0d1322 60%, #07090f); }
 /* carrousel : seulement le booster choisi et ses deux voisins */
 .carrousel { position: relative; width: 100%; height: 270px; touch-action: pan-y; }
-.car-it { position: absolute; top: 50%; padding: 0; border: 0; background: none; transition: transform .35s cubic-bezier(.3, .8, .3, 1), opacity .35s; }
-.car-it.centre { left: 50%; transform: translate(-50%, -50%); z-index: 2; }
+.car-it { position: absolute; top: 50%; left: 50%; padding: 0; border: 0; background: none; will-change: transform, opacity;
+  transition: transform .5s cubic-bezier(.22, .9, .28, 1), opacity .5s; }
+.carrousel.glisse .car-it { transition: none; }
 .car-it.centre::after { content: ""; position: absolute; left: 50%; bottom: -20px; width: 80%; height: 20px; translate: -50% 0; border-radius: 50%; z-index: -1;
   background: radial-gradient(closest-side, rgba(0, 0, 0, .6), transparent); }
-.car-it.gauche { left: 6%; transform: translate(-30%, -46%) rotate(-8deg); opacity: .45; z-index: 1; }
-.car-it.droite { right: 6%; transform: translate(30%, -46%) rotate(8deg); opacity: .45; z-index: 1; }
 .car-it:not(.centre) .sa-holo, .car-it:not(.centre) .ob-brille { display: none; }
 /* scène hors de l'écran : ses animations s'arrêtent (classe posée par app.js) */
 .hors-vue *, .hors-vue *::before, .hors-vue *::after { animation-play-state: paused !important; }
-.car-fl { position: absolute; top: 50%; z-index: 3; width: 36px; height: 36px; margin-top: -18px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .35);
+.car-fl { position: absolute; top: 50%; z-index: 20; width: 36px; height: 36px; margin-top: -18px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .35);
   color: #fff; font-size: 1.4rem; line-height: 1; padding: 0; }
 .car-fl.g { left: 0; } .car-fl.d { right: 0; }
 .car-points { display: flex; gap: 7px; z-index: 1; }
