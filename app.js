@@ -1497,7 +1497,7 @@ function ouvrirJet7m(demo) {
     <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true); Son.ambiance('salle');
+  document.body.classList.add('avec-intro'); Son.discret(true);
   Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0, demo: !!demo});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) { Son.jouer('tap'); toucherJet7m(); } });
@@ -1509,7 +1509,7 @@ function ouvrirJet7m(demo) {
     J7.ctl = ctl; nouveauTir();
   });
 }
-function fermerJet7m() { Son.ambiance(null); Son.discret(false); cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function fermerJet7m() { Son.discret(false); cancelAnimationFrame(J7.raf); cancelAnimationFrame(J7.raf3); J7.salle?.detruire(); J7.salle = J7.ctl = null; J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const vaEtVient = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
 function nouveauTir() {
   const el = J7.el, n = J7.tirs.length, buts = J7.tirs.filter(x => x === 'but').length;
@@ -1598,14 +1598,14 @@ function ouvrirMini(jeu, demo) {
   el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
     <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true); Son.ambiance('salle');
+  document.body.classList.add('avec-intro'); Son.discret(true);
   Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0, serie: [], serieN: 0});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) { Son.jouer('tap'); MJ.toucher(e); } });
   jeux3d().catch(() => {});   // la salle 3D se charge pendant le tuto
   tuto(jeu, el).then(() => { if (MJ.el === el) miniEssai(); });
 }
-function fermerMini() { Son.ambiance(null); Son.discret(false); MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
+function fermerMini() { Son.discret(false); MJ.timers.forEach(clearTimeout); cancelAnimationFrame(MJ.raf); J3?.then(m => m.fermer()).catch(() => {}); MJ.el?.remove(); MJ.el = null; document.body.classList.remove('avec-intro'); route(true); }
 const SERIE = 5;   // l'arrêt réflexe : 5 tirs enchaînés par série
 function scoreMini() {
   const ok = MJ.liste.filter(x => x === MINI[MJ.jeu].succes).length;
@@ -1666,7 +1666,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=35').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=36').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

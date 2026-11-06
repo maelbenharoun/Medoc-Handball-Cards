@@ -1,13 +1,12 @@
 'use strict';
 /* Musique et bruitages du jeu, entièrement synthétisés (Web Audio) : aucun fichier son, aucune bibliothèque.
-   Son.jouer(nom) : un bruitage (voir EFFETS) ; Son.ambiance('salle' | null) : le bruit de la salle pendant les mini-jeux ;
-   Son.discret(true) : la musique baisse (boosters, mini-jeux). Réglages (musique, bruitages) gardés dans le téléphone
+   Son.jouer(nom) : un bruitage (voir EFFETS) ; Son.discret(true) : la musique baisse (boosters, mini-jeux). Réglages (musique, bruitages) gardés dans le téléphone
    (localStorage « mhc-son »). Le son démarre au premier toucher (règle des navigateurs) et se coupe quand l'appli est cachée. */
 const Son = (() => {
   const CLE = 'mhc-son';
   let reg = {musique: true, effets: true};
   try { Object.assign(reg, JSON.parse(localStorage.getItem(CLE) || '{}')); } catch (e) {}
-  let ctx = null, sortie, busMusique, busEffets, reverbe, bruitBlanc, bruitRose, ambianceNoeud = null, discretAvant = false;
+  let ctx = null, sortie, busMusique, busEffets, reverbe, bruitBlanc, bruitRose, discretAvant = false;
   const VOL_MUSIQUE = .15, VOL_EFFETS = .7;
 
   function demarrer() {
@@ -155,30 +154,17 @@ const Son = (() => {
     };
   })();
 
-  function ambiance(quoi) {
-    if (!ctx) return;
-    if (ambianceNoeud) { const g = ambianceNoeud; g.gain.setTargetAtTime(0, ctx.currentTime, .4); setTimeout(() => g.disconnect(), 2000); ambianceNoeud = null; }
-    if (quoi !== 'salle' || !reg.effets) return;
-    // le brouhaha de la salle : bruit rose filtré, qui ondule lentement
-    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
-    s.buffer = bruitRose; s.loop = true; f.type = 'bandpass'; f.frequency.value = 650; f.Q.value = .5;
-    g.gain.value = 0; g.gain.setTargetAtTime(.09, ctx.currentTime, 1);
-    lfo.frequency.value = .13; lg.gain.value = .03; lfo.connect(lg); lg.connect(g.gain);
-    s.connect(f); f.connect(g); g.connect(busEffets); s.start(); lfo.start();
-    ambianceNoeud = g;
-  }
-
+  // pas de brouhaha de fond pendant les mini-jeux (Maël : « on dirait du vent en permanence ») : la musique continue, un peu plus bas
   return {
     jouer(nom) { if (!ctx || !reg.effets || ctx.state !== 'running') return; const e = EFFETS[nom]; if (e) try { e(t0()); } catch (x) { console.warn('son', nom, x); } },
     noms: Object.keys(EFFETS),
-    ambiance,
-    discret(oui) { if (!ctx || oui === discretAvant) return; discretAvant = oui; busMusique.gain.setTargetAtTime(reg.musique ? VOL_MUSIQUE * (oui ? .3 : 1) : 0, ctx.currentTime, .3); },
+    discret(oui) { if (!ctx || oui === discretAvant) return; discretAvant = oui; busMusique.gain.setTargetAtTime(reg.musique ? VOL_MUSIQUE * (oui ? .55 : 1) : 0, ctx.currentTime, .3); },
     get reglages() { return {...reg}; },
     regler(cle, v) {
       reg[cle] = v; try { localStorage.setItem(CLE, JSON.stringify(reg)); } catch (e) {}
       if (!ctx) return;
-      if (cle === 'musique') { busMusique.gain.setTargetAtTime(v ? VOL_MUSIQUE * (discretAvant ? .3 : 1) : 0, ctx.currentTime, .2); if (v) musique.lancer(); else setTimeout(() => !reg.musique && musique.arreter(), 600); }
-      if (cle === 'effets') { busEffets.gain.setTargetAtTime(v ? VOL_EFFETS : 0, ctx.currentTime, .05); if (!v) ambiance(null); }
+      if (cle === 'musique') { busMusique.gain.setTargetAtTime(v ? VOL_MUSIQUE * (discretAvant ? .55 : 1) : 0, ctx.currentTime, .2); if (v) musique.lancer(); else setTimeout(() => !reg.musique && musique.arreter(), 600); }
+      if (cle === 'effets') { busEffets.gain.setTargetAtTime(v ? VOL_EFFETS : 0, ctx.currentTime, .05); }
     },
     get actif() { return !!ctx && ctx.state === 'running'; },
   };
