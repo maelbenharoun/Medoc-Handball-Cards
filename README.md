@@ -11,6 +11,9 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 - **Cartes à 4 paliers**, avec le même pouvoir pour tous les joueurs : Bronze 50 → 59, Argent 60 → 74, Or 75 → 89, Ultime 90 → 99.
   Une carte arrive au bas de son palier ; chaque palier a sa photo. Les 6 stats (Tir, Passes, Défense, Mental, Physique, Vitesse ;
   Réflexes, Placement, Relance… pour les gardien·ne·s) gardent la forme du vrai joueur.
+- **Ouverture des boosters** : le booster flotte ; au toucher, une découpe lumineuse court le long du haut, le rabat est arraché,
+  la lumière prend la couleur du meilleur palier et la carte sort du sachet face cachée (indices équipe → poste → palier pour l'Or et l'Ultime),
+  on la touche pour la retourner, puis « Envoyer au club ». « Tout révéler » pour aller vite.
 - **Boosters** : un booster de départ de 7 joueurs (un par poste), puis un booster gratuit d'un joueur toutes les 30 minutes
   (5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime), et des boosters gagnés en montant de niveau.
 - **Fiche de chaque joueur** (toucher une carte) : sa saison et ses 5 stats rigolotes les plus marquantes (celles des fiches de medochandballstats.com).

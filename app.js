@@ -600,35 +600,218 @@ function ouvrirOverlay(html) { const o = $('#overlay'); o.innerHTML = html; o.hi
 function fermerOverlay() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; route(true); }
 
 // ── ouverture des boosters ──────────────────────────────────────────────────────
-// promesse : action du compte qui renvoie {ids} ; nom et cls : l'emballage montré avant d'ouvrir
+// Mise en scène (même esprit que l'intro) : le booster flotte et brille ; au toucher, une découpe lumineuse court le long
+// du haut, le rabat est arraché, une bouffée de lumière à la couleur du meilleur palier sort, la carte monte du sachet face
+// cachée et vient au centre. Or et Ultime : indices (équipe, poste, palier) avant. On touche la carte pour la retourner,
+// puis « Envoyer au club » la fait filer vers l'onglet Club. Booster de départ : les 7 cartes sortent ensemble.
+const TEINTE = {bronze: '212 140 88', argent: '195 204 214', or: '227 185 74', ultime: '127 211 78'};
+const OB = {};
+const moinsAnim = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function ouvrirBooster(promesse, nom, cls) {
   if (occupe) return;
   const avant = new Set(EX().map(e => e.carte));
   action(promesse, ({ids}) => {
-    ouvrirBooster.res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
+    const res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
       .sort((a, b) => rangEx(a.c.ex, b.c.ex));
-    ouvrirOverlay(`<div class="opening"><button class="bigpack ${cls}" data-act="dechirer" aria-label="Ouvrir le booster">
-        <div class="pack-art" style="position:absolute;inset:0"><img src="assets/logo.png" alt=""><span class="pn">${nom}</span></div></button>
-      <p class="tap">Touche le booster pour l’ouvrir</p></div>`);
+    if (res.length) sceneBooster(res, nom, cls);
   });
 }
-function dechirer() {
-  const res = ouvrirBooster.res, top = res[0].c;
-  $('.bigpack').classList.add('burst'); $('.tap').remove();
-  vibrer(30);
-  setTimeout(() => RARETES.indexOf(top.rarete) >= RARETES.indexOf('or') ? walkout(top, res) : montrer(res), 520);
+const dosHTML = w => `<div class="card dos" style="--w:${w}px"><i class="c-eclat"></i><span class="dos-logo"><img src="assets/logo.png" alt=""></span>
+  <b class="dos-nom">Médoc<br>Hand Cards</b></div>`;
+// une étape d'animation qui se termine tout de suite si on a touché « Tout révéler »
+function obAnim(el, frames, o) {
+  const a = el.animate(frames, {fill: 'forwards', ...o, duration: OB.vite ? 0 : o.duration, delay: OB.vite ? 0 : o.delay || 0});
+  OB.anims.push(a);
+  return a.finished.catch(() => {});
 }
-// Révélation façon « walkout » pour les cartes Or et Ultime : équipe → poste → palier → carte
-function walkout(c, res) {
-  const etapes = [`<div class="clue"><small>ÉQUIPE</small>${c.equipe}</div>`, `<div class="clue"><small>POSTE</small>${posteAffiche(c)}</div>`,
-    `<div class="clue c-${c.rarete}"><small>PALIER</small>${R_LABEL[c.rarete]}</div>`];
-  let i = 0;
-  const pas = () => {
-    if (i < etapes.length) { $('#overlay').innerHTML = `<div class="walk"><div class="rays"></div>${etapes[i]}<p class="tap">Touche pour continuer</p></div>`; vibrer(20); i++; }
-    else { $('#overlay').onclick = null; vibrer([40, 60, 80]); montrer(res); }
-  };
-  pas();
-  setTimeout(() => { $('#overlay').onclick = e => { e.stopPropagation(); pas(); }; }, 50);
+const obPause = ms => OB.vite ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, ms); OB.attentes.push([t, r]); });
+const place = (x, y, s = 1, r = 0) => `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${r}deg) scale(${s})`;
+
+function sceneBooster(res, nom, cls) {
+  const W = innerWidth, H = innerHeight, n = res.length;
+  const pw = Math.round(Math.min(W * .56, H * .33, 240)), ph = pw * 1.45;
+  // places finales : la meilleure carte au centre, les autres autour (booster de départ)
+  const hw = Math.round(n > 1 ? Math.min(W * .5, H * .3, 220) : Math.min(W * .62, H * .4, 260));
+  const ow = Math.round(Math.min(W * .24, H * .145, 140));
+  const cy = H * .46, finales = res.map((r, i) => {
+    if (!i) return {x: W / 2, y: cy, w: hw, r: 0};
+    const a = (-90 + (i - .5) * 360 / (n - 1)) * Math.PI / 180, hh = ow / .69;
+    return {x: Math.min(W - ow / 2 - 6, Math.max(ow / 2 + 6, W / 2 + Math.cos(a) * W * .38)),
+            y: Math.min(H - hh / 2 - 84, Math.max(hh / 2 + 56, cy + Math.sin(a) * H * .34)), w: ow, r: Math.round(Math.cos(a) * 6)};
+  });
+  const el = document.createElement('div');
+  el.className = 'ob';
+  el.style.setProperty('--tc', TEINTE[res[0].c.rarete]);
+  el.style.setProperty('--pw', pw + 'px');
+  el.innerHTML = `<div class="ob-lueur"></div><div class="ob-rayons"></div>
+    <div class="ob-cartes">${res.map((r, i) => `<div class="ob-c" data-i="${i}" style="width:${finales[i].w}px;height:${finales[i].w / .69}px">
+      <div class="ob-flip"><div class="ob-dos">${dosHTML(finales[i].w)}</div>
+      <div class="ob-face">${carteHTML(r.c, {nouveau: r.nouveau}).replace('class="card', `style="--w:${finales[i].w}px" class="card`)}</div></div></div>`).join('')}</div>
+    <button class="ob-pack ${cls}" aria-label="Ouvrir le booster ${esc(nom)}">
+      <span class="ob-corps"><span class="ob-logo"><img src="assets/logo.png" alt=""></span><span class="ob-nom">${esc(nom)}</span>
+        <span class="ob-n">${n > 1 ? n + ' joueurs' : '1 joueur'}</span><span class="ob-brille"></span></span>
+      <span class="ob-bande"><span class="ob-brille"></span></span>
+      <span class="ob-coupe"><i class="ob-trace"></i><i class="ob-etoile"></i></span>
+    </button>
+    <div class="ob-souffle"></div>
+    <p class="ob-aide">Touche le booster pour l’ouvrir</p>
+    <div class="ob-indice" hidden></div>
+    <button class="ob-passer" hidden>Tout révéler</button>
+    <div class="ob-bas"></div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro');
+  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0});
+  // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
+  const packY = cy, s0 = pw * .8;
+  el.querySelectorAll('.ob-c').forEach((c, i) => { c.style.transform = place(W / 2 + (i - (n - 1) / 2) * 2, packY + ph * .07, s0 / finales[i].w); });
+  OB.dansSachet = packY + ph * .07;
+  el.querySelector('.ob-pack').style.top = packY + 'px';
+  el.querySelector('.ob-souffle').style.top = (packY - ph / 2 + ph * .13) + 'px';
+  el.querySelector('.ob-pack').addEventListener('click', e => { e.stopPropagation(); dechirerBooster(); });
+  el.querySelector('.ob-passer').addEventListener('click', e => { e.stopPropagation(); toutReveler(); });
+  el.querySelector('.ob-c[data-i="0"]').addEventListener('click', e => { e.stopPropagation(); toucherHeros(); });
+  el.addEventListener('click', () => { if (OB.etape === 'indices') indiceSuivant(); else if (OB.etape === 'retourner') toucherHeros(); });
+}
+
+async function dechirerBooster() {
+  if (OB.etape !== 'pack') return;
+  OB.etape = 'ouverture';
+  const {el, res, finales, ph} = OB, $o = q => el.querySelector(q), W = innerWidth;
+  if (moinsAnim()) OB.vite = true;
+  $o('.ob-aide').classList.add('cache');
+  $o('.ob-passer').hidden = false;
+  vibrer(15);
+  const pack = $o('.ob-pack');
+  pack.classList.add('ouvre');
+  // 1. le booster se soulève et frissonne
+  await obAnim(pack, [{transform: 'translate(-50%, -50%)'}, {transform: 'translate(-50%, -52%) rotate(-1.5deg) scale(1.04)', offset: .45},
+    {transform: 'translate(-50%, -52%) rotate(1.2deg) scale(1.04)', offset: .62}, {transform: 'translate(-50%, -52%) rotate(-.8deg) scale(1.04)', offset: .8},
+    {transform: 'translate(-50%, -51.5%) rotate(0) scale(1.03)'}], {duration: 520, easing: 'cubic-bezier(.2, .9, .3, 1)'});
+  // 2. la découpe : une étoile file le long du pointillé, avec sa traînée et des étincelles
+  const coupe = $o('.ob-coupe'), lw = coupe.offsetWidth;
+  vibrer(25);
+  obAnim($o('.ob-etoile'), [{transform: 'translate(-50%, -50%) scale(.6)', opacity: 1}, {transform: `translate(${lw}px, 0) translate(-50%, -50%) scale(1.2)`, opacity: 1}], {duration: 280, easing: 'cubic-bezier(.6, 0, .25, 1)'});
+  obAnim($o('.ob-trace'), [{transform: 'scaleX(0)', opacity: 1}, {transform: 'scaleX(1)', opacity: 1}], {duration: 280, easing: 'cubic-bezier(.6, 0, .25, 1)'});
+  if (!OB.vite) etincelles(coupe, lw);
+  await obPause(280);
+  obAnim($o('.ob-etoile'), [{opacity: 1}, {opacity: 0, transform: `translate(${lw}px, 0) translate(-50%, -50%) scale(2.2) rotate(45deg)`}], {duration: 220});
+  obAnim($o('.ob-trace'), [{opacity: 1}, {opacity: 0}], {duration: 320});
+  // 3. le rabat est arraché, la lumière sort à la couleur du meilleur palier
+  vibrer([20, 30, 40]);
+  obAnim($o('.ob-bande'), [{transform: 'none', opacity: 1},
+    {transform: `perspective(700px) translate(${W * .22}px, ${-ph * .55}px) rotate(28deg) rotateX(-150deg) scale(.94)`, opacity: .9, offset: .7},
+    {transform: `perspective(700px) translate(${W * .32}px, ${-ph * .7}px) rotate(36deg) rotateX(-170deg) scale(.9)`, opacity: 0}], {duration: 680, easing: 'cubic-bezier(.3, .6, .4, 1)'});
+  el.classList.add('ouvert');
+  if (!OB.vite) souffle();
+  await obPause(160);
+  // 4. les cartes montent du sachet (cachées par le corps du booster), puis viennent à leur place
+  const cartes = [...el.querySelectorAll('.ob-c')];
+  await Promise.all(cartes.map((c, i) => obAnim(c, [{transform: c.style.transform},
+    {transform: place(W / 2 + (i - (cartes.length - 1) / 2) * 2, OB.dansSachet - ph * .88 - i * 3, OB.pw * .8 / finales[i].w)}],
+    {duration: 560, delay: i * 40, easing: 'cubic-bezier(.25, .8, .35, 1)'})));   // tout entière sortie du sachet avant de passer devant
+  el.classList.add('sorti');   // les cartes passent devant le booster
+  obAnim(pack, [{transform: 'translate(-50%, -51.5%) scale(1.03)', opacity: 1}, {transform: 'translate(-50%, -10%) scale(.9)', opacity: 0}], {duration: 520, easing: 'cubic-bezier(.5, 0, .75, .2)'});
+  await Promise.all(cartes.map((c, i) => {
+    const f = finales[i], d = OB.dansSachet - ph * .88;
+    return obAnim(c, [{transform: place(W / 2, d, OB.pw * .8 / f.w)},
+      {transform: place((W / 2 + f.x) / 2, Math.min(d, f.y) - 40, (OB.pw * .8 / f.w + 1) / 2, f.r * .5), offset: .55},
+      {transform: place(f.x, f.y, 1.045, f.r), offset: .85}, {transform: place(f.x, f.y, 1, f.r)}],
+      {duration: 640, delay: (cartes.length - 1 - i) * 70, easing: 'cubic-bezier(.3, .7, .3, 1)'}).then(() => { c.style.transform = place(f.x, f.y, 1, f.r); });
+  }));
+  // 5. les autres cartes se retournent d'elles-mêmes (de la moins bonne à la meilleure), la meilleure attend
+  for (const c of cartes.slice(1).reverse()) { retourner(c); await obPause(240); }
+  if (RARETES.indexOf(res[0].c.rarete) >= RARETES.indexOf('or') && !OB.vite) { OB.etape = 'indices'; OB.indice = 0; indiceSuivant(); }
+  else attendreRetournement();
+}
+function etincelles(coupe, lw) {
+  for (let i = 0; i < 16; i++) {
+    const t = document.createElement('i'); t.className = 'ob-etincelle'; t.style.left = (lw * i / 15) + 'px'; coupe.appendChild(t);
+    const dx = (Math.random() - .5) * 60, dy = 20 + Math.random() * 70;
+    t.animate([{transform: 'translate(0, 0) scale(1)', opacity: 0}, {opacity: 1, offset: .15}, {transform: `translate(${dx}px, ${dy}px) scale(.3)`, opacity: 0}],
+      {duration: 520 + Math.random() * 300, delay: i * 16, easing: 'cubic-bezier(.2, .6, .4, 1)', fill: 'forwards'}).finished.then(() => t.remove());
+  }
+}
+function souffle() {
+  const s = OB.el.querySelector('.ob-souffle');
+  const anneau = document.createElement('i'); anneau.className = 'ob-anneau'; s.appendChild(anneau);
+  anneau.animate([{transform: 'translate(-50%, -50%) scale(.1)', opacity: 1}, {transform: 'translate(-50%, -50%) scale(2.6)', opacity: 0}], {duration: 700, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'forwards'});
+  for (let i = 0; i < 12; i++) {
+    const r = document.createElement('i'); r.className = 'ob-rai'; s.appendChild(r);
+    const a = -170 + i * (160 / 11) + (Math.random() - .5) * 8, l = 50 + Math.random() * 60;
+    r.animate([{transform: `rotate(${a + 90}deg) translateY(0) scaleY(.2)`, opacity: 1}, {transform: `rotate(${a + 90}deg) translateY(${-l}px) scaleY(1)`, opacity: 0}],
+      {duration: 560 + Math.random() * 200, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'forwards'});
+  }
+  setTimeout(() => s.replaceChildren(), 1000);
+}
+function attendreRetournement() {
+  if (OB.vite) return toucherHeros();
+  OB.etape = 'retourner';
+  OB.el.querySelector('.ob-c[data-i="0"]').classList.add('attente');
+  const a = OB.el.querySelector('.ob-aide'); a.textContent = 'Touche la carte pour la retourner'; a.classList.remove('cache'); a.classList.add('bas');
+}
+// Or et Ultime : équipe → poste → palier, au-dessus de la carte encore cachée
+function indiceSuivant() {
+  const c = OB.res[0].c, box = OB.el.querySelector('.ob-indice');
+  const etapes = [['Équipe', c.equipe], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
+  if (OB.indice >= etapes.length) { box.hidden = true; return attendreRetournement(); }
+  const [l, v] = etapes[OB.indice++];
+  box.hidden = false;
+  box.innerHTML = `<div class="ob-ind${OB.indice === 3 ? ' t-' + c.rarete : ''}"><small>${l}</small>${esc(v)}</div>`;
+  const aide = OB.el.querySelector('.ob-aide'); aide.textContent = 'Touche pour continuer'; aide.classList.remove('cache'); aide.classList.add('bas');
+  OB.el.querySelector('.ob-c[data-i="0"]').classList.add('attente');
+  if (OB.indice === 3) OB.el.classList.add('t-haut');
+  vibrer(20);
+}
+function retourner(c) { c.classList.add('vu'); }
+function toucherHeros() {
+  if (!['retourner', 'indices'].includes(OB.etape) && !OB.vite) return;
+  if (OB.etape === 'indices') { OB.el.querySelector('.ob-indice').hidden = true; }
+  OB.etape = 'fini';
+  const h = OB.el.querySelector('.ob-c[data-i="0"]'), aide = OB.el.querySelector('.ob-aide');
+  aide.classList.add('cache');
+  h.classList.remove('attente');
+  retourner(h);
+  if (RARETES.indexOf(OB.res[0].c.rarete) >= RARETES.indexOf('or')) OB.el.classList.add('t-haut');
+  vibrer(RARETES.indexOf(OB.res[0].c.rarete) >= RARETES.indexOf('or') ? [40, 60, 80] : 30);
+  if (!OB.vite) {   // éclair et onde à la couleur du palier
+    const s = OB.el.querySelector('.ob-souffle'), f = OB.finales[0];
+    s.style.top = f.y + 'px';
+    const o = document.createElement('i'); o.className = 'ob-anneau grand'; s.appendChild(o);
+    o.animate([{transform: 'translate(-50%, -50%) scale(.3)', opacity: .9}, {transform: 'translate(-50%, -50%) scale(3)', opacity: 0}], {duration: 800, delay: 220, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'both'});
+    OB.el.classList.add('eclair');
+  }
+  finBooster();
+}
+function finBooster() {
+  OB.el.querySelector('.ob-passer').hidden = true;
+  const {res} = OB, n = PARAMS.fusion_nombre || 3, h = res[0];
+  const memes = EX().filter(e => e.carte === h.c.id && e.palier === h.c.rarete).length;
+  const nv = res.filter(r => r.nouveau).length;
+  const info = res.length > 1 ? (nv ? `${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}` : 'Déjà dans ton club')
+    : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton club` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
+  OB.el.querySelector('.ob-bas').innerHTML = `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
+  OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); envoyerAuClub(); });
+  OB.el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 500, fill: 'both'});
+}
+function toutReveler() {
+  OB.vite = true;
+  OB.anims.forEach(a => { try { a.finish(); } catch (e) {} });
+  OB.attentes.forEach(([t, r]) => { clearTimeout(t); r(); });
+  if (['indices', 'retourner'].includes(OB.etape)) toucherHeros();
+}
+function envoyerAuClub() {
+  const el = OB.el, cible = document.querySelector('.tabs:not([hidden]) a[data-tab="club"]')?.getBoundingClientRect();
+  const tx = cible ? cible.left + cible.width / 2 : innerWidth / 2, ty = cible ? cible.top + cible.height / 2 : innerHeight + 80;
+  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true);
+    document.querySelector('.tabs a[data-tab="club"]')?.animate([{transform: 'scale(1)'}, {transform: 'scale(1.25)'}, {transform: 'scale(1)'}], {duration: 380}); };
+  el.querySelector('.ob-bas').style.visibility = 'hidden';
+  if (moinsAnim()) { el.animate([{opacity: 1}, {opacity: 0}], {duration: 200, fill: 'forwards'}).onfinish = fin; return; }
+  const cartes = [...el.querySelectorAll('.ob-c')];
+  cartes.forEach((c, i) => c.animate([{transform: c.style.transform, opacity: 1}, {transform: place(tx, ty, .08, 0), opacity: .3}],
+    {duration: 620, delay: i * 45, easing: 'cubic-bezier(.5, 0, .75, .2)', fill: 'forwards'}));
+  el.animate([{opacity: 1}, {opacity: 1, offset: .55}, {opacity: 0}],
+    {duration: 620 + cartes.length * 45, fill: 'forwards'}).onfinish = fin;
+  vibrer(20);
 }
 function montrer(res) {
   const nv = res.filter(r => r.nouveau).length, n = PARAMS.fusion_nombre || 3;
@@ -654,7 +837,6 @@ document.addEventListener('click', e => {
   if (d.slot) return choisir(d.slot);
   if (t.classList.contains('card') && !t.classList.contains('locked')) return fiche(t.dataset.id);
   if (a === 'fermer') return fermerOverlay();
-  if (a === 'dechirer') return dechirer();
   if (a === 'moi') return fenetreCompte();
   if (d.tactique) { JEU.tactique = d.tactique; return route(true); }
   if (d.mfiltre) { MKT.filtre = d.mfiltre; MKT.liste = null; return route(true); }
