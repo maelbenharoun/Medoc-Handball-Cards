@@ -1,15 +1,20 @@
 'use strict';
 /* Médoc Hand Cards — jeu de cartes à collectionner avec les joueurs et joueuses du Médoc Handball.
-   Ce fichier : l'affichage (vues #accueil, #club, #equipe, #jouer, #marche, #paris, connexion, boosters, matchs).
+   Ce fichier : l'affichage (onglets Accueil, Club, Équipe, Jouer, Social ; connexion, boosters, matchs).
    Les cartes (paliers, stats, rendu) sont dans cartes.js, partagé avec l'outil admin.html ;
    le compte du joueur dans serveur.js : toutes les règles sont appliquées par le serveur (supabase/schema.sql). */
 
-// Mon 7 : positions sur le demi-terrain (x, y en %) ; GB réservé aux gardien(ne)s, les autres postes aux joueurs de champ
+// Équipe : les joueurs placés en défense devant leur but (en bas), selon le dispositif choisi (demande de Maël) :
+// 0-6 : les six sur les 6 m ; 1-5 : cinq sur les 6 m et le demi-centre avancé ; 3-3 : arrières et pivot sur les 6 m,
+// ailiers et demi-centre devant, vers 10 m. x, y en mètres : x de −10 (touche gauche) à 10, y depuis notre ligne de but.
 const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien
-const POSTES = [
-  {id: 'AG', x: 12, y: 60}, {id: 'ARG', x: 27, y: 33}, {id: 'DC', x: 50, y: 18},
-  {id: 'ARD', x: 73, y: 33}, {id: 'AD', x: 88, y: 60}, {id: 'PIV', x: 50, y: 57}, {id: 'GB', x: 50, y: 85, gb: true},
-];
+const POSTES = [{id: 'AG'}, {id: 'ARG'}, {id: 'DC'}, {id: 'ARD'}, {id: 'AD'}, {id: 'PIV'}, {id: 'GB', gb: true}];
+const PLACEMENTS = {
+  '06': {AG: [-7.6, 2.1], ARG: [-4.7, 5.8], PIV: [-1.65, 6.9], DC: [1.65, 6.9], ARD: [4.7, 5.8], AD: [7.6, 2.1]},
+  '15': {AG: [-7.6, 2.1], ARG: [-4.3, 6], PIV: [0, 6.9], ARD: [4.3, 6], AD: [7.6, 2.1], DC: [0, 10.9]},
+  '33': {ARG: [-4.6, 5.9], PIV: [0, 6.7], ARD: [4.6, 5.9], AG: [-6.8, 10.3], DC: [0, 11.6], AD: [6.8, 10.3]},
+};
+const TERRAIN_H = 14, TERRAIN_B = 1.8;   // demi-terrain dessiné : jusqu'à 14 m de notre but, et 1,8 m derrière (le but)
 
 // ── état ────────────────────────────────────────────────────────────────────────
 let CARTES = [], PAR_ID = {}, MAJ = '';
@@ -65,7 +70,11 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, marche: vueMarche, paris: vueParis, compte: vueCompte};
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, pieces: vuePieces,
+  social: vueSocial, classement: vueClassement, marche: vueMarche, paris: vueParis, compte: vueCompte};
+// sous-pages : l'onglet qui reste allumé, et le retour
+const ONGLET = {championnat: 'jouer', pieces: 'jouer', classement: 'social', marche: 'social', paris: 'social'};
+const retour = (h, l) => `<a class="retour" href="#${h}">‹ ${l}</a>`;
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
   const v = location.hash.slice(1);
@@ -74,7 +83,7 @@ function vueCourante() {
 function route(garderDefilement) {
   const v = Compte.pret ? vueCourante() : 'compte';   // connexion et profil d'abord
   majEntete();
-  document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v));
+  document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === (ONGLET[v] || v)));
   $('#view').innerHTML = VUES[v]();
   if (!garderDefilement) window.scrollTo(0, 0);
   minuteur();
@@ -86,9 +95,14 @@ function majEntete() {
   moi.hidden = !Compte.pret;
   moi.textContent = S().niveau || 1;
   moi.setAttribute('aria-label', `Mon compte, niveau ${S().niveau || 1}`);
-  const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0)
-    + (S().quetes || []).filter(q => q.progres >= q.objectif && !q.reclamee).length;
+  const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0);
   const pastille = $('#pastille'); pastille.hidden = !n || !Compte.pret; pastille.textContent = n;
+  // quêtes : une icône en haut à droite, avec une pastille quand une récompense attend
+  const q = (S().quetes || []).filter(x => x.progres >= x.objectif && !x.reclamee).length;
+  $('#quetes-b').hidden = !Compte.pret; const pq = $('#pastille-q'); pq.hidden = !q || !Compte.pret; pq.textContent = q;
+  // ami(e)s : la bulle, avec une pastille pour les demandes, les échanges proposés et les messages non lus
+  const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
+  $('#bulle-amis').hidden = !Compte.pret; pa.hidden = !so || !Compte.pret; pa.textContent = so;
   if (Compte.pret) majPieces();
 }
 
@@ -111,49 +125,70 @@ function minuteur() {
     }
   }, 1000);
 }
+// Boosters par poste : un joueur sur chaque sachet (choix de Maël : [poste, carte, palier de la photo])
+const BOOSTERS_POSTE = [['AG', 'norah-de-wilde', 'bronze'], ['ARG', 'maxime-rabut', 'ultime'], ['DC', 'elodie-perez', 'bronze'],
+  ['ARD', 'fabienne-hecho', 'or'], ['AD', 'luigi-bataillon', 'or'], ['PIV', 'zaya-audard', 'bronze'], ['GB', 'yohann-besnard', 'or']];
+const CARROUSEL = {i: 0};
+const photoSachet = (carte, palier) => { const c = PAR_ID[carte]; return c ? c.photos?.[palier] || photoPalier(c, palier) : null; };
+// Fond animé des boosters (accueil et ouverture) : rayons qui tournent, halos colorés, lignes du terrain, ballons qui flottent
+const fondHand = () => `<div class="fond-hand" aria-hidden="true"><i class="fh-rayons"></i><i class="fh-halo h1"></i><i class="fh-halo h2"></i><i class="fh-halo h3"></i>
+  <svg class="fh-terrain" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid slice"><path d="M25 0 A60 60 0 0 0 85 60 H115 A60 60 0 0 0 175 0"/><path class="tir" d="M0 30 A90 90 0 0 0 85 90 H115 A90 90 0 0 0 200 30"/><path d="M95 70 h10"/></svg>
+  <i class="fh-ballon b1"></i><i class="fh-ballon b2"></i><i class="fh-ballon b3"></i><i class="fh-ballon b4"></i>
+  <i class="fh-eclat e1"></i><i class="fh-eclat e2"></i><i class="fh-eclat e3"></i><i class="fh-eclat e4"></i><i class="fh-eclat e5"></i></div>`;
+// Sachet : aluminium brillant aux bords dentelés, reflets holographiques ; un joueur en photo sur les boosters par poste
+function sachetHTML({theme, nom, sous, photo, poste, pw}) {
+  return `<span class="sachet ${theme}${photo ? ' avec-photo' : ''}"${poste ? ` data-p="${poste}"` : ''} style="--pw:${pw}px">${sachetInterieur({nom, sous, photo, poste})}</span>`;
+}
+function sachetInterieur({nom, sous, photo, poste}) {
+  return `<span class="ob-corps"><span class="sa-plis"></span>${photo ? `<img class="sa-photo" src="${esc(photo)}" alt="" loading="lazy">` : ''}
+      <span class="sa-logo"><img src="assets/logo.png" alt=""></span>${poste ? `<span class="sa-poste">${poste}</span>` : ''}
+      <span class="sa-bas"><span class="ob-nom">${esc(nom)}</span><span class="ob-n">${esc(sous)}</span></span>
+      <span class="sa-holo"></span><span class="ob-brille"></span></span>
+    <span class="ob-bande"><span class="sa-marque">Médoc Hand Cards</span><span class="sa-holo"></span><span class="ob-brille"></span></span>`;
+}
 function vueAccueil() {
   const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixPoste = PARAMS.booster_poste_prix || 300;
   const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
-  const quetes = (e.quetes || []).map(q => {
+  const i = CARROUSEL.i, n = BOOSTERS_POSTE.length;
+  const voisins = [-1, 0, 1].map(d => (i + d + n) % n);
+  const carrousel = voisins.map((k, j) => {
+    const [poste, carte, palier] = BOOSTERS_POSTE[k], nbJ = CARTES.filter(c => c.actif !== false && c.poste === poste).length;
+    return `<button class="car-it ${['gauche', 'centre', 'droite'][j]}" data-car="${k}" aria-label="Booster ${POSTE_NOM[poste]}"${j === 1 ? ' aria-current="true"' : ''}>
+      ${sachetHTML({theme: 'pk-poste', nom: POSTE_NOM[poste], sous: `${nbJ} joueur${nbJ > 1 ? 's' : ''}`, photo: photoSachet(carte, palier), poste, pw: j === 1 ? 168 : 118})}</button>`;
+  }).join('');
+  const [posteSel] = BOOSTERS_POSTE[i], nSel = CARTES.filter(c => c.actif !== false && c.poste === posteSel).length;
+  return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
+    <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div></div>
+    ${e.depart === false ? `<div class="daily depart"><p><b>Booster de départ</b>7 joueurs, un à chaque poste : ta première équipe !</p>
+      <button class="btn gold" data-act="depart">Ouvrir</button></div>` : ''}
+    <section class="scene-b">${fondHand()}
+      <button class="sachet-b flotte" data-booster="gratuit"${e.boosters < 1 ? ' disabled' : ''} aria-label="Ouvrir un booster gratuit">
+        ${sachetHTML({theme: 'pk-gratuit', nom: 'Booster', sous: '1 joueur', pw: 172})}<b class="sa-stock">×${e.boosters}</b></button>
+      <div class="scene-t"><b>Booster gratuit</b><small>${e.boosters}/${e.boosterMax} en stock · ${s == null ? 'stock plein' : `prochain dans <span id="minuteur">${mmss(s)}</span>`}</small></div>
+      <button class="btn-penche" data-booster="gratuit"${e.boosters < 1 ? ' disabled' : ''}>${e.boosters ? 'Ouvrir' : 'Bientôt'}</button>
+      ${e.bonus || e.bonusOr ? `<div class="extras">${e.bonus ? `<button class="mini-sachet" data-booster="bonus">${sachetHTML({theme: 'pk-bonus', nom: 'Bonus', sous: '1 joueur', pw: 64})}<span>Bonus ×${e.bonus}</span></button>` : ''}
+        ${e.bonusOr ? `<button class="mini-sachet" data-booster="or">${sachetHTML({theme: 'pk-or', nom: 'Or', sous: 'Or ou Ultime', pw: 64})}<span>Or ×${e.bonusOr}</span></button>` : ''}</div>` : ''}
+    </section>
+    <p class="sub petit centre">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}.</p>
+    <h2>Boosters par poste</h2>
+    <section class="scene-b petite">${fondHand()}
+      <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Poste précédent">‹</button>${carrousel}
+        <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Poste suivant">›</button></div>
+      <div class="scene-t"><b>${POSTE_NOM[posteSel]}</b><small>Un joueur dont c’est le poste principal · mêmes chances</small></div>
+      <button class="btn-penche" data-bposte="${posteSel}"${nSel && e.pieces >= prixPoste ? '' : ' disabled'}>Acheter · ${nb(prixPoste)} pièces</button>
+      <div class="car-points">${BOOSTERS_POSTE.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
+    </section>`;
+}
+// Quêtes du jour : dans une fenêtre, depuis l'icône en haut à droite
+function fenetreQuetes() {
+  const quetes = (S().quetes || []).map(q => {
     const fini = q.progres >= q.objectif;
     return `<div class="quete${q.reclamee ? ' faite' : ''}"><div><b>${esc(q.texte)}</b><small>${q.progres}/${q.objectif} · +${q.xp} XP · +${nb(q.pieces)} pièces</small>
       <div class="bar"><i style="width:${100 * q.progres / q.objectif}%"></i></div></div>
       ${q.reclamee ? '<span class="ok">✓</span>' : fini ? `<button class="btn gold petit" data-quete="${q.id}">Récupérer</button>` : ''}</div>`;
   }).join('');
-  const differentes = new Set(EX().map(x => x.carte)).size;
-  return `<h1>Salut ${esc(e.pseudo)}</h1>
-    ${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
-    <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div>
-      <small>Chaque niveau : des pièces et un booster. Tous les ${PARAMS.niveau_or_tous || 5} niveaux : un booster Or.</small></div>
-    ${e.depart === false ? `<div class="daily depart"><p><b>Booster de départ</b>7 joueurs, un à chaque poste : ton premier 7 !</p>
-      <button class="btn gold" data-act="depart">Ouvrir</button></div>` : ''}
-    <h2>Boosters</h2>
-    <div class="boosters">
-      <button class="booster" data-booster="gratuit"${e.boosters < 1 ? ' disabled' : ''}>
-        <span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.boosters}</b></span>
-        <span class="b-txt"><b>Booster gratuit</b><small>${e.boosters}/${e.boosterMax} en stock · ${s == null ? 'stock plein' : `prochain dans <span id="minuteur">${mmss(s)}</span>`}</small></span>
-      </button>
-      ${e.bonus ? `<button class="booster bonus" data-booster="bonus"><span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.bonus}</b></span>
-        <span class="b-txt"><b>Booster bonus</b><small>Gagné en montant de niveau</small></span></button>` : ''}
-      ${e.bonusOr ? `<button class="booster orr" data-booster="or"><span class="b-art"><img src="assets/logo.png" alt=""><b>×${e.bonusOr}</b></span>
-        <span class="b-txt"><b>Booster Or</b><small>Une carte Or ou Ultime</small></span></button>` : ''}
-    </div>
-    <p class="sub petit">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}. Un booster gratuit toutes les ${PARAMS.booster_minutes || 30} minutes, ${e.boosterMax} au plus en stock.</p>
-    <h2>Boosters par poste</h2>
-    <p class="sub petit">Un joueur dont c’est le poste principal, pour ${nb(prixPoste)} pièces, avec les mêmes chances.</p>
-    <div class="postes-b">${POSTES_JEU.map(p => {
-      const n = CARTES.filter(c => c.actif !== false && c.poste === p).length;
-      return `<button class="bposte" data-bposte="${p}"${n && e.pieces >= prixPoste ? '' : ' disabled'} title="${POSTE_NOM[p]}"><b>${p}</b>
-        <small>${n ? `${n} joueur${n > 1 ? 's' : ''}` : 'aucun'}</small></button>`;
-    }).join('')}</div>
-    <h2>Quêtes du jour</h2>
-    <div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
-    <h2>Ta collection</h2>
-    <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
-    <div class="stat"><b>${EX().length}</b><span>cartes</span></div>
-    <div class="stat"><b>${noteEquipe().note || '–'}</b><span>note Mon 7</span></div></div>
-    <p class="sub petit" style="margin-top:18px">4 paliers pour chaque joueur : ${PALIERS.map(p => `${p.nom} ${p.min}–${p.max}`).join(' · ')}.
-      Entraîne tes cartes pour les faire monter dans leur palier ; 3 fois le même joueur au même palier = 1 au palier suivant.</p>`;
+  ouvrirOverlay(`<div class="sheet"><h3>Quêtes du jour</h3><div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 
 // ── club : la collection ────────────────────────────────────────────────────────
@@ -165,8 +200,14 @@ function vueClub() {
   const mes = vus.filter(c => mesEx(c.id).length).sort((a, b) => rangEx(mesEx(a.id)[0], mesEx(b.id)[0]));
   const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
   const nf = CARTES.filter(c => fusionsPossibles(c.id).length).length;
+  const differentes = new Set(EX().map(x => x.carte)).size;
   return `<h1>Mon club</h1>
-    <p class="sub">${mes.length}/${vus.length} joueurs · ${EX().length} cartes. Touche une carte pour l’entraîner, la fusionner ou la vendre.</p>
+    <h2>Ta collection</h2>
+    <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
+    <div class="stat"><b>${EX().length}</b><span>cartes</span></div>
+    <div class="stat"><b>${noteEquipe().note || '–'}</b><span>note de l’équipe</span></div></div>
+    <p class="sub petit">4 paliers pour chaque joueur : ${PALIERS.map(p => `${p.nom} ${p.min}–${p.max}`).join(' · ')}. Entraîne tes cartes pour les faire monter ;
+      3 fois le même joueur au même palier = 1 au palier suivant. Touche une carte pour l’entraîner, la fusionner ou la vendre.</p>
     <div class="bar"><i style="width:${vus.length ? 100 * mes.length / vus.length : 0}%"></i></div>
     <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${
       e === 'tous' ? 'Toutes' : e === 'fusion' ? `Fusions (${nf})` : e}</button>`).join('')}</div>
@@ -188,7 +229,7 @@ function fiche(carte) {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
     return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
-      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton 7' : ''}${e.verrou ? ' · au marché' : ''}</small>
+      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · au marché' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
         ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
@@ -208,7 +249,7 @@ function fiche(carte) {
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 
-// ── Mon 7 ───────────────────────────────────────────────────────────────────────
+// ── Équipe ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function noteEquipe() {
   const places = POSTES.filter(p => aligne(p.id));
   if (!places.length) return {note: 0, collectif: 0, n: 0, hors: 0};
@@ -220,19 +261,61 @@ function noteEquipe() {
   const collectif = max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;   // bonus quand on aligne des coéquipier(e)s
   return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length, hors};
 }
+// Tactiques (même calcul que tactique_bonus dans schema.sql) : chaque choix s'appuie sur deux stats ; bonus de 2 % pour une
+// équipe moyenne, jusqu'à 10 % si elle est spécialisée dans ces deux stats, 0 % si elle est à l'opposé.
+const TACT_ATT = [['duels', 'Duels', ['tir', 'phy']], ['enclenchement', 'Enclenchement', ['men', 'pas']], ['rapide', 'Jeu rapide', ['def', 'vit']]];
+const TACT_DEF = [['06', '0-6', ['tir', 'def']], ['15', '1-5', ['men', 'phy']], ['33', '3-3', ['pas', 'vit']]];
+const NOM_STAT = Object.fromEntries(STATS_CHAMP.map(([k, , n]) => [k, n]));
+function tactiqueActuelle() {
+  const t = String(S().tactique || ''), m = t.match(/^(duels|enclenchement|rapide):(06|15|33)$/);
+  return m ? {att: m[1], def: m[2], choisie: true} : {att: 'duels', def: '06', choisie: false};
+}
+// moyennes des 6 stats des joueurs de champ alignés (à la note de leur poste, comme le serveur)
+function moyennesEquipe() {
+  const champ = POSTES.filter(p => !p.gb).map(p => [p, aligne(p.id)]).filter(([, c]) => c);
+  if (!champ.length) return null;
+  const m = Object.fromEntries(STATS_CHAMP.map(([k]) => [k, 0]));
+  for (const [p, c] of champ) { const st = statsAuNiveau(c.estGB ? {...c, poste: null} : c, noteAuPoste(c, p.id)); for (const k in m) m[k] += (st[k] || 0) / 6; }
+  return m;
+}
+function bonusTactique(m, stats) {
+  if (!m) return 0;
+  const tout = Object.values(m).reduce((a, b) => a + b, 0) / 6, spe = (m[stats[0]] + m[stats[1]]) / 2 / tout - 1;
+  const base = PARAMS.tactique_bonus_base ?? .02, max = PARAMS.tactique_bonus_max ?? .1, pente = PARAMS.tactique_pente ?? .4;
+  return Math.max(0, Math.min(max, base + pente * spe));
+}
+const pc100 = x => Math.round(x * 100) + ' %';
 function vueEquipe() {
-  const t = noteEquipe();
-  const slots = POSTES.map(p => {
-    const c = aligne(p.id), hors = c && horsPoste(c, p.id);
-    return `<button class="slot" data-slot="${p.id}" style="left:${p.x}%;top:${p.y}%">${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em></button>`;
-  }).join('');
-  return `<h1>Mon 7</h1>
-    <p class="sub">Touche un poste pour aligner une carte de ton club. Hors de son poste, un joueur perd ${MALUS_HORS_POSTE} points ; aligner des coéquipier(e)s de la même équipe donne un bonus collectif.</p>
+  const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
+  const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;
+  const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id);
+    return `${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
+  const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, .95] : pl[p.id];
+    return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
+  // notre demi-terrain aux vraies mesures (20 m de large), notre but en bas : zone des 6 m, 9 m en pointillés, 7 m, 4 m
+  const G = TERRAIN_H, n9 = G - Math.sqrt(81 - 8.5 * 8.5);
+  const terrain = `<svg class="pitch-l" viewBox="-10 0 20 ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path class="zone" d="M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G} Z"/>
+    <path d="M-10 ${G} H10 M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G}"/>
+    <path class="neuf" d="M-10 ${n9} A9 9 0 0 1 -1.5 ${G - 9} H1.5 A9 9 0 0 1 10 ${n9}"/>
+    <path d="M-0.5 ${G - 7} h1 M-0.075 ${G - 4} h.15"/><rect class="but" x="-1.5" y="${G}" width="3" height="1"/></svg>`;
+  const bloc = (liste, cle) => liste.map(([k, nom, st]) => { const b = bonusTactique(m, st), on = T[cle] === k;
+    return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${b >= .06 ? 'fort' : b <= .005 ? 'nul' : ''}">+${pc100(b)}</em></button>`; }).join('');
+  const att = TACT_ATT.find(x => x[0] === T.att), def = TACT_DEF.find(x => x[0] === T.def);
+  return `<h1>Équipe</h1>
+    <p class="sub">Touche un poste pour aligner une carte. Hors de son poste, un joueur perd ${MALUS_HORS_POSTE} points ; des coéquipier(e)s de la même équipe donnent un bonus collectif.</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
-    <div class="pitch">${slots}</div>
+    <div class="pitch">${terrain}<span class="pitch-dispo">Défense ${def[1]}</span>${slots}</div>
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
-    <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement le meilleur 7</button>`;
+    <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
+    <h2>Tactique</h2>
+    ${m ? `<div class="moy-eq">${STATS_CHAMP.map(([k, a]) => `<div><small>${a}</small><b>${Math.round(m[k])}</b><i style="--v:${Math.min(100, m[k])}%"></i></div>`).join('')}</div>
+      <p class="sub petit">Moyennes des stats de tes 6 joueurs de champ. Chaque choix donne un bonus si ton équipe est forte dans ses deux stats :
+        2 % pour une équipe moyenne, jusqu’à 10 % si elle est spécialisée, 0 % si elle est à l’opposé.</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
+    <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
+    <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
+    <p class="sub petit">${T.choisie ? `Tactique : ${att[1]} et ${def[1]}, gardée pour tes matchs (et quand on te défie).` : 'Choisis ton attaque et ton dispositif : ils seront gardés pour tes matchs.'}</p>`;
 }
 function choisir(poste) {
   // un même joueur ne joue qu'une fois : on écarte ceux déjà alignés à un autre poste
@@ -272,48 +355,62 @@ function autoEquipe() {
     if (total > mieux.total) mieux = {total, choix: g ? {GB: g.ex.id, ...t.choix} : t.choix};
   }
   const equipe = mieux.choix;
-  action(Compte.alignerEquipe(equipe), () => { toast('Ton meilleur 7 est aligné'); route(true); });
+  action(Compte.alignerEquipe(equipe), () => { toast('Ta meilleure équipe est alignée'); route(true); });
 }
 
 // ── jouer : championnat, séance, défis ──────────────────────────────────────────
-const TACTIQUES = [['attaque', 'Attaque', 'Plus de buts marqués, mais plus de buts encaissés'], ['equilibre', 'Équilibre', 'Ni trop offensif, ni trop défensif'],
-  ['defense', 'Défense', 'Moins de buts encaissés, mais moins de buts marqués']];
-const JEU = {tactique: null, adversaires: null, rencontres: null, recherche: '', joueurs: [], t: 0, charge: false};
+const JEU = {adversaires: null, rencontres: null, recherche: '', joueurs: [], t: 0, charge: false};
 const RES = {gagne: 'Victoire', nul: 'Match nul', perdu: 'Défaite'};
 function chargerJeu(force) {
   if (JEU.charge || (!force && JEU.adversaires && JEU.rencontres) || Compte.horsLigne) return;
   JEU.charge = true;
   Promise.all([Compte.adversaires(), Compte.rencontres()]).then(([a, r]) => { JEU.adversaires = a; JEU.rencontres = r; })
-    .catch(e => toast(e.message)).finally(() => { JEU.charge = false; if (vueCourante() === 'jouer' && $('#overlay').hidden) route(true); });
+    .catch(e => toast(e.message)).finally(() => { JEU.charge = false; if (vueCourante() === 'championnat' && $('#overlay').hidden) route(true); });
 }
+// Jouer : deux grandes portes, le championnat (matchs, entraînements, défis) et les mini-jeux pour gagner des pièces
 function vueJouer() {
+  const e = S(), j = e.jour || {}, l = e.limites || {}, pc = e.parcours;
+  const restant = k => Math.max(0, (l[k] || 0) - (j[k] || 0));
+  const mj = e.minijeux || {}, essais = ['gardien', 'contre', 'suspension'].reduce((t, k) => t + Math.max(0, (mj.limites?.[k] || 5) - (mj[k] || []).length), 0)
+    + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
+  return `<h1>Jouer</h1>
+    <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
+      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} aujourd’hui · entraînements · défis</small></a>
+    <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
+      <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>`;
+}
+function vueChampionnat() {
   chargerJeu();
-  const e = S(), j = e.jour || {}, l = e.limites || {}, t = JEU.tactique || e.tactique || 'equilibre';
+  const e = S(), j = e.jour || {}, l = e.limites || {};
   const complet = noteEquipe().n === 7, note = noteEquipe().note;
   const restant = (k) => Math.max(0, (l[k] || 0) - (j[k] || 0));
   const adv = (JEU.adversaires || []).map(x => `<div class="adv"><div><b>${esc(x.pseudo)}</b><small>niveau ${x.niveau} · 7 de ${x.note ?? '–'} · ${x.trophees} 🏆</small></div>
     <button class="btn gold petit" data-defier="${esc(x.pseudo)}"${complet && restant('defi') ? '' : ' disabled'}>Défier</button></div>`).join('');
   const histo = (JEU.rencontres || []).slice(0, 8).map(r => `<div class="hist r-${r.resultat}"><b>${r.score ? r.score.join(' – ') : ''}</b>
-    <span>${r.type === 'championnat' ? 'Championnat' : r.type === 'defi' ? 'Défi' : 'Défendu'} · ${esc(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
-  return `<h1>Jouer</h1>
-    ${complet ? '' : '<div class="daily hors"><p><b>Ton 7 n’est pas complet</b>Aligne 7 joueurs dans Mon 7 pour jouer des matchs.</p></div>'}
-    <h2>Tactique</h2>
-    <div class="filters">${TACTIQUES.map(([k, n]) => `<button data-tactique="${k}" class="${t === k ? 'on' : ''}">${n}</button>`).join('')}</div>
-    <p class="sub petit">${TACTIQUES.find(x => x[0] === t)[2]}. Elle sert aussi quand on te défie.</p>
+    <span>${{championnat: 'Championnat', defi: 'Défi', defi_ami: 'Défi ami(e)', defense_ami: 'Défi ami(e) reçu'}[r.type] || 'Défendu'} · ${esc(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
+  const T = tactiqueActuelle(), ta = TACT_ATT.find(x => x[0] === T.att)[1], td = TACT_DEF.find(x => x[0] === T.def)[1];
+  return `${retour('jouer', 'Jouer')}<h1>Championnat</h1>
+    ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
+    <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
     ${blocParcours(e, complet && restant('championnat') > 0, note, restant('championnat'))}
-    ${blocJet7m(e)}
-    ${blocMiniJeux(e)}
     <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
-      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
+      <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton équipe, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
       <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
       <button class="btn gold large" data-act="seance-payante"${e.equipe && Object.keys(e.equipe).length && e.pieces >= (PARAMS.seance_payante_prix || 150) ? '' : ' disabled'}>Séance payante · ${nb(PARAMS.seance_payante_prix || 150)} pièces</button></div>
     <div class="mode"><div class="mode-t"><b>Défis</b><span>${e.trophees || 0} 🏆</span></div>
-      <p class="sub petit">Affronte le 7 d’un autre joueur (il défend avec sa dernière tactique). ${restant('defi')}/${l.defi || 5} défis restants aujourd’hui.</p>
+      <p class="sub petit">Affronte l’équipe d’un autre joueur (il défend avec sa tactique). ${restant('defi')}/${l.defi || 5} défis restants aujourd’hui.</p>
       <input class="champ" type="search" placeholder="Chercher un joueur à défier" value="${esc(JEU.recherche)}" data-cherche-defi autocapitalize="off" autocomplete="off" spellcheck="false">
       <div id="joueurs-defi">${joueursDefi()}</div>
-      ${JEU.adversaires ? (adv || '<p class="sub petit">Pas encore d’adversaire avec un 7 complet.</p>') : '<p class="sub petit">Chargement…</p>'}
-      <button class="lien" data-act="classement">Voir le classement</button></div>
+      ${JEU.adversaires ? (adv || '<p class="sub petit">Pas encore d’adversaire avec une équipe complète.</p>') : '<p class="sub petit">Chargement…</p>'}
+      <button class="lien" data-act="classement">Voir le classement des défis</button></div>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
+}
+function vuePieces() {
+  const e = S();
+  return `${retour('jouer', 'Jouer')}<h1>Gagner des pièces</h1>
+    <p class="sub">Des mini-jeux de hand, chaque jour : de quoi ouvrir des boosters par poste et payer les séances.</p>
+    ${blocJet7m(e)}
+    ${blocMiniJeux(e)}`;
 }
 // ── parcours : poules (Départemental, Régional, National), tournois (International), Légendes ──
 const TOURS = ['Quart de finale', 'Demi-finale', 'Finale'];
@@ -337,7 +434,7 @@ function blocParcours(e, peut, note, reste) {
       <span>${i + 1}</span><b>${esc(x.nom)}</b><small>${x.j}</small><small>${x.bp - x.bc > 0 ? '+' : ''}${x.bp - x.bc}</small><em>${x.pts}</em></div>`).join('');
     corps = `<p class="sub petit">Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. Les ${pc.montee} premiers montent${
         pc.descente ? `, les ${pc.descente} derniers descendent` : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
-      ${pr ? `<div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
+      ${pr ? `<div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
         <div><small>${esc(pr.nom)}</small><b>≈ ${pr.force}</b></div></div>` : ''}
       <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la journée ${pc.journee + 1}</button>${resteTxt}
       <div class="classe poule"><div class="tete"><span>#</span><b>Équipe</b><small>J</small><small>Diff.</small><em>Pts</em></div>${lignes}</div>`;
@@ -345,13 +442,13 @@ function blocParcours(e, peut, note, reste) {
     const adv = pc.adversaires || [], a = adv[pc.tour] || {};
     corps = `<p class="sub petit">Élimination directe : 3 victoires pour le titre. Un nul se joue aux tirs au but. Éliminé ? Nouveau tirage, même tournoi.</p>
       <div class="chemin">${adv.map((x, i) => `<div class="${i < pc.tour ? 'fait' : i === pc.tour ? 'ici' : ''}"><small>${TOURS[i] || 'Tour ' + (i + 1)}</small><b>${esc(x.nom)}</b><span>≈ ${x.force}</span></div>`).join('')}</div>
-      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
+      <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
       <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}</button>${resteTxt}`;
   } else {
     const besoin = Math.floor(pc.manches / 2) + 1;
     corps = `<p class="sub petit">Le 7 de rêve : ${(pc.joueurs || []).map(esc).join(', ')}. Série au meilleur des ${pc.manches} manches (${besoin} victoires).
-        Il faut un 7 de cartes Ultime bien entraînées.${pc.legendesBattues ? ` Déjà battues ${pc.legendesBattues} fois.` : ''}</p>
-      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légendes</small><b>≈ ${pc.force}</b></div></div>
+        Il faut une équipe de cartes Ultime bien entraînées.${pc.legendesBattues ? ` Déjà battues ${pc.legendesBattues} fois.` : ''}</p>
+      <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légendes</small><b>≈ ${pc.force}</b></div></div>
       <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la manche ${pc.v + pc.d + 1}</button>${resteTxt}`;
   }
   const palm = (pc.palmares || []).slice(-4).reverse().map(x => `<li>🏆 ${esc(x.titre)} <small>saison ${x.saison}</small></li>`).join('');
@@ -432,7 +529,7 @@ function finMatch() {
   const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join(' · ');
   $('#fin-match').innerHTML = `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
       ${tab ? `<small class="tab">Tirs au but ${tab.a} – ${tab.b} : ${tab.a > tab.b ? 'gagnés' : 'perdus'}</small>` : ''}
-      <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces · +${g.xp} XP${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
+      <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces${g.xp != null ? ` · +${g.xp} XP` : ''}${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
     ${etape ? `<p class="sub petit centre">${esc(etape)}</p>` : ''}
     ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
     ${texteFin(r.fin)}
@@ -462,10 +559,11 @@ function vueMarche() {
         <div class="ann-c"><span>${a.moi ? 'Tu reçois' : 'Tu donnes'}</span>${carteHTML(c)}<small>${esc(c.nom)} · ${R_LABEL[c.rarete]}</small></div></div>
       <p class="ann-p">${a.moi ? 'Ton annonce' : `Proposée par <b>${esc(a.vendeur)}</b>`} · ${fin || 'jusqu’au ' + expire}</p>
       ${a.statut !== 'ouverte' ? '' : a.moi ? `<button class="btn ghost petit" data-retirer-annonce="${a.id}">Retirer</button>`
-        : a.possible ? `<button class="btn gold petit" data-accepter="${a.id}">Accepter l’échange</button>` : '<p class="sub petit">Il te faut cette carte, au même palier, hors de ton 7.</p>'}</div>`;
+        : a.possible ? `<button class="btn gold petit" data-accepter="${a.id}">Accepter l’échange</button>` : '<p class="sub petit">Il te faut cette carte, au même palier, hors de ton équipe.</p>'}</div>`;
   }).join('');
-  return `<h1>Marché des transferts</h1>
-    <p class="sub">Échange une carte contre une carte avec les autres joueurs. Ta carte est réservée tant que l’annonce est ouverte (${PARAMS.annonce_jours || 7} jours au plus).</p>
+  return `${retour('social', 'Social')}<h1>Transferts</h1>
+    <p class="sub">Échange une carte contre une carte du même palier avec les autres joueurs. Ta carte est réservée tant que l’annonce est ouverte (${PARAMS.annonce_jours || 7} jours au plus).
+      Entre ami(e)s, tout est permis : passe par Ami(e)s.</p>
     <button class="btn gold large" data-act="annoncer">Proposer une de mes cartes</button>
     <div class="filters" style="margin-top:14px">${[['tout', 'Toutes'], ['pour_moi', 'Pour moi'], ['mes', 'Mes annonces']]
       .map(([k, l]) => `<button data-mfiltre="${k}" class="${MKT.filtre === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -482,11 +580,11 @@ function composerAnnonce() {
     <h3>Nouvelle annonce</h3>
     <h4>1. Ta carte à proposer</h4>
     <div class="pickgrid">${libres.map(e => `<button class="pc${k.ex === e.id ? ' choisi' : ''}" data-offre="${e.id}">${carteHTML(vue(e))}</button>`).join('')
-      || '<p class="sub">Pas de carte libre : les cartes de ton 7 ne peuvent pas être proposées.</p>'}</div>
+      || '<p class="sub">Pas de carte libre : les cartes de ton équipe ne peuvent pas être proposées.</p>'}</div>
     <h4>2. Ce que tu veux en échange</h4>
     <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(k.recherche)}" data-cherche-carte autocomplete="off" spellcheck="false">
     <div class="veut" id="liste-veut">${listeVeut()}</div>
-    <div class="filters">${PALIERS.map(p => `<button data-palier-veut="${p.id}" class="${k.palier === p.id ? 'on' : ''}">${p.nom}</button>`).join('')}</div>
+    <p class="sub petit">Même palier que ta carte : ${o ? R_LABEL[o.palier] : '–'} (au marché, on n’échange que des cartes de même valeur).</p>
     <div class="resume">${o ? `Tu donnes <b>${esc(PAR_ID[o.carte].nom)} ${R_LABEL[o.palier]} ${o.note}</b>` : 'Choisis ta carte'}
       · ${c ? `tu veux <b>${esc(c.nom)} ${R_LABEL[k.palier]}</b>` : 'choisis le joueur voulu'}</div>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
@@ -527,7 +625,7 @@ function vueParis() {
     return `<div class="hist r-${x.statut === 'gagne' ? 'gagne' : x.statut === 'perdu' ? 'perdu' : 'nul'}"><b>${m.score ? m.score.join(' – ') : nb(x.mise)}</b>
       <span>${esc(m.dom)} – ${esc(m.ext)} · ${esc(issueNom(m, x.choix))} à ${fr(x.cote)}</span><small>${st}</small></div>`;
   }).join('');
-  return `<h1>Paris</h1>
+  return `${retour('social', 'Social')}<h1>Paris</h1>
     <p class="sub">Parie tes pièces sur les vrais matchs des poules SG1, SG2, SF1 et SF2. Les cotes viennent du modèle de pronostic de medochandballstats.com.
       Pièces du jeu seulement : rien à acheter, rien à gagner en vrai.</p>
     <div class="filters">${[['medoc', 'Médoc'], ['tous', 'Tous'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
@@ -550,6 +648,112 @@ function fenetrePari(rid, choix) {
       <button class="btn gold" data-valider-pari="${rid}:${choix}">Parier</button></div></div>`);
 }
 
+// ── social : classement, transferts, paris, ami(e)s ─────────────────────────────
+function vueSocial() {
+  const porte = (h, ic, t, st) => `<a class="porte social" href="#${h}"><span class="porte-ic" aria-hidden="true">${ic}</span><b>${t}</b><small>${st}</small></a>`;
+  return `<h1>Social</h1>
+    <div class="portes">${porte('classement', '🏅', 'Classement', 'Le niveau de poule de chaque joueur')}
+    ${porte('marche', '⇄', 'Transferts', 'Une carte contre une carte du même palier')}
+    ${porte('paris', '🎟️', 'Paris', 'Les vrais matchs du Médoc')}</div>
+    <p class="sub petit">Tes ami(e)s sont dans la bulle en bas à droite : messages, échanges, défis.</p>`;
+}
+const SOC = {classement: null, amis: null, charge: {}, ajout: '', echange: null, panneau: null, conv: null};
+function chargerSoc(cle, f) {
+  if (SOC.charge[cle] || SOC[cle] || Compte.horsLigne) return;
+  SOC.charge[cle] = true;
+  f().then(d => { SOC[cle] = d; }).catch(e => { toast(e.message); SOC[cle] = cle === 'amis' ? {amis: [], recues: [], envoyees: [], echanges: [], restants: 0} : {joueurs: []}; })
+    .finally(() => { SOC.charge[cle] = false; if ([cle].includes(vueCourante()) && $('#overlay').hidden) route(true); });
+}
+function vueClassement() {
+  chargerSoc('classement', () => Compte.classementPoules());
+  const L = SOC.classement?.joueurs;
+  const moi = L ? L.findIndex(x => x.moi) : -1;
+  return `${retour('social', 'Social')}<h1>Classement</h1>
+    <p class="sub">Le niveau de poule de chaque joueur inscrit, du plus haut au plus bas.${moi >= 0 ? ` Tu es <b>${ordinal(moi + 1)}</b>.` : ''}</p>
+    ${!L ? '<p class="sub">Chargement…</p>' : `<div class="classe poules">${L.map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b>
+      <small>${esc(x.groupe === 'Légendes' ? x.nom : x.groupe + ' · ' + x.nom)}</small><em>niv. ${x.niveau}</em></div>`).join('') || '<p class="sub">Personne pour l’instant.</p>'}</div>`}`;
+}
+// Ami(e)s (la bulle) : la liste, puis pour chaque ami(e) : message, échange, défi
+function chargerAmis() { return Compte.mesAmis().then(d => { SOC.amis = d; return d; }); }
+function panneauAmis() {
+  SOC.panneau = 'liste';
+  const A = SOC.amis;
+  if (!A) { ouvrirOverlay(`<div class="sheet amis-p"><h3>Ami(e)s</h3><p class="sub">Chargement…</p></div>`);
+    return chargerAmis().then(() => SOC.panneau === 'liste' && panneauAmis()).catch(e => toast(e.message)); }
+  const recus = A.echanges.filter(x => x.statut === 'ouvert' && !x.moi);
+  ouvrirOverlay(`<div class="sheet amis-p"><h3>Ami(e)s</h3>
+    <form class="ajout-ami" data-form="ami"><input class="champ" name="pseudo" placeholder="Pseudo d’un(e) ami(e)" value="${esc(SOC.ajout)}" autocapitalize="off" autocomplete="off" spellcheck="false" required>
+      <button class="btn gold" type="submit">Ajouter</button></form>
+    ${A.recues.map(p => `<div class="adv"><div><b>${esc(p)}</b><small>veut être ton ami(e)</small></div>
+      <div class="ed-btns"><button class="btn ghost petit" data-repondre-ami="${esc(p)}:0">Refuser</button><button class="btn gold petit" data-repondre-ami="${esc(p)}:1">Accepter</button></div></div>`).join('')}
+    ${recus.length ? `<p class="sub petit">${recus.length} échange${recus.length > 1 ? 's' : ''} proposé${recus.length > 1 ? 's' : ''} : touche l’ami(e) pour répondre.</p>` : ''}
+    <div class="liste-amis">${A.amis.map(x => { const r = recus.some(e => e.de === x.pseudo);
+      return `<button class="ami-l" data-ami="${esc(x.pseudo)}"><i class="ami-av" aria-hidden="true">${esc(x.pseudo[0].toUpperCase())}</i>
+        <span><b>${esc(x.pseudo)}</b><small>${esc(x.nom || '')} · niveau ${x.niveau}</small></span>
+        ${x.nonLus ? `<em class="ami-n">${x.nonLus} message${x.nonLus > 1 ? 's' : ''}</em>` : r ? '<em class="ami-n">échange</em>' : ''}</button>`; }).join('')
+      || '<p class="sub petit">Pas encore d’ami(e) : ajoute un pseudo ci-dessus.</p>'}</div>
+    ${A.envoyees.length ? `<p class="sub petit">En attente de réponse : ${A.envoyees.map(esc).join(', ')}</p>` : ''}
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
+}
+function ficheAmi(pseudo) {
+  SOC.panneau = 'ami'; SOC.ami = pseudo;
+  const A = SOC.amis, x = A.amis.find(y => y.pseudo === pseudo);
+  if (!x) return panneauAmis();
+  const ech = A.echanges.filter(e => e.de === pseudo || e.pour === pseudo).slice(0, 4).map(e => {
+    const o = carteDe(e.offre.carte, e.offre.palier, e.offre.note), c = carteDe(e.cherche.carte, e.cherche.palier, e.cherche.note);
+    if (!o || !c) return '';
+    const fin = {accepte: 'Échange fait', refuse: 'Refusé', annule: 'Annulé'}[e.statut];
+    return `<div class="ann${fin ? ' fini' : ''}"><div class="ann-l">
+        <div class="ann-c"><span>${e.moi ? 'Tu donnes' : 'Tu reçois'}</span>${carteHTML(o)}<small>${esc(o.nom)} · ${R_LABEL[o.rarete]} ${o.ovr}</small></div>
+        <div class="fleche">⇄</div>
+        <div class="ann-c"><span>${e.moi ? 'Tu reçois' : 'Tu donnes'}</span>${carteHTML(c)}<small>${esc(c.nom)} · ${R_LABEL[c.rarete]} ${c.ovr}</small></div></div>
+      <p class="ann-p">${e.moi ? 'Ta proposition' : 'Sa proposition'}${fin ? ' · ' + fin : ''}</p>
+      ${e.statut !== 'ouvert' ? '' : e.moi ? `<button class="btn ghost petit" data-annuler-echange="${e.id}">Annuler</button>`
+        : `<div class="ed-btns"><button class="btn ghost petit" data-repondre-echange="${e.id}:0">Refuser</button><button class="btn gold petit" data-repondre-echange="${e.id}:1">Accepter</button></div>`}</div>`;
+  }).join('');
+  ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-act="amis">‹ Ami(e)s</button>
+    <h3>${esc(pseudo)} <small>${esc(x.nom || '')} · niveau ${x.niveau}</small></h3>
+    <div class="ami-actions">
+      <button class="ami-a" data-ami-message="${esc(pseudo)}"><span aria-hidden="true">💬</span><b>Message</b><small>${x.nonLus ? `${x.nonLus} non lu${x.nonLus > 1 ? 's' : ''}` : 'Écrire'}</small></button>
+      <button class="ami-a" data-proposer="${esc(pseudo)}"${x.echange || !A.restants ? ' disabled' : ''}><span aria-hidden="true">⇄</span><b>Échange</b>
+        <small>${x.echange ? 'Un échange en cours' : A.restants ? `${A.restants}/${A.limite} aujourd’hui` : 'Demain'}</small></button>
+      <button class="ami-a" data-defier-ami="${esc(pseudo)}"${A.defis && x.equipe && noteEquipe().n === 7 ? '' : ' disabled'}><span aria-hidden="true">⚔️</span><b>Défier</b>
+        <small>${!x.equipe ? 'Équipe incomplète' : A.defis ? `${A.defis}/${A.defisLimite} · ${A.defiPieces} pièces au gagnant` : 'Demain'}</small></button></div>
+    ${ech ? `<h4>Échanges</h4>${ech}` : ''}
+    <button class="lien danger" data-retirer-ami="${esc(pseudo)}">Retirer de mes ami(e)s</button></div>`);
+}
+function conversationAmi(pseudo) {
+  SOC.panneau = 'conv'; SOC.ami = pseudo;
+  const C = SOC.conv?.pseudo === pseudo ? SOC.conv : null;
+  ouvrirOverlay(`<div class="sheet amis-p conv"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button><h3>Messages</h3>
+    <div class="fil-msg" id="fil-msg">${C ? C.messages.map(m => `<p class="msg${m.moi ? ' moi' : ''}"><span>${esc(m.texte)}</span>
+      <small>${new Date(m.le).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'})}</small></p>`).join('') || '<p class="sub petit centre">Pas encore de message : dis bonjour !</p>' : '<p class="sub">Chargement…</p>'}</div>
+    <form class="ajout-ami" data-form="message"><input class="champ" name="texte" maxlength="${PARAMS.message_longueur || 300}" placeholder="Ton message" autocomplete="off" required>
+      <button class="btn gold" type="submit">Envoyer</button></form></div>`);
+  const f = $('#fil-msg'); if (f) f.scrollTop = f.scrollHeight;
+  if (!C) Compte.conversation(pseudo).then(c => { SOC.conv = c; if (SOC.panneau === 'conv' && SOC.ami === pseudo) conversationAmi(pseudo); majEntete(); }).catch(e => toast(e.message));
+}
+// après une action d'ami(e)s : on remet à jour ce qui est affiché dans la bulle
+function revoirAmis() { if (SOC.panneau === 'ami') ficheAmi(SOC.ami); else if (SOC.panneau === 'liste') panneauAmis(); }
+// Proposer un échange à un(e) ami(e) : 1) une de mes cartes libres, 2) une des siennes
+function fenetreEchange() {
+  const k = SOC.echange, libres = EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]).sort(rangEx);
+  const siennes = (k.club || []).filter(x => PAR_ID[x.carte]);
+  const o = k.donne && exParId(k.donne), c = k.demande && siennes.find(x => x.id === k.demande);
+  ouvrirOverlay(`<div class="sheet compo"><h3>Échange avec ${esc(k.pseudo)}</h3>
+    <h4>1. Ta carte</h4>
+    <div class="pickgrid">${libres.map(e => `<button class="pc${k.donne === e.id ? ' choisi' : ''}" data-ech-donne="${e.id}">${carteHTML(vue(e))}</button>`).join('')
+      || '<p class="sub">Pas de carte libre : les cartes de ton équipe ne peuvent pas être échangées.</p>'}</div>
+    <h4>2. Sa carte</h4>
+    <div class="pickgrid">${k.club ? siennes.map(x => `<button class="pc${k.demande === x.id ? ' choisi' : ''}" data-ech-demande="${x.id}">${carteHTML(carteDe(x.carte, x.palier, x.note))}</button>`).join('')
+      || '<p class="sub">Pas de carte libre dans son club.</p>' : '<p class="sub">Chargement…</p>'}</div>
+    <div class="resume">${o ? `Tu donnes <b>${esc(PAR_ID[o.carte].nom)} ${R_LABEL[o.palier]} ${o.note}</b>` : 'Choisis ta carte'}
+      · ${c ? `tu reçois <b>${esc(PAR_ID[c.carte].nom)} ${R_LABEL[c.palier]} ${c.note}</b>` : 'choisis la sienne'}</div>
+    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
+      <button class="btn gold" data-act="envoyer-echange"${o && c ? '' : ' disabled'}>Proposer</button></div></div>`);
+  SOC.panneau = 'echange';
+}
+
 // ── connexion et profil ─────────────────────────────────────────────────────────
 let messageCompte = '';
 function vueCompte() {
@@ -560,7 +764,7 @@ function vueCompte() {
     <form class="form" data-form="mdp"><input class="champ" type="password" name="mdp" minlength="8" required autocomplete="new-password" placeholder="Nouveau mot de passe (8 caractères ou plus)">
     <button class="btn gold" type="submit">Enregistrer</button></form>`;
   if (!Compte.connecte) return `<div class="accueil"><img src="assets/logo.png" alt=""><h1>Médoc Hand Cards</h1>
-    <p class="sub">Connecte-toi pour ouvrir tes boosters, entraîner tes joueurs et construire ton 7.</p></div>${msg}
+    <p class="sub">Connecte-toi pour ouvrir tes boosters, entraîner tes joueurs et construire ton équipe.</p></div>${msg}
     <form class="form" data-form="connexion">
       <input class="champ" type="email" name="email" placeholder="E-mail" autocomplete="email" required>
       <input class="champ" type="password" name="mdp" placeholder="Mot de passe (8 caractères ou plus)" autocomplete="current-password" minlength="8" required>
@@ -609,13 +813,13 @@ function fermerOverlay() { const o = $('#overlay'); o.hidden = true; o.innerHTML
 const TEINTE = {bronze: '212 140 88', argent: '195 204 214', or: '227 185 74', ultime: '127 211 78'};
 const OB = {};
 const moinsAnim = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-function ouvrirBooster(promesse, nom, cls) {
+function ouvrirBooster(promesse, nom, cls, deco) {
   if (occupe) return;
   const avant = new Set(EX().map(e => e.carte));
   action(promesse, ({ids}) => {
     const res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
       .sort((a, b) => rangEx(a.c.ex, b.c.ex));
-    if (res.length) sceneBooster(res, nom, cls);
+    if (res.length) sceneBooster(res, nom, cls, deco);
   });
 }
 const dosHTML = w => `<div class="card dos" style="--w:${w}px"><i class="c-eclat"></i><span class="dos-logo"><img src="assets/logo.png" alt=""></span>
@@ -643,10 +847,12 @@ function demoBooster(type) {
     res.push({c: vueExemplaire(c, {palier, note: P.min + Math.floor(Math.random() * (P.max - P.min + 1))}), nouveau: true});
   }
   res.sort((a, b) => RARETES.indexOf(b.c.rarete) - RARETES.indexOf(a.c.rarete) || b.c.ovr - a.c.ovr);
-  sceneBooster(res, type === 'depart' ? 'Départ' : 'Démo', type === 'depart' ? 'pk-depart' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-argent');
+  const bp = type === 'poste' ? BOOSTERS_POSTE[Math.floor(Math.random() * BOOSTERS_POSTE.length)] : null;
+  sceneBooster(res, type === 'depart' ? 'Départ' : bp ? POSTE_NOM[bp[0]] : 'Booster', type === 'depart' ? 'pk-depart' : bp ? 'pk-poste' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-gratuit',
+    bp ? {poste: bp[0], photo: photoSachet(bp[1], bp[2])} : {});
   OB.demo = type || 'hasard';
 }
-function sceneBooster(res, nom, cls) {
+function sceneBooster(res, nom, cls, deco = {}) {
   const W = innerWidth, H = innerHeight, n = res.length;
   const pw = Math.round(Math.min(W * .56, H * .33, 240)), ph = pw * 1.45;
   // places finales : la meilleure carte au centre, les autres autour (booster de départ)
@@ -662,14 +868,12 @@ function sceneBooster(res, nom, cls) {
   el.className = 'ob';
   el.style.setProperty('--tc', TEINTE[res[0].c.rarete]);
   el.style.setProperty('--pw', pw + 'px');
-  el.innerHTML = `<div class="ob-lueur"></div><div class="ob-rayons"></div>
+  el.innerHTML = `${fondHand()}<div class="ob-lueur"></div><div class="ob-rayons"></div>
     <div class="ob-cartes">${res.map((r, i) => `<div class="ob-c" data-i="${i}" style="width:${finales[i].w}px;height:${finales[i].w / .69}px">
       <div class="ob-flip"><div class="ob-dos">${dosHTML(finales[i].w)}</div>
       <div class="ob-face">${carteHTML(r.c, {nouveau: r.nouveau}).replace('class="card', `style="--w:${finales[i].w}px" class="card`)}</div></div></div>`).join('')}</div>
-    <button class="ob-pack ${cls}" aria-label="Ouvrir le booster ${esc(nom)}">
-      <span class="ob-corps"><span class="ob-logo"><img src="assets/logo.png" alt=""></span><span class="ob-nom">${esc(nom)}</span>
-        <span class="ob-n">${n > 1 ? n + ' joueurs' : '1 joueur'}</span><span class="ob-brille"></span></span>
-      <span class="ob-bande"><span class="ob-brille"></span></span>
+    <button class="ob-pack sachet ${cls}${deco.photo ? ' avec-photo' : ''}"${deco.poste ? ` data-p="${deco.poste}"` : ''} aria-label="Ouvrir le booster ${esc(nom)}">
+      ${sachetInterieur({nom, sous: n > 1 ? n + ' joueurs' : '1 joueur', photo: deco.photo, poste: deco.poste})}
       <span class="ob-coupe"><i class="ob-trace"></i><i class="ob-etoile"></i></span>
     </button>
     <div class="ob-souffle"></div>
@@ -833,35 +1037,82 @@ function envoyerAuClub() {
     {duration: 620 + cartes.length * 45, fill: 'forwards'}).onfinish = fin;
   vibrer(20);
 }
-function montrer(res) {
-  const nv = res.filter(r => r.nouveau).length, n = PARAMS.fusion_nombre || 3;
-  const html = res.map(({c, nouveau}, i) => {
-    const memes = EX().filter(e => e.carte === c.id && e.palier === c.rarete).length;
-    const info = nouveau ? '' : memes >= n && palierSuivant(c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
-    return `<div class="rv" style="animation-delay:${i * 140}ms">${carteHTML(c, {nouveau, cls: i === 0 ? 'hero' : ''})}${info ? `<small>${info}</small>` : ''}</div>`;
-  }).join('');
-  ouvrirOverlay(`<div class="sheet" style="align-items:center">
-    ${res[0].c.rarete === 'ultime' ? '<div class="rays"></div>' : ''}
-    <div class="reveal">${html}</div>
-    <p class="sumline">${nv ? `<b>${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}</b>` : 'Déjà dans ton club'}</p>
-    <button class="btn" data-act="fermer" style="width:100%">Envoyer au club</button></div>`);
+// Démo de la montée de palier (?demo=montee) : un joueur du catalogue au hasard, d'un palier au suivant ; rien au serveur
+function demoMontee() {
+  const tous = CARTES.filter(c => c.actif !== false); if (!tous.length) return;
+  const c = tous[Math.floor(Math.random() * tous.length)], r = RARETES[Math.floor(Math.random() * 3)];
+  montee(vueExemplaire(c, {palier: r, note: PALIER[r].max}), vueExemplaire(c, {palier: palierSuivant(r), note: PALIER[palierSuivant(r)].min}));
 }
 function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
+// Montée de palier (fusion) : les 3 cartes se rejoignent dans un éclair, la carte se retourne au nouveau palier
+// (couleur, cadre, photo du palier) et sa note et ses 6 stats montent sous nos yeux.
+function montee(avant, apres) {
+  const W = Math.round(Math.min(innerWidth * .62, innerHeight * .4, 260)), w3 = Math.round(W * .52);
+  const el = document.createElement('div');
+  el.className = 'montee'; el.style.setProperty('--tc', TEINTE[apres.rarete]); el.style.setProperty('--ta', TEINTE[avant.rarete]);
+  const dos = carteHTML(avant).replace('class="card', `style="--w:${w3}px" class="card`);
+  el.innerHTML = `${fondHand()}<div class="mt-rayons"></div>
+    <div class="mt-trois">${[0, 1, 2].map(i => `<div class="mt-c" data-i="${i}">${dos}</div>`).join('')}</div>
+    <div class="mt-carte"><div class="mt-flip"><div class="mt-face a">${carteHTML(avant).replace('class="card', `style="--w:${W}px" class="card`)}</div>
+      <div class="mt-face b">${carteHTML(apres).replace('class="card', `style="--w:${W}px" class="card`)}</div></div></div>
+    <div class="mt-titre"><small>Fusion</small><b><span class="t-${avant.rarete}">${R_LABEL[avant.rarete]}</span> → <span class="t-${apres.rarete}">${R_LABEL[apres.rarete]}</span></b></div>
+    <div class="mt-bas"><p>${esc(apres.nom)} passe ${R_LABEL[apres.rarete]} ${apres.ovr}</p><button class="btn gold large">Envoyer au club</button></div>`;
+  document.body.appendChild(el); document.body.classList.add('avec-intro');
+  const q = x => el.querySelector(x), vite = moinsAnim();
+  const anim = (x, f, o) => x.animate(f, {fill: 'forwards', ...o, duration: vite ? 0 : o.duration, delay: vite ? 0 : o.delay || 0}).finished.catch(() => {});
+  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true); };
+  q('.mt-bas button').addEventListener('click', fin);
+  (async () => {
+    // 1. les trois cartes arrivent, puis se rejoignent au centre
+    const cs = [...el.querySelectorAll('.mt-c')];
+    await Promise.all(cs.map((c, i) => anim(c, [{transform: `translate(${(i - 1) * 120}%, 60%) rotate(${(i - 1) * 12}deg) scale(.6)`, opacity: 0},
+      {transform: `translate(${(i - 1) * 105}%, 0) rotate(${(i - 1) * 8}deg)`, opacity: 1}], {duration: 450, delay: i * 90, easing: 'cubic-bezier(.2, .8, .3, 1)'})));
+    vibrer(20);
+    await Promise.all(cs.map((c, i) => anim(c, [{transform: `translate(${(i - 1) * 105}%, 0) rotate(${(i - 1) * 8}deg)`}, {transform: `translate(${(i - 1) * 108}%, 2%) rotate(${(i - 1) * 9}deg)`, offset: .25},
+      {transform: 'translate(0, 0) rotate(0) scale(1.05)', opacity: 1, offset: .9}, {transform: 'scale(1.6)', opacity: 0}], {duration: 650, delay: 150, easing: 'cubic-bezier(.6, 0, .4, 1)'})));
+    // 2. éclair, la carte apparaît (ancien palier) puis se retourne au nouveau
+    el.classList.add('eclair'); vibrer([30, 40, 60]);
+    q('.mt-carte').style.opacity = 1;
+    await anim(q('.mt-carte'), [{transform: 'scale(.6)', opacity: 0}, {transform: 'scale(1.08)', opacity: 1, offset: .6}, {transform: 'scale(1)', opacity: 1}], {duration: 420, easing: 'cubic-bezier(.2, 1.3, .4, 1)'});
+    await anim(q('.mt-carte'), [{transform: 'rotate(0)'}, {transform: 'rotate(-2deg)'}, {transform: 'rotate(2deg)'}, {transform: 'rotate(0)'}], {duration: 360, delay: 120});
+    el.classList.add('retourne');
+    await new Promise(r => setTimeout(r, vite ? 0 : 520));
+    el.classList.add('haut'); vibrer([40, 60, 80]);
+    anim(q('.mt-titre'), [{opacity: 0, transform: 'translateY(-14px) scale(.8)'}, {opacity: 1, transform: 'none'}], {duration: 420, easing: 'cubic-bezier(.2, 1.4, .4, 1)'});
+    // 3. la note et les 6 stats montent, du palier d'avant au nouveau
+    const b = q('.mt-face.b'), vals = [[b.querySelector('.c-ovr'), avant.ovr, apres.ovr],
+      ...statsDu(apres.poste).map(([k], i) => [b.querySelectorAll('.c-stats b')[i], avant.s[k], apres.s[k]])];
+    vals.forEach(([x, v0]) => { if (x) x.textContent = v0; });
+    const t0 = performance.now(), D = vite ? 1 : 1100;
+    await new Promise(res => { const pas = now => { const u = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - u, 3);
+      vals.forEach(([x, v0, v1]) => { if (!x) return; const v = Math.round(v0 + (v1 - v0) * e); if (x.textContent !== String(v)) { x.textContent = v; if (v1 > v0) x.classList.add('monte'); } });
+      if (u < 1) requestAnimationFrame(pas); else res(); }; requestAnimationFrame(pas); });
+    b.querySelectorAll('.monte').forEach(x => x.classList.add('fini'));
+    anim(q('.mt-bas'), [{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: 380});
+  })();
+}
+
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],[data-mini],.grid .card');
-  if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) fermerOverlay(); return; }
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-defier],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-valider-pari],[data-mini],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
   if (d.slot) return choisir(d.slot);
   if (t.classList.contains('card') && !t.classList.contains('locked')) return fiche(t.dataset.id);
-  if (a === 'fermer') return fermerOverlay();
+  if (a === 'fermer') { SOC.panneau = null; return fermerOverlay(); }
   if (a === 'moi') return fenetreCompte();
-  if (d.tactique) { JEU.tactique = d.tactique; return route(true); }
+  if (a === 'quetes') return fenetreQuetes();
+  if (a === 'amis') { SOC.amis = null; return panneauAmis(); }
+  if (d.ami) return ficheAmi(d.ami);
+  if (d.amiMessage) { SOC.conv = null; return conversationAmi(d.amiMessage); }
+  if (d.car !== undefined) { CARROUSEL.i = +d.car; return route(true); }
+  if (d.echDonne) { SOC.echange.donne = d.echDonne; return fenetreEchange(); }
+  if (d.echDemande) { SOC.echange.demande = d.echDemande; return fenetreEchange(); }
   if (d.mfiltre) { MKT.filtre = d.mfiltre; MKT.liste = null; return route(true); }
   if (a === 'annoncer') { MKT.compo = null; return composerAnnonce(); }
-  if (d.offre) { MKT.compo.ex = d.offre; return composerAnnonce(); }
+  if (d.offre) { MKT.compo.ex = d.offre; MKT.compo.palier = exParId(d.offre)?.palier || 'bronze'; return composerAnnonce(); }
   if (d.veut) { MKT.compo.carte = d.veut; return composerAnnonce(); }
   if (d.palierVeut) { MKT.compo.palier = d.palierVeut; return composerAnnonce(); }
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
@@ -870,6 +1121,22 @@ document.addEventListener('click', e => {
   if (a === 'fin-match') { JEU.rencontres = null; JEU.adversaires = null; return fermerOverlay(); }
   if (a === 'classement') return fenetreClassement();
   if (occupe) return;
+  if (d.tac) {   // choix tactique : gardé tout de suite sur le serveur
+    const [cle, v] = d.tac.split(':'), T = tactiqueActuelle(); T[cle] = v;
+    return action(Compte.choisirTactique(`${T.att}:${T.def}`), () => route(true));
+  }
+  const amis = (pr, msg) => action(pr, r => { if (r?.amis) SOC.amis = r; if (msg) toast(msg); route(true); revoirAmis(); });
+  if (d.repondreAmi) { const [ps, oui] = d.repondreAmi.split(':'); return amis(Compte.repondreAmi(ps, oui === '1'), oui === '1' ? `${ps} est ton ami(e) !` : ''); }
+  if (d.retirerAmi) { if (!confirm(`Retirer ${d.retirerAmi} de tes ami(e)s ?`)) return; return amis(Compte.retirerAmi(d.retirerAmi)); }
+  if (d.annulerEchange) return amis(Compte.annulerEchange(d.annulerEchange), 'Proposition annulée');
+  if (d.repondreEchange) { const [id, oui] = d.repondreEchange.split(':'); return amis(Compte.repondreEchange(id, oui === '1'), oui === '1' ? 'Échange fait : la carte est dans ton club' : 'Proposition refusée'); }
+  if (d.proposer) {
+    SOC.echange = {pseudo: d.proposer, donne: null, demande: null, club: null}; fenetreEchange();
+    return Compte.clubAmi(d.proposer).then(l => { if (SOC.echange?.pseudo === d.proposer) { SOC.echange.club = l; fenetreEchange(); } }).catch(er => toast(er.message));
+  }
+  if (a === 'envoyer-echange') { const k = SOC.echange;
+    return action(Compte.proposerEchange(k.pseudo, k.donne, k.demande), r => { SOC.amis = r; SOC.echange = null; toast(`Proposition envoyée à ${k.pseudo}`); ficheAmi(k.pseudo); }); }
+  if (d.defierAmi) return jouerMatch(Compte.defierAmi(d.defierAmi).then(r => { SOC.amis = null; return r; }), 'defi_ami');
   if (a === 'publier-annonce') {
     const k = MKT.compo;
     return action(Compte.publierAnnonce(k.ex, k.carte, k.palier), () => { toast('Annonce publiée'); MKT.compo = null; MKT.filtre = 'mes'; MKT.liste = null; fermerOverlay(); });
@@ -877,29 +1144,30 @@ document.addEventListener('click', e => {
   if (d.retirerAnnonce) return action(Compte.retirerAnnonce(d.retirerAnnonce), () => { toast('Annonce retirée : ta carte est revenue au club'); MKT.liste = null; route(true); });
   if (d.accepter) {
     const an = MKT.liste.find(x => x.id === d.accepter), o = PAR_ID[an.offre.carte], c = PAR_ID[an.cherche.carte];
-    if (!confirm(`Tu donnes ${c.nom} ${R_LABEL[an.cherche.palier]} (ton moins entraîné, hors Mon 7) et tu reçois ${o.nom} ${R_LABEL[an.offre.palier]} ${an.offre.note}. D’accord ?`)) return;
+    if (!confirm(`Tu donnes ${c.nom} ${R_LABEL[an.cherche.palier]} (ton moins entraîné, hors de ton équipe) et tu reçois ${o.nom} ${R_LABEL[an.offre.palier]} ${an.offre.note}. D’accord ?`)) return;
     return action(Compte.accepterAnnonce(d.accepter), () => { toast(`${o.nom} rejoint ton club !`); vibrer([40, 60, 80]); MKT.liste = null; route(true); });
   }
   if (d.validerPari) {
     const [rid, choix] = d.validerPari.split(':'), mise = +$('input.champ[data-mise]').value;
     return action(Compte.parier(rid, choix, mise), r => { toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
   }
-  const tactique = JEU.tactique || S().tactique || 'equilibre';
+  const tactique = (T => `${T.att}:${T.def}`)(tactiqueActuelle());
   if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
   if (d.defier) return jouerMatch(Compte.defier(d.defier, tactique), 'defi');
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
   if (a === 'seance' || a === 'seance-payante') return action(a === 'seance' ? Compte.seance() : Compte.seancePayante(), r => {
     const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join('<br>');
-    ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton 7.</p>
+    ouvrirOverlay(`<div class="sheet"><h3>Séance terminée</h3><p class="sub">+${r.xpCarte} XP pour chaque joueur de ton équipe.</p>
       ${progres ? `<p class="sub">Ils progressent :<br>${progres}</p>` : '<p class="sub">Encore un peu de travail avant le prochain point.</p>'}
       <button class="btn" data-act="fermer">Fermer</button></div>`);
   });
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
-    d.booster === 'or' ? 'pk-or' : 'pk-argent');
-  if (d.bposte) return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), d.bposte, 'pk-or');
-  if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); });
+    d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
+  if (d.bposte) { const bp = BOOSTERS_POSTE.find(x => x[0] === d.bposte);
+    return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), POSTE_NOM[d.bposte], 'pk-poste', {poste: d.bposte, photo: bp && photoSachet(bp[1], bp[2])}); }
+  if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
@@ -914,12 +1182,13 @@ document.addEventListener('click', e => {
   }
   if (d.fusion) {
     const [carte, palier] = d.fusion.split(':');
+    // la carte d'avant : le meilleur exemplaire du palier fusionné (la note de départ de l'animation)
+    const avantEx = mesEx(carte).filter(e => e.palier === palier).sort(rangEx)[0];
+    const avant = vueExemplaire(PAR_ID[carte], {palier, note: avantEx?.note ?? PALIER[palier].max});
     return action(Compte.fusionner(carte, palier), r => {
       const e = exParId(r.id);
-      ouvrirBooster.res = [{c: vue(e), nouveau: false}];
-      vibrer([40, 60, 80]);
-      montrer(ouvrirBooster.res);
-      toast(`Fusion réussie : ${PAR_ID[carte].nom} passe ${R_LABEL[e.palier]} !`);
+      $('#overlay').hidden = true; $('#overlay').innerHTML = ''; document.body.style.overflow = '';
+      montee(avant, vue(e));
     });
   }
   if (a === 'google') return action(Compte.google());
@@ -944,6 +1213,9 @@ document.addEventListener('submit', e => {
   });
   if (quoi === 'mdp') return action(Compte.nouveauMotDePasse(d.mdp), () => { toast('Mot de passe changé'); route(); });
   if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
+  if (quoi === 'ami') return action(Compte.ajouterAmi(d.pseudo), r => { SOC.amis = r; SOC.ajout = '';
+    toast(r.amis.some(x => x.pseudo.toLowerCase() === d.pseudo.trim().toLowerCase()) ? 'Vous êtes ami(e)s !' : 'Demande envoyée'); panneauAmis(); });
+  if (quoi === 'message') return action(Compte.envoyerMessage(SOC.ami, d.texte), c => { SOC.conv = c; conversationAmi(SOC.ami); });
 });
 // annonce : recherche du joueur voulu ; pari : mise et gain possible
 document.addEventListener('input', e => {
@@ -966,9 +1238,26 @@ document.addEventListener('input', e => {
     Compte.chercherJoueurs(q).then(l => { JEU.joueurs = l; maj(); }).catch(er => toast(er.message));
   }, 300);
 });
+// carrousel des boosters par poste : glisser vers la gauche ou la droite
+let glisse = null;
+document.addEventListener('pointerdown', e => { if (e.target.closest('[data-carrousel]')) glisse = {x: e.clientX, y: e.clientY}; });
+document.addEventListener('pointerup', e => {
+  if (!glisse) return; const dx = e.clientX - glisse.x, dy = e.clientY - glisse.y; glisse = null;
+  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+  const n = BOOSTERS_POSTE.length; CARROUSEL.i = (CARROUSEL.i + (dx < 0 ? 1 : -1) + n) % n; CARROUSEL.sens = dx < 0 ? 1 : -1; route(true);
+  const bloque = ev => { ev.stopPropagation(); ev.preventDefault(); };   // pas de clic sur le sachet juste après un glissé
+  document.addEventListener('click', bloque, {capture: true, once: true}); setTimeout(() => document.removeEventListener('click', bloque, {capture: true}), 350);
+});
 window.addEventListener('hashchange', () => route());
 // le réseau revient : on recharge pour se reconnecter au serveur (hors ligne, rien n'est en cours)
 window.addEventListener('online', () => { if (Compte.horsLigne && $('#overlay').hidden) location.reload(); });
+// ami(e)s : nouvelles demandes, échanges et messages toutes les 40 s (pastille de la bulle, conversation ouverte)
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !Compte.pret || Compte.horsLigne || occupe || document.body.classList.contains('avec-intro')) return;
+  Compte.rafraichir().then(() => { majEntete();
+    if (SOC.panneau === 'conv' && SOC.ami) Compte.conversation(SOC.ami).then(c => { if (SOC.panneau === 'conv') { SOC.conv = c; conversationAmi(SOC.ami); majEntete(); } }).catch(() => {});
+  }).catch(() => {});
+}, 40000);
 // retour sur l'appli après un moment : boosters et quêtes à jour
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && Compte.pret && !Compte.horsLigne && !occupe && $('#overlay').hidden)
@@ -1198,7 +1487,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=31').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=32').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
@@ -1327,6 +1616,7 @@ Compte.demarrer().then(info => {
   const demo = new URLSearchParams(location.search).get('demo');
   if (demo === '7m') ouvrirJet7m(true);
   else if (MINI[demo]) ouvrirMini(demo, true);
+  else if (demo === 'montee') demoMontee();
   else if (demo !== null) demoBooster(demo);
   if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');

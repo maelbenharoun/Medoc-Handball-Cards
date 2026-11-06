@@ -10,7 +10,13 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   toucher le logo fait s'envoler les cartes et ouvre le jeu (ou la connexion). `?intro` dans l'adresse pour la revoir.
 - **Cartes à 4 paliers**, avec le même pouvoir pour tous les joueurs : Bronze 50 → 59, Argent 60 → 74, Or 75 → 89, Ultime 90 → 99.
   Une carte arrive au bas de son palier ; chaque palier a sa photo. Les 6 stats (Tir, Passes, Défense, Mental, Physique, Vitesse ;
-  Réflexes, Placement, Relance… pour les gardien·ne·s) gardent la forme du vrai joueur.
+  Réflexes, Placement, Relance… pour les gardien·ne·s) gardent la forme du vrai joueur. À note égale, tous les joueurs ont le même
+  total de stats : 240 en moyenne à 50 (40 par stat), 480 à 99 (80 par stat) ; sur tout le catalogue, chaque stat a la même moyenne.
+- **Montée de palier** (fusion) : les 3 cartes se rejoignent dans un éclair, la carte se retourne au nouveau palier et sa note
+  et ses stats montent sous nos yeux (`?demo=montee`).
+- **Accueil** : le booster gratuit en haut, puis un carrousel des boosters par poste (le choisi et ses deux voisins), chacun avec un joueur
+  du club en photo (`BOOSTERS_POSTE` dans `app.js`). Sachets métallisés aux bords dentelés et reflets holographiques, sur un fond animé
+  (rayons, halos, lignes du terrain, ballons). Les quêtes sont dans l'icône en haut à droite (pastille quand une récompense attend).
 - **Ouverture des boosters** : le booster flotte ; au toucher, une découpe lumineuse court le long du haut, le rabat est arraché,
   la lumière prend la couleur du meilleur palier et la carte sort du sachet face cachée (indices équipe → poste → palier pour l'Or et l'Ultime),
   on la touche pour la retourner, puis « Envoyer au club ». « Tout révéler » pour aller vite.
@@ -18,13 +24,17 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   (5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime), et des boosters gagnés en montant de niveau.
 - **Fiche de chaque joueur** (toucher une carte) : sa saison et ses 5 stats rigolotes les plus marquantes (celles des fiches de medochandballstats.com).
   Tout se modifie dans l'outil.
-- **Club** : entraîner ses cartes (de 50 à 59, de 60 à 74…), **fusionner** 3 fois le même joueur au même palier pour passer au palier suivant, vendre.
-- **Mon 7** : 6 joueurs de champ + 1 gardien(ne). Hors de son poste, un joueur perd 5 points ; bonus collectif entre coéquipier(e)s.
-- **Jouer** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
+- **Club** : ta collection, entraîner ses cartes (de 50 à 59, de 60 à 74…), **fusionner** 3 fois le même joueur au même palier pour passer au palier suivant, vendre.
+- **Équipe** : 6 joueurs de champ + 1 gardien(ne), placés en défense devant leur but selon le dispositif choisi (0-6, 1-5, 3-3).
+  Hors de son poste, un joueur perd 5 points ; bonus collectif entre coéquipier(e)s. **Tactiques** : une attaque (Duels : tir et physique ;
+  Enclenchement : mental et passes ; Jeu rapide : défense et vitesse) et un dispositif (0-6 : tir et défense ; 1-5 : mental et physique ;
+  3-3 : passes et vitesse). Chacun donne un bonus selon les moyennes de stats de l'équipe : 2 % pour une équipe moyenne, jusqu'à 10 %
+  si elle est spécialisée, 0 % si elle est à l'opposé.
+- **Jouer** : deux portes. **Championnat** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
   tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
   directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
-- **Jet de 7 mètres** (onglet Jouer, en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
+- **Gagner des pièces** (Jouer) : le **jet de 7 mètres** (en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
   5 tirs par jour, 50 pièces par but, 100 de bonus pour un 5 sur 5.
 - **Mini-jeux en vraie 3D** (`jeux3d.js`, three.js chargé seulement à l'ouverture) : l'arrêt réflexe (caméra derrière ton but,
@@ -36,8 +46,11 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   5 essais par jour, 50 pièces par réussite, 100 de bonus pour une journée parfaite.
   Démos sans pièces : `?demo=7m`, `?demo=gardien`, `?demo=contre`, `?demo=suspension`.
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
-- **Paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
-- **Marché des transferts** : une carte contre une carte avec les autres joueurs.
+- **Social** : le **classement** (niveau de poule de chaque joueur), les **transferts** (une carte contre une carte du même palier),
+  les **paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
+- **Ami(e)s** (la bulle en bas à droite, partout sauf pendant les mini-jeux) : ajouter un pseudo, puis pour chaque ami(e) : **messages**
+  (pastille sur sa bulle), **échange** de n'importe quelles cartes (une proposition à la fois entre deux ami(e)s, 3 par jour),
+  **défi** entre vos deux équipes (30 pièces au gagnant, 5 par jour).
 - **Comptes** : e-mail + mot de passe ou Google, pseudo, suppression du compte depuis le jeu. Installable sur téléphone (PWA) ; hors ligne, le club reste consultable.
 
 ## Gérer les cartes (outil)
@@ -90,7 +103,7 @@ style.css             design, cartes, animations
 config.js             adresse et clé publique du serveur Supabase (vide = jeu fermé)
 cartes.js             cartes : paliers, postes, forme des joueurs, rendu (partagé jeu + outil)
 serveur.js            le compte du joueur sur le serveur : connexion, actions
-app.js                les écrans : accueil, club, Mon 7, jouer, marché, paris, connexion
+app.js                les écrans : accueil, club, équipe, jouer, social, ami(e)s, connexion
 admin.html/.js/.css   l'outil de gestion des cartes
 confidentialite.html  données personnelles
 sw.js                 cache hors ligne

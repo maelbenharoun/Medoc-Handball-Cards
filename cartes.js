@@ -8,7 +8,10 @@
 
    Chaque joueur existe en 4 paliers, avec le même pouvoir pour tous (supabase/schema.sql fait foi) :
    Bronze 50 → 59, Argent 60 → 74, Or 75 → 89, Ultime 90 → 99. La note d'un exemplaire vient de son palier
-   et de son entraînement ; les 6 stats réglées dans l'outil ne donnent que la forme du joueur (ses « écarts »). */
+   et de son entraînement ; les 6 stats réglées dans l'outil ne donnent que la forme du joueur (ses « écarts »).
+   À note égale, tous les joueurs ont le même total de stats : 240 en moyenne à 50 (40 par stat), 480 à 99 (80 par stat) ;
+   la forme répartit ce total (écarts de somme nulle), et sur tout le catalogue chaque stat a la même moyenne
+   (stat_note et normaliser_ecarts dans supabase/schema.sql font la même chose). */
 
 // ── paliers ─────────────────────────────────────────────────────────────────────
 const PALIERS = [
@@ -105,9 +108,10 @@ function fusionnerCarte(c0, p = {}) {
   const estGB = poste === 'GB';
   const profil = statsValides(p.stats, poste) ? {...p.stats} : statsParDefaut(c0, poste);
   const calc = noteDepuisStats(profil, poste);
-  // la forme du joueur : ses stats moins sa note, plus le bonus de ses postes (joueurs de champ)
-  const bonus = estGB ? {} : bonusPostes(postes);
-  const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc + (bonus[k] || 0)]));
+  // la forme du joueur : ses stats (plus le bonus de ses postes) moins leur moyenne : des écarts de somme nulle
+  const bonus = estGB ? {} : bonusPostes(postes), ks = statsDu(poste).map(([k]) => k);
+  const brut = Object.fromEntries(ks.map(k => [k, profil[k] + (bonus[k] || 0)])), m = ks.reduce((t, k) => t + brut[k], 0) / 6;
+  const ecarts = Object.fromEntries(ks.map(k => [k, Math.round(brut[k] - m)]));
   const photos = {};
   for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
   // numéro de maillot : celui réglé dans l'outil, sinon le plus porté cette saison d'après les feuilles de match
@@ -141,9 +145,11 @@ function ficheHTML(fi) {
     ? `<div class="f-fun">${s.lignes.map(x => `<div><small>${esc(x.l)}</small><b>${esc(x.v)}</b>${x.d ? `<p>${esc(x.d)}</p>` : ''}</div>`).join('')}</div>`
     : `<dl class="f-l">${s.lignes.map(x => `<div><dt>${esc(x.l)}</dt><dd${String(x.v).length <= 26 ? ' class="court"' : ''}>${esc(x.v)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</dd></div>`).join('')}</dl>`}</section>`).join('');
 }
-// Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99
+// Moyenne des 6 stats à une note : 40 à 50, 80 à 99
+const moyenneStats = note => Math.round(40 + (note - 50) * 40 / 49);
+// Les 6 stats d'un joueur à une note : la moyenne + son écart, de 1 à 99
 function statsAuNiveau(c, note) {
-  return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(note + (c.ecarts?.[k] || 0), 1, 99)]));
+  return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(moyenneStats(note) + (c.ecarts?.[k] || 0), 1, 99)]));
 }
 // Photo d'un palier ; sinon celle du palier inférieur le plus proche ; sinon la photo unique ; sinon rien
 function photoPalier(c, palier) {
@@ -154,8 +160,18 @@ function photoPalier(c, palier) {
 function vueExemplaire(c, ex) {
   return {...c, rarete: ex.palier, ovr: ex.note, s: statsAuNiveau(c, ex.note), photo: photoPalier(c, ex.palier), ex};
 }
+// Sur tout le catalogue, chaque stat a la même moyenne (champ et gardiens à part) : on retire à chacun la moyenne de la stat
+function equilibrerEcarts(liste) {
+  for (const gb of [false, true]) {
+    const l = liste.filter(c => c.estGB === gb); if (!l.length) continue;
+    const ks = statsDu(gb ? 'GB' : null).map(([k]) => k), m = Object.fromEntries(ks.map(k => [k, l.reduce((t, c) => t + (c.ecarts[k] || 0), 0) / l.length]));
+    for (const c of l) c.ecarts = Object.fromEntries(ks.map(k => [k, Math.round((c.ecarts[k] || 0) - m[k])]));
+  }
+  return liste;
+}
 function fusionner(site, perso) {
-  return site.map(c => fusionnerCarte(c, perso[c.id])).sort((a, b) => b.ovr - a.ovr || a.nom.localeCompare(b.nom, 'fr'));
+  return equilibrerEcarts(site.map(c => fusionnerCarte(c, perso[c.id]))).map(c => vueExemplaire(c, {palier: c.rarete, note: c.ovr}))
+    .sort((a, b) => b.ovr - a.ovr || a.nom.localeCompare(b.nom, 'fr'));
 }
 
 // Brouillon de l'outil (modifications pas encore publiées) : visible en aperçu dans le jeu du même navigateur.

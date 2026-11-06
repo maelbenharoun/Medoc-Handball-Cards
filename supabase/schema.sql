@@ -72,7 +72,10 @@ insert into parametres values (1, '{
   "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
   "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
   "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
-  "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10
+  "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
+  "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.10, "tactique_pente": 0.4,
+  "amis_max": 50, "echanges_amis_par_jour": 3, "echange_jours": 7,
+  "messages_par_jour": 100, "message_longueur": 300, "defis_amis_par_jour": 5, "defi_ami_pieces": 30
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -92,6 +95,16 @@ create or replace function palier_max(p text) returns int language sql immutable
 $$;
 create or replace function palier_suivant(p text) returns text language sql immutable as $$
   select case p when 'bronze' then 'argent' when 'argent' then 'or' when 'or' then 'ultime' end
+$$;
+-- Les 6 stats d'un joueur à une note (demande de Maël) : à note égale, tous les joueurs ont le même total de stats,
+-- 240 en moyenne à 50 (40 par stat) et 480 à 99 (80 par stat). La forme du joueur (ses écarts, de somme nulle) répartit
+-- ce total entre ses stats. Même calcul dans cartes.js (moyenneStats, statsAuNiveau).
+create or replace function stat_note(p_note numeric, p_ecart numeric) returns int language sql immutable as $$
+  select greatest(1, least(99, round(40 + (p_note - 50) * 40 / 49.0) + round(coalesce(p_ecart, 0))))::int
+$$;
+-- et l'inverse : une moyenne de stats ramenée sur l'échelle des notes (pour comparer à une équipe de l'ordinateur)
+create or replace function note_depuis_stat(p_stat numeric) returns numeric language sql immutable as $$
+  select 50 + (p_stat - 40) * 49 / 40.0
 $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -185,6 +198,9 @@ create table if not exists rencontres (
   le timestamptz not null default now()
 );
 create index if not exists rencontres_user on rencontres (user_id, type, le);
+-- défis entre ami(e)s (30 pièces au gagnant, 5 par jour) : deux types de plus
+alter table rencontres drop constraint if exists rencontres_type_check;
+alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami'));
 
 -- Vrais matchs des poules SG1, SG2, SF1, SF2 (data/matchs.json, envoyé par l'outil) et les paris dessus
 create table if not exists matchs (
@@ -224,6 +240,31 @@ create table if not exists annonces (
   cree_le timestamptz not null default now(), conclue_le timestamptz
 );
 create index if not exists annonces_ouvertes on annonces (statut, carte_cherchee, palier_cherche);
+
+-- Ami(e)s : une demande (« attente ») puis acceptée ; entre ami(e)s, des échanges de cartes directs (3 propositions par jour)
+create table if not exists amis (
+  de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
+  statut text not null default 'attente' check (statut in ('attente', 'accepte')), cree_le timestamptz not null default now(),
+  primary key (de, pour), check (de <> pour)
+);
+create table if not exists echanges (
+  id uuid primary key default gen_random_uuid(),
+  de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
+  donne uuid references exemplaires on delete set null,      -- ma carte
+  demande uuid references exemplaires on delete set null,    -- la sienne
+  offre jsonb not null, cherche jsonb not null,              -- {carte, palier, note} au moment de la proposition
+  statut text not null default 'ouvert' check (statut in ('ouvert', 'accepte', 'refuse', 'annule')),
+  cree_le timestamptz not null default now(), fini_le timestamptz
+);
+create index if not exists echanges_pour on echanges (pour, statut);
+-- messages entre ami(e)s (lus seulement par les fonctions du jeu)
+create table if not exists messages_amis (
+  id bigserial primary key, de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
+  texte text not null check (char_length(texte) between 1 and 500), lu boolean not null default false, cree_le timestamptz not null default now()
+);
+create index if not exists messages_pour on messages_amis (pour, lu);
+create index if not exists messages_paire on messages_amis (least(de, pour), greatest(de, pour), cree_le);
+create index if not exists echanges_de on echanges (de, cree_le);
 
 -- Journal de tout ce qui bouge (pièces, cartes) : pour comprendre un litige ou repérer une triche.
 create table if not exists mouvements (
@@ -271,6 +312,10 @@ drop policy if exists lecture on annonces;    create policy lecture on annonces 
 revoke insert, update, delete, truncate on parametres, cartes, profils, exemplaires, quetes, mouvements, rencontres, matchs, paris, annonces from anon, authenticated;
 revoke all on equipes_reelles from anon, authenticated;
 revoke all on mini_attente from anon, authenticated;
+revoke all on amis, echanges, messages_amis from anon, authenticated;
+alter table messages_amis enable row level security;
+alter table amis enable row level security;
+alter table echanges enable row level security;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Outils internes (non appelables depuis le jeu, voir les droits en bas)
@@ -332,7 +377,7 @@ language sql immutable as $$
          ('entrainement', 3, 60, 120, 'Fais 3 séances d’entraînement'),
          ('fusion', 1, 120, 250, 'Fais une fusion'),
          ('vente', 2, 40, 80, 'Vends 2 cartes en trop'),
-         ('equipe', 1, 30, 60, 'Modifie ton Mon 7'),
+         ('equipe', 1, 30, 60, 'Modifie ton équipe'),
          ('championnat', 3, 80, 200, 'Joue 3 matchs de championnat'),
          ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi)'),
          ('defi', 2, 80, 150, 'Lance 2 défis'),
@@ -494,6 +539,9 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'limites', jsonb_build_object('gardien', mini_limite('gardien'), 'contre', mini_limite('contre'), 'suspension', mini_limite('suspension')),
       'gains', jsonb_build_object('gardien', mini_gain('gardien'), 'contre', mini_gain('contre'), 'suspension', mini_gain('suspension'))),
     'trophees', p.trophees,
+    'social', jsonb_build_object('demandes', (select count(*) from amis a where a.pour = p.user_id and a.statut = 'attente'),
+      'echanges', (select count(*) from echanges x where x.pour = p.user_id and x.statut = 'ouvert'),
+      'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu)),
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
       'seance', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'seance' and r.le >= debut_du_jour()),
@@ -700,7 +748,7 @@ begin
   if not found then raise exception 'Carte absente de ton club'; end if;
   if e.verrou is not null then raise exception 'Cette carte est au marché des transferts'; end if;
   if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
-    raise exception 'Cette carte joue dans ton Mon 7 : retire-la d’abord';
+    raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
   end if;
   gain := (param('vente') ->> e.palier)::int;
   delete from exemplaires where id = p_ex;
@@ -768,13 +816,31 @@ end $$;
 -- Matchs : moteur, championnat, séance, défis
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- Tactiques (demande de Maël) : un choix d'attaque et un dispositif défensif, écrits « attaque:défense ».
+-- Chacun s'appuie sur deux stats ; le bonus dépend de la spécialisation des 6 joueurs de champ dans ces deux stats :
+-- spé = (moyenne des deux stats) / (moyenne des 6 stats) − 1 ; bonus = base + pente × spé, entre 0 et le maximum
+-- (2 % pour une équipe moyenne, jusqu'à 10 % pour une équipe très spécialisée, 0 % si elle est à l'opposé).
+create or replace function tactique_stats(p_choix text) returns text[] language sql immutable as $$
+  select case p_choix when 'duels' then array['tir', 'phy'] when 'enclenchement' then array['men', 'pas'] when 'rapide' then array['def', 'vit']
+    when '06' then array['tir', 'def'] when '15' then array['men', 'phy'] when '33' then array['pas', 'vit'] end
+$$;
+create or replace function tactique_bonus(p_moy jsonb, p_choix text) returns numeric language sql stable security definer set search_path = public as $$
+  with s as (select tactique_stats(p_choix) ks), t as (
+    select ((p_moy ->> ks[1])::numeric + (p_moy ->> ks[2])::numeric) / 2 / nullif(((p_moy ->> 'tir')::numeric + (p_moy ->> 'pas')::numeric
+      + (p_moy ->> 'def')::numeric + (p_moy ->> 'men')::numeric + (p_moy ->> 'phy')::numeric + (p_moy ->> 'vit')::numeric) / 6, 0) - 1 spe from s where ks is not null)
+  select coalesce((select round(greatest(0, least((param('tactique_bonus_max') #>> '{}')::numeric,
+    (param('tactique_bonus_base') #>> '{}')::numeric + (param('tactique_pente') #>> '{}')::numeric * spe)), 3) from t), 0)
+$$;
+
 -- Force d'une équipe {poste: exemplaire} : attaque, défense, note, et les tireurs avec leur poids.
--- Chaque joueur : note de l'exemplaire (−5 hors de ses postes) + sa forme (écarts, bonus de ses postes compris) → ses 6 stats.
--- Attaque = tir, passes, vitesse des 6 joueurs de champ ; défense = défense, physique, mental + gardien(ne).
+-- Chaque joueur : note de l'exemplaire (−5 hors de ses postes) → ses 6 stats (stat_note, avec sa forme).
+-- Attaque = tir, passes, vitesse des 6 joueurs de champ ; défense = défense, physique, mental + gardien(ne) ;
+-- ramenées sur l'échelle des notes, puis le bonus des tactiques (en %).
 create or replace function force_equipe(p_equipe jsonb, p_tactique text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes numeric := 0; n int := 0;
-  tireurs jsonb := '[]'; eqs jsonb := '{}'; maxi int; coll int; t int := parami('tactique_bonus');
+  tireurs jsonb := '[]'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
+  m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
 begin
   for l in select j.key as slot, e.note, c.postes, c.nom, c.equipe, c.ecarts
@@ -783,29 +849,34 @@ begin
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then 5 else 0 end;
     n := n + 1; notes := notes + ne;
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
-    s_men := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'men')::int, 0)));
-    s_phy := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'phy')::int, 0)));
+    s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
+    s_phy := stat_note(ne, (l.ecarts ->> 'phy')::numeric);
     if l.slot = 'GB' then
-      s_ref := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'ref')::int, 0)));
-      s_pla := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'pla')::int, 0)));
+      s_ref := stat_note(ne, (l.ecarts ->> 'ref')::numeric);
+      s_pla := stat_note(ne, (l.ecarts ->> 'pla')::numeric);
       arr := .5 * s_ref + .3 * s_pla + .2 * s_men;
     else
-      s_tir := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'tir')::int, 0)));
-      s_pas := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'pas')::int, 0)));
-      s_vit := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'vit')::int, 0)));
-      s_def := greatest(1, least(99, ne + coalesce((l.ecarts ->> 'def')::int, 0)));
+      s_tir := stat_note(ne, (l.ecarts ->> 'tir')::numeric);
+      s_pas := stat_note(ne, (l.ecarts ->> 'pas')::numeric);
+      s_vit := stat_note(ne, (l.ecarts ->> 'vit')::numeric);
+      s_def := stat_note(ne, (l.ecarts ->> 'def')::numeric);
       att := att + (.5 * s_tir + .3 * s_pas + .2 * s_vit) / 6;
       def := def + (.5 * s_def + .3 * s_phy + .2 * s_men) / 6;
-      tireurs := tireurs || jsonb_build_object('n', l.nom, 'p', greatest(1, s_tir - 30));
+      m_tir := m_tir + s_tir / 6; m_pas := m_pas + s_pas / 6; m_def := m_def + s_def / 6;
+      m_men := m_men + s_men / 6; m_phy := m_phy + s_phy / 6; m_vit := m_vit + s_vit / 6;
+      tireurs := tireurs || jsonb_build_object('n', l.nom, 'p', greatest(1, s_tir - 25));
     end if;
   end loop;
-  if n < 7 then raise exception 'Il faut 7 joueurs alignés dans ton Mon 7 pour jouer'; end if;
+  if n < 7 then raise exception 'Il faut 7 joueurs alignés dans ton équipe pour jouer'; end if;
   select max(value::int) into maxi from jsonb_each_text(eqs);
   coll := case when maxi >= 7 then 3 when maxi >= 5 then 2 when maxi >= 3 then 1 else 0 end;   -- coéquipier(e)s
+  moy := jsonb_build_object('tir', round(m_tir, 1), 'pas', round(m_pas, 1), 'def', round(m_def, 1), 'men', round(m_men, 1), 'phy', round(m_phy, 1), 'vit', round(m_vit, 1));
+  b_att := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 1));
+  b_def := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 2));
   return jsonb_build_object(
-    'att', round(att + coll + case p_tactique when 'attaque' then t when 'defense' then -t else 0 end, 1),
-    'def', round(.6 * def + .4 * arr + coll + case p_tactique when 'defense' then t when 'attaque' then -t else 0 end, 1),
-    'note', round(notes / n + coll), 'tireurs', tireurs);
+    'att', round((note_depuis_stat(att) + coll) * (1 + b_att), 1),
+    'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def), 1),
+    'note', round(notes / n + coll), 'tireurs', tireurs, 'moyennes', moy, 'bonus', jsonb_build_object('attaque', b_att, 'defense', b_def));
 end $$;
 
 -- Équipe de l'ordinateur d'un niveau donné
@@ -849,10 +920,20 @@ begin
   return progres;
 end $$;
 
+-- « attaque:défense » (duels, enclenchement, rapide : 06, 15, 33) ; les anciennes valeurs restent acceptées (sans bonus)
 create or replace function verifier_tactique(p_tactique text) returns text language plpgsql immutable as $$
 begin
-  if p_tactique not in ('attaque', 'equilibre', 'defense') then raise exception 'Tactique inconnue'; end if;
+  if p_tactique in ('attaque', 'equilibre', 'defense') then return p_tactique; end if;
+  if coalesce(p_tactique, '') !~ '^(duels|enclenchement|rapide):(06|15|33)$' then raise exception 'Tactique inconnue'; end if;
   return p_tactique;
+end $$;
+-- Garder ses choix tactiques (écran Équipe), sans jouer
+create or replace function choisir_tactique(p_tactique text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  perform verifier_tactique(p_tactique);
+  update profils set tactique = p_tactique where user_id = p.user_id;
+  return jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
 
 create or replace function compter_jour(p_uid uuid, p_type text) returns int language sql stable security definer set search_path = public as $$
@@ -1239,7 +1320,7 @@ end $$;
 create or replace function seance_equipe() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); progres jsonb; niveaux jsonb;
 begin
-  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton Mon 7'; end if;
+  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton équipe'; end if;
   if compter_jour(p.user_id, 'seance') >= parami('seances_par_jour') then
     raise exception 'Tes joueurs ont fait leurs % séances du jour : reviens demain', parami('seances_par_jour');
   end if;
@@ -1254,7 +1335,7 @@ end $$;
 create or replace function seance_payante() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); prix int := parami('seance_payante_prix'); progres jsonb; niveaux jsonb;
 begin
-  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton Mon 7'; end if;
+  if p.equipe = '{}'::jsonb then raise exception 'Aligne d’abord des joueurs dans ton équipe'; end if;
   if p.pieces < prix then raise exception 'Il faut % pièces pour cette séance', prix; end if;
   update profils set pieces = pieces - prix where user_id = p.user_id;
   progres := xp_equipe(p.equipe, parami('seance_xp_carte'));
@@ -1458,11 +1539,13 @@ begin
   if not found then raise exception 'Carte absente de ton club'; end if;
   if e.verrou is not null then raise exception 'Cette carte est déjà au marché'; end if;
   if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
-    raise exception 'Cette carte joue dans ton Mon 7 : retire-la d’abord';
+    raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
   end if;
   if p_palier not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
   if not exists (select 1 from cartes where id = p_carte) then raise exception 'Joueur inconnu'; end if;
   if p_carte = e.carte_id and p_palier = e.palier then raise exception 'Tu cherches la même carte que celle que tu proposes'; end if;
+  -- demande de Maël : on n'échange au marché que des cartes de même valeur (même palier) ; entre ami(e)s, tout est permis
+  if p_palier <> e.palier then raise exception 'Au marché, on échange seulement des cartes du même palier'; end if;
   if (select count(*) from annonces where vendeur = p.user_id and statut = 'ouverte') >= parami('annonces_max') then
     raise exception 'Tu as déjà % annonces ouvertes', parami('annonces_max');
   end if;
@@ -1492,6 +1575,7 @@ begin
   select * into a from annonces where id = p_id for update;
   if not found or a.statut <> 'ouverte' then raise exception 'Cette annonce n’est plus ouverte'; end if;
   if a.vendeur = p.user_id then raise exception 'C’est ton annonce'; end if;
+  if a.palier_cherche <> a.offre ->> 'palier' then raise exception 'Au marché, on échange seulement des cartes du même palier'; end if;
   select * into v from profils where user_id = a.vendeur for update;
   select e.id into mon_ex from exemplaires e where e.proprietaire = p.user_id and e.carte_id = a.carte_cherchee and e.palier = a.palier_cherche
     and e.verrou is null and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = e.id::text)
@@ -1508,6 +1592,225 @@ begin
   perform noter(p.user_id, 'transfert', jsonb_build_object('annonce', p_id, 'recu', a.exemplaire, 'donne', mon_ex));
   perform noter(a.vendeur, 'transfert', jsonb_build_object('annonce', p_id, 'recu', mon_ex, 'donne', a.exemplaire));
   return jsonb_build_object('recu', a.exemplaire, 'donne', mon_ex, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Social : classement des poules, ami(e)s, échanges entre ami(e)s
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Niveau de poule de chaque joueur inscrit (pseudo et niveau seulement), du plus haut au plus bas, et ma place
+create or replace function classement_poules() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return jsonb_build_object('joueurs', coalesce((select jsonb_agg(t order by t.niveau desc, t.pts desc, lower(t.pseudo)) from (
+      select pr.pseudo, coalesce((pr.parcours ->> 'niveau')::int, 1) niveau,
+        param('parcours') -> (coalesce((pr.parcours ->> 'niveau')::int, 1) - 1) ->> 'nom' nom,
+        param('parcours') -> (coalesce((pr.parcours ->> 'niveau')::int, 1) - 1) ->> 'groupe' groupe,
+        coalesce((select (x ->> 'pts')::int from jsonb_array_elements(pr.parcours -> 'equipes') x where (x ->> 'moi')::boolean), 0) pts,
+        pr.user_id = p.user_id moi
+      from profils pr order by 2 desc limit 500) t), '[]'));
+end $$;
+
+create or replace function ami_de(p_pseudo text) returns profils language plpgsql stable security definer set search_path = public as $$
+declare a profils;
+begin
+  select * into a from profils where lower(pseudo) = lower(trim(coalesce(p_pseudo, '')));
+  if not found then raise exception 'Joueur introuvable'; end if;
+  return a;
+end $$;
+create or replace function sont_amis(a uuid, b uuid) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from amis where statut = 'accepte' and ((de = a and pour = b) or (de = b and pour = a)))
+$$;
+-- Ajouter un(e) ami(e) : envoie une demande (ou accepte la sienne si elle m'en a déjà envoyé une)
+create or replace function ajouter_ami(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo);
+begin
+  if a.user_id = p.user_id then raise exception 'C’est toi !'; end if;
+  if sont_amis(p.user_id, a.user_id) then raise exception 'Vous êtes déjà ami(e)s'; end if;
+  if exists (select 1 from amis where de = a.user_id and pour = p.user_id) then
+    update amis set statut = 'accepte' where de = a.user_id and pour = p.user_id;
+  else
+    if (select count(*) from amis where p.user_id in (de, pour)) >= parami('amis_max') then raise exception 'Tu as déjà % ami(e)s ou demandes', parami('amis_max'); end if;
+    insert into amis (de, pour) values (p.user_id, a.user_id) on conflict do nothing;
+  end if;
+  perform noter(p.user_id, 'ami', jsonb_build_object('pseudo', a.pseudo));
+  return mes_amis();
+end $$;
+create or replace function repondre_ami(p_pseudo text, p_accepte boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo);
+begin
+  if not exists (select 1 from amis where de = a.user_id and pour = p.user_id and statut = 'attente') then raise exception 'Pas de demande de sa part'; end if;
+  if p_accepte then update amis set statut = 'accepte' where de = a.user_id and pour = p.user_id;
+  else delete from amis where de = a.user_id and pour = p.user_id; end if;
+  return mes_amis();
+end $$;
+create or replace function retirer_ami(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo);
+begin
+  delete from amis where (de = p.user_id and pour = a.user_id) or (de = a.user_id and pour = p.user_id);
+  update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and ((de = p.user_id and pour = a.user_id) or (de = a.user_id and pour = p.user_id));
+  return mes_amis();
+end $$;
+
+-- Messages entre ami(e)s : la conversation (50 derniers), lue en l'ouvrant ; une pastille sur la bulle pour les non lus
+create or replace function conversation(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo);
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  update messages_amis set lu = true where de = a.user_id and pour = p.user_id and not lu;
+  return jsonb_build_object('pseudo', a.pseudo, 'messages', coalesce((select jsonb_agg(jsonb_build_object('moi', t.de = p.user_id, 'texte', t.texte, 'le', t.cree_le) order by t.cree_le, t.id)
+    from (select * from messages_amis m where (m.de = p.user_id and m.pour = a.user_id) or (m.de = a.user_id and m.pour = p.user_id) order by m.cree_le desc, m.id desc limit 50) t), '[]'),
+    'etat', etat_de(p.user_id));
+end $$;
+create or replace function envoyer_message(p_pseudo text, p_texte text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo); t text := btrim(coalesce(p_texte, ''));
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  if t = '' then raise exception 'Message vide'; end if;
+  if char_length(t) > parami('message_longueur') then raise exception 'Message trop long (% caractères au plus)', parami('message_longueur'); end if;
+  if (select count(*) from messages_amis where de = p.user_id and cree_le >= debut_du_jour()) >= parami('messages_par_jour') then
+    raise exception 'Tu as envoyé % messages aujourd’hui : reviens demain', parami('messages_par_jour');
+  end if;
+  insert into messages_amis (de, pour, texte) values (p.user_id, a.user_id, t);
+  return conversation(p_pseudo);
+end $$;
+
+-- Défi entre ami(e)s : vos deux équipes (chacune avec sa tactique) ; le gagnant remporte 30 pièces ; 5 défis par jour
+create or replace function defier_ami(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo); fa jsonb; fb jsonb; r jsonb; res text; res_d text; gain int := parami('defi_ami_pieces');
+  g_moi int := 0; g_lui int := 0;
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  if compter_jour(p.user_id, 'defi_ami') >= parami('defis_amis_par_jour') then
+    raise exception 'Tu as lancé tes % défis entre ami(e)s du jour : reviens demain', parami('defis_amis_par_jour');
+  end if;
+  perform verifier_equipe(p.user_id, p.equipe);
+  fa := force_equipe(p.equipe, p.tactique);
+  begin fb := force_equipe(a.equipe, a.tactique);
+  exception when others then raise exception '% n’a pas encore d’équipe complète', a.pseudo; end;
+  r := simuler(fa, fb);
+  res := r ->> 'resultat'; res_d := case res when 'gagne' then 'perdu' when 'perdu' then 'gagne' else 'nul' end;
+  if res = 'gagne' then g_moi := gain; elsif res = 'perdu' then g_lui := gain; end if;
+  update profils set pieces = pieces + g_moi where user_id = p.user_id;
+  update profils set pieces = pieces + g_lui where user_id = a.user_id;
+  insert into rencontres (user_id, type, adversaire, score, resultat, detail) values
+    (p.user_id, 'defi_ami', a.pseudo, array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('pieces', g_moi)),
+    (a.user_id, 'defense_ami', p.pseudo, array[(r ->> 'b')::int, (r ->> 'a')::int], res_d, jsonb_build_object('pieces', g_lui));
+  perform noter(p.user_id, 'defi-ami', jsonb_build_object('contre', a.pseudo, 'resultat', res, 'pieces', g_moi));
+  if g_lui > 0 then perform noter(a.user_id, 'defi-ami-gagne', jsonb_build_object('contre', p.pseudo, 'pieces', g_lui)); end if;
+  return jsonb_build_object('match', r, 'adversaire', a.pseudo, 'note', fa -> 'note', 'noteAdversaire', fb -> 'note',
+    'gains', jsonb_build_object('pieces', g_moi), 'etat', etat_de(p.user_id));
+end $$;
+
+-- Carte libre d'un joueur : à lui, pas au marché, pas dans son équipe
+create or replace function carte_libre(p_uid uuid, p_ex uuid) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from exemplaires e where e.id = p_ex and e.proprietaire = p_uid and e.verrou is null)
+    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = p_ex::text)
+$$;
+create or replace function expirer_echanges() returns void language sql security definer set search_path = public as $$
+  update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and cree_le < now() - make_interval(days => parami('echange_jours'))
+$$;
+create or replace function echange_json(x echanges, p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('id', x.id, 'de', (select pseudo from profils where user_id = x.de), 'pour', (select pseudo from profils where user_id = x.pour),
+    'moi', x.de = p_uid, 'offre', x.offre, 'cherche', x.cherche, 'statut', x.statut, 'cree_le', x.cree_le, 'fini_le', x.fini_le)
+$$;
+-- Mes ami(e)s, les demandes, les échanges en cours, et combien de propositions il me reste aujourd'hui
+create or replace function mes_amis() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  perform expirer_echanges();
+  return jsonb_build_object(
+    'amis', coalesce((select jsonb_agg(jsonb_build_object('pseudo', pr.pseudo, 'niveau', coalesce((pr.parcours ->> 'niveau')::int, 1),
+        'nom', param('parcours') -> (coalesce((pr.parcours ->> 'niveau')::int, 1) - 1) ->> 'nom',
+        'nonLus', (select count(*) from messages_amis m where m.de = pr.user_id and m.pour = p.user_id and not m.lu),
+        'echange', exists (select 1 from echanges x where x.statut = 'ouvert' and ((x.de = p.user_id and x.pour = pr.user_id) or (x.de = pr.user_id and x.pour = p.user_id))),
+        'equipe', (select count(*) from jsonb_object_keys(pr.equipe)) = 7) order by lower(pr.pseudo))
+      from amis a join profils pr on pr.user_id = case when a.de = p.user_id then a.pour else a.de end
+      where a.statut = 'accepte' and p.user_id in (a.de, a.pour)), '[]'),
+    'recues', coalesce((select jsonb_agg(pr.pseudo order by a.cree_le) from amis a join profils pr on pr.user_id = a.de where a.pour = p.user_id and a.statut = 'attente'), '[]'),
+    'envoyees', coalesce((select jsonb_agg(pr.pseudo order by a.cree_le) from amis a join profils pr on pr.user_id = a.pour where a.de = p.user_id and a.statut = 'attente'), '[]'),
+    'echanges', coalesce((select jsonb_agg(echange_json(x, p.user_id) order by x.cree_le desc) from echanges x
+      where p.user_id in (x.de, x.pour) and (x.statut = 'ouvert' or x.fini_le >= now() - interval '7 days')), '[]'),
+    'restants', greatest(0, parami('echanges_amis_par_jour') - (select count(*) from echanges where de = p.user_id and cree_le >= debut_du_jour())),
+    'limite', parami('echanges_amis_par_jour'),
+    'defis', greatest(0, parami('defis_amis_par_jour') - compter_jour(p.user_id, 'defi_ami')), 'defisLimite', parami('defis_amis_par_jour'),
+    'defiPieces', parami('defi_ami_pieces'));
+end $$;
+-- Les cartes qu'un(e) ami(e) peut échanger (hors équipe et marché)
+create or replace function club_ami(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo);
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note) order by e.note desc)
+    from exemplaires e where e.proprietaire = a.user_id and carte_libre(a.user_id, e.id)), '[]');
+end $$;
+-- Proposer un échange à un(e) ami(e) : ma carte contre la sienne, quels que soient les paliers ; 3 propositions par jour
+create or replace function proposer_echange(p_pseudo text, p_donne uuid, p_demande uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo); e1 exemplaires; e2 exemplaires; id_x uuid;
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  if (select count(*) from echanges where de = p.user_id and cree_le >= debut_du_jour()) >= parami('echanges_amis_par_jour') then
+    raise exception 'Tu as déjà proposé % échanges aujourd’hui : reviens demain', parami('echanges_amis_par_jour');
+  end if;
+  if not carte_libre(p.user_id, p_donne) then raise exception 'Ta carte doit être à toi, hors de ton équipe et du marché'; end if;
+  if not carte_libre(a.user_id, p_demande) then raise exception 'Cette carte n’est plus disponible'; end if;
+  if exists (select 1 from echanges where statut = 'ouvert' and (donne = p_donne or demande = p_demande)) then raise exception 'Un échange est déjà proposé avec cette carte'; end if;
+  -- une seule proposition à la fois entre deux ami(e)s (demande de Maël)
+  if exists (select 1 from echanges where statut = 'ouvert' and ((de = p.user_id and pour = a.user_id) or (de = a.user_id and pour = p.user_id))) then
+    raise exception 'Un échange est déjà en cours avec % : attends sa réponse', a.pseudo;
+  end if;
+  select * into e1 from exemplaires where id = p_donne; select * into e2 from exemplaires where id = p_demande;
+  insert into echanges (de, pour, donne, demande, offre, cherche) values (p.user_id, a.user_id, p_donne, p_demande,
+    jsonb_build_object('carte', e1.carte_id, 'palier', e1.palier, 'note', e1.note), jsonb_build_object('carte', e2.carte_id, 'palier', e2.palier, 'note', e2.note))
+    returning id into id_x;
+  perform noter(p.user_id, 'echange-propose', jsonb_build_object('echange', id_x, 'pour', a.pseudo));
+  return mes_amis();
+end $$;
+create or replace function repondre_echange(p_id uuid, p_accepte boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); x echanges; v profils;
+begin
+  perform expirer_echanges();
+  select * into x from echanges where id = p_id for update;
+  if not found or x.statut <> 'ouvert' or x.pour <> p.user_id then raise exception 'Cet échange n’est plus ouvert'; end if;
+  if not p_accepte then update echanges set statut = 'refuse', fini_le = now() where id = p_id; return mes_amis(); end if;
+  select * into v from profils where user_id = x.de for update;
+  if not sont_amis(p.user_id, x.de) then raise exception 'Vous n’êtes plus ami(e)s'; end if;
+  if not carte_libre(x.de, x.donne) then raise exception 'Sa carte n’est plus disponible'; end if;
+  if not carte_libre(p.user_id, x.demande) then raise exception 'Ta carte doit être hors de ton équipe et du marché'; end if;
+  update exemplaires set proprietaire = p.user_id where id = x.donne;
+  update exemplaires set proprietaire = x.de where id = x.demande;
+  update echanges set statut = 'accepte', fini_le = now() where id = p_id;
+  update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and id <> p_id and (donne in (x.donne, x.demande) or demande in (x.donne, x.demande));
+  perform noter(p.user_id, 'echange', jsonb_build_object('echange', p_id, 'recu', x.donne, 'donne', x.demande));
+  perform noter(x.de, 'echange', jsonb_build_object('echange', p_id, 'recu', x.demande, 'donne', x.donne));
+  return mes_amis() || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function annuler_echange(p_id uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  update echanges set statut = 'annule', fini_le = now() where id = p_id and de = p.user_id and statut = 'ouvert';
+  if not found then raise exception 'Cet échange n’est plus ouvert'; end if;
+  return mes_amis();
+end $$;
+
+-- Les écarts de chaque joueur : somme nulle (même total que les autres à note égale), et sur tout le catalogue chaque
+-- stat a une moyenne nulle (champ et gardiens à part) : aucune stat n'est en moyenne plus forte que les autres.
+-- Relancer ne change rien (les écarts déjà normalisés restent les mêmes).
+create or replace function normaliser_ecarts() returns void language plpgsql security definer set search_path = public as $$
+declare fam text; ks text[]; k text; moy jsonb;
+begin
+  for fam in select unnest(array['champ', 'gb']) loop
+    ks := case fam when 'gb' then array['ref', 'pla', 'rel', 'men', 'phy', 'vit'] else array['tir', 'pas', 'def', 'men', 'phy', 'vit'] end;
+    -- 1. chaque joueur : écarts centrés (somme nulle)
+    update cartes c set ecarts = (select jsonb_object_agg(k2, round(coalesce((c.ecarts ->> k2)::numeric, 0)
+        - (select avg(coalesce((c.ecarts ->> k3)::numeric, 0)) from unnest(ks) k3))) from unnest(ks) k2)
+      where coalesce(c.poste = 'GB', false) = (fam = 'gb');
+    -- 2. moyenne de chaque stat sur le catalogue, retirée à tous
+    select jsonb_object_agg(k2, (select avg((c.ecarts ->> k2)::numeric) from cartes c where c.actif and coalesce(c.poste = 'GB', false) = (fam = 'gb'))) into moy from unnest(ks) k2;
+    if moy is null then continue; end if;
+    update cartes c set ecarts = (select jsonb_object_agg(k2, round((c.ecarts ->> k2)::numeric - coalesce((moy ->> k2)::numeric, 0))) from unnest(ks) k2)
+      where coalesce(c.poste = 'GB', false) = (fam = 'gb');
+  end loop;
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1535,6 +1838,7 @@ begin
       where actif and id not in (select x ->> 'id' from jsonb_array_elements(p_cartes) x);
     get diagnostics n = row_count;
   end if;
+  perform normaliser_ecarts();
   perform noter(auth.uid(), 'admin-cartes', jsonb_build_object('cartes', jsonb_array_length(p_cartes), 'retirees', n));
   return jsonb_build_object('cartes', jsonb_array_length(p_cartes), 'retirees', n);
 end $$;
@@ -1599,6 +1903,14 @@ grant execute on function
   aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
   match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
-  marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
+  marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid),
+  choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
+  proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
+
+-- Écarts des cartes déjà publiées : remis à la nouvelle règle (sans effet s'ils le sont déjà)
+select normaliser_ecarts();
+-- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue
+with x as (update annonces set statut = 'retiree' where statut = 'ouverte' and palier_cherche <> offre ->> 'palier' returning exemplaire)
+update exemplaires set verrou = null where id in (select exemplaire from x);

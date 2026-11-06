@@ -218,6 +218,23 @@ const CompteServeur = (() => {
     publierAnnonce: (ex, carte, palier) => rpc('publier_annonce', {p_ex: ex, p_carte: carte, p_palier: palier}),
     retirerAnnonce: id => rpc('retirer_annonce', {p_id: id}),
     accepterAnnonce: id => rpc('accepter_annonce', {p_id: id}),                   // → {recu, donne}
+
+    // ── équipe : choix tactiques « attaque:défense » (duels | enclenchement | rapide : 06 | 15 | 33) ──
+    choisirTactique: tactique => rpc('choisir_tactique', {p_tactique: tactique}),
+
+    // ── social : classement des poules, ami(e)s, échanges entre ami(e)s (3 propositions par jour) ──
+    classementPoules: () => rpc('classement_poules'),                              // → {joueurs: [{pseudo, niveau, nom, groupe, pts, moi}]}
+    mesAmis: () => rpc('mes_amis'),                                                // → {amis, recues, envoyees, echanges, restants, limite}
+    ajouterAmi: pseudo => rpc('ajouter_ami', {p_pseudo: pseudo}),
+    repondreAmi: (pseudo, oui) => rpc('repondre_ami', {p_pseudo: pseudo, p_accepte: oui}),
+    retirerAmi: pseudo => rpc('retirer_ami', {p_pseudo: pseudo}),
+    clubAmi: pseudo => rpc('club_ami', {p_pseudo: pseudo}),                       // → [{id, carte, palier, note}]
+    proposerEchange: (pseudo, donne, demande) => rpc('proposer_echange', {p_pseudo: pseudo, p_donne: donne, p_demande: demande}),
+    repondreEchange: (id, oui) => rpc('repondre_echange', {p_id: id, p_accepte: oui}),
+    annulerEchange: id => rpc('annuler_echange', {p_id: id}),
+    conversation: pseudo => rpc('conversation', {p_pseudo: pseudo}),            // → {pseudo, messages: [{moi, texte, le}]} (marque comme lus)
+    envoyerMessage: (pseudo, texte) => rpc('envoyer_message', {p_pseudo: pseudo, p_texte: texte}),
+    defierAmi: pseudo => rpc('defier_ami', {p_pseudo: pseudo}),                  // → comme defier ; 30 pièces au gagnant, 5 par jour
   };
 })();
 
