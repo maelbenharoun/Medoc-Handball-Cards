@@ -624,12 +624,21 @@ body.avec-intro { overflow: hidden; }
   background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .13) 0 1px, transparent 1px 12px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .13) 0 1px, transparent 1px 12px), rgba(0, 0, 0, .35); }
 .j7-gardien { position: absolute; left: 50%; bottom: 0; width: 34%; translate: -50% 0; transform-origin: 50% 90%; z-index: 2; }
 .j7-gardien svg { display: block; width: 100%; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5)); }
-.j7-visee { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; z-index: 3; }
-.j7-visee::before { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; border-left: 2px dashed rgba(255, 210, 87, .8); }
-.j7-visee i { position: absolute; left: 0; top: 45%; width: 34px; height: 34px; translate: -50% -50%; border-radius: 50%; border: 3px solid var(--accent);
-  box-shadow: 0 0 14px rgba(255, 210, 87, .7); background: radial-gradient(circle, var(--accent) 0 3px, transparent 4px); }
-.j7.puissance .j7-visee::before { border-left-style: solid; }
-.j7.tir .j7-visee { opacity: 0; transition: opacity .2s; }
+.j7-but { overflow: visible; z-index: 2; }   /* le gardien passe devant le sol quand il s'étire */
+.j7-bosse { position: absolute; width: 22%; aspect-ratio: 1; border-radius: 50%; opacity: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .55), rgba(255, 255, 255, .12) 70%, transparent); }
+/* gardien articulé : chaque membre tourne autour de son épaule ou de sa hanche */
+.gk g { transform-box: view-box; }
+.gk-corps { transform-origin: 60px 95px; } .gk-bg { transform-origin: 47px 48px; } .gk-bd { transform-origin: 73px 48px; }
+.gk-jg { transform-origin: 53px 92px; } .gk-jd { transform-origin: 67px 92px; }
+/* viseur : il se promène sur tout le but et autour */
+.j7-viseur { position: absolute; left: 50%; top: 40%; width: 0; height: 0; z-index: 3; pointer-events: none; }
+.j7-viseur i { position: absolute; left: 0; top: 0; width: 38px; height: 38px; translate: -50% -50%; border-radius: 50%; border: 3px solid var(--accent);
+  box-shadow: 0 0 14px rgba(255, 210, 87, .75), inset 0 0 8px rgba(255, 210, 87, .4);
+  background: radial-gradient(circle, var(--accent) 0 3px, transparent 4px), linear-gradient(var(--accent), var(--accent)) center / 2px 100% no-repeat,
+    linear-gradient(var(--accent), var(--accent)) center / 100% 2px no-repeat; }
+.j7.puissance .j7-viseur i { animation: none; border-color: #fff; box-shadow: 0 0 18px #fff; }
+.j7.tir .j7-viseur { opacity: 0; transition: opacity .2s; }
 .j7-sol { position: absolute; left: 0; right: 0; top: calc(13% + min(84vw, 460px, 60vh) * 2 / 3); bottom: 0;
   background: linear-gradient(180deg, #3a2a1c, #2a1e14 40%, #1b140e); }
 .j7-ligne6 { position: absolute; left: 50%; top: 4%; width: 120%; height: 70%; translate: -50% -60%; border: 3px solid rgba(255, 255, 255, .5); border-radius: 50%; border-top-color: transparent; }
@@ -642,8 +651,10 @@ body.avec-intro { overflow: hidden; }
 .j7-jauge { position: absolute; right: 18px; top: 52%; width: 26px; height: min(34vh, 260px); z-index: 4; border-radius: 13px; overflow: visible;
   background: linear-gradient(0deg, #1b1f26, #2a3038); border: 2px solid var(--line); opacity: .35; transition: opacity .2s; }
 .j7.puissance .j7-jauge, .j7.tir .j7-jauge { opacity: 1; }
-.j7-vert { position: absolute; left: 0; right: 0; bottom: 65%; height: 25%; background: rgba(91, 214, 138, .55); }
-.j7-rouge { position: absolute; left: 0; right: 0; top: 0; height: 7%; border-radius: 11px 11px 0 0; background: rgba(229, 72, 77, .75); }
+/* jauge : un point idéal à 80 % ; plus on s'en approche, mieux c'est (en dessous : plus lent ; au-dessus : de travers) */
+.j7-jauge { background: linear-gradient(0deg, #2b1d14 0%, #8a5a20 35%, #e3b94a 65%, #5bd68a 80%, #e3b94a 87%, #e5484d 100%); }
+.j7-ideal { position: absolute; left: -9px; right: -9px; bottom: 80%; height: 3px; translate: 0 50%; border-radius: 2px; background: #5bd68a; box-shadow: 0 0 10px #5bd68a; }
+.j7-ideal::after { content: "idéal"; position: absolute; right: calc(100% + 4px); top: 50%; translate: 0 -50%; font-size: .62rem; font-weight: 800; color: #5bd68a; }
 .j7-niveau { position: absolute; left: -7px; right: -7px; bottom: 0; height: 5px; translate: 0 50%; border-radius: 3px; background: #fff; box-shadow: 0 0 10px #fff; }
 .j7-jauge small { position: absolute; left: 50%; bottom: -24px; translate: -50% 0; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .j7-aide { position: absolute; left: 0; right: 0; bottom: calc(9% + env(safe-area-inset-bottom)); margin: 0; z-index: 5; text-align: center; pointer-events: none;

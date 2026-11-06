@@ -979,37 +979,54 @@ $('.brand').addEventListener('click', () => {
 });
 
 // ── mini-jeu : jet de 7 mètres ───────────────────────────────────────────────────
-// Une barre de visée va et vient le long du but, puis une jauge de puissance monte et descend : on touche pour
-// arrêter chacune. Le serveur fait plonger le gardien et décide du résultat (tirer_7m). 5 tirs par jour.
+// Le viseur se promène sur tout le but et autour (on peut tirer à côté) : on touche pour viser. Puis la jauge de puissance
+// monte et descend : on touche pour tirer. Point idéal à 80 % : en dessous le tir est plus lent (le gardien a le temps),
+// au-dessus il part de plus en plus de travers.
+// Le serveur (tirer_7m) fait deviner le gardien et décide : au centre, toujours arrêté ; dans les angles, ça rentre.
 const J7 = {};
-const RES7 = {but: ['But !', 'but'], arret: ['Arrêté !', 'rate'], dessus: ['Au-dessus !', 'rate'], poteau: ['Poteau !', 'rate']};
+const RES7 = {but: ['But !', 'but'], arret: ['Arrêté !', 'rate'], dehors: ['À côté !', 'rate'], poteau: ['Poteau !', 'rate'], dessus: ['Au-dessus !', 'rate']};
+const titre7 = r => r.resultat === 'dehors' && r.y < 0 ? 'Au-dessus !' : r.resultat === 'poteau' && r.y < .05 ? 'Sur la barre !' : RES7[r.resultat][0];
 function blocJet7m(e) {
   const j = e.jet7m || {tirs: [], limite: 5, piecesBut: 15, bonus: 25}, reste = j.limite - j.tirs.length, buts = j.tirs.filter(x => x === 'but').length;
-  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? ' ' + RES7[j.tirs[i]][1] : ''}"></i>`).join('');
+  const pastilles = Array.from({length: j.limite}, (_, i) => `<i class="j7p${j.tirs[i] ? ' ' + (RES7[j.tirs[i]] || RES7.dehors)[1] : ''}"></i>`).join('');
   return `<div class="mode"><div class="mode-t"><b>Jet de 7 mètres</b><span>${buts} but${buts > 1 ? 's' : ''} aujourd’hui</span></div>
-    <p class="sub petit">Arrête la visée puis la puissance au bon moment. ${j.piecesBut} pièces par but, ${j.bonus} de plus pour un 5 sur 5 ; ${j.limite} tirs par jour.</p>
+    <p class="sub petit">Vise loin du gardien, dans les angles, puis règle la puissance. ${j.piecesBut} pièces par but, ${j.bonus} de plus pour un 5 sur 5 ; ${j.limite} tirs par jour.</p>
     <div class="j7-pastilles">${pastilles}</div>
     <button class="btn gold large" data-act="jet7m"${reste > 0 ? '' : ' disabled'}>${reste > 0 ? `Tirer · ${reste} tir${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''}` : 'Reviens demain'}</button></div>`;
 }
-const GARDIEN_SVG = `<svg viewBox="0 0 100 120" aria-hidden="true"><g stroke-linecap="round">
-  <path d="M38 40 L14 16 M62 40 L86 16" stroke="#1d5b8f" stroke-width="11"/><circle cx="12" cy="14" r="6" fill="#e8c4a0"/><circle cx="88" cy="14" r="6" fill="#e8c4a0"/>
-  <path d="M43 86 L30 116 M57 86 L70 116" stroke="#14171c" stroke-width="12"/>
-  <rect x="33" y="32" width="34" height="58" rx="11" fill="#1d5b8f"/><text x="50" y="69" text-anchor="middle" font-size="20" font-weight="900" fill="#ffd257" font-family="sans-serif">1</text>
-  <circle cx="50" cy="20" r="12" fill="#e8c4a0"/><path d="M38 17 Q50 3 62 17" fill="#3b2a1a"/></g></svg>`;
+// gardien de face, articulé (bras, jambes, buste) pour parer comme au hand : bras tendu en haut, jambe tendue en bas
+const GARDIEN_SVG = `<svg viewBox="0 0 120 150" aria-hidden="true" class="gk"><g stroke-linecap="round" stroke-linejoin="round">
+  <g class="gk-jg"><path d="M53 92 L45 140" stroke="#5a6475" stroke-width="13"/><path d="M37 143 h14" stroke="#e5484d" stroke-width="7"/></g>
+  <g class="gk-jd"><path d="M67 92 L75 140" stroke="#5a6475" stroke-width="13"/><path d="M69 143 h14" stroke="#e5484d" stroke-width="7"/></g>
+  <g class="gk-corps"><rect x="43" y="40" width="34" height="58" rx="13" fill="#1d5b8f"/>
+    <text x="60" y="78" text-anchor="middle" font-size="22" font-weight="900" fill="#ffd257" font-family="sans-serif">1</text>
+    <circle cx="60" cy="25" r="13" fill="#e8c4a0"/><path d="M47 22 Q60 6 73 22" fill="#3b2a1a"/></g>
+  <g class="gk-bg"><path d="M47 48 L25 18" stroke="#1d5b8f" stroke-width="12"/><circle cx="23" cy="15" r="7" fill="#e8c4a0"/></g>
+  <g class="gk-bd"><path d="M73 48 L95 18" stroke="#1d5b8f" stroke-width="12"/><circle cx="97" cy="15" r="7" fill="#e8c4a0"/></g></g></svg>`;
+// parades : rotations des membres (degrés, autour des épaules et des hanches) et déplacement du gardien
+function parade(gx, gy) {
+  const cote = gx < .4 ? -1 : gx > .6 ? 1 : 0, haut = gy < .5;
+  if (!cote) return haut ? {bg: 22, bd: -22, jg: -6, jd: 6, corps: 0, dy: -12, dx: 0}               // bras levés, petit saut
+    : {bg: -95, bd: 95, jg: 62, jd: -62, corps: 0, dy: 10, dx: 0};                                   // grand écart, bras au sol
+  // côté choisi : membres de ce côté tendus, l'autre jambe en appui ; (cote = -1 : gauche de l'écran)
+  const P = haut ? {bras: -18, autreBras: 25, jambe: 28, autreJambe: -8, corps: -12, dy: -6}       // bras tendu vers la lucarne
+    : {bras: -118, autreBras: 30, jambe: 80, autreJambe: -22, corps: -16, dy: 8};                    // jambe tendue au ras du sol
+  const g = cote < 0;
+  return {bg: g ? P.bras : -P.autreBras, bd: g ? P.autreBras : -P.bras, jg: g ? P.jambe : -P.autreJambe, jd: g ? P.autreJambe : -P.jambe,
+    corps: P.corps * (g ? 1 : -1), dy: P.dy, dx: cote};
+}
 // Démo (?demo=7m) : mêmes règles que tirer_7m, calculées dans la page, sans pièces ni serveur
-function tir7mDemo(v, f) {
-  const zone = v < 1 / 3 ? 'g' : v > 2 / 3 ? 'd' : 'c', x = Math.random(), gardien = x < .35 ? 'g' : x < .7 ? 'd' : 'c';
-  const ecart = Math.abs(v - .5) * 2, force = Math.max(0, 1 - Math.abs(f - .8) / .5);
-  let res;
-  if (f > .93) res = 'dessus';
-  else if (ecart > .93) res = 'poteau';
-  else {
-    const pa = gardien === zone && zone === 'c' ? .85 - .35 * force : gardien === zone ? .8 - .45 * force - .2 * Math.max(0, ecart - .6)
-      : f < .35 ? .55 : zone === 'c' ? .2 : .04;
-    res = Math.random() < pa ? 'arret' : 'but';
-  }
+function tir7mDemo(x0, y0, f) {
+  let x = x0, y = y0;
+  const trop = Math.max(0, f - .8) / .2;   // point idéal : 80 %
+  x += (Math.random() - .5) * .44 * trop; y += (Math.random() - .5) * .38 * trop;
+  const vitesse = Math.min(f, .8) / .8, a = Math.random();
+  const gx = a < .3 ? .2 : a < .6 ? .8 : .5, gy = Math.random() < .5 ? .3 : .75;
+  const portee = .66 - .46 * vitesse + (gx === .5 ? .08 : 0);
+  const res = x < 0 || x > 1 || y < 0 ? 'dehors' : x < .05 || x > .95 || y < .05 ? 'poteau' : Math.abs(x - .5) < .2 ? 'arret'
+    : Math.hypot(x - (.5 + (gx - .5) * .6), (y - gy) * .67) < portee ? 'arret' : 'but';
   const tirs = [...J7.tirs, res];
-  return Promise.resolve({resultat: res, zone, gardien, pieces: 0, bonus: 0, tirs, restants: J7.limite - tirs.length});
+  return Promise.resolve({resultat: res, x, y, vitesse, gardien: {x: gx, y: gy}, pieces: 0, bonus: 0, tirs, restants: J7.limite - tirs.length});
 }
 function ouvrirJet7m(demo) {
   const j = demo ? {tirs: [], limite: 5} : S().jet7m || {tirs: [], limite: 5};
@@ -1017,10 +1034,10 @@ function ouvrirJet7m(demo) {
   const el = document.createElement('div');
   el.className = 'j7';
   el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
-    <div class="j7-terrain"><div class="j7-but"><div class="j7-filet"></div><div class="j7-gardien">${GARDIEN_SVG}</div>
-      <div class="j7-visee"><i></i></div></div>
+    <div class="j7-terrain"><div class="j7-but"><div class="j7-filet"></div><i class="j7-bosse"></i><div class="j7-gardien">${GARDIEN_SVG}</div>
+      <div class="j7-viseur"><i></i></div></div>
       <div class="j7-sol"><i class="j7-ligne6"></i><i class="j7-ligne7"></i></div><div class="j7-ballon"></div></div>
-    <div class="j7-jauge" aria-hidden="true"><i class="j7-vert"></i><i class="j7-rouge"></i><i class="j7-niveau"></i><small>Puissance</small></div>
+    <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro');
@@ -1030,77 +1047,92 @@ function ouvrirJet7m(demo) {
   nouveauTir();
 }
 function fermerJet7m() { cancelAnimationFrame(J7.raf); J7.el?.remove(); J7.el = null; document.body.classList.remove('avec-intro'); route(true); }
+const vaEtVient = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
 function nouveauTir() {
-  const el = J7.el, n = J7.tirs.length;
-  el.querySelector('.j7-score').textContent = `Tir ${n + 1}/${J7.limite} · ${J7.tirs.filter(x => x === 'but').length} but${J7.tirs.filter(x => x === 'but').length > 1 ? 's' : ''}`;
+  const el = J7.el, n = J7.tirs.length, buts = J7.tirs.filter(x => x === 'but').length;
+  el.querySelector('.j7-score').textContent = `Tir ${n + 1}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
   el.querySelector('.j7-resultat').hidden = true; el.querySelector('.j7-bas').innerHTML = '';
   el.classList.remove('puissance', 'tir', 'r-but', 'r-rate');
-  for (const q of ['.j7-gardien', '.j7-ballon', '.j7-filet']) { const x = el.querySelector(q); x.getAnimations().forEach(a => a.cancel()); x.style.transform = ''; }
+  el.querySelectorAll('.j7-gardien, .gk g, .j7-ballon, .j7-filet, .j7-bosse, .j7-but').forEach(x => x.getAnimations().forEach(a => a.cancel()));
   el.querySelector('.j7-aide').textContent = 'Touche pour viser';
-  Object.assign(J7, {phase: 'visee', t0: performance.now(), periodeV: Math.max(.8, 1.3 - n * .1), periodeP: Math.max(.75, 1.05 - n * .06), visee: .5, puissance: 0});
-  cancelAnimationFrame(J7.raf);
-  const tri = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };   // va-et-vient de 0 à 1
-  const boucle = now => {
-    const t = (now - J7.t0) / 1000;
-    if (J7.phase === 'visee') { J7.visee = tri(t, J7.periodeV); el.querySelector('.j7-visee').style.left = (J7.visee * 100) + '%'; }
-    if (J7.phase === 'puissance') { J7.puissance = tri(t, J7.periodeP); el.querySelector('.j7-niveau').style.bottom = (J7.puissance * 100) + '%'; }
-    if (J7.phase === 'visee' || J7.phase === 'puissance') J7.raf = requestAnimationFrame(boucle);
-  };
+  // plus rapide à chaque tir
+  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: Math.max(.72, 1.02 - n * .07), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
   el.querySelector('.j7-niveau').style.bottom = '0%';
-  J7.raf = requestAnimationFrame(boucle);
+  boucleJet7m();
+}
+function boucleJet7m() {
+  cancelAnimationFrame(J7.raf);
+  const v = J7.el.querySelector('.j7-viseur'), niv = J7.el.querySelector('.j7-niveau');
+  const pas = now => {
+    const t = (now - J7.t0) / 1000;
+    if (J7.phase === 'visee') {   // trajet qui couvre tout le but et ses abords (deux périodes qui ne se recoupent pas)
+      J7.x = .5 + .68 * Math.sin(2 * Math.PI * t / J7.tx); J7.y = .38 + .64 * Math.sin(2 * Math.PI * t / (J7.tx * .71) + 1.3);
+      v.style.left = (J7.x * 100) + '%'; v.style.top = (J7.y * 100) + '%';
+    } else if (J7.phase === 'puissance') { J7.puissance = vaEtVient(t, J7.py); niv.style.bottom = (J7.puissance * 100) + '%'; }
+    else return;
+    J7.raf = requestAnimationFrame(pas);
+  };
+  J7.raf = requestAnimationFrame(pas);
 }
 function toucherJet7m() {
   if (J7.phase === 'visee') {
     J7.phase = 'puissance'; J7.t0 = performance.now(); vibrer(10);
     J7.el.classList.add('puissance'); J7.el.querySelector('.j7-aide').textContent = 'Touche pour tirer';
-    cancelAnimationFrame(J7.raf);
-    const tri = (t, per) => { const x = (t / per) % 2; return x < 1 ? x : 2 - x; };
-    const boucle = now => { if (J7.phase !== 'puissance') return; J7.puissance = tri((now - J7.t0) / 1000, J7.periodeP);
-      J7.el.querySelector('.j7-niveau').style.bottom = (J7.puissance * 100) + '%'; J7.raf = requestAnimationFrame(boucle); };
-    J7.raf = requestAnimationFrame(boucle);
+    boucleJet7m();
   } else if (J7.phase === 'puissance') {
     J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20);
     J7.el.classList.add('tir'); J7.el.querySelector('.j7-aide').textContent = '';
-    const v = Math.round(J7.visee * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
-    (J7.demo ? tir7mDemo(v, f) : Compte.tirer7m(v, f)).then(r => animerTir(r, v, f)).catch(e => { toast(e.message); fermerJet7m(); });
+    const x = Math.round(J7.x * 1000) / 1000, y = Math.round(J7.y * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
+    (J7.demo ? tir7mDemo(x, y, f) : Compte.tirer7m(x, y, f)).then(animerTir).catch(e => { toast(e.message); fermerJet7m(); });
   }
 }
-function animerTir(r, v, f) {
+function animerTir(r) {
   const el = J7.el; if (!el) return;
   J7.tirs = r.tirs; J7.gains += r.pieces + r.bonus;
-  const but = el.querySelector('.j7-but').getBoundingClientRect(), ballon = el.querySelector('.j7-ballon'), b0 = ballon.getBoundingClientRect();
-  // point visé dans le but : haut si la puissance est bonne, au milieu sinon ; au-dessus de la barre si trop fort
-  // le dessin suit le résultat du serveur : arrêt = le gardien va au ballon ; but alors qu'il a deviné = au-dessus des bras, ou entre les jambes au centre
-  const devine = r.resultat === 'but' && r.gardien === r.zone;
-  const hauteur = r.resultat === 'dessus' ? -.25 : devine ? (r.zone === 'c' ? .86 : .1) : f > .6 ? .3 : .6;
-  const x = but.left + but.width * (r.resultat === 'poteau' ? (v < .5 ? 0 : 1) : v), y = but.top + but.height * hauteur;
-  const dx = x - (b0.left + b0.width / 2), dy = y - (b0.top + b0.height / 2), vite = moinsAnim() ? 0 : 1;
-  const gardien = el.querySelector('.j7-gardien');
-  const cote = r.resultat === 'arret' ? r.zone : r.gardien, court = devine && cote !== 'c';
-  const plongeon = {g: `translate(${court ? -40 : -62}%, 8%) rotate(${court ? -45 : -62}deg)`, d: `translate(${court ? 40 : 62}%, 8%) rotate(${court ? 45 : 62}deg)`,
-    c: devine ? 'translateY(-14%) scale(1.04)' : 'translateY(-6%) scale(1.06)'}[cote];
-  gardien.animate([{transform: 'none'}, {transform: plongeon}], {duration: 360 * vite, delay: 60 * vite, easing: 'cubic-bezier(.2, .8, .3, 1)', fill: 'forwards'});
-  const frames = [{transform: 'translate(0, 0) scale(1)'}, {transform: `translate(${dx}px, ${dy}px) scale(.42)`}];
-  if (r.resultat === 'arret') frames.push({transform: `translate(${dx + (v < .5 ? -1 : 1) * 70}px, ${dy + 90}px) scale(.5)`, opacity: .6});
-  if (r.resultat === 'poteau') frames.push({transform: `translate(${dx + (v < .5 ? -1 : 1) * 60}px, ${dy + 40}px) scale(.4)`, opacity: .5});
-  if (r.resultat === 'dessus') frames.push({transform: `translate(${dx * 1.2}px, ${dy - 80}px) scale(.3)`, opacity: 0});
-  const a = ballon.animate(frames, {duration: (r.resultat === 'but' ? 380 : 620) * vite, easing: 'cubic-bezier(.25, .7, .4, 1)', fill: 'forwards'});
+  const vite = moinsAnim() ? 0 : 1, but = el.querySelector('.j7-but').getBoundingClientRect(), ballon = el.querySelector('.j7-ballon'), b0 = ballon.getBoundingClientRect();
+  const duree = Math.round(560 - 330 * (r.vitesse ?? .7));   // la puissance donne la vitesse du ballon
+  // point d'impact (sur le cadre pour un poteau)
+  const ix = r.resultat === 'poteau' ? (r.x < .05 ? 0 : r.x > .95 ? 1 : r.x) : r.x, iy = r.resultat === 'poteau' && r.y < .05 ? 0 : r.y;
+  const px = but.left + but.width * ix, py = but.top + but.height * iy;
+  const dx = px - (b0.left + b0.width / 2), dy = py - (b0.top + b0.height / 2);
+  // le gardien pare vers ce qu'il a deviné (vers le ballon s'il l'arrête)
+  const g = r.resultat === 'arret' ? {x: Math.abs(r.x - .5) < .2 ? .5 : r.x, y: r.y} : r.gardien, P = parade(g.x, g.y);
+  const gk = el.querySelector('.j7-gardien'), mv = {duration: Math.max(180, duree * .7) * vite, delay: 40 * vite, easing: 'cubic-bezier(.2, .9, .3, 1.1)', fill: 'forwards'};
+  gk.animate([{transform: 'none'}, {transform: `translate(${P.dx * 42}%, ${P.dy}%)`}], mv);
+  for (const [cls, rot] of [['gk-corps', P.corps], ['gk-bg', P.bg], ['gk-bd', P.bd], ['gk-jg', P.jg], ['gk-jd', P.jd]])
+    el.querySelector('.' + cls).animate([{transform: 'rotate(0deg)'}, {transform: `rotate(${rot}deg)`}], mv);
+  // le ballon : vers le point visé, de plus en plus petit (il s'éloigne)
+  const cotes = r.x < .5 ? -1 : 1, frames = [{transform: 'translate(0, 0) scale(1) rotate(0deg)'}, {transform: `translate(${dx}px, ${dy}px) scale(.4) rotate(${cotes * 300}deg)`}];
+  if (r.resultat === 'arret') frames.push({transform: `translate(${dx + cotes * 90}px, ${dy + 120}px) scale(.55) rotate(${cotes * 520}deg)`, opacity: .7});
+  if (r.resultat === 'poteau') frames.push({transform: `translate(${dx + (iy === 0 ? cotes * 30 : -cotes * 70)}px, ${dy + (iy === 0 ? -70 : 60)}px) scale(.45) rotate(${cotes * 540}deg)`, opacity: .6});
+  if (r.resultat === 'dehors') frames.push({transform: `translate(${dx * 1.15}px, ${dy - 40}px) scale(.3)`, opacity: 0});
+  if (r.resultat === 'but') frames.push({transform: `translate(${dx}px, ${dy + 6}px) scale(.34) rotate(${cotes * 360}deg)`});
+  const a = ballon.animate(frames, {duration: duree * (frames.length > 2 ? 1.7 : 1) * vite, easing: 'cubic-bezier(.3, .6, .4, 1)', fill: 'forwards'});
+  setTimeout(() => {   // à l'impact
+    if (!J7.el) return;
+    if (r.resultat === 'but') {   // le filet se creuse là où le ballon entre
+      const bo = el.querySelector('.j7-bosse'); bo.style.left = (ix * 100) + '%'; bo.style.top = (iy * 100) + '%';
+      bo.animate([{transform: 'translate(-50%, -50%) scale(.2)', opacity: .9}, {transform: 'translate(-50%, -50%) scale(1.6)', opacity: 0}], {duration: 520 * vite, fill: 'forwards'});
+      el.querySelector('.j7-filet').animate([{transform: 'scale(1)'}, {transform: 'scale(1.02, 1.05)'}, {transform: 'scale(1)'}], {duration: 380 * vite});
+    }
+    if (r.resultat === 'poteau') el.querySelector('.j7-but').animate([{transform: 'translateX(0)'}, {transform: 'translateX(-3px)'}, {transform: 'translateX(3px)'}, {transform: 'translateX(0)'}], {duration: 220 * vite});
+    if (r.resultat === 'arret') el.animate([{transform: 'translate(0, 0)'}, {transform: 'translate(-4px, 2px)'}, {transform: 'translate(4px, -2px)'}, {transform: 'translate(0, 0)'}], {duration: 200 * vite});
+  }, duree * vite);
   a.finished.then(() => {
     if (!J7.el) return;
-    if (r.resultat === 'but') el.querySelector('.j7-filet').animate([{transform: 'scale(1)'}, {transform: 'scale(1.04, 1.07)'}, {transform: 'scale(1)'}], {duration: 360 * vite});
-    const [titre, cls] = RES7[r.resultat];
+    const cls = (RES7[r.resultat] || RES7.dehors)[1];
     el.classList.add('r-' + cls);
     vibrer(r.resultat === 'but' ? [30, 40, 60] : 40);
     const box = el.querySelector('.j7-resultat');
-    box.innerHTML = `<b>${titre}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
+    box.innerHTML = `<b>${titre7(r)}</b>${r.pieces ? `<small>+${r.pieces} pièces</small>` : ''}${r.bonus ? `<small>5 sur 5 : +${r.bonus} pièces de bonus !</small>` : ''}`;
     box.hidden = false;
     const n = J7.tirs.length, buts = J7.tirs.filter(t => t === 'but').length;
     el.querySelector('.j7-score').textContent = `Tir ${n}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
     el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large j7-suivant">Tir suivant</button>`
       : J7.demo ? `<p class="j7-bilan">${buts} sur ${J7.limite} · démo : pas de pièces</p><button class="btn gold large j7-rejouer">Rejouer</button>`
       : `<p class="j7-bilan">${buts} sur ${J7.limite} · +${nb(J7.gains)} pièces</p><button class="btn gold large j7-fin">Fermer</button>`;
-    el.querySelector('.j7-rejouer')?.addEventListener('click', e => { e.stopPropagation(); J7.tirs = []; nouveauTir(); });
     el.querySelector('.j7-suivant')?.addEventListener('click', e => { e.stopPropagation(); nouveauTir(); });
+    el.querySelector('.j7-rejouer')?.addEventListener('click', e => { e.stopPropagation(); J7.tirs = []; nouveauTir(); });
     el.querySelector('.j7-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   });
 }
