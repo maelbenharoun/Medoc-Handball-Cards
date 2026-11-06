@@ -1,6 +1,6 @@
 {
  "saison": "2026-2027",
- "maj": "2026-11-05",
+ "maj": "2026-11-06",
  "cartes": [
   {
    "id": "julie-valentin",
@@ -19,6 +19,7 @@
    "bpm": 9.6,
    "record": 14,
    "recrue": false,
+   "numero": 14,
    "rarete": "elite"
   },
   {
@@ -38,6 +39,7 @@
    "bpm": 6.5,
    "record": 11,
    "recrue": false,
+   "numero": 10,
    "rarete": "elite"
   },
   {
@@ -57,6 +59,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": true,
+   "numero": 16,
    "rarete": "elite"
   },
   {
@@ -76,6 +79,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 16,
    "rarete": "elite"
   },
   {
@@ -95,6 +99,7 @@
    "bpm": 2.0,
    "record": 2,
    "recrue": false,
+   "numero": 17,
    "rarete": "elite"
   },
   {
@@ -114,6 +119,7 @@
    "bpm": 10.8,
    "record": 14,
    "recrue": false,
+   "numero": 9,
    "rarete": "elite"
   },
   {
@@ -133,6 +139,7 @@
    "bpm": 5.0,
    "record": 11,
    "recrue": true,
+   "numero": 7,
    "rarete": "elite"
   },
   {
@@ -152,6 +159,7 @@
    "bpm": 3.6,
    "record": 5,
    "recrue": true,
+   "numero": 3,
    "rarete": "elite"
   },
   {
@@ -171,6 +179,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 1,
    "rarete": "or"
   },
   {
@@ -190,6 +199,7 @@
    "bpm": 2.7,
    "record": 4,
    "recrue": false,
+   "numero": 23,
    "rarete": "or"
   },
   {
@@ -209,6 +219,7 @@
    "bpm": 6.0,
    "record": 8,
    "recrue": false,
+   "numero": 44,
    "rarete": "or"
   },
   {
@@ -228,6 +239,7 @@
    "bpm": 3.4,
    "record": 5,
    "recrue": false,
+   "numero": 68,
    "rarete": "or"
   },
   {
@@ -247,6 +259,7 @@
    "bpm": 5.5,
    "record": 8,
    "recrue": false,
+   "numero": 25,
    "rarete": "or"
   },
   {
@@ -266,6 +279,7 @@
    "bpm": 5.2,
    "record": 11,
    "recrue": false,
+   "numero": 2,
    "rarete": "or"
   },
   {
@@ -285,6 +299,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": true,
+   "numero": 1,
    "rarete": "or"
   },
   {
@@ -304,6 +319,7 @@
    "bpm": 4.0,
    "record": 8,
    "recrue": false,
+   "numero": 19,
    "rarete": "or"
   },
   {
@@ -323,6 +339,7 @@
    "bpm": 7.5,
    "record": 9,
    "recrue": false,
+   "numero": 3,
    "rarete": "or"
   },
   {
@@ -342,6 +359,7 @@
    "bpm": 4.0,
    "record": 4,
    "recrue": false,
+   "numero": 82,
    "rarete": "or"
   },
   {
@@ -361,6 +379,7 @@
    "bpm": 2.5,
    "record": 4,
    "recrue": false,
+   "numero": 13,
    "rarete": "or"
   },
   {
@@ -380,6 +399,7 @@
    "bpm": 7.2,
    "record": 10,
    "recrue": false,
+   "numero": 33,
    "rarete": "or"
   },
   {
@@ -399,6 +419,7 @@
    "bpm": 6.0,
    "record": 7,
    "recrue": false,
+   "numero": 17,
    "rarete": "or"
   },
   {
@@ -418,6 +439,7 @@
    "bpm": 6.8,
    "record": 10,
    "recrue": false,
+   "numero": 10,
    "rarete": "or"
   },
   {
@@ -437,6 +459,7 @@
    "bpm": 2.8,
    "record": 6,
    "recrue": false,
+   "numero": 9,
    "rarete": "argent"
   },
   {
@@ -456,6 +479,7 @@
    "bpm": 4.5,
    "record": 8,
    "recrue": true,
+   "numero": 27,
    "rarete": "argent"
   },
   {
@@ -475,6 +499,7 @@
    "bpm": 6.0,
    "record": 7,
    "recrue": false,
+   "numero": 31,
    "rarete": "argent"
   },
   {
@@ -494,6 +519,7 @@
    "bpm": 3.2,
    "record": 6,
    "recrue": true,
+   "numero": 25,
    "rarete": "argent"
   },
   {
@@ -513,6 +539,7 @@
    "bpm": 1.6,
    "record": 4,
    "recrue": true,
+   "numero": 6,
    "rarete": "argent"
   },
   {
@@ -532,6 +559,7 @@
    "bpm": 5.0,
    "record": 7,
    "recrue": false,
+   "numero": 2,
    "rarete": "argent"
   },
   {
@@ -551,6 +579,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 45,
    "rarete": "argent"
   },
   {
@@ -570,6 +599,7 @@
    "bpm": 2.5,
    "record": 5,
    "recrue": false,
+   "numero": 26,
    "rarete": "argent"
   },
   {
@@ -589,6 +619,7 @@
    "bpm": 1.2,
    "record": 4,
    "recrue": false,
+   "numero": 11,
    "rarete": "argent"
   },
   {
@@ -608,6 +639,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": true,
+   "numero": 2,
    "rarete": "argent"
   },
   {
@@ -627,6 +659,7 @@
    "bpm": 2.0,
    "record": 3,
    "recrue": false,
+   "numero": 32,
    "rarete": "argent"
   },
   {
@@ -646,6 +679,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 22,
    "rarete": "argent"
   },
   {
@@ -665,6 +699,7 @@
    "bpm": 3.0,
    "record": 3,
    "recrue": true,
+   "numero": 12,
    "rarete": "argent"
   },
   {
@@ -684,6 +719,7 @@
    "bpm": 2.5,
    "record": 6,
    "recrue": false,
+   "numero": 35,
    "rarete": "argent"
   },
   {
@@ -703,6 +739,7 @@
    "bpm": 2.0,
    "record": 5,
    "recrue": false,
+   "numero": 12,
    "rarete": "argent"
   },
   {
@@ -722,6 +759,7 @@
    "bpm": 2.3,
    "record": 3,
    "recrue": false,
+   "numero": 3,
    "rarete": "argent"
   },
   {
@@ -741,6 +779,7 @@
    "bpm": 4.0,
    "record": 4,
    "recrue": true,
+   "numero": 18,
    "rarete": "argent"
   },
   {
@@ -760,6 +799,7 @@
    "bpm": 3.2,
    "record": 7,
    "recrue": false,
+   "numero": 20,
    "rarete": "argent"
   },
   {
@@ -779,6 +819,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 16,
    "rarete": "argent"
   },
   {
@@ -798,6 +839,7 @@
    "bpm": 2.4,
    "record": 5,
    "recrue": false,
+   "numero": 77,
    "rarete": "argent"
   },
   {
@@ -817,6 +859,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": false,
+   "numero": 91,
    "rarete": "argent"
   },
   {
@@ -836,6 +879,7 @@
    "bpm": 1.0,
    "record": 2,
    "recrue": false,
+   "numero": 6,
    "rarete": "bronze"
   },
   {
@@ -855,6 +899,7 @@
    "bpm": 0.3,
    "record": 1,
    "recrue": true,
+   "numero": 27,
    "rarete": "bronze"
   },
   {
@@ -874,6 +919,7 @@
    "bpm": 4.0,
    "record": 4,
    "recrue": false,
+   "numero": 31,
    "rarete": "bronze"
   },
   {
@@ -893,6 +939,7 @@
    "bpm": 1.5,
    "record": 2,
    "recrue": false,
+   "numero": 28,
    "rarete": "bronze"
   },
   {
@@ -912,6 +959,7 @@
    "bpm": 1.0,
    "record": 2,
    "recrue": false,
+   "numero": 13,
    "rarete": "bronze"
   },
   {
@@ -931,6 +979,7 @@
    "bpm": 2.0,
    "record": 2,
    "recrue": true,
+   "numero": 17,
    "rarete": "bronze"
   },
   {
@@ -950,6 +999,7 @@
    "bpm": 0.8,
    "record": 2,
    "recrue": false,
+   "numero": 8,
    "rarete": "bronze"
   },
   {
@@ -969,6 +1019,7 @@
    "bpm": 0.8,
    "record": 2,
    "recrue": false,
+   "numero": 26,
    "rarete": "bronze"
   },
   {
@@ -988,6 +1039,7 @@
    "bpm": 2.0,
    "record": 3,
    "recrue": false,
+   "numero": 8,
    "rarete": "bronze"
   },
   {
@@ -1007,6 +1059,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": true,
+   "numero": 23,
    "rarete": "bronze"
   },
   {
@@ -1026,6 +1079,7 @@
    "bpm": 0,
    "record": 0,
    "recrue": true,
+   "numero": 7,
    "rarete": "bronze"
   },
   {
@@ -1045,6 +1099,7 @@
    "bpm": 2.0,
    "record": 3,
    "recrue": false,
+   "numero": 8,
    "rarete": "bronze"
   }
  ]

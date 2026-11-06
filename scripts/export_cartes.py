@@ -7,7 +7,7 @@ même formule que la carte FUT du site (fonction FUT de template2.html.txt).
 Usage :
     python scripts/export_cartes.py ../handball-pronos/medoc/pipeline/teams
 
-Sortie : data/cartes.json (noms + notes uniquement, aucun numéro de licence)
+Sortie : data/cartes.json (noms, notes et numéro de maillot uniquement, aucun numéro de licence)
          data/matchs.json (calendrier et résultats des poules SG1, SG2, SF1, SF2, pour les paris du jeu).
 """
 import json
@@ -74,6 +74,40 @@ def slug(s):
     return "-".join("".join(c if c.isalnum() else " " for c in s).split())
 
 
+def mots(nom):
+    """Mots d'un nom, sans accents ni majuscules : « VALENTIN julie » et « Julie Valentin » donnent les mêmes."""
+    return frozenset(slug(nom).split("-")) - {""}
+
+
+def numeros(fdm_path, rids, cartes):
+    """Numéro de maillot le plus porté cette saison, d'après les feuilles de match du club (fdm.json).
+    On ne lit que le numéro et le nom de chaque ligne : jamais la licence."""
+    if not fdm_path.exists():
+        print(f"(pas de {fdm_path} : numéros de maillot non mis à jour)")
+        return {}
+    fdm = json.loads(fdm_path.read_text(encoding="utf-8"))
+    par_carte = {c["id"]: mots(c["nom"]) for c in cartes}
+    comptes = {}   # id de carte → {numéro: [nombre de matchs, date du dernier]}
+    for rid, date_m in rids.items():
+        feuille = fdm.get(rid)
+        if not feuille:
+            continue
+        for bloc in feuille.get("blocks", []):
+            for ligne in bloc.get("p", []):
+                num, nom = str(ligne[0]).strip(), ligne[1]
+                if not num.isdigit() or not 0 <= int(num) <= 99:
+                    continue
+                m = mots(nom)
+                # le nom de la carte doit être contenu dans celui de la feuille (noms composés, deuxièmes noms)
+                trouves = [cid for cid, mc in par_carte.items() if mc and mc <= m]
+                if len(trouves) != 1:
+                    continue
+                n = comptes.setdefault(trouves[0], {}).setdefault(int(num), [0, ""])
+                n[0] += 1
+                n[1] = max(n[1], date_m)
+    return {cid: max(nums.items(), key=lambda x: (x[1][0], x[1][1]))[0] for cid, nums in comptes.items()}
+
+
 def matchs_de(key, d):
     """Matchs à venir (avec les probabilités du modèle) et joués (avec le score) de la poule d'une équipe."""
     noms = {tid: (t.get("short") or t.get("nom") or tid) for tid, t in d["teams"].items()}
@@ -95,12 +129,15 @@ def matchs_de(key, d):
 def main(src):
     src = Path(src)
     matchs = {}
+    rids = {}   # matchs joués par les équipes du club cette saison → date (pour les numéros de maillot)
     par_nom = {}
     for key in EQUIPES:
         d = json.loads((src / key / "site_data.json").read_text(encoding="utf-8"))
         team = d["team"]
         for m in matchs_de(key, d):
             matchs[m["rid"]] = m
+        for m in d.get("played_club", []):
+            rids[str(m["rid"])] = m.get("date") or ""
         for p in d["teams"][str(d["club"])].get("players", []):
             if not (p.get("mj") or 0):
                 continue  # inscrit mais pas encore joué cette saison
@@ -130,6 +167,10 @@ def main(src):
                 par_nom[carte["id"]] = carte
 
     cartes = sorted(par_nom.values(), key=lambda c: (-c["ovr"], c["nom"]))
+    nums = numeros(src.parent / "fdm.json", rids, cartes)
+    for c in cartes:
+        c["numero"] = nums.get(c["id"])
+    print(f"numéros de maillot : {sum(c['numero'] is not None for c in cartes)}/{len(cartes)} cartes")
     for c in cartes:
         c["rarete"] = next(r for seuil, r in RARETES if c["ovr"] >= seuil)
     out = Path(__file__).resolve().parent.parent / "data" / "cartes.json"

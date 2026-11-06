@@ -110,9 +110,11 @@ function fusionnerCarte(c0, p = {}) {
   const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc + (bonus[k] || 0)]));
   const photos = {};
   for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
-  const numero = Number.isInteger(p.numero) && p.numero >= 0 && p.numero <= 99 ? p.numero : null;   // numéro de maillot
+  // numéro de maillot : celui réglé dans l'outil, sinon le plus porté cette saison d'après les feuilles de match
+  const ok = n => Number.isInteger(n) && n >= 0 && n <= 99;
+  const numero = ok(p.numero) ? p.numero : ok(c0.numero) ? c0.numero : null;
   const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null, numero,
-    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || numero != null || Object.keys(photos).length)};
+    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length)};
   return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
 }
 // Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99

@@ -270,6 +270,8 @@ function ouvrir(id) {
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="enregistrer">Enregistrer</button></div>
   </div>`;
   $('#numero').value = ed.numero ?? '';
+  // sans numéro réglé à la main, la carte prend celui des feuilles de match
+  $('#numero').placeholder = Number.isInteger(PAR_ID[id].numero) ? `Feuilles de match : ${PAR_ID[id].numero}` : 'Ex. 10';
   chargerPhoto();
   majEditeur();
 }

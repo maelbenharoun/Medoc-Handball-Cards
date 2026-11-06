@@ -40,7 +40,8 @@ python scripts/export_cartes.py ../handball-pronos/medoc/pipeline/teams
 
 Le script lit les `site_data.json` du dépôt `handball-pronos` et écrit :
 - `data/cartes.json` : les joueurs ayant joué au moins un match cette saison (une carte par personne, dans l'équipe où elle a le plus joué),
-  avec seulement le nom, l'équipe et les stats : aucun numéro de licence ;
+  avec seulement le nom, l'équipe, les stats et le numéro de maillot le plus porté cette saison (lu dans les feuilles de match
+  `fdm.json`, numéro et nom seulement) : aucun numéro de licence. Un numéro réglé dans l'outil passe avant ;
 - `data/matchs.json` : le calendrier et les résultats des poules SG1, SG2, SF1 et SF2, avec les probabilités du modèle.
 
 Il ne touche pas à `data/perso.json`. Ensuite : pousser, puis **Synchroniser avec le site** dans l'outil.
