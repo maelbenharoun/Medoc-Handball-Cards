@@ -31,7 +31,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   3-3 : passes et vitesse). Chacun donne un bonus selon les moyennes de stats de l'équipe : 2 % pour une équipe moyenne, jusqu'à 10 %
   si elle est spécialisée, 0 % si elle est à l'opposé.
 - **Jouer** : deux portes. **Championnat** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
-  tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
+  tirées des feuilles de match (4 équipes en Promotion, une de plus à chaque niveau jusqu'à 12 en Nationale 1 ; les 2 premiers montent, le dernier descend, les 2 derniers dans les poules de 6 et plus), puis l'International en tournois à élimination
   directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Matchs simulés selon les notes,
   les postes et la tactique. Pour entraîner un joueur : sa carte, dans le Club ; les défis se font entre ami(e)s.
 - **Gagner des pièces** (Jouer) : 4 grandes tuiles animées, une par mini-jeu, avec un **tuto rapide** à la première partie

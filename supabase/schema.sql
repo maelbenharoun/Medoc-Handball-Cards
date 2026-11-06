@@ -66,7 +66,7 @@ insert into parametres values (1, '{
     {"nom": "Légendes du handball", "groupe": "Légendes", "type": "legendes", "base": 99}],
   "legendes": [{"n": "Amandine Leynaud", "p": 1}, {"n": "Uwe Gensheimer", "p": 15}, {"n": "Mikkel Hansen", "p": 18},
                {"n": "Stine Oftedal", "p": 13}, {"n": "Kiril Lazarov", "p": 17}, {"n": "Luc Abalo", "p": 14}, {"n": "Pauletta Foppa", "p": 13}],
-  "poule_equipes": 8, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
+  "poule_equipes": 8, "poule_equipes_depart": 4, "poule_equipes_pas": 1, "poule_petite": 5, "poule_descente_petite": 1, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
   "tournoi_ecart": 2, "legendes_manches": 5,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
   "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
@@ -474,6 +474,14 @@ language sql security definer set search_path = public as $$
 $$;
 
 -- État complet d'un joueur, dans le format qu'attend le jeu (serveur.js)
+-- Taille d'une poule selon le niveau : 4 en Promotion, puis une équipe de plus par niveau (4 à 12)
+create or replace function poule_taille(p_niveau int) returns int language sql stable security definer set search_path = public as $$
+  select parami('poule_equipes_depart') + parami('poule_equipes_pas') * (p_niveau - 1)
+$$;
+-- Nombre de descentes : 1 dans les petites poules (5 équipes ou moins), 2 au-delà ; il reste toujours un milieu de tableau
+create or replace function poule_descentes(p_n int) returns int language sql stable security definer set search_path = public as $$
+  select case when p_n <= parami('poule_petite') then parami('poule_descente_petite') else parami('poule_descente') end
+$$;
 -- Ce que le jeu affiche du parcours (forces des équipes arrondies ; voir match_championnat)
 create or replace function parcours_vue(pc jsonb) returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare nv jsonb; v jsonb; j int; m jsonb; adv int; dom boolean;
@@ -490,7 +498,7 @@ begin
       dom := (m ->> 0)::int = 0; adv := case when dom then (m ->> 1)::int else (m ->> 0)::int end;
     end if;
     v := v || jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'),
-      'montee', parami('poule_montee'), 'descente', case when (pc ->> 'niveau')::int > 1 then parami('poule_descente') else 0 end,
+      'montee', parami('poule_montee'), 'descente', case when (pc ->> 'niveau')::int > 1 then poule_descentes(jsonb_array_length(pc -> 'equipes')) else 0 end,
       'classement', (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'moi', coalesce((x ->> 'moi')::boolean, false),
           'j', x -> 'j', 'v', x -> 'v', 'n', x -> 'n', 'd', x -> 'd', 'bp', x -> 'bp', 'bc', x -> 'bc', 'pts', x -> 'pts',
           'force', round((x ->> 'f')::numeric)) order by o) from jsonb_array_elements(poule_classement(pc -> 'equipes')) with ordinality a(x, o)),
@@ -986,7 +994,7 @@ begin
     'meilleur', greatest(p_niveau, coalesce((p_ancien ->> 'meilleur')::int, 1)),
     'palmares', coalesce(p_ancien -> 'palmares', '[]'), 'legendes_battues', coalesce((p_ancien ->> 'legendes_battues')::int, 0));
   if typ = 'poule' then
-    n := parami('poule_equipes'); ec := parami('poule_ecart');
+    n := poule_taille(p_niveau); ec := parami('poule_ecart');
     noms := noms_reels(p_niveau, n - 1);
     eqs := jsonb_build_array(jsonb_build_object('nom', p_pseudo, 'moi', true, 'j', 0, 'v', 0, 'n', 0, 'd', 0, 'bp', 0, 'bc', 0, 'pts', 0));
     for i in 1..n - 1 loop   -- forces réparties de base − écart à base + écart
@@ -1087,7 +1095,7 @@ begin
     etape := jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'), 'rang', rang, 'domicile', dom);
     if j >= jsonb_array_length(pc -> 'calendrier') then   -- fin de saison
       montee := rang <= parami('poule_montee');
-      descente := not montee and rang > n - parami('poule_descente') and niv > 1 and not coalesce((pc ->> 'international')::boolean, false);
+      descente := not montee and rang > n - poule_descentes(n) and niv > 1 and not coalesce((pc ->> 'international')::boolean, false);
       nouveau := niv + case when montee then 1 when descente then -1 else 0 end;
       recompense := round(parami('parcours_saison_pieces') * mult * case when rang = 1 then 2 when montee then 1.5 when descente then .5 else 1 end);
       bonus_b := case when rang = 1 then 1 else 0 end;

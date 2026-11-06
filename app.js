@@ -538,8 +538,8 @@ function blocParcours(e, peut, note, reste) {
     const cl = pc.classement || [], n = cl.length, pr = pc.prochain;
     const lignes = cl.map((x, i) => `<div class="${x.moi ? 'moi-l ' : ''}${i < pc.montee ? 'zm' : i >= n - pc.descente ? 'zd' : ''}">
       <span>${i + 1}</span><b>${esc(x.nom)}</b><small>${x.j}</small><small>${x.bp - x.bc > 0 ? '+' : ''}${x.bp - x.bc}</small><em>${x.pts}</em></div>`).join('');
-    corps = `<p class="sub petit">Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. Les ${pc.montee} premiers montent${
-        pc.descente ? `, les ${pc.descente} derniers descendent` : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
+    corps = `<p class="sub petit">Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. ${pc.classement.length} équipes : les ${pc.montee} premiers montent${
+        pc.descente ? (pc.descente > 1 ? `, les ${pc.descente} derniers descendent` : ', le dernier descend') : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
       ${pr ? `<div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
         <div><small>${esc(pr.nom)}</small><b>≈ ${pr.force}</b></div></div>` : ''}
       <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la journée ${pc.journee + 1}</button>${resteTxt}
