@@ -1,6 +1,6 @@
 // Cache hors ligne : le jeu s'ouvre sans réseau une fois installé.
 // Changer VERSION à chaque mise à jour des fichiers pour forcer le rafraîchissement.
-const VERSION = 'mhc-v28';
+const VERSION = 'mhc-v29';
 const FICHIERS = ['./', 'index.html', 'style.css', 'config.js', 'cartes.js', 'serveur.js', 'app.js', 'confidentialite.html',
   'manifest.webmanifest', 'data/cartes.json', 'data/perso.json',
   'assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png'];
@@ -31,7 +31,8 @@ self.addEventListener('fetch', e => {
   }
   // Police Outfit, bibliothèque Supabase (version fixée) et photos des joueurs : gardées en cache dès la première
   // visite pour le hors-ligne (chaque photo a un nom unique : une nouvelle n'est jamais masquée par l'ancienne)
-  if (autresSites.includes(url.hostname) || url.pathname.includes('/assets/photos/') || url.pathname.includes('/storage/v1/object/public/photos/')) {
+  // modèles 3D des mini-jeux (modeles/…?v=N : une nouvelle version a une autre adresse) : gardés eux aussi
+  if (autresSites.includes(url.hostname) || url.pathname.includes('/assets/photos/') || url.pathname.includes('/modeles/') || url.pathname.includes('/storage/v1/object/public/photos/')) {
     e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(rep => {
       // on ne garde que les vraies réponses : une photo juste publiée peut répondre 404 le temps que GitHub Pages la mette en ligne
       if (rep.ok || rep.type === 'opaque') { const copie = rep.clone(); caches.open(VERSION).then(c => c.put(e.request, copie)); }

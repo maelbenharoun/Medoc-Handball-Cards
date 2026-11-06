@@ -27,9 +27,12 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 - **Jet de 7 mètres** (onglet Jouer) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
   5 tirs par jour, 50 pièces par but, 100 de bonus pour un 5 sur 5.
-- **Mini-jeux** : l'arrêt réflexe (dans les buts, lire le bras du tireur ; 5 séries de 5 tirs enchaînés, 10 pièces par arrêt),
-  la contre-attaque en 2 contre 1 (dessiner la passe dans la course du partenaire, ou garder le ballon si le défenseur part sur lui),
-  le tir en suspension en 3D (appuis rapides pour courir, saut automatique selon la vitesse, tir dessiné au-dessus du contreur).
+- **Mini-jeux en vraie 3D** (`jeux3d.js`, three.js chargé seulement à l'ouverture) : l'arrêt réflexe (caméra derrière ton but,
+  trajectoire du ballon montrée dès qu'il part, toucher la bonne zone ; parades de handball ; 5 séries de 5 tirs, 10 pièces par arrêt),
+  la contre-attaque en 2 contre 1 sans gardien (dessiner la passe dans la course du partenaire, ou garder le ballon si le défenseur,
+  qui sort sur le porteur 8 fois sur 10, part sur lui), le tir en suspension (appuis rapides pour courir, saut automatique selon la
+  vitesse, tir dessiné au-dessus du contreur). Personnages : avatar libre Microsoft Rocketbox (MIT, `modeles/`), maillot de Médoc
+  repeint d'après les photos du club, adversaires en bleu, gardiens en jogging (`scripts/modeles3d/`).
   5 essais par jour, 50 pièces par réussite, 100 de bonus pour une journée parfaite.
   Démos sans pièces : `?demo=7m`, `?demo=gardien`, `?demo=contre`, `?demo=suspension`.
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.

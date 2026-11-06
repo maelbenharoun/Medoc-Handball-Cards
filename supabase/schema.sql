@@ -1141,8 +1141,8 @@ begin
 end $$;
 
 -- Autres mini-jeux. Le jeu envoie ce que le joueur a fait (zone choisie, précision, moment du saut…) ; le serveur décide.
--- L'arrêt réflexe se joue en deux temps : mini_preparer tire en secret la zone du tir et ne donne au jeu qu'un indice
--- (la façon dont le tireur arme son bras, juste 2 fois sur 3) ; mini_jouer compare avec la zone choisie par le gardien.
+-- L'arrêt réflexe se joue en deux temps : mini_preparer tire la zone du tir et la durée de son vol (le jeu montre la
+-- trajectoire dès que le ballon part) ; mini_jouer vérifie que le gardien a touché la bonne zone avant que le ballon arrive.
 create or replace function mini_preparer(p_jeu text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); m jsonb; col text; hau text;
 begin
@@ -1153,17 +1153,17 @@ begin
   end if;
   if p_jeu = 'contre' then   -- 2 contre 1 : le défenseur sortira sur le porteur (A) ou sur le partenaire (B), à un moment donné
     insert into mini_attente (user_id, colonne, hauteur, info) values (p.user_id, 'contre', '-',
-      jsonb_build_object('defenseur', case when random() < .55 then 'A' else 'B' end, 'engage', 800 + floor(random() * 600)::int))
+      jsonb_build_object('defenseur', case when random() < .8 then 'A' else 'B' end, 'engage', 800 + floor(random() * 600)::int))   -- 80 % sur le porteur
       on conflict (user_id) do update set colonne = excluded.colonne, hauteur = excluded.hauteur, info = excluded.info, le = now();
     return (select info from mini_attente where user_id = p.user_id);
   end if;
   col := case when random() < .4 then 'g' when random() < 2 / 3.0 then 'd' else 'c' end;
   hau := case when random() < .5 then 'h' else 'b' end;
-  insert into mini_attente (user_id, colonne, hauteur) values (p.user_id, col, hau)
-    on conflict (user_id) do update set colonne = excluded.colonne, hauteur = excluded.hauteur, le = now();
-  return jsonb_build_object('indice', jsonb_build_object(
-    'colonne', case when random() < .65 then col else (array['g', 'c', 'd'])[1 + floor(random() * 3)::int] end,
-    'hauteur', case when random() < .65 then hau when hau = 'h' then 'b' else 'h' end));
+  -- durée du vol du ballon : de plus en plus court au fil des tirs de la journée
+  insert into mini_attente (user_id, colonne, hauteur, info) values (p.user_id, col, hau,
+      jsonb_build_object('duree', greatest(520, 980 - 18 * jsonb_array_length(coalesce(m -> p_jeu, '[]')) - floor(random() * 120)::int)))
+    on conflict (user_id) do update set colonne = excluded.colonne, hauteur = excluded.hauteur, info = excluded.info, le = now();
+  return (select jsonb_build_object('colonne', colonne, 'hauteur', hauteur, 'duree', info -> 'duree') from mini_attente where user_id = p.user_id);
 end $$;
 
 create or replace function mini_jouer(p_jeu text, p_entrees jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -1178,12 +1178,13 @@ begin
   end if;
   begin
     if p_jeu = 'gardien' then
-      select jsonb_build_object('colonne', t.colonne, 'hauteur', t.hauteur) into a from mini_attente t where t.user_id = p.user_id and t.colonne <> 'contre';
+      select jsonb_build_object('colonne', t.colonne, 'hauteur', t.hauteur, 'duree', t.info -> 'duree') into a from mini_attente t where t.user_id = p.user_id and t.colonne <> 'contre';
       if a is null then raise exception 'Le tir n’est pas encore parti'; end if;
       if coalesce(p_entrees ->> 'colonne', '') not in ('g', 'c', 'd') or coalesce(p_entrees ->> 'hauteur', '') not in ('h', 'b') then raise exception 'Essai invalide'; end if;
-      x := coalesce((p_entrees ->> 'temps')::numeric, 99999);   -- ms après le départ du ballon (négatif = avant)
-      if x > 450 then res := 'tard';
-      elsif p_entrees ->> 'colonne' = a ->> 'colonne' and (p_entrees ->> 'hauteur' = a ->> 'hauteur' or random() < .4) then res := 'arret';
+      x := coalesce((p_entrees ->> 'temps')::numeric, 99999);   -- ms après le départ du ballon
+      if x > coalesce((a ->> 'duree')::numeric, 700) + 60 then res := 'tard';             -- le ballon était déjà passé
+      elsif p_entrees ->> 'colonne' = a ->> 'colonne' and p_entrees ->> 'hauteur' = a ->> 'hauteur' then res := 'arret';
+      elsif p_entrees ->> 'colonne' = a ->> 'colonne' and random() < .35 then res := 'arret';   -- bon côté, mauvaise hauteur : parfois du bout des doigts
       else res := 'but'; end if;
       delete from mini_attente where user_id = p.user_id;
     elsif p_jeu = 'contre' then
@@ -1193,15 +1194,16 @@ begin
       if jsonb_typeof(p_entrees -> 'passe') is distinct from 'boolean' then raise exception 'Essai invalide'; end if;
       x := coalesce((p_entrees ->> 'qualite')::numeric, 0); y := coalesce((p_entrees ->> 'temps')::numeric, 99999);
       if x < 0 or x > 1 then raise exception 'Essai invalide'; end if;
+      -- pas de gardien (demande de Maël) : une passe dans la course, ou le ballon gardé au bon moment, c'est le but
       if (p_entrees ->> 'passe')::boolean then
         if y > (a ->> 'engage')::numeric + 900 then res := 'neutralise';                    -- trop tard : il est déjà sur toi
         elsif a ->> 'defenseur' = 'A' then                                                 -- bonne lecture : il sort sur toi
-          res := case when x < .35 and random() < .75 then 'interception' when random() < .35 + .55 * x then 'but' else 'arret' end;
+          res := case when x < .35 and random() < .75 then 'interception' when random() < (1 - x) * .3 then 'interception' else 'but' end;
         else                                                                               -- il couvrait ton partenaire
-          res := case when random() < .65 then 'interception' when random() < .25 * x then 'but' else 'arret' end;
+          res := case when random() < .7 then 'interception' else 'but' end;
         end if;
-      elsif a ->> 'defenseur' = 'B' then res := case when random() < .8 then 'but' else 'arret' end;   -- seul face au gardien
-      else res := case when random() < .85 then 'neutralise' when random() < .3 then 'but' else 'arret' end;
+      elsif a ->> 'defenseur' = 'B' then res := 'but';                                     -- il est parti sur ton partenaire : tu vas au but
+      else res := case when random() < .9 then 'neutralise' else 'but' end;
       end if;
       delete from mini_attente where user_id = p.user_id;
     else

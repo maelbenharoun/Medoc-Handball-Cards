@@ -788,3 +788,14 @@ body.avec-intro { overflow: hidden; }
 .contreur .t-balle { display: none; }
 .contreur .t-bg { transform: rotate(155deg); } .contreur .t-bd { transform: rotate(-155deg); }   /* bras levés au contre */
 .contreur.saute .t-bg { transform: rotate(175deg); transition: transform .15s; } .contreur.saute .t-bd { transform: rotate(-175deg); transition: transform .15s; }
+
+/* ── mini-jeux en 3D (jeux3d.js) : le canvas WebGL dessous, les zones et le tracé du doigt par-dessus ── */
+.t3 { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: #1c232c; }
+.t3-gl { position: absolute; left: 0; top: 0; display: block; }
+.t3-zones { position: absolute; display: grid; grid-template: 1fr 1fr / repeat(3, 1fr); grid-auto-flow: column; z-index: 1500; pointer-events: none; }
+.t3-zones i { border: 1px dashed rgba(255, 255, 255, .28); border-radius: 6px; margin: 3px; }
+.t3-zones i.choisie { border: 2px solid var(--accent); background: rgba(255, 210, 87, .18); box-shadow: 0 0 14px rgba(255, 210, 87, .5); }
+.t3-trace { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2500; pointer-events: none; }
+.t3-trace polyline { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 8px rgba(255, 210, 87, .9)); }
+.passe-top .t3-trace polyline { stroke: #5bd68a; } .passe-rate .t3-trace polyline { stroke: #e5484d; }
+.t3 .s3-vitesse { z-index: 2600; }
