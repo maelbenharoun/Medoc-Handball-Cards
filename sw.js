@@ -1,12 +1,13 @@
 // Cache hors ligne : le jeu s'ouvre sans réseau une fois installé.
 // Changer VERSION à chaque mise à jour des fichiers pour forcer le rafraîchissement.
-const VERSION = 'mhc-v20';
+const VERSION = 'mhc-v21';
 const FICHIERS = ['./', 'index.html', 'style.css', 'config.js', 'cartes.js', 'serveur.js', 'app.js', 'confidentialite.html',
   'manifest.webmanifest', 'data/cartes.json', 'data/perso.json',
   'assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHIERS)).then(() => self.skipWaiting()));
+  // cache: 'reload' : jamais la copie du cache du navigateur (GitHub Pages la garde 10 minutes), toujours la version en ligne
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHIERS.map(f => new Request(f, {cache: 'reload'})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -38,5 +39,10 @@ self.addEventListener('fetch', e => {
     })));
     return;
   }
-  e.respondWith(caches.match(e.request, {ignoreSearch: true}).then(r => r || fetch(e.request)));   // ignoreSearch : « ./?sw » sert « ./ »
+  // le jeu lui-même (pages, scripts, styles) : réseau d'abord, pour avoir tout de suite la dernière version ;
+  // le cache ne sert que hors ligne (ignoreSearch : « app.js?v=20 » ou « ./?demo » retrouvent leur copie)
+  e.respondWith(fetch(e.request).then(r => {
+    if (r.ok && r.type === 'basic') { const copie = r.clone(); caches.open(VERSION).then(c => c.put(e.request.url.split('?')[0], copie)); }
+    return r;
+  }).catch(() => caches.match(e.request, {ignoreSearch: true}).then(m => m || caches.match('./'))));
 });
