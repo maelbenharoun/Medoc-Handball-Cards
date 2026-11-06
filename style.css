@@ -781,3 +781,16 @@ body.avec-intro { overflow: hidden; }
 /* bandeau sombre en haut des scènes 3D : le score et « Fermer » restent lisibles devant les murs clairs de la salle */
 .t3::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(110px + env(safe-area-inset-top)); z-index: 1; pointer-events: none;
   background: linear-gradient(rgba(11, 13, 16, .78), rgba(11, 13, 16, 0)); }
+/* tir en suspension : à la fin de la course la barre se bloque (sursaut, valeur affichée), puis s'efface avant le saut */
+.s3-vitesse { transition: opacity .35s, translate .35s; }
+.s3-vitesse.bloquee { animation: s3-bloque .45s cubic-bezier(.2, 1.4, .4, 1); border-color: #fff; box-shadow: 0 0 16px rgba(255, 255, 255, .55); }
+.s3-vitesse.bloquee i { filter: brightness(1.25); }
+.s3-vitesse.parfaite { border-color: #5bd68a; box-shadow: 0 0 22px rgba(91, 214, 138, .9); }
+.s3-vitesse::after { content: attr(data-valeur); position: absolute; left: calc(100% + 10px); top: 50%; translate: 0 -50%; white-space: nowrap;
+  font-weight: 900; font-size: 1.15rem; color: #fff; text-shadow: 0 2px 10px #000; opacity: 0; }
+.s3-vitesse.bloquee::after { animation: s3-valeur .45s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+.s3-vitesse.parfaite::after { color: #5bd68a; }
+.s3-vitesse.partie { opacity: 0; translate: -30px 0; }
+@keyframes s3-bloque { 0% { transform: scale(1); } 40% { transform: scale(1.25, 1.06); } 100% { transform: scale(1); } }
+@keyframes s3-valeur { from { opacity: 0; scale: .5; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .s3-vitesse.bloquee, .s3-vitesse.bloquee::after { animation: none; } .s3-vitesse.bloquee::after { opacity: 1; } }

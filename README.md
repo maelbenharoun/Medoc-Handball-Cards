@@ -30,8 +30,8 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 - **Mini-jeux en vraie 3D** (`jeux3d.js`, three.js chargé seulement à l'ouverture) : l'arrêt réflexe (caméra derrière ton but,
   trajectoire du ballon montrée dès qu'il part, toucher la bonne zone ; parades de handball ; 5 séries de 5 tirs, 10 pièces par arrêt),
   la contre-attaque en 2 contre 1 sans gardien (dessiner la passe dans la course du partenaire, ou garder le ballon si le défenseur,
-  qui sort sur le porteur 8 fois sur 10, part sur lui), le tir en suspension (appuis rapides pour courir, saut automatique selon la
-  vitesse, tir dessiné au-dessus du contreur). Personnages : avatar libre Microsoft Rocketbox (MIT, `modeles/`), maillot de Médoc
+  qui sort sur le porteur 8 fois sur 10, part sur lui), le tir en suspension (appuis rapides pour remplir la barre de course, qui se bloque puis
+  s'efface avant le saut ; en l'air, toucher au bon moment : barre pleine et tir au sommet du saut = but à coup sûr). Personnages : avatar libre Microsoft Rocketbox (MIT, `modeles/`), maillot de Médoc
   repeint d'après les photos du club, adversaires en bleu, gardiens en jogging (`scripts/modeles3d/`).
   5 essais par jour, 50 pièces par réussite, 100 de bonus pour une journée parfaite.
   Démos sans pièces : `?demo=7m`, `?demo=gardien`, `?demo=contre`, `?demo=suspension`.

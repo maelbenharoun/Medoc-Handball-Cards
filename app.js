@@ -1106,7 +1106,7 @@ const MINI = {
     texte: '2 contre 1 : dessine la passe dans la course de ton partenaire, ou garde le ballon si le défenseur part sur lui.',
     res: {but: 'But !', interception: 'Interceptée !', neutralise: 'Le défenseur t’a pris le ballon'}},
   suspension: {nom: 'Le tir en suspension', icone: '🚀', succes: 'but',
-    texte: 'Touche vite pour courir : le saut part tout seul. En l’air, dessine ton tir au-dessus du contreur, loin du gardien.',
+    texte: 'Touche vite pour remplir la barre de course : le saut part tout seul. En l’air, touche pour tirer au sommet du saut, au-dessus du contreur. Barre pleine et tir au sommet : but à coup sûr.',
     res: {but: 'But !', arret: 'Arrêté !', contre: 'Contré !', dehors: 'À côté !', poteau: 'Poteau !'}},
 };
 function blocMiniJeux(e) {
@@ -1198,7 +1198,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=30').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=31').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
@@ -1232,14 +1232,12 @@ const JEUX = {
   },
   // Le tir en suspension : touche vite pour courir, le saut part tout seul ; en l'air, dessine ton tir.
   suspension: {
-    scene: () => '<div class="t3"><svg class="t3-trace" aria-hidden="true"><polyline points=""/></svg><div class="s3-vitesse"><i></i><small>Vitesse</small></div></div>',
+    scene: () => '<div class="t3"><div class="s3-vitesse"><i></i><small>Vitesse</small></div></div>',
     essai: essai3d('suspension'),
-    demo(ent) {
-      const {x, y} = ent, elev = (ent.vitesse || 0) * (ent.hauteur || 0), a = Math.random(), gx = a < .3 ? .2 : a < .6 ? .8 : .5, gy = Math.random() < .5 ? .3 : .75;
-      const prt = .62 - .4 * (ent.force || 0) + (gx === .5 ? .08 : 0);
-      const resultat = x < 0 || x > 1 || y < 0 ? 'dehors' : x < .05 || x > .95 || y < .05 ? 'poteau' : Math.random() < Math.max(0, .75 - .8 * elev - .35 * (1 - y)) ? 'contre'
-        : Math.abs(x - .5) < .18 ? 'arret' : Math.hypot(x - (.5 + (gx - .5) * .6), (y - gy) * .67) < prt ? 'arret' : 'but';
-      return {resultat, reponse: {x: gx, y: gy}};
+    demo(ent) {   // mêmes règles que mini_jouer : élan = barre × hauteur au tir ; au sommet avec une barre pleine, toujours but
+      const vit = Math.min(1, Math.max(0, ent.vitesse || 0)), hau = Math.min(1, Math.max(0, ent.hauteur || 0)), elan = Math.min(1, vit / .95) * Math.min(1, hau / .95);
+      const resultat = elan >= 1 || Math.random() < elan * elan ? 'but' : hau < .6 || Math.random() < .5 ? 'contre' : 'arret';
+      return {resultat, reponse: {x: Math.random() < .5 ? .2 : .8, y: Math.random() < .5 ? .3 : .75}};
     },
   },
 };

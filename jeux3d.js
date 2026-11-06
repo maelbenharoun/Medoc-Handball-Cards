@@ -673,65 +673,79 @@ export async function contre(sc, n) {
   MJ.raf = requestAnimationFrame(boucle);
 }
 
-// ── 3. Le tir en suspension : la caméra suit le tireur de dos. Chaque toucher est un appui (on court plus vite) ;
-// le saut part tout seul au 9 m, plus haut si l'on court vite ; en l'air, on dessine le tir vers le but, au-dessus
-// du contreur et loin du gardien.
+// ── 3. Le tir en suspension : la caméra suit le tireur de dos. Chaque toucher est un appui (on court plus vite ; la
+// barre de vitesse se remplit). À la fin de la course, la barre se bloque (on voit sa valeur), disparaît, une seconde
+// d'appel, puis le saut part tout seul (plus haut si l'on a couru vite) ; le contreur saute aussi. En l'air, on touche
+// pour tirer : plus on est haut, plus on a de chances ; au sommet du saut avec une barre pleine, c'est toujours but.
 export async function suspension(sc, n) {
   const {MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer} = A;
   const z = sc.querySelector('.t3'), S = await salle(z); if (!S) return;
-  const q = s => z.querySelector(s), jauge = q('.s3-vitesse i');
+  const q = s => z.querySelector(s), barre = q('.s3-vitesse'), jauge = q('.s3-vitesse i');
   S.cacherJoueurs(['moi', 'def', 'gb']);
   const moi = S.joueur('moi', 'medoc'), def = S.joueur('def', 'adv'), gb = S.joueur('gb', 'gb-adv');
   S.cam.fov = 52; S.cam.updateProjectionMatrix();
-  const ZB = 40, ZDEF = 33.7, jo = {x: -1.3, y: 0, z: 25.5}, D = {x: -.9, z: ZDEF};
+  const ZB = 40, ZDEF = 33.7, VMAX = 8, jo = {x: -1.3, y: 0, z: 18}, D = {x: -.9, z: ZDEF};
   def.mettre(D.x, 0, D.z, Math.PI); def.pose('contre', .85); def.ancre = true;
   gb.mettre(0, 0, 39.4, Math.PI); gb.pose('pret', 1); gb.ancre = true;
-  let v = 1.6, phase = 'course', tAppel = 0, vAppel = 0, tSaut = 0, Tvol = 0, Hsaut = 0, zSaut = 0, tir = null, pts = [], tDessin = 0, par = null, tPar = 0;
+  let v = 1.6, phase = 'course', tAppel = 0, vAppel = 0, tSaut = 0, Tvol = 0, Hsaut = 0, zSaut = 0, tir = null, par = null, tPar = 0;
   moi.jouer('trot', .1, .7); moi.pose('porte', 1);
   miniAide('Touche vite pour courir !');
   // vu de face (caméra derrière le tireur), la gauche de l'écran est du côté des x positifs
   const versX = fx => 1.5 - 3 * fx, versY = fy => 2 * (1 - fy);
   const finir = async ent => {
-    phase = phase === 'vol' ? 'vol-fini' : 'attente'; MJ.toucher = null; miniAide('');
+    phase = 'tire'; MJ.toucher = null; miniAide('');
     let r; try { r = await miniEnvoyer(ent); } catch (e) { toast(e.message); return fermerMini(); }
-    const cx = versX(Math.max(-.2, Math.min(1.2, ent.x))), cy = versY(Math.max(-.2, Math.min(1.1, ent.y)));
-    tir = {r, t: performance.now(), dep: moi.main(), arr: v3(cx, cy, ZB + .1), duree: 650 - 300 * ent.force};
-    if (r.resultat === 'contre') { tir.arr = v3(D.x + .2, 2.45, ZDEF); tir.duree *= .5; def.sauteT = performance.now(); }
+    // où part le ballon : loin du gardien si but, sur lui s'il arrête, dans les bras du contreur s'il est contré
+    const g = r.reponse && r.reponse.x !== undefined ? r.reponse : {x: Math.random() < .5 ? .2 : .8, y: Math.random() < .5 ? .3 : .75};
+    const opp = g.x < .5 ? .86 : g.x > .5 ? .14 : (Math.random() < .5 ? .14 : .86), haut = Math.random() < .5 ? .18 : .78;
+    const fx = r.resultat === 'arret' ? g.x : opp, fy = r.resultat === 'arret' ? g.y : haut;
+    tir = {r, t: performance.now(), dep: moi.main(), arr: v3(versX(fx), versY(fy), ZB + .1), duree: 430};
+    if (r.resultat === 'contre') { tir.arr = v3(D.x + .1, 2.55, ZDEF + .1); tir.duree = 200; }
     if (r.resultat === 'arret') tir.arr.z = ZB - .85;   // arrêté devant la ligne, dans les mains du gardien
-    // le gardien part vers le tir (s'il l'arrête) ou vers son choix ; vu de face, sa droite est à gauche de l'écran
-    const gg = r.resultat === 'arret' ? {x: (1.5 - cx) / 3, y: 1 - cy / 2} : r.reponse || {x: .5, y: .5};
-    const gx = Math.abs(gg.x - .5) < .18 ? .5 : gg.x, hy = versY(gg.y);
-    par = {...parade(gb, gx < .5, gx === .5, hy), dx: versX(gx) * .45, saut: hy > 1.2 ? .14 : 0}; tPar = performance.now() + 60;
+    // le gardien part vers son choix (vers le ballon s'il l'arrête) ; vu de face, sa droite est à gauche de l'écran
+    const gx = Math.abs(g.x - .5) < .18 ? .5 : g.x, hy = versY(g.y);
+    par = {...parade(gb, gx < .5, gx === .5, hy), dx: versX(gx) * .45, saut: hy > 1.2 ? .14 : 0}; tPar = performance.now() + 40;
     await new Promise(res => { tir.fin = res; });
     miniFin(r);
+  };
+  const tirer = (now, auto) => {
+    const u = cl((now - tSaut) / Tvol);
+    finir({vitesse: Math.round(Math.min(1, v / VMAX) * 1000) / 1000, hauteur: auto ? 0 : Math.round(Math.sin(Math.PI * u) * 1000) / 1000});
   };
   S.regarder(jo.x * .75, 2.7, jo.z - 4.4, jo.x * .3, 1.4, jo.z + 9); S.prechauffer();
   const boucle = now => {
     if (!MJ.el) return;
     const dt = S.pas();
     if (phase === 'course') {
-      v = Math.max(1.2, v - 1.8 * dt); jo.z += v * dt;
+      v = Math.max(1.2, v - 1.5 * dt); jo.z += v * dt;
       if (v > 3.6) moi.jouer('course', .25, v / 6.5); else moi.jouer('trot', .25, v / 3.4);
-      jauge.style.transform = `scaleY(${v / 8})`;
-      // fin de la course : une seconde d'appel (derniers pas, touchers ignorés) avant le saut, pour ne pas tirer sans le vouloir
-      if (jo.z >= 31 - .55 * v) { phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4); miniAide('Appel… prépare ton tir'); }
+      jauge.style.transform = `scaleY(${v / VMAX})`;
+      // fin de la course : la barre se bloque et montre sa valeur, puis disparaît pendant une seconde d'appel (touchers ignorés)
+      if (jo.z >= 31 - .55 * v) {
+        phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4);
+        const pc = Math.min(1, v / VMAX);
+        barre.dataset.valeur = pc >= .95 ? 'Parfait !' : Math.round(pc * 100) + ' %';
+        barre.classList.toggle('parfaite', pc >= .95); barre.classList.add('bloquee'); vibrer(pc >= .95 ? [20, 30, 20] : 15);
+        MJ.timers.push(setTimeout(() => barre.classList.add('partie'), 650));
+        miniAide('Appel…');
+      }
     } else if (phase === 'appel') {
       jo.z += vAppel * dt;
-      if (now - tAppel >= 1000) { phase = 'vol'; tSaut = now; Tvol = (500 + 65 * v) * 1.5;   // un peu de ralenti en l'air pour dessiner le tir
-        Hsaut = .25 + .1 * v; zSaut = jo.z; moi.jouer('repos', .12);
-        miniAide('Dessine ton tir vers le but !'); vibrer(15); }
+      if (now - tAppel >= 1000) { phase = 'vol'; tSaut = now; Tvol = (500 + 65 * v) * 1.5;   // un peu de ralenti en l'air
+        Hsaut = .25 + .1 * v; zSaut = jo.z; moi.jouer('repos', .12); def.sauteT = now + 120;
+        miniAide('Touche pour tirer au sommet du saut !'); vibrer(15); }
     } else if (tSaut) {
       const u = cl((now - tSaut) / Tvol);
       jo.z = zSaut + v * .2 * u * Tvol / 1000; jo.y = Hsaut * Math.sin(Math.PI * u);
       moi.pose('saut', Math.sin(Math.PI * Math.min(1, u * 1.2))); moi.pose('porte', 1 - doux(cl(u * 4)));
       if (!tir) moi.pose('arme', doux(cl(u * 3)));
-      if (phase === 'vol' && u >= 1) finir({vitesse: 0, hauteur: 0, x: .5, y: .85, force: .2});
+      if (phase === 'vol' && u >= 1) tirer(now, true);   // retombé sans tirer
     }
     if (tir) { const w = doux(cl((now - tir.t) / 110)); moi.pose('arme', 1 - w); moi.pose('tir', w); }
     moi.mettre(jo.x, jo.y, jo.z, 0);
-    // contreur : il saute bras levés si le tir est contré
-    const ds = def.sauteT ? cl((now - def.sauteT) / 450) : 0;
-    def.mettre(D.x, Math.sin(Math.PI * ds) * .45, D.z); def.pose('contre', .85 + .15 * Math.sin(Math.PI * Math.min(1, ds * 1.5))); def.ancre = !def.sauteT;
+    // contreur : il saute avec toi, bras levés (plus haut que toi si tu tires bas)
+    const ds = def.sauteT && now > def.sauteT ? cl((now - def.sauteT) / (Tvol * .8)) : 0;
+    def.mettre(D.x, Math.sin(Math.PI * ds) * .42, D.z); def.pose('contre', .85 + .15 * Math.sin(Math.PI * ds)); def.ancre = !ds;
     if (par && now > tPar) { const w = doux(cl((now - tPar) / 170)); gb.pose('pret', 1 - w); gb.pose(par.nom, w, par.miroir);
       gb.mettre(lerp(0, par.dx, w), par.saut * Math.sin(Math.PI * cl((now - tPar) / 420)), 39.4); }
     // en course la caméra suit de près ; en l'air elle recule et monte pour montrer le but au-dessus du contreur
@@ -739,12 +753,13 @@ export async function suspension(sc, n) {
     S.regarder(lerp(jo.x * .75, jo.x * .5, k), lerp(2.7, 3.5, k), jo.z - lerp(4.4, 6, k), lerp(jo.x * .3, 0, k), lerp(1.4, 1.2, k), lerp(jo.z + 9, ZB, k));
     if (tir) {
       const u = cl((now - tir.t) / tir.duree), a = tir.dep, b = tir.arr;
-      const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + Math.sin(Math.PI * u) * .25, lerp(a.z, b.z, u));
+      const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + Math.sin(Math.PI * u) * .2, lerp(a.z, b.z, u));
       if (!tir.rebond && tir.r.resultat === 'arret') p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));
+      if (!tir.rebond && tir.r.resultat === 'contre') p.lerp(def.mainProche(p), doux(cl((u - .5) / .5)));
       S.ballon.position.copy(p);
       if (u >= 1 && !tir.arrive) {
         tir.arrive = true; const res = tir.r.resultat;
-        if (!tir.rebond && ['arret', 'contre', 'poteau'].includes(res)) { tir.dep = p.clone(); tir.arr = v3(b.x + (b.x < 0 ? -2 : 2), .1, b.z - 4); tir.t = now; tir.duree = 500; tir.arrive = false; tir.rebond = true; vibrer(30); }
+        if (!tir.rebond && ['arret', 'contre', 'poteau'].includes(res)) { tir.dep = p.clone(); tir.arr = v3(p.x + (p.x < 0 ? -2 : 2), .1, p.z - 4); tir.t = now; tir.duree = 500; tir.arrive = false; tir.rebond = true; vibrer(30); }
         else { if (res === 'but') S.buts[1].bosse(b.x, b.y); MJ.timers.push(setTimeout(() => tir.fin?.(), 520)); }
       }
     }
@@ -752,23 +767,10 @@ export async function suspension(sc, n) {
     if (!tir) S.ballon.position.copy(moi.main());
     MJ.raf = requestAnimationFrame(boucle);
   };
-  MJ.toucher = e => {
-    if (phase === 'course') { v = Math.min(8, v + 1.15); vibrer(5); return; }
-    if (phase === 'vol') { pts = [{x: e.clientX, y: e.clientY}]; tDessin = performance.now(); }
+  MJ.toucher = () => {
+    if (phase === 'course') { v = Math.min(VMAX, v + 1.15 / 1.5); vibrer(5); return; }   // 1,5 fois plus d'appuis qu'avant pour la remplir
+    if (phase === 'vol') tirer(performance.now(), false);
   };
-  const trace = q('.t3-trace polyline'), loc = p => { const b = z.getBoundingClientRect(); return `${p.x - b.left},${p.y - b.top}`; };
-  z.addEventListener('pointermove', e => { if (phase !== 'vol' || !pts.length) return; pts.push({x: e.clientX, y: e.clientY}); trace.setAttribute('points', pts.map(loc).join(' ')); });
-  const lache = () => {
-    if (phase !== 'vol' || pts.length < 2) return;
-    const a = pts[0], b = pts[pts.length - 1], long = Math.hypot(b.x - a.x, b.y - a.y), ms = Math.max(60, performance.now() - tDessin);
-    if (long < 30) { pts = []; return; }
-    const bx = z.getBoundingClientRect(), g1 = S.ecran(1.5, 2, ZB), g2 = S.ecran(-1.5, 0, ZB);
-    const x = Math.max(-.45, Math.min(1.45, (b.x - bx.left - g1.x) / (g2.x - g1.x))), y = Math.max(-.45, Math.min(1.15, (b.y - bx.top - g1.y) / (g2.y - g1.y)));
-    const u = Math.min(1, (performance.now() - tSaut) / Tvol);
-    finir({vitesse: Math.round(v / 8 * 1000) / 1000, hauteur: Math.round(Math.sin(Math.PI * u) * 1000) / 1000, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000,
-      force: Math.round(Math.min(1, long / ms / 1.6) * 1000) / 1000});
-  };
-  z.addEventListener('pointerup', lache); z.addEventListener('pointercancel', lache);
   MJ.raf = requestAnimationFrame(boucle);
 }
 

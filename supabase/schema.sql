@@ -1207,24 +1207,19 @@ begin
       end if;
       delete from mini_attente where user_id = p.user_id;
     else
-      -- tir en suspension : vitesse de course (le saut en dépend), hauteur au moment du tir (1 = sommet), point visé (x, y du but) et force
-      x := (p_entrees ->> 'x')::numeric; y := (p_entrees ->> 'y')::numeric;
-      if x is null or y is null or (p_entrees ->> 'vitesse') is null or (p_entrees ->> 'hauteur') is null or (p_entrees ->> 'force') is null
-         or x < -.5 or x > 1.5 or y < -.5 or y > 1.2 then raise exception 'Essai invalide'; end if;
-      declare vit numeric := least(1, greatest(0, (p_entrees ->> 'vitesse')::numeric)); hau numeric := least(1, greatest(0, (p_entrees ->> 'hauteur')::numeric));
-        frc numeric := least(1, greatest(0, (p_entrees ->> 'force')::numeric)); elev numeric; gx numeric; gy numeric; prt numeric;
+      -- tir en suspension (demande de Maël) : plus de trajectoire, on tire au bon moment. vitesse = remplissage de la barre
+      -- de course (0-1), hauteur = où en est le saut au moment du tir (1 = sommet). Élan = barre × hauteur (chacune comptée
+      -- pleine à partir de 95 %) : au sommet du saut avec une barre pleine, toujours but ; sinon but avec une chance de élan².
+      -- Raté : contré si le tir part bas dans le saut (ou une fois sur deux), sinon arrêté. reponse = le côté du gardien.
+      if (p_entrees ->> 'vitesse') is null or (p_entrees ->> 'hauteur') is null then raise exception 'Essai invalide'; end if;
+      declare vit numeric := least(1, greatest(0, (p_entrees ->> 'vitesse')::numeric)); hau numeric := least(1, greatest(0, (p_entrees ->> 'hauteur')::numeric)); elan numeric;
       begin
-        elev := vit * hau;   -- plus on court vite et plus on tire haut dans le saut, plus on passe au-dessus du contreur
-        gx := case when random() < .3 then .2 when random() < .3 / .7 then .8 else .5 end; gy := case when random() < .5 then .3 else .75 end;
-        a := jsonb_build_object('x', gx, 'y', gy);
-        prt := .62 - .4 * frc + case when gx = .5 then .08 else 0 end;   -- portée du gardien : plus courte si le tir est fort
-        if x < 0 or x > 1 or y < 0 then res := 'dehors';
-        elsif x < .05 or x > .95 or y < .05 then res := 'poteau';
-        elsif random() < greatest(0, .75 - .8 * elev - .35 * (1 - y)) then res := 'contre';
-        elsif abs(x - .5) < .18 then res := 'arret';
-        elsif sqrt(power(x - (.5 + (gx - .5) * .6), 2) + power((y - gy) * .67, 2)) < prt then res := 'arret';
-        else res := 'but';
+        elan := least(1, vit / .95) * least(1, hau / .95);
+        if elan >= 1 or random() < elan * elan then res := 'but';
+        elsif hau < .6 or random() < .5 then res := 'contre';
+        else res := 'arret';
         end if;
+        a := jsonb_build_object('x', case when random() < .5 then .2 else .8 end, 'y', case when random() < .5 then .3 else .75 end);
       end;
     end if;
   exception when invalid_text_representation then raise exception 'Essai invalide';
