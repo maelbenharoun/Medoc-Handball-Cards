@@ -220,7 +220,7 @@ function placerCarrousel(decalage = 0) {
   });
 }
 // un autre poste choisi : les sachets tournent jusqu'à leur place ; le titre, le bouton d'achat et les points suivent
-function choisirCarrousel(k) {
+function choisirCarrousel(k, auto) {
   const n = BOOSTERS_POSTE.length, sc = $('.carrousel');
   CARROUSEL.i = ((k % n) + n) % n;
   if (!sc) return route(true);
@@ -231,8 +231,17 @@ function choisirCarrousel(k) {
   const achat = scene.querySelector('[data-bposte]'); achat.dataset.bposte = poste; achat.disabled = !(nSel && S().pieces >= prix);
   scene.querySelectorAll('.car-points i').forEach((x, j) => x.classList.toggle('on', j === CARROUSEL.i));
   sc.querySelector('.car-fl.g').dataset.car = (CARROUSEL.i - 1 + n) % n; sc.querySelector('.car-fl.d').dataset.car = (CARROUSEL.i + 1) % n;
-  Son.jouer('envol');
+  if (!auto) { Son.jouer('envol'); CARROUSEL.touche = Date.now(); }
 }
+// le carrousel tourne tout seul toutes les 4 s (demande de Maël), sans bruit ; il attend 8 s après un geste, et ne tourne pas
+// s'il est hors de l'écran, pendant un glissé, une fenêtre ouverte, une ouverture de booster ou quand l'appli est cachée
+const CAR_AUTO = 4000, CAR_PAUSE = 8000;
+setInterval(() => {
+  const sc = $('.carrousel'), scene = sc?.closest('.scene-b');
+  if (!sc || glisse || document.hidden || scene.classList.contains('hors-vue') || !$('#overlay').hidden || document.body.classList.contains('avec-intro')
+    || Date.now() - (CARROUSEL.touche || 0) < CAR_PAUSE || moinsAnim()) return;
+  choisirCarrousel(CARROUSEL.i + 1, true);
+}, CAR_AUTO);
 // Quêtes du jour : dans une fenêtre, depuis l'icône en haut à droite
 function fenetreQuetes() {
   const quetes = (S().quetes || []).map(q => {
@@ -1468,7 +1477,11 @@ document.addEventListener('input', e => {
 // les sachets suivent le doigt (un sachet par tiers d'écran), puis tournent jusqu'au poste le plus proche
 let glisse = null;
 const PAS_CAR = () => 133;   // px : l'écart entre deux sachets (79 % de 168 px)
-document.addEventListener('pointerdown', e => { if (e.target.closest('[data-carrousel]')) glisse = {x: e.clientX, y: e.clientY, actif: false}; });
+document.addEventListener('pointerdown', e => {
+  // un toucher n'importe où dans le bloc (le bouton d'achat compris) met la rotation automatique en pause : on n'achète jamais un autre poste
+  if (e.target.closest('.scene-b')?.querySelector('.carrousel')) CARROUSEL.touche = Date.now();
+  if (e.target.closest('[data-carrousel]')) glisse = {x: e.clientX, y: e.clientY, actif: false};
+});
 document.addEventListener('pointermove', e => {
   if (!glisse) return; const dx = e.clientX - glisse.x, dy = e.clientY - glisse.y;
   if (!glisse.actif && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { glisse.actif = true; $('.carrousel')?.classList.add('glisse'); }
@@ -1709,7 +1722,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=37').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=38').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
