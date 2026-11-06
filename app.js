@@ -1056,7 +1056,7 @@ function nouveauTir() {
   el.querySelectorAll('.j7-gardien, .gk g, .j7-ballon, .j7-filet, .j7-bosse, .j7-but').forEach(x => x.getAnimations().forEach(a => a.cancel()));
   el.querySelector('.j7-aide').textContent = 'Touche pour viser';
   // plus rapide à chaque tir
-  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: Math.max(.72, 1.02 - n * .07), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
+  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: Math.max(1.2, 1.7 - n * .117), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
   el.querySelector('.j7-niveau').style.bottom = '0%';
   boucleJet7m();
 }
