@@ -6,7 +6,14 @@
      avec le compte administrateur ;
    - sinon : dans le dépôt GitHub en un seul commit (data/perso.json + assets/photos/), avec un jeton. */
 
-const PHOTO_PX = 360;   // photos recadrées en carré 360×360, JPEG (les métadonnées, GPS compris, disparaissent)
+// photos recadrées en portrait 420×480 (format de la photo sur la carte), fond transparent gardé
+// (photos détourées) en WebP, ou PNG si le navigateur ne sait pas faire de WebP ; les métadonnées, GPS compris, disparaissent
+const PHOTO_L = 420, PHOTO_H = 480;
+function exporterPhoto(cv) {
+  const w = cv.toDataURL('image/webp', .9);
+  return w.startsWith('data:image/webp') ? w : cv.toDataURL('image/png');
+}
+const extension = donnees => /^data:image\/(webp|png)/.exec(donnees)?.[1] || 'jpg';
 
 let SITE = [], PAR_ID = {}, PERSO = {}, SOURCE = '';
 let BROUILLON = lireBrouillon();
@@ -74,7 +81,7 @@ async function publier() {
     const nouveau = {...actuel}, fichiers = [], locales = {};
     for (const id of ids) {
       const e = await deposerPhotos(id, BROUILLON[id], async (donnees, nom) => {
-        const chemin = `assets/photos/${nom}-${unique()}.jpg`;
+        const chemin = `assets/photos/${nom}-${unique()}.${extension(donnees)}`;
         const blob = await gh('git/blobs', 'POST', {content: donnees.split(',')[1], encoding: 'base64'});
         fichiers.push({path: chemin, mode: '100644', type: 'blob', sha: blob.sha});
         locales[chemin] = donnees; return chemin;
@@ -136,9 +143,9 @@ async function envoyer(ids, complet) {
     const nouveau = {...PERSO}, lignes = [], aSupprimer = [];
     for (const id of ids) {
       const e = await deposerPhotos(id, id in BROUILLON ? BROUILLON[id] : PERSO[id] || null, async (donnees, nom) => {
-        const chemin = `${nom}-${unique()}.jpg`;
+        const chemin = `${nom}-${unique()}.${extension(donnees)}`;
         const blob = await (await fetch(donnees)).blob();
-        const {error} = await sbA.storage.from('photos').upload(chemin, blob, {contentType: 'image/jpeg', cacheControl: '31536000'});
+        const {error} = await sbA.storage.from('photos').upload(chemin, blob, {contentType: blob.type || 'image/jpeg', cacheControl: '31536000'});
         if (error) throw error;
         return sbA.storage.from('photos').getPublicUrl(chemin).data.publicUrl;
       });
@@ -244,6 +251,7 @@ function ouvrir(id) {
   const p = appliquerBrouillon(PERSO, BROUILLON)[id] || {}, c = fusionnerCarte(PAR_ID[id], p);
   // postes réglés à la main (le premier = principal) ; vide = valeur par défaut (GB pour un gardien du site)
   ed = {id, postes: Array.isArray(p.postes) ? [...p.postes] : p.poste ? [p.poste] : [], stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
+    numero: Number.isInteger(p.numero) ? p.numero : null,
     photos: {...(p.photos || {})}, photo: p.photo || null, palier: 'bronze', img: null, cadre: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
@@ -251,15 +259,17 @@ function ouvrir(id) {
     <div class="filters postes" id="paliers"></div>
     <h3>${esc(c.nom)} <small>${c.equipe}</small></h3>
     <h4>Postes de jeu</h4><div class="filters postes" id="postes"></div><p class="sub petit" id="aide-postes"></p>
+    <h4>Numéro de maillot</h4><input class="champ numero" type="number" min="0" max="99" id="numero" inputmode="numeric" placeholder="Ex. 10">
     <h4>Forme du joueur <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
     <h4 id="titre-photo">Photo</h4>
-    <div class="photo"><canvas id="cadre" width="${PHOTO_PX}" height="${PHOTO_PX}"></canvas>
+    <div class="photo"><canvas id="cadre" width="${PHOTO_L}" height="${PHOTO_H}"></canvas>
       <div class="photo-ctl"><label class="btn ghost petit">Choisir une photo<input type="file" accept="image/*" id="fichier" hidden></label>
       <button class="btn ghost petit" data-act="sansphoto">Retirer</button>
       <div id="reglages-photo"></div></div></div>
     <p class="note-photo">Une photo par palier (sinon celle du palier en dessous). Seulement avec l’accord de la personne (de ses parents si elle est mineure) : le jeu est public.</p>
     <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="enregistrer">Enregistrer</button></div>
   </div>`;
+  $('#numero').value = ed.numero ?? '';
   chargerPhoto();
   majEditeur();
 }
@@ -267,6 +277,7 @@ function ouvrir(id) {
 function entree() {
   const r = {};
   if (ed.postes.length) r.postes = [...ed.postes];
+  if (ed.numero != null) r.numero = ed.numero;
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
   if (Object.keys(ed.photos).length) r.photos = {...ed.photos};
   if (ed.photo) r.photo = ed.photo;
@@ -336,20 +347,20 @@ function chargerPhoto() {
 }
 function dessiner() {
   const cv = $('#cadre'), x = cv.getContext('2d');
-  x.fillStyle = '#1a1d22'; x.fillRect(0, 0, PHOTO_PX, PHOTO_PX);
+  x.clearRect(0, 0, PHOTO_L, PHOTO_H);   // fond transparent (damier dessiné par la page)
   if (!ed.img) return;
   const {z, x: px, y: py} = ed.cadre, w = ed.img.naturalWidth, h = ed.img.naturalHeight;
-  const k = Math.max(PHOTO_PX / w, PHOTO_PX / h) * z, dw = w * k, dh = h * k;
-  x.drawImage(ed.img, (PHOTO_PX - dw) * px / 100, (PHOTO_PX - dh) * py / 100, dw, dh);
+  const k = Math.max(PHOTO_L / w, PHOTO_H / h) * z, dw = w * k, dh = h * k;   // zoom 100 % = la photo remplit le cadre
+  x.drawImage(ed.img, (PHOTO_L - dw) * px / 100, (PHOTO_H - dh) * py / 100, dw, dh);
 }
 function majPhoto() {
-  $('#reglages-photo').innerHTML = ed.img ? [['z', 'Zoom', 100, 300], ['x', 'Gauche ↔ droite', 0, 100], ['y', 'Haut ↕ bas', 0, 100]]
+  $('#reglages-photo').innerHTML = ed.img ? [['z', 'Zoom', 40, 300], ['x', 'Gauche ↔ droite', 0, 100], ['y', 'Haut ↕ bas', 0, 100]]
     .map(([k, l, a, b]) => `<label class="stat-l"><span>${l}</span><input type="range" min="${a}" max="${b}" value="${k === 'z' ? ed.cadre.z * 100 : ed.cadre[k]}" data-cadre="${k}"></label>`).join('') : '';
 }
 let rafPhoto = 0;
 function photoDepuisCadre() {
   cancelAnimationFrame(rafPhoto);
-  rafPhoto = requestAnimationFrame(() => { dessiner(); ed.photos[ed.palier] = $('#cadre').toDataURL('image/jpeg', .85); majEditeur(); });
+  rafPhoto = requestAnimationFrame(() => { dessiner(); ed.photos[ed.palier] = exporterPhoto($('#cadre')); majEditeur(); });
 }
 function retirerPhoto() {
   delete ed.photos[ed.palier];
@@ -441,6 +452,7 @@ document.addEventListener('input', e => {
   if (t.dataset.recherche !== undefined) { recherche = t.value; return majListe(); }
   if (!ed) return;
   if (t.dataset.stat) return changerStat(t.dataset.stat, t.value, t);
+  if (t.id === 'numero') { ed.numero = t.value === '' ? null : borne(+t.value, 0, 99); return majApercu(); }
   if (t.dataset.cadre) { ed.cadre[t.dataset.cadre] = t.dataset.cadre === 'z' ? t.value / 100 : +t.value; return photoDepuisCadre(); }
 });
 document.addEventListener('change', e => {

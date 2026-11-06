@@ -110,8 +110,9 @@ function fusionnerCarte(c0, p = {}) {
   const ecarts = Object.fromEntries(statsDu(poste).map(([k]) => [k, profil[k] - calc + (bonus[k] || 0)]));
   const photos = {};
   for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
-  const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null,
-    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || Object.keys(photos).length)};
+  const numero = Number.isInteger(p.numero) && p.numero >= 0 && p.numero <= 99 ? p.numero : null;   // numéro de maillot
+  const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null, numero,
+    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || numero != null || Object.keys(photos).length)};
   return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
 }
 // Les 6 stats d'un joueur à une note : note + son écart, de 1 à 99
@@ -158,16 +159,20 @@ function silhouette(r) {
 }
 
 // c : carte affichée (voir vueExemplaire) ; o : {cache, cls, note (selon le poste occupé), nouveau, qty, doublon (prix de vente)}
+// Carte en blason : note + palier + poste en haut à gauche, photo à droite, nom, 6 stats en ligne,
+// puis numéro de maillot, logo du club et équipe (style dans style.css, « carte »)
 function carteHTML(c, o = {}) {
-  if (o.cache) return `<div class="card locked lr-${c.rarete}" data-id="${c.id}"><div class="c-top"><b class="c-ovr">?</b><span class="c-pos">${posteAffiche(c)}</span></div>
-    <div class="c-face">${silhouette()}</div><div class="c-name">${esc(c.nom)}</div><div class="c-line"></div></div>`;
+  if (o.cache) return `<div class="card locked lr-${c.rarete}" data-id="${c.id}"><div class="c-top"><b class="c-ovr">?</b><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
+    <div class="c-face">${silhouette()}</div><div class="c-name">${esc(c.nom)}</div></div>`;
   const note = o.note ?? c.ovr;
   const visage = c.photo ? `<img class="c-photo" src="${esc(c.photo)}" alt="" loading="lazy">`
     : `<div class="c-face">${silhouette(c.rarete)}</div><div class="c-mono">${initiales(c.nom)}</div>`;
-  return `<div class="card r-${c.rarete}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, ${posteAffiche(c)}, note ${note}">
-    <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pos">${posteAffiche(c)}</span><span class="c-eq">${c.equipe}</span><img class="c-logo" src="assets/logo.png" alt=""></div>
-    ${visage}<div class="c-name">${esc(c.nom)}</div><div class="c-line"></div>
-    <div class="c-stats">${statsDu(c.poste).map(([k, l]) => `<span><b>${c.s[k]}</b>${l}</span>`).join('')}</div>
+  return `<div class="card r-${c.rarete}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, ${posteAffiche(c)}, ${R_LABEL[c.rarete] || ''} ${note}">
+    <i class="c-eclat"></i>${visage}
+    <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pal">${R_LABEL[c.rarete] || ''}</span><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
+    <div class="c-name">${esc(c.nom)}</div>
+    <div class="c-stats">${statsDu(c.poste).map(([k, l]) => `<span><small>${l}</small><b>${c.s[k]}</b></span>`).join('')}</div>
+    <div class="c-bas"><span class="c-num">${c.numero != null ? 'N°' + c.numero : 'N°–'}</span><img class="c-logo" src="assets/logo.png" alt=""><span class="c-eq">${c.equipe}</span></div>
     ${o.nouveau ? '<span class="c-new">NOUVEAU</span>' : ''}${o.qty > 1 ? `<span class="qty">×${o.qty}</span>` : ''}
     ${o.doublon ? `<span class="c-dup">Doublon · ${o.doublon} pièces</span>` : ''}</div>`;
 }

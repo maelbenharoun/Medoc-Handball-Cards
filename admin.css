@@ -34,7 +34,9 @@
 .stat-l input[type=range] { width: 100%; accent-color: var(--accent); }
 .photo .stat-l { grid-template-columns: 7.4em 1fr; }
 .photo { display: flex; gap: 12px; align-items: flex-start; }
-.photo canvas { width: 120px; height: 120px; flex: none; border-radius: 12px; border: 1px solid var(--line); }
+.photo canvas { width: 120px; height: auto; aspect-ratio: 420 / 480; flex: none; border-radius: 12px; border: 1px solid var(--line);
+  background: repeating-conic-gradient(#262a31 0 25%, #1a1d22 0 50%) 0 0 / 16px 16px; }   /* damier : fond transparent */
+.champ.numero { max-width: 14em; }
 .photo-ctl { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 0; }
 .photo-ctl > div { width: 100%; }
 .note-photo { color: var(--muted); font-size: .78rem; margin: 0; }
