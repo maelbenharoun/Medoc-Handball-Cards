@@ -127,8 +127,11 @@ function fusionnerCarte(c0, p = {}) {
 // f (réglages.fiche) : {intro, titres: {section: titre}, caches: [id de section ou « section.ligne »],
 //   lignes: {« section.ligne »: {l?, v?, d?}}, ajouts: [{s, id, l, v, d?}], sections: [{id, titre, style}]}
 // Les lignes non touchées suivent les stats du site à chaque mise à jour.
+// Sections que Maël ne veut plus (anciens exports encore sur le serveur) : jamais affichées
+const SECTIONS_RETIREES = new Set(['club', 'saisons', 'derniers']);
 function ficheDe(auto, f) {
   f = f || {};
+  auto = (auto || []).filter(s => !SECTIONS_RETIREES.has(s.id));
   const caches = new Set(f.caches || []), modif = f.lignes || {};
   const secs = [...(auto || []).map(s => ({...s, auto: true, lignes: s.lignes.map(x => ({...x, auto: true}))})),
     ...(f.sections || []).map(s => ({id: s.id, titre: s.titre || '', style: s.style === 'fun' ? 'fun' : 'lignes', lignes: []}))];

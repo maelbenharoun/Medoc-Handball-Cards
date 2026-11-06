@@ -233,8 +233,12 @@ function vueClub() {
     <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${
       e === 'tous' ? 'Toutes' : e === 'fusion' ? `Fusions (${nf})` : e}</button>`).join('')}</div>
     <div class="grid">${mes.map(c => {
-      const best = mesEx(c.id)[0], n = mesEx(c.id).length;
-      return carteHTML(vue(best), {qty: n, cls: fusionsPossibles(c.id).length ? 'peut-fusion' : ''});
+      // demande de Maël : bien voir combien on a de chaque carte (au total et par palier ; 3 au même palier = fusion)
+      const ex = mesEx(c.id), best = ex[0], n = ex.length, nf = PARAMS.fusion_nombre || 3;
+      const par = PALIERS.map(p => [p, ex.filter(e => e.palier === p.id).length]).filter(([, k]) => k);
+      return `<div class="cg">${carteHTML(vue(best), {qty: n, cls: fusionsPossibles(c.id).length ? 'peut-fusion' : ''})}
+        <div class="cg-q" aria-label="${n} exemplaire${n > 1 ? 's' : ''}">${par.map(([p, k]) =>
+          `<span class="pq t-${p.id}${k >= nf && p.id !== 'ultime' ? ' plein' : ''}" title="${p.nom}">${p.nom[0]}<b>×${k}</b></span>`).join('')}</div></div>`;
     }).join('')}${autres.map(c => carteHTML(c, {cache: true})).join('')}</div>
     ${!mes.length && filtre === 'fusion' ? '<p class="sub">Aucune fusion possible : il faut 3 fois le même joueur au même palier.</p>' : ''}`;
 }
@@ -1662,7 +1666,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=34').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=35').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
