@@ -616,7 +616,7 @@ body.avec-intro { overflow: hidden; }
 .j7-haut { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 16px; right: 12px; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
 .j7-score { font-weight: 900; font-size: 1rem; }
 .j7-quitter { padding: 7px 14px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(11, 13, 16, .6); color: var(--muted); font: inherit; font-size: .8rem; font-weight: 700; }
-.j7-terrain { position: absolute; inset: 0; }
+.j7-terrain { position: absolute; inset: 0; z-index: 0; }
 .j7-but { position: absolute; left: 50%; top: 13%; width: min(84vw, 460px, 60vh); aspect-ratio: 3 / 2; translate: -50% 0;
   border: 7px solid transparent; border-bottom: 0; border-image: repeating-linear-gradient(90deg, #e5484d 0 22px, #f4f4f4 22px 44px) 7;
   box-shadow: 0 30px 50px -20px rgba(0, 0, 0, .7); }
@@ -673,7 +673,7 @@ body.avec-intro { overflow: hidden; }
 .mj-ic { font-size: 1.5rem; text-align: center; }
 .mj-ligne b { display: block; font-size: .92rem; margin-bottom: 4px; }
 .j7-pastilles.petit .j7p { width: 14px; height: 14px; border-width: 1.5px; }
-.mj-scene { position: absolute; inset: 0; }
+.mj-scene { position: absolute; inset: 0; z-index: 0; }   /* la scène reste sous les boutons et les textes du jeu */
 .mj .j7-aide { z-index: 8; }
 .mj-gardien .j7-aide { bottom: auto; top: calc(100px + env(safe-area-inset-top)); }   /* en bas, il y a les mains du gardien */
 /* arrêt réflexe : on est dans le but, face au terrain */
