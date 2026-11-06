@@ -996,8 +996,23 @@ const GARDIEN_SVG = `<svg viewBox="0 0 100 120" aria-hidden="true"><g stroke-lin
   <path d="M43 86 L30 116 M57 86 L70 116" stroke="#14171c" stroke-width="12"/>
   <rect x="33" y="32" width="34" height="58" rx="11" fill="#1d5b8f"/><text x="50" y="69" text-anchor="middle" font-size="20" font-weight="900" fill="#ffd257" font-family="sans-serif">1</text>
   <circle cx="50" cy="20" r="12" fill="#e8c4a0"/><path d="M38 17 Q50 3 62 17" fill="#3b2a1a"/></g></svg>`;
-function ouvrirJet7m() {
-  const j = S().jet7m || {tirs: [], limite: 5};
+// Démo (?demo=7m) : mêmes règles que tirer_7m, calculées dans la page, sans pièces ni serveur
+function tir7mDemo(v, f) {
+  const zone = v < 1 / 3 ? 'g' : v > 2 / 3 ? 'd' : 'c', x = Math.random(), gardien = x < .35 ? 'g' : x < .7 ? 'd' : 'c';
+  const ecart = Math.abs(v - .5) * 2, force = Math.max(0, 1 - Math.abs(f - .8) / .5);
+  let res;
+  if (f > .93) res = 'dessus';
+  else if (ecart > .93) res = 'poteau';
+  else {
+    const pa = gardien === zone && zone === 'c' ? .85 - .35 * force : gardien === zone ? .8 - .45 * force - .2 * Math.max(0, ecart - .6)
+      : f < .35 ? .55 : zone === 'c' ? .2 : .04;
+    res = Math.random() < pa ? 'arret' : 'but';
+  }
+  const tirs = [...J7.tirs, res];
+  return Promise.resolve({resultat: res, zone, gardien, pieces: 0, bonus: 0, tirs, restants: J7.limite - tirs.length});
+}
+function ouvrirJet7m(demo) {
+  const j = demo ? {tirs: [], limite: 5} : S().jet7m || {tirs: [], limite: 5};
   if (j.tirs.length >= j.limite) return toast('Reviens demain pour 5 nouveaux tirs');
   const el = document.createElement('div');
   el.className = 'j7';
@@ -1009,7 +1024,7 @@ function ouvrirJet7m() {
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro');
-  Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0});
+  Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0, demo: !!demo});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button')) toucherJet7m(); });
   nouveauTir();
@@ -1047,7 +1062,7 @@ function toucherJet7m() {
     J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20);
     J7.el.classList.add('tir'); J7.el.querySelector('.j7-aide').textContent = '';
     const v = Math.round(J7.visee * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
-    Compte.tirer7m(v, f).then(r => animerTir(r, v, f)).catch(e => { toast(e.message); fermerJet7m(); });
+    (J7.demo ? tir7mDemo(v, f) : Compte.tirer7m(v, f)).then(r => animerTir(r, v, f)).catch(e => { toast(e.message); fermerJet7m(); });
   }
 }
 function animerTir(r, v, f) {
@@ -1082,7 +1097,9 @@ function animerTir(r, v, f) {
     const n = J7.tirs.length, buts = J7.tirs.filter(t => t === 'but').length;
     el.querySelector('.j7-score').textContent = `Tir ${n}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
     el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large j7-suivant">Tir suivant</button>`
+      : J7.demo ? `<p class="j7-bilan">${buts} sur ${J7.limite} · démo : pas de pièces</p><button class="btn gold large j7-rejouer">Rejouer</button>`
       : `<p class="j7-bilan">${buts} sur ${J7.limite} · +${nb(J7.gains)} pièces</p><button class="btn gold large j7-fin">Fermer</button>`;
+    el.querySelector('.j7-rejouer')?.addEventListener('click', e => { e.stopPropagation(); J7.tirs = []; nouveauTir(); });
     el.querySelector('.j7-suivant')?.addEventListener('click', e => { e.stopPropagation(); nouveauTir(); });
     el.querySelector('.j7-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   });
@@ -1171,7 +1188,8 @@ Compte.demarrer().then(info => {
   route();
   cartesIntro();
   const demo = new URLSearchParams(location.search).get('demo');
-  if (demo !== null) demoBooster(demo);
+  if (demo === '7m') ouvrirJet7m(true);
+  else if (demo !== null) demoBooster(demo);
   if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
   else if (info.horsLigne) toast('Hors ligne : ton club reste consultable');
