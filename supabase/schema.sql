@@ -959,7 +959,27 @@ $$;
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- Calendrier aller-retour (méthode du cercle) : chacun rencontre tout le monde, une fois à domicile, une fois à l'extérieur
+-- Calendrier aller-retour (méthode du cercle). Nombre impair d'équipes (poules qui grandissent d'une équipe par niveau) :
+-- une équipe fantôme sert d'exemption ; la journée où le joueur (équipe 0) serait exempt est jouée avec la suivante,
+-- pour qu'il joue à chaque journée. Chacun joue 2 × (n − 1) matchs, une fois à domicile et une fois à l'extérieur contre chaque équipe.
 create or replace function calendrier(n int, tours int) returns jsonb language plpgsql immutable as $$
+declare brut jsonb; cal jsonb := '[]'; jr jsonb; attente jsonb := '[]';
+begin
+  if n % 2 = 0 then return calendrier_pair(n, tours); end if;
+  brut := calendrier_pair(n + 1, tours);
+  for jr in select (select coalesce(jsonb_agg(x), '[]') from jsonb_array_elements(j) x where (x ->> 0)::int < n and (x ->> 1)::int < n)
+            from jsonb_array_elements(brut) j loop
+    if exists (select 1 from jsonb_array_elements(jr) x where (x ->> 0)::int = 0 or (x ->> 1)::int = 0) then
+      cal := cal || jsonb_build_array(attente || jr); attente := '[]';
+    else attente := attente || jr;   -- journée d'exemption du joueur : jouée avec la suivante
+    end if;
+  end loop;
+  if jsonb_array_length(attente) > 0 then   -- exemption à la toute fin : avec la dernière journée
+    cal := jsonb_set(cal, array[(jsonb_array_length(cal) - 1)::text], (cal -> (jsonb_array_length(cal) - 1)) || attente);
+  end if;
+  return cal;
+end $$;
+create or replace function calendrier_pair(n int, tours int) returns jsonb language plpgsql immutable as $$
 declare cal jsonb := '[]'; jr jsonb; r int; i int; a int; b int; t int;
 begin
   for t in 1..tours loop
