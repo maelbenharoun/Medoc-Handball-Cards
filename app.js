@@ -772,8 +772,8 @@ function vueCompte() {
       <button class="btn ghost" type="submit" value="inscription">Créer un compte</button>
       <button class="lien" type="submit" value="oubli" formnovalidate>Mot de passe oublié ?</button>
     </form>
-    <div class="ou"><span>ou</span></div>
-    <button class="btn ghost large" data-act="google">Continuer avec Google</button>
+    ${Compte.googleActif ? `<div class="ou"><span>ou</span></div>
+    <button class="btn ghost large" data-act="google">Continuer avec Google</button>` : ''}
     <p class="sub petit centre"><a href="confidentialite.html">Données personnelles et confidentialité</a></p>`;
   return `<h1>Ton profil</h1>${msg}
     <p class="sub">Connecté avec ${esc(Compte.email)}. Choisis le pseudo que verront les autres joueurs (pas forcément ton vrai nom).</p>
@@ -1251,9 +1251,12 @@ document.addEventListener('pointerup', e => {
 window.addEventListener('hashchange', () => route());
 // le réseau revient : on recharge pour se reconnecter au serveur (hors ligne, rien n'est en cours)
 window.addEventListener('online', () => { if (Compte.horsLigne && $('#overlay').hidden) location.reload(); });
-// ami(e)s : nouvelles demandes, échanges et messages toutes les 40 s (pastille de la bulle, conversation ouverte)
+// ami(e)s : nouvelles demandes, échanges et messages (pastille de la bulle) : toutes les 40 s quand la bulle est ouverte,
+// sinon toutes les 3 min 20 (moins de trafic sur le serveur gratuit)
+let tourAmis = 0;
 setInterval(() => {
   if (document.visibilityState !== 'visible' || !Compte.pret || Compte.horsLigne || occupe || document.body.classList.contains('avec-intro')) return;
+  if (!SOC.panneau && ++tourAmis % 5) return;
   Compte.rafraichir().then(() => { majEntete();
     if (SOC.panneau === 'conv' && SOC.ami) Compte.conversation(SOC.ami).then(c => { if (SOC.panneau === 'conv') { SOC.conv = c; conversationAmi(SOC.ami); majEntete(); } }).catch(() => {});
   }).catch(() => {});
@@ -1263,8 +1266,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && Compte.pret && !Compte.horsLigne && !occupe && $('#overlay').hidden)
     Compte.rafraichir().then(() => route(true)).catch(() => {});
 });
-// Accès discret à l'outil de gestion des cartes : toucher 5 fois le logo
+// Accès discret à l'outil de gestion des cartes : toucher 5 fois le logo, seulement pour le compte admin (demande de Maël)
 $('.brand').addEventListener('click', () => {
+  if (S().role !== 'admin') return;
   const t = Date.now(); if (t - (route.tapT || 0) > 1500) route.taps = 0; route.tapT = t;
   if (++route.taps >= 5) location.href = 'admin.html';
 });

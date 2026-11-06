@@ -63,7 +63,7 @@ Commit et push sur `main` : 1 à 2 minutes plus tard, le jeu en ligne demande de
 
 1. **Avant** : dans l'outil, donne un poste de jeu à chaque carte (filtre « Sans poste »). Le booster de départ tire un joueur par poste ;
    tant qu'un poste n'est pas renseigné, il prend un joueur de champ au hasard.
-2. Ouvre l'outil (`admin.html`, ou 5 fois le logo dans le jeu) → **Compte** → connecte-toi.
+2. Ouvre l'outil (`admin.html`, ou 5 fois le logo dans le jeu, connecté en admin) → **Compte** → connecte-toi.
 3. Touche **Synchroniser avec le site** : les cartes de `data/cartes.json` (avec tes réglages de `data/perso.json`)
    et les matchs de `data/matchs.json` partent sur le serveur.
 

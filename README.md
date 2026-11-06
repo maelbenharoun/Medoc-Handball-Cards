@@ -55,7 +55,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
 
 ## Gérer les cartes (outil)
 
-`admin.html` (accès discret depuis le jeu : toucher 5 fois le logo en haut à gauche), avec le compte administrateur, permet carte par carte :
+`admin.html` (accès discret depuis le jeu, seulement connecté avec le compte admin : toucher 5 fois le logo en haut à gauche), avec le compte administrateur, permet carte par carte :
 
 - de choisir le **poste de jeu** (le booster de départ en tire un par poste) ;
 - de régler la **forme du joueur** avec les 6 stats ;

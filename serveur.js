@@ -51,7 +51,7 @@ function texteErreur(e) {
 
 const CompteServeur = (() => {
   const CACHE = 'mhc-serveur-v1';   // dernier état et catalogue connus : on peut regarder son club hors ligne
-  let sb = null, session = null, S = vide(), horsLigne = false, recuperation = false;
+  let sb = null, session = null, S = vide(), horsLigne = false, recuperation = false, googleActif = false;
   const abonnes = [];
 
   function vide() {
@@ -111,6 +111,7 @@ const CompteServeur = (() => {
     get pret() { return !!session && !!S.profil && !recuperation; },   // connecté, avec un profil : on peut jouer
     get recuperation() { return recuperation; },                         // arrivé par le lien « mot de passe oublié »
     get horsLigne() { return horsLigne; },
+    get googleActif() { return googleActif; },
     get email() { return session?.user?.email || ''; },
     surChangement(f) { abonnes.push(f); },
 
@@ -122,6 +123,9 @@ const CompteServeur = (() => {
       try {
         if (navigator.onLine === false) throw new Error('Pas de connexion au serveur');   // inutile d'attendre le réseau
         sb = await supabaseClient();
+        // la connexion Google n'est proposée que si elle est activée sur le projet (réglages publics de l'authentification)
+        fetch(CONFIG.supabaseUrl + '/auth/v1/settings', {headers: {apikey: CONFIG.supabaseCle}}).then(r => r.ok ? r.json() : null)
+          .then(d => { googleActif = !!d?.external?.google; if (googleActif) prevenir(); }).catch(() => {});
         session = (await sb.auth.getSession()).data.session;
         sb.auth.onAuthStateChange((ev, s) => setTimeout(async () => {   // hors du rappel : pas d'appel Supabase dedans
           if (ev === 'PASSWORD_RECOVERY') { recuperation = true; session = s; return prevenir(); }
