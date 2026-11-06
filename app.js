@@ -100,9 +100,11 @@ function majEntete() {
   $('#coins').hidden = !Compte.pret;
   $('.tabs').hidden = !Compte.pret;
   const moi = $('#moi');
-  moi.hidden = !Compte.pret;
-  moi.textContent = S().niveau || 1;
+  moi.hidden = !Compte.pret; document.body.classList.toggle('connecte', !!Compte.pret);
+  $('#moi-niv').textContent = S().niveau || 1;
+  $('#moi-xp').style.transform = `scaleX(${Math.min(1, (S().xp || 0) / (S().xpNiveau || 100))})`;
   moi.setAttribute('aria-label', `Mon compte, niveau ${S().niveau || 1}`);
+  $('#hud-boost').hidden = !Compte.pret; majHudBooster();
   const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0);
   const pastille = $('#pastille'); pastille.hidden = !n || !Compte.pret; pastille.textContent = n;
   // quêtes : une icône en haut à droite, avec une pastille quand une récompense attend
@@ -131,6 +133,18 @@ function secondesAvantMatch() {
 }
 const mmss = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
   : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+// HUD : boosters gratuits en stock et compte à rebours du prochain (comme le sachet et son minuteur de Pokémon TCG Pocket)
+function majHudBooster() {
+  const e = S(), n = e.boosters || 0, max = e.boosterMax || 5, s = secondesAvantBooster();
+  $('#hud-bn').textContent = `${n}/${max}`;
+  $('#hud-bt').textContent = n >= max || s == null ? 'plein' : mmss(s);
+  $('#hud-boost').classList.toggle('pret', n > 0);
+  if (s === 0 && n < max && Compte.pret && !minuteur.charge && !occupe && !document.body.classList.contains('avec-intro')) {
+    minuteur.charge = true;
+    Compte.rafraichir().catch(() => {}).finally(() => { minuteur.charge = false; if ($('#overlay').hidden && !MD.el) route(true); });
+  }
+}
+setInterval(() => { if (Compte.pret && !document.hidden) majHudBooster(); }, 1000);
 function minuteur() {
   clearInterval(minuteur.t);
   if (!$('#minuteur') && !$('#minuteur-match')) return;
@@ -455,7 +469,7 @@ function vueJouer() {
     + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
   return `<h1>Jouer</h1>
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
-      <small>${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
+      <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>`;
 }
@@ -595,6 +609,14 @@ function echelleParcours(pc) {
     `<i class="${x.i < pc.niveau ? 'fait' : x.i === pc.niveau ? 'ici' : x.i <= pc.meilleur ? 'vu' : ''}" title="${esc(x.groupe + ' ' + x.nom)}"></i>`).join('')}</div>
     <small>${esc(g.nom === 'Départemental' ? 'Départ.' : g.nom === 'International' ? 'Inter.' : g.nom)}</small></div>`).join('')}</div>`;
 }
+// Jouer (en direct) ou Simuler (tout de suite, gains réduits) ; un match en cours se reprend
+function boutonsMatch(txt, peut) {
+  const md = S().matchDirect;
+  if (md) return `<div class="md-encours"><p><b>Match en cours</b>${md.type === 'defi_ami' ? 'Défi contre' : 'contre'} ${esc(md.adversaire || '')}</p>
+    <button class="btn gold" data-act="reprendre-match">Reprendre</button></div>`;
+  return `<div class="jouer-2"><button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>${txt}</button>
+    <button class="btn ghost" data-act="simuler"${peut ? '' : ' disabled'}>Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div>`;
+}
 function blocParcours(e, peut, note, reste) {
   const pc = e.parcours;
   if (!pc) return '';
@@ -611,20 +633,20 @@ function blocParcours(e, peut, note, reste) {
         pc.descente ? (pc.descente > 1 ? `, les ${pc.descente} derniers descendent` : ', le dernier descend') : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
       ${pr ? `<div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
         <div><small>${esc(pr.nom)}</small><b>≈ ${pr.force}</b></div></div>` : ''}
-      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la journée ${pc.journee + 1}</button>${resteTxt}
+      ${boutonsMatch(`Jouer la journée ${pc.journee + 1}`, peut)}${resteTxt}
       <div class="classe poule"><div class="tete"><span>#</span><b>Équipe</b><small>J</small><small>Diff.</small><em>Pts</em></div>${lignes}</div>`;
   } else if (pc.type === 'tournoi') {
     const adv = pc.adversaires || [], a = adv[pc.tour] || {};
     corps = `<p class="sub petit">Élimination directe : 3 victoires pour le titre. Un nul se joue aux tirs au but. Éliminé ? Nouveau tirage, même tournoi.</p>
       <div class="chemin">${adv.map((x, i) => `<div class="${i < pc.tour ? 'fait' : i === pc.tour ? 'ici' : ''}"><small>${TOURS[i] || 'Tour ' + (i + 1)}</small><b>${esc(x.nom)}</b><span>≈ ${x.force}</span></div>`).join('')}</div>
       <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
-      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}</button>${resteTxt}`;
+      ${boutonsMatch(`Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}`, peut)}${resteTxt}`;
   } else {
     const besoin = Math.floor(pc.manches / 2) + 1;
     corps = `<p class="sub petit">Le 7 de rêve : ${(pc.joueurs || []).map(esc).join(', ')}. Série au meilleur des ${pc.manches} manches (${besoin} victoires).
         Il faut une équipe de cartes Ultime bien entraînées.${pc.legendesBattues ? ` Déjà battues ${pc.legendesBattues} fois.` : ''}</p>
       <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légendes</small><b>≈ ${pc.force}</b></div></div>
-      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la manche ${pc.v + pc.d + 1}</button>${resteTxt}`;
+      ${boutonsMatch(`Jouer la manche ${pc.v + pc.d + 1}`, peut)}${resteTxt}`;
   }
   const palm = (pc.palmares || []).slice(-4).reverse().map(x => `<li>🏆 ${esc(x.titre)} <small>saison ${x.saison}</small></li>`).join('');
   return `<div class="mode parcours"><div class="mode-t"><b>${titre}</b><span>niveau ${pc.niveau}/${pc.niveaux}</span></div>
@@ -685,20 +707,372 @@ function avancerMatch(m) {
 }
 function finMatch() {
   clearInterval(MATCH.t);
-  const {r} = MATCH, g = r.gains || {}, res = r.match.resultat, tab = r.match.tab, etape = r.type ? texteEtape(r) : '';
+  const {r} = MATCH, res = r.match.resultat;
   if (MATCH.i < r.match.buts.length) avancerMatch(60);   // « voir le résultat » : on affiche tout
   if (!$('#fin-match') || $('#fin-match').dataset.fait) return;
   $('#fin-match').dataset.fait = 1;
   vibrer(res === 'gagne' ? [40, 60, 80] : 30);
   Son.jouer('buzzer'); setTimeout(() => Son.jouer(res === 'gagne' ? 'victoire' : res === 'nul' ? 'nul' : 'defaite'), 450);
+  $('#fin-match').innerHTML = htmlFin(r) + '<button class="btn gold large" data-act="fin-match">Continuer</button>';
+}
+function htmlFin(r) {
+  const g = r.gains || {}, res = r.match.resultat, tab = r.match.tab, etape = r.type ? texteEtape(r) : '';
   const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join(' · ');
-  $('#fin-match').innerHTML = `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
+  return `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
       ${tab ? `<small class="tab">Tirs au but ${tab.a} – ${tab.b} : ${tab.a > tab.b ? 'gagnés' : 'perdus'}</small>` : ''}
       <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces${g.xp != null ? ` · +${g.xp} XP` : ''}${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
     ${etape ? `<p class="sub petit centre">${esc(etape)}</p>` : ''}
     ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
-    ${texteFin(r.fin)}
-    <button class="btn gold large" data-act="fin-match">Continuer</button>`;
+    ${r.gain != null && r.gain < 1 ? `<p class="sub petit centre">${r.direct ? 'Fin simulée' : 'Match simulé'} : gains −${pcMoins(r.gain)} %</p>` : ''}
+    ${texteFin(r.fin)}`;
+}
+
+// ── Match en direct, « à la Football Manager » (demande de Maël) ──────────────────────────────────────────────
+// Le serveur joue le match par blocs de 5 minutes (match_bloc), avec la tactique du moment ; ici, chaque possession est
+// racontée sur un terrain vu de dessus (14 pastilles, seuls les transform bougent), avec les commentaires et les stats.
+// Tactique et consigne ne changent qu'au coup d'envoi, à la mi-temps ou sur un temps mort (3 par match, 2 par période) :
+// le temps mort est pris à la fin du bloc en cours. « Simuler » joue tout de suite et rapporte un peu moins.
+const CONSIGNES = [['prudent', 'Prudent', 'moins de pertes et d’exclusions, moins de buts'], ['normal', 'Normal', 'l’équilibre'],
+  ['pression', 'Pression', 'plus de buts, plus de fatigue et d’exclusions']];
+const BAT = {duels: '06', enclenchement: '33', rapide: '15'}, BATTU = {duels: '15', enclenchement: '06', rapide: '33'};   // pierre-feuille-ciseaux
+const ZONE_ATT = {duels: 'tirs des arrières', enclenchement: 'jeu avec le pivot', rapide: 'ailes et contre-attaques'};
+const NOM_ATT = Object.fromEntries(TACT_ATT.map(x => [x[0], x[1]])), NOM_DEF = {'06': '0-6', '15': '1-5', '33': '3-3'};
+const ZONES_MD = [['arrieres', 'Arrières'], ['ailes', 'Ailes'], ['pivot', 'Pivot'], ['contre', 'Contre-attaque'], ['7m', 'Jets de 7 m']];
+const TIRS_MD = ['but', 'arret', 'poteau', 'dehors', '7m-but', '7m-arret'], BUTS_MD = ['but', '7m-but'];
+const SLOTS_MD = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV'];
+// places sur le terrain (40 × 20 m), pour l'équipe qui attaque vers la droite ; l'autre est tournée d'un demi-tour
+const ATT_POS = {AG: [37.6, 1.6], ARG: [29.8, 4.6], DC: [28.6, 10], ARD: [29.8, 15.4], AD: [37.6, 18.4], PIV: [34.6, 10.6]};
+const CONTRE_POS = [[31, 3.5], [25.5, 7], [33.4, 9.4], [26, 13], [31, 16.5], [24, 10]];
+const DEF_POS = {'06': [[38.6, 3.2], [35.8, 5.6], [34.3, 8.6], [34.3, 11.4], [35.8, 14.4], [38.6, 16.8]],
+  '15': [[38.4, 3.4], [35.2, 6.4], [30.8, 10], [34.3, 10], [35.2, 13.6], [38.4, 16.6]],
+  '33': [[37.4, 4.2], [31.6, 5.4], [30.6, 10], [34.6, 10], [31.6, 14.6], [37.4, 15.8]]};
+const REPLI = [[22, 4], [24.5, 8], [21, 11.5], [25, 13], [22.5, 16], [27, 9]];
+const TIR_POS = {ailes: s => s === 'AD' ? [37.4, 16.6] : [37.4, 3.4], arrieres: s => [31.2, s === 'ARG' ? 6.6 : s === 'ARD' ? 13.4 : 10],
+  pivot: () => [35.2, 10.2], contre: () => [34.8, 9.6], '7m': () => [33, 10]};
+const MS_SEC = 40;   // ×1 : une seconde de match = 40 ms (un bloc de 5 minutes en 12 s, le match en 2 min 24)
+const MD = {};
+const rotMD = (c, [x, y]) => c === 'a' ? [x, y] : [40 - x, 20 - y];
+const gainSimule = () => +(PARAMS.match_simule_gain ?? .95);
+const pcMoins = g => Math.round((1 - g) * 1000) / 10;
+const vitesseMD = () => { try { return [1, 2, 4].includes(+localStorage.getItem('mhc-vitesse')) ? +localStorage.getItem('mhc-vitesse') : 1; } catch (e) { return 1; } };
+
+// statistiques recalculées depuis les événements déjà racontés (elles suivent le récit, sans rien dévoiler d'avance)
+function statsMD(evs) {
+  const vide = () => ({buts: 0, tirs: 0, arrets: 0, pertes: 0, excl: 0, sept: 0, zones: {arrieres: 0, ailes: 0, pivot: 0, contre: 0, '7m': 0}});
+  const s = {a: vide(), b: vide()};
+  for (const x of evs) {
+    if (!s[x.c]) continue;
+    const S = s[x.c], O = s[x.c === 'a' ? 'b' : 'a'];
+    if (TIRS_MD.includes(x.ty)) S.tirs++;
+    if (BUTS_MD.includes(x.ty)) { S.buts++; if (x.z in S.zones) S.zones[x.z]++; }
+    if (x.ty === 'arret' || x.ty === '7m-arret') O.arrets++;
+    if (x.ty === 'perte') S.pertes++;
+    if (x.ty === 'excl') S.excl++;
+    if (x.ty.startsWith('7m')) S.sept++;
+  }
+  return s;
+}
+function texteMD(x) {
+  const n = esc(x.n || ''), g = esc(x.g || 'le gardien');
+  return {but: `But de <b>${n}</b>${x.z === 'contre' ? ' en contre-attaque' : x.z === 'pivot' ? ' au pivot' : x.z === 'ailes' ? ' depuis l’aile' : ''}`,
+    '7m-but': `<b>${n}</b> transforme le jet de 7 m`, '7m-arret': `<b>${g}</b> arrête le jet de 7 m de ${n}`,
+    arret: `Arrêt de <b>${g}</b> devant ${n}`, poteau: `Poteau ! Le tir de ${n} ne rentre pas`, dehors: `${n} tire à côté`,
+    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`, 'temps-mort': `Temps mort pour ${esc(MD.vue?.nous?.nom || '')}`,
+    'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`}[x.ty] || '';
+}
+const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
+
+// commencer : en direct (on choisit sa tactique au coup d'envoi) ou simulé (résultat tout de suite, gains réduits)
+function commencerMatch(type, cible, simuler) {
+  if (occupe) return;
+  const tactique = (T => `${T.att}:${T.def}`)(tactiqueActuelle());
+  const pr = Compte.matchCommencer(type, cible, tactique, 'normal', !!simuler);
+  if (simuler) return jouerMatch(type === 'defi_ami' ? pr.then(r => { SOC.amis = null; return r; }) : pr, type);
+  action(pr, r => { if (type === 'defi_ami') SOC.amis = null; if (r?.vue) ouvrirDirect(r.vue); });
+}
+function reprendreMatch() {
+  if (occupe) return;
+  action(Compte.matchEnCours(), v => { if (v?.bloc != null) ouvrirDirect(v, true); else { toast('Pas de match en cours'); route(true); } });
+}
+function ouvrirDirect(vue, reprise) {
+  if (MD.el) fermerDirect(false, true);
+  const el = document.createElement('div');
+  el.className = 'md';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Match en direct');
+  const pt = (c, i) => `<g class="md-pt ${c}${i === 6 ? ' gb' : ''}" data-pt="${c}${i}"><circle r=".78"/></g>`;
+  el.innerHTML = `<div class="md-haut"><div class="md-eq a"><small>${esc(vue.nous.nom)}</small><b class="md-sa">0</b><i class="md-ex a" hidden>2'</i></div>
+      <div class="md-mn"><b class="md-min">0'</b><small class="md-per">1re période</small></div>
+      <div class="md-eq b"><small>${esc(vue.eux.nom)}</small><b class="md-sb">0</b><i class="md-ex b" hidden>2'</i></div>
+      <button class="md-x" aria-label="Quitter le match (il reste en pause)">✕</button></div>
+    <div class="md-terrain"><svg viewBox="-1.5 -1.5 43 23" aria-hidden="true">
+      <rect class="md-sol" x="0" y="0" width="40" height="20" rx=".3"/>
+      <path class="md-zone" d="M40 2.5 A6 6 0 0 0 34 8.5 V11.5 A6 6 0 0 0 40 17.5 Z M0 2.5 A6 6 0 0 1 6 8.5 V11.5 A6 6 0 0 1 0 17.5 Z"/>
+      <path class="md-li" d="M0 0 H40 V20 H0 Z M20 0 V20 M40 2.5 A6 6 0 0 0 34 8.5 V11.5 A6 6 0 0 0 40 17.5 M0 2.5 A6 6 0 0 1 6 8.5 V11.5 A6 6 0 0 1 0 17.5 M32.5 9.5 v1 M7.5 9.5 v1"/>
+      <path class="md-li neuf" d="M37.04 0 A9 9 0 0 0 31 8.5 V11.5 A9 9 0 0 0 37.04 20 M2.96 0 A9 9 0 0 1 9 8.5 V11.5 A9 9 0 0 1 2.96 20"/>
+      <path class="md-but" d="M40 8.5 h1 v3 h-1 M0 8.5 h-1 v3 h1"/>
+      ${[0, 1, 2, 3, 4, 5, 6].map(i => pt('a', i) + pt('b', i)).join('')}
+      <g class="md-pt bal" data-pt="bal"><circle r=".5"/></g></svg>
+      <b class="md-flash" hidden></b><div class="md-pause-b" hidden></div></div>
+    <p class="md-info"></p>
+    <div class="md-onglets" role="tablist"><button class="on" data-md-onglet="direct">Direct</button><button data-md-onglet="stats">Stats</button></div>
+    <div class="md-corps"><div class="md-fil"></div><div class="md-stats" hidden></div></div>
+    <div class="md-bas"><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler la fin</button></div>
+    <div class="md-panneau" hidden></div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
+  Object.assign(MD, {el, vue, evs: [], file: [], h: vue.bloc * 300, finBloc: vue.bloc * 300, attente: true, fin: null, timers: [], ts: 0,
+    tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, tmDemande: false, vitesse: vitesseMD(), onglet: 'direct',
+    exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
+  if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
+  // reprise : tout ce qui s'est passé est affiché d'un coup ; puis le panneau qui convient (coup d'envoi, mi-temps ou pause)
+  for (const x of vue.evenements || []) noterMD(x, true);
+  formationDepart();
+  majMD();
+  el.addEventListener('click', clicMD);
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+  MD.raf = requestAnimationFrame(boucleMD);
+  if (vue.bloc === 0) panneauMD('envoi');
+  else if (vue.bloc === 6) panneauMD('mi-temps');
+  else panneauMD(reprise ? 'pause' : 'pause');
+  if (!reprise) Son.jouer('sifflet');
+}
+const coucheMD = () => fermerDirect(true);
+function fermerDirect(parRetour, sansRoute) {
+  if (!MD.el) return;
+  if (parRetour !== true) quitterCouche(coucheMD);
+  cancelAnimationFrame(MD.raf); MD.timers.forEach(clearTimeout);
+  const fini = !!MD.fin;
+  MD.el.remove(); MD.el = null; MD.fin = null;
+  document.body.classList.remove('avec-intro'); Son.discret(false);
+  if (fini) JEU.rencontres = null; else if (!sansRoute) toast('Match en pause : reprends-le quand tu veux depuis Championnat');
+  if (!sansRoute) route(true);
+}
+// une ligne au fil + score et stats (sans animation : reprise, ou fin simulée)
+function noterMD(x, muet) {
+  MD.evs.push(x);
+  if (x.ty === 'defense') MD.defB = x.v;
+  if (x.ty === 'excl') MD.exclu[x.c] = x.t + 120;
+  const fil = MD.el.querySelector('.md-fil');
+  fil.insertAdjacentHTML('afterbegin', ligneMD(x, muet));
+  if (!muet && fil.children.length > 80) fil.lastElementChild.remove();
+  if (x.s) { MD.el.querySelector('.md-sa').textContent = x.s[0]; MD.el.querySelector('.md-sb').textContent = x.s[1]; }
+  if (MD.onglet === 'stats' && !muet) majStatsMD();
+}
+function placerMD(id, [x, y]) { const g = MD.pts[id]; if (g) g.style.transform = `translate(${x}px,${y}px)`; }
+function formationDepart() {
+  const [, defA] = MD.tac.split(':');
+  (DEF_POS[defA] || DEF_POS['06']).forEach((p, i) => placerMD('a' + i, rotMD('b', p)));
+  (DEF_POS[MD.defB] || DEF_POS['06']).forEach((p, i) => placerMD('b' + i, rotMD('a', p)));
+  placerMD('a6', [1, 10]); placerMD('b6', [39, 10]); placerMD('bal', [20, 10]);
+}
+// x attaque (vers la droite pour a, vers la gauche pour b), y défend dans son dispositif ; en contre-attaque, y revient en courant
+function formationMD(x, contre) {
+  const y = x === 'a' ? 'b' : 'a', defY = y === 'a' ? MD.tac.split(':')[1] : MD.defB;
+  SLOTS_MD.forEach((s, i) => placerMD(x + i, rotMD(x, contre ? CONTRE_POS[i] : ATT_POS[s])));
+  placerMD(x + 6, rotMD(x, [1.2, 10]));
+  (contre ? REPLI : DEF_POS[defY] || DEF_POS['06']).forEach((p, i) => placerMD(y + i, rotMD(x, p)));
+  placerMD(y + 6, rotMD(x, [39.1, 10]));
+}
+function slotMD(c, nom, z) {
+  const j = (c === 'a' ? MD.vue.nous.joueurs : MD.vue.eux.joueurs) || {};
+  const s = Object.keys(j).find(k => j[k] === nom && k !== 'GB');
+  if (s && SLOTS_MD.includes(s)) return s;
+  return {ailes: 'AG', arrieres: 'DC', pivot: 'PIV', contre: 'DC', '7m': 'DC'}[z] || 'DC';
+}
+const nomCourt = n => { const m = String(n || '').trim().split(/\s+/); return m.length > 1 && !/^n°/.test(n) ? m.slice(1).join(' ') : n; };
+function flashMD(txt, cls) {
+  const f = MD.el.querySelector('.md-flash'), nf = f.cloneNode(false);
+  nf.className = `md-flash ${cls || ''}`; nf.innerHTML = txt; nf.hidden = false; f.replaceWith(nf);
+}
+// raconte une possession : mise en place, le tireur s'avance, le ballon part ; durée D (ms) jusqu'à l'action suivante
+function animerMD(x, D) {
+  const tir = TIRS_MD.includes(x.ty), c = x.c;
+  MD.svg.style.setProperty('--md-dur', Math.round(Math.max(90, Math.min(520, D * .3))) + 'ms');
+  const fin = () => { noterMD(x); sonMD(x); };
+  if (!tir && x.ty !== 'perte') {
+    fin();
+    if (x.ty === 'excl') flashMD(`2 minutes<small>${esc(nomCourt(x.n))}</small>`, 'ex');
+    else if (x.ty === 'temps-mort') flashMD('Temps mort', 'tm');
+    else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
+    else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
+    return;
+  }
+  const s = slotMD(c, x.n, x.z), i = SLOTS_MD.indexOf(s), contre = x.z === 'contre';
+  formationMD(c, contre);
+  const p0 = rotMD(c, contre ? CONTRE_POS[i] : x.z === '7m' ? [32.4, 10] : ATT_POS[s]);
+  placerMD('bal', [p0[0] + (c === 'a' ? .5 : -.5), p0[1] - .4]);
+  const p1 = rotMD(c, (TIR_POS[x.z] || TIR_POS.arrieres)(s));
+  MD.timers.push(setTimeout(() => { if (!MD.el) return; placerMD(c + i, p1); placerMD('bal', [p1[0] + (c === 'a' ? .5 : -.5), p1[1] - .4]); }, D * .3));
+  MD.timers.push(setTimeout(() => {
+    if (!MD.el) return;
+    const y = c === 'a' ? 'b' : 'a', r = Math.random();
+    let cible = [40.4, 8.9 + r * 2.2], txt = '', cls = c;
+    if (x.ty === 'but' || x.ty === '7m-but') { txt = `BUT !<small>${esc(nomCourt(x.n))}</small>`; }
+    else if (x.ty === 'arret' || x.ty === '7m-arret') { cible = [39.1, 9 + r * 2]; placerMD(y + 6, rotMD(c, cible)); txt = 'Arrêt !'; cls = y; }
+    else if (x.ty === 'poteau') { cible = [40, r < .5 ? 8.5 : 11.5]; txt = 'Poteau !'; }
+    else if (x.ty === 'dehors') { cible = [41.2, r < .5 ? 6.8 : 13.2]; txt = 'À côté'; }
+    else { const k = Math.floor(r * 6); cible = (DEF_POS[y === 'a' ? MD.tac.split(':')[1] : MD.defB] || DEF_POS['06'])[k]; txt = 'Ballon perdu'; cls = 'n'; }
+    placerMD('bal', rotMD(c, cible));
+    flashMD(txt, cls); fin();
+  }, D * .62));
+}
+function sonMD(x) {
+  const s = {but: x.c === 'a' ? 'but' : 'encaisse', '7m-but': x.c === 'a' ? 'but' : 'encaisse', arret: 'arret', '7m-arret': 'arret', poteau: 'poteau',
+    dehors: 'rate', excl: 'sifflet', 'temps-mort': 'sifflet', 'mi-temps': 'buzzer'}[x.ty];
+  if (s && MD.vitesse < 4 || ['but', '7m-but', 'mi-temps'].includes(x.ty) && s) Son.jouer(s);
+}
+function boucleMD(ts) {
+  if (!MD.el) return;
+  const dt = MD.ts ? Math.min(120, ts - MD.ts) : 0; MD.ts = ts;
+  if (!MD.attente) {
+    MD.h = Math.min(MD.h + dt * MD.vitesse / MS_SEC, MD.finBloc);
+    while (MD.file.length && MD.file[0].t <= MD.h) {
+      const x = MD.file.shift(), suivant = MD.file[0]?.t ?? x.t + 30;
+      animerMD(x, Math.max(120, Math.min(1500, (suivant - x.t) * MS_SEC / MD.vitesse * .95)));
+    }
+    majHorlogeMD();
+    if (!MD.file.length && MD.h >= MD.finBloc) finBlocMD();
+  }
+  MD.raf = requestAnimationFrame(boucleMD);
+}
+function majHorlogeMD() {
+  const m = Math.min(60, Math.floor(MD.h / 60));
+  MD.el.querySelector('.md-min').textContent = m + "'";
+  MD.el.querySelector('.md-per').textContent = MD.fin && MD.h >= 3600 ? 'Fin du match' : MD.h < 1800 || (MD.h === 1800 && MD.vue.bloc <= 6 && !MD.evs.some(x => x.t > 1800)) ? (MD.h === 1800 ? 'Mi-temps' : '1re période') : '2e période';
+  for (const c of ['a', 'b']) MD.el.querySelector('.md-ex.' + c).hidden = !(MD.exclu[c] > MD.h);
+}
+// fin du récit d'un bloc : le bloc suivant, la mi-temps, le temps mort demandé ou le résultat
+function finBlocMD() {
+  MD.attente = true;
+  const pause = Math.round(650 / MD.vitesse);
+  if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
+  if (MD.vue.bloc === 6) return MD.timers.push(setTimeout(() => panneauMD('mi-temps'), pause));
+  if (MD.tmDemande) return MD.timers.push(setTimeout(() => panneauMD('tm'), pause));
+  blocMD(false);
+}
+function blocMD(tm) {
+  MD.attente = true; majMD();
+  Compte.matchBloc(MD.tac, MD.cons, !!tm).then(r => {
+    if (!MD.el) return;
+    if (tm) MD.tmDemande = false;
+    MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.bloc * 300;
+    if (r.match) { MD.fin = r; MD.finBloc = 3600; }
+    MD.attente = false; majMD();
+  }).catch(e => { if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); MD.dernierTm = tm; panneauMD('erreur'); });
+}
+const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.vue.bloc < 6 ? 'p1' : 'p2'; return t.restants > 0 && (t[per] || 0) < 2 && MD.vue.bloc > 0 && MD.vue.bloc < 12; };
+function majMD() {
+  if (!MD.el) return;
+  const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
+  const bt = MD.el.querySelector('.md-tm');
+  bt.disabled = !MD.tmDemande && (!tmPossible() || !!MD.fin);
+  bt.classList.toggle('on', MD.tmDemande);
+  bt.innerHTML = MD.tmDemande ? `Temps mort à ${MD.finBloc / 60}'<small>toucher pour annuler</small>` : `Temps mort<small>${t.restants} restant${t.restants > 1 ? 's' : ''}</small>`;
+  MD.el.querySelector('.md-vit').innerHTML = `×${MD.vitesse}<small>vitesse</small>`;
+  const sim = MD.el.querySelector('.md-sim'), g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
+  sim.disabled = !!MD.fin; sim.innerHTML = `Simuler la fin<small>gains −${pcMoins(g)} %</small>`;
+  const sb = statsMD(MD.evs).b, top = ZONES_MD.filter(([k]) => k !== '7m').sort((p, q) => sb.zones[q[0]] - sb.zones[p[0]])[0];
+  MD.el.querySelector('.md-info').innerHTML = `Toi : <b>${NOM_ATT[att]}</b> · <b>${NOM_DEF[def]}</b> · ${CONSIGNES.find(c => c[0] === MD.cons)?.[1] || ''}
+    <span>Eux : défense <b>${NOM_DEF[MD.defB] || '?'}</b>${sb.buts >= 3 ? ` · buts surtout : ${top[1].toLowerCase()}` : ''}</span>`;
+  if (MD.onglet === 'stats') majStatsMD();
+}
+function majStatsMD() {
+  const s = statsMD(MD.evs), A = s.a, B = s.b;
+  const ligne = (nom, a, b, suffixe = '') => { const t = a + b; return `<div class="md-st"><b>${a}${suffixe}</b><span>${nom}<i><i style="transform:scaleX(${t ? a / t : .5})"></i></i></span><b>${b}${suffixe}</b></div>`; };
+  const reu = x => x.tirs ? Math.round(x.buts / x.tirs * 100) : 0;
+  const zones = (S, titre) => `<h4>${titre}</h4><div class="md-zones">${ZONES_MD.map(([k, nom]) => `<div><small>${nom}</small><i><i style="transform:scaleX(${S.buts ? S.zones[k] / S.buts : 0})"></i></i><b>${S.zones[k]}</b></div>`).join('')}</div>`;
+  MD.el.querySelector('.md-stats').innerHTML = `<div class="md-st t"><b>${esc(MD.vue.nous.nom)}</b><span></span><b>${esc(MD.vue.eux.nom)}</b></div>
+    ${ligne('Buts', A.buts, B.buts)}${ligne('Tirs', A.tirs, B.tirs)}${ligne('Réussite', reu(A), reu(B), ' %')}${ligne('Arrêts', A.arrets, B.arrets)}
+    ${ligne('Pertes de balle', A.pertes, B.pertes)}${ligne('Exclusions', A.excl, B.excl)}${ligne('Jets de 7 m', A.sept, B.sept)}
+    ${zones(B, `D’où viennent leurs buts`)}${zones(A, 'Tes buts')}
+    <p class="sub petit">Les tirs adverses trahissent leur attaque : arrières pour les duels, pivot pour l’enclenchement, ailes et contre-attaques pour le jeu rapide.</p>`;
+}
+// panneau de choix : coup d'envoi, mi-temps, temps mort (changements permis) ; pause (reprise) ; erreur réseau
+function panneauMD(type) {
+  if (!MD.el) return;
+  MD.attente = true; MD.panneau = type;
+  if (type === 'mi-temps' || type === 'tm') MD.tmDemande = false;   // à la mi-temps, on change sans temps mort
+  const [att, def] = MD.tac.split(':');
+  MD.choix = {att, def, cons: MD.cons};
+  const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
+  const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
+  const change = ['envoi', 'mi-temps', 'tm'].includes(type);
+  const intro = {envoi: `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Choisis ton attaque, ta défense et ta consigne.`,
+    'mi-temps': `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Tu peux tout changer sans temps mort.`,
+    tm: `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Le temps mort redonne aussi de l’élan (3 minutes) et un peu de fraîcheur.`,
+    pause: 'Pour changer de tactique pendant une période, prends un temps mort.', erreur: 'Le bloc suivant n’a pas pu être joué.'}[type];
+  p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3><p class="sub petit">${intro}</p>
+    ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
+      <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
+        return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
+      <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
+    <div class="md-p-b">${type === 'pause' ? `<button class="btn ghost" data-md-go="tm"${tmPossible() ? '' : ' disabled'}>Temps mort (${MD.vue.tempsMorts?.restants ?? 0})</button>` : ''}
+      ${type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
+      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
+  p.hidden = false; MD.el.classList.add('en-pause');
+  choixMD();
+  majMD();
+}
+function choixMD() {
+  const p = MD.el.querySelector('.md-panneau'), c = MD.choix;
+  p.querySelectorAll('[data-md-att]').forEach(b => b.classList.toggle('on', b.dataset.mdAtt === c.att));
+  p.querySelectorAll('[data-md-def]').forEach(b => b.classList.toggle('on', b.dataset.mdDef === c.def));
+  p.querySelectorAll('[data-md-cons]').forEach(b => b.classList.toggle('on', b.dataset.mdCons === c.cons));
+}
+function fermerPanneauMD() { MD.el.querySelector('.md-panneau').hidden = true; MD.el.classList.remove('en-pause'); MD.panneau = null; }
+function clicMD(e) {
+  e.stopPropagation();
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  Son.jouer('clic');
+  const d = b.dataset;
+  if (b.classList.contains('md-x')) return fermerDirect();
+  if (d.mdOnglet) {
+    MD.onglet = d.mdOnglet;
+    MD.el.querySelectorAll('[data-md-onglet]').forEach(x => x.classList.toggle('on', x === b));
+    MD.el.querySelector('.md-fil').hidden = MD.onglet !== 'direct'; MD.el.querySelector('.md-stats').hidden = MD.onglet !== 'stats';
+    if (MD.onglet === 'stats') majStatsMD();
+    return;
+  }
+  if (d.mdAtt) { MD.choix.att = d.mdAtt; return choixMD(); }
+  if (d.mdDef) { MD.choix.def = d.mdDef; return choixMD(); }
+  if (d.mdCons) { MD.choix.cons = d.mdCons; return choixMD(); }
+  if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
+  if (b.classList.contains('md-tm')) { MD.tmDemande = !MD.tmDemande; return majMD(); }
+  if (b.classList.contains('md-sim') || d.mdGo === 'sim') return simulerFinMD();
+  if (d.mdGo === 'tm') return panneauMD('tm');
+  if (d.mdGo === 'jouer') {
+    const type = MD.panneau;
+    if (['envoi', 'mi-temps', 'tm'].includes(type)) { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
+    fermerPanneauMD();
+    if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
+    return blocMD(type === 'tm' || (type === 'erreur' && MD.dernierTm));
+  }
+  if (d.act === 'fin-direct') return fermerDirect();
+}
+function simulerFinMD() {
+  const g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
+  if (!confirm(`Simuler la fin du match ? Le reste est joué tout de suite avec ta tactique actuelle, sans temps mort. Gains −${pcMoins(g)} %.`)) return;
+  MD.attente = true; MD.timers.forEach(clearTimeout); MD.file = [];
+  Compte.matchSimulerFin().then(r => {
+    if (!MD.el) return;
+    const deja = MD.evs.length, tous = r.match.evenements || [];
+    for (const x of tous.slice(deja)) noterMD(x, true);
+    MD.fin = r; MD.h = 3600; majHorlogeMD(); resultatMD(r);
+  }).catch(e => { Son.jouer('erreur'); toast(e.message || 'Action impossible'); MD.attente = false; });
+}
+function resultatMD(r) {
+  if (!MD.el) return;
+  fermerPanneauMD(); MD.attente = true;
+  majPieces(); celebrer(r.niveaux);
+  MD.el.querySelector('.md-sa').textContent = r.match.a; MD.el.querySelector('.md-sb').textContent = r.match.b;
+  MD.el.querySelector('.md-per').textContent = 'Fin du match';
+  const res = r.match.resultat;
+  vibrer(res === 'gagne' ? [40, 60, 80] : 30);
+  Son.jouer('buzzer'); setTimeout(() => Son.jouer(res === 'gagne' ? 'victoire' : res === 'nul' ? 'nul' : 'defaite'), 450);
+  const p = MD.el.querySelector('.md-panneau');
+  p.innerHTML = `<div class="md-p-c md-fin">${htmlFin(r)}<button class="btn gold large" data-act="fin-direct">Continuer</button></div>`;
+  p.hidden = false; MD.el.classList.add('en-pause', 'fini');
+  majMD();
 }
 
 // ── marché des transferts : une carte contre une carte ──────────────────────────
@@ -972,6 +1346,17 @@ function ficheAmi(pseudo) {
         <small>${!x.equipe ? 'Équipe incomplète' : A.defis ? `${A.defis}/${A.defisLimite} · ${A.defiPieces} pièces au gagnant` : 'Demain'}</small></button></div>
     ${ech ? `<h4>Échanges</h4>${ech}` : ''}
     <button class="lien danger" data-retirer-ami="${esc(pseudo)}">Retirer de mes ami(e)s</button></div>`);
+}
+// défier un(e) ami(e) : en direct (tactique, temps morts) ou simulé ; son équipe joue avec sa tactique à lui (elle)
+function fenetreDefi(pseudo) {
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  SOC.defi = pseudo; SOC.panneau = 'defi';
+  const A = SOC.amis || {};
+  ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button>
+    <h3>Défier ${esc(pseudo)}</h3>
+    <p class="sub petit">Son équipe joue avec sa tactique. ${A.defiPieces ?? 30} pièces au gagnant.</p>
+    <div class="jouer-2"><button class="btn gold large" data-act="defi-direct">Jouer le match</button>
+      <button class="btn ghost" data-act="defi-simuler">Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div></div>`);
 }
 function conversationAmi(pseudo) {
   SOC.panneau = 'conv'; SOC.ami = pseudo;
@@ -1423,7 +1808,7 @@ document.addEventListener('click', e => {
   }
   if (a === 'envoyer-echange') { const k = SOC.echange;
     return action(Compte.proposerEchange(k.pseudo, k.donne, k.demande), r => { SOC.amis = r; SOC.echange = null; toast(`Proposition envoyée à ${k.pseudo}`); ficheAmi(k.pseudo); }); }
-  if (d.defierAmi) return jouerMatch(Compte.defierAmi(d.defierAmi).then(r => { SOC.amis = null; return r; }), 'defi_ami');
+  if (d.defierAmi) return fenetreDefi(d.defierAmi);
   if (a === 'publier-annonce') {
     const k = MKT.compo;
     return action(Compte.publierAnnonce(k.ex, k.carte, k.palier), () => { toast('Annonce publiée'); MKT.compo = null; MKT.filtre = 'mes'; MKT.liste = null; fermerOverlay(); });
@@ -1439,7 +1824,10 @@ document.addEventListener('click', e => {
     return action(Compte.parier(rid, choix, mise), r => { Son.jouer('pari'); toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
   }
   const tactique = (T => `${T.att}:${T.def}`)(tactiqueActuelle());
-  if (a === 'championnat') return jouerMatch(Compte.matchChampionnat(tactique), 'championnat');
+  if (a === 'championnat') return commencerMatch('championnat', null, false);
+  if (a === 'simuler') return commencerMatch('championnat', null, true);
+  if (a === 'reprendre-match') return reprendreMatch();
+  if (a === 'defi-direct' || a === 'defi-simuler') { const ps = SOC.defi; cacherOverlay(); return commencerMatch('defi_ami', ps, a === 'defi-simuler'); }
   if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);

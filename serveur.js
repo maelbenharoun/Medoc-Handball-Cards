@@ -203,6 +203,12 @@ const CompteServeur = (() => {
 
     // ── matchs ── (→ {match: {a, b, buts, resultat}, adversaire, gains, progres, finSaison, niveaux})
     matchChampionnat: tactique => rpc('match_championnat', {p_tactique: tactique}),
+    // ── match en direct : par blocs de 5 minutes (type 'championnat' | 'defi_ami', cible = pseudo de l'ami(e)) ──
+    // → {direct, vue: {bloc, minute, score, tempsMorts, nous, eux, evenements}} ; simuler = tout de suite (→ comme un match fini)
+    matchCommencer: (type, cible, tactique, consigne, simuler) => rpc('match_commencer', {p_type: type, p_cible: cible, p_tactique: tactique, p_consigne: consigne, p_simuler: !!simuler}),
+    matchBloc: (tactique, consigne, tempsMort) => rpc('match_bloc', {p_tactique: tactique, p_consigne: consigne, p_temps_mort: !!tempsMort}),   // fin : + match, gains…
+    matchEnCours: () => rpc('match_en_cours'),
+    matchSimulerFin: () => rpc('match_simuler_fin'),
     seance: () => rpc('seance_equipe'),                                         // → {xpCarte, progres, niveaux}
     seancePayante: () => rpc('seance_payante'),                                 // en pièces, sans limite par jour
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}

@@ -13,15 +13,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=43">
 </head>
 <body>
 <header class="top">
-  <div class="brand"><img src="assets/logo.png" alt=""><span>Médoc <b>Hand Cards</b></span></div>
-  <div class="haut-d"><button class="quetes-b" id="quetes-b" data-act="quetes" aria-label="Quêtes du jour" hidden>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9.5l3 3v14H6z M15.5 3.5v3h3 M9 10.5l1.6 1.6 3-3.2 M9 16h6"/></svg><b class="pastille" id="pastille-q" hidden></b></button>
-    <div class="coins" id="coins" aria-label="Pièces" hidden><i class="coin"></i><b id="coinv">0</b></div>
-  <button class="moi" id="moi" data-act="moi" aria-label="Mon compte" hidden></button></div>
+  <!-- HUD façon jeu : logo + niveau (XP), boosters en stock et prochain, pièces, quêtes -->
+  <div class="hud-g"><div class="brand"><img src="assets/logo.png" alt=""><span>Médoc <b>Hand Cards</b></span></div>
+    <button class="moi" id="moi" data-act="moi" aria-label="Mon compte" hidden><b id="moi-niv">1</b><i class="hud-xp"><i id="moi-xp"></i></i></button>
+    <a class="hud-boost" id="hud-boost" href="#accueil" aria-label="Boosters gratuits" hidden><i class="hud-pack"></i><b id="hud-bn">0</b><small id="hud-bt"></small></a></div>
+  <div class="haut-d"><div class="coins" id="coins" aria-label="Pièces" hidden><i class="coin"></i><b id="coinv">0</b></div>
+    <button class="quetes-b" id="quetes-b" data-act="quetes" aria-label="Quêtes du jour" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9.5l3 3v14H6z M15.5 3.5v3h3 M9 10.5l1.6 1.6 3-3.2 M9 16h6"/></svg><b class="pastille" id="pastille-q" hidden></b></button></div>
 </header>
 
 <main id="view"><p class="sub">Chargement…</p></main>
@@ -42,10 +44,10 @@
 
 <!-- three.js (mini-jeux en 3D) : version fixée, chargée seulement à l'ouverture d'un mini-jeu -->
 <script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
-<script src="config.js?v=42"></script>
-<script src="cartes.js?v=42"></script>
-<script src="serveur.js?v=42"></script>
-<script src="sons.js?v=42"></script>
-<script src="app.js?v=42"></script>
+<script src="config.js?v=43"></script>
+<script src="cartes.js?v=43"></script>
+<script src="serveur.js?v=43"></script>
+<script src="sons.js?v=43"></script>
+<script src="app.js?v=43"></script>
 </body>
 </html>
