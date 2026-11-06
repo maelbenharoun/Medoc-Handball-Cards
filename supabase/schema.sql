@@ -70,8 +70,9 @@ insert into parametres values (1, '{
   "tournoi_ecart": 2, "legendes_manches": 5,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
   "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
-  "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 15, "jet7m_bonus_parfait": 25,
-  "mini_essais_par_jour": 5, "mini_pieces": 10, "mini_bonus_parfait": 20
+  "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
+  "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
+  "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -237,7 +238,8 @@ alter table profils add column if not exists jet7m jsonb;
 alter table profils add column if not exists minijeux jsonb;   -- autres mini-jeux : {jour, gardien: [...], contre: [...], suspension: [...]}
 -- tir secret de l'arrêt réflexe, en attente de la réponse du gardien : à part, car chaque joueur peut lire sa ligne de profils
 create table if not exists mini_attente (user_id uuid primary key references profils on delete cascade, colonne text not null, hauteur text not null,
-  le timestamptz not null default now());      -- mini-jeu du jet de 7 m : {jour, tirs: ['but', 'arret', …]}   -- poule ou tournoi en cours, palmarès (voir match_championnat)
+  le timestamptz not null default now());
+alter table mini_attente add column if not exists info jsonb;   -- contre-attaque : {defenseur: 'A' | 'B', engage: ms}      -- mini-jeu du jet de 7 m : {jour, tirs: ['but', 'arret', …]}   -- poule ou tournoi en cours, palmarès (voir match_championnat)
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Accès : lecture seulement de ce qui nous concerne, aucune écriture directe
@@ -461,6 +463,14 @@ begin
   return v;
 end $$;
 
+-- Mini-jeux : essais par jour et pièces par réussite (l'arrêt réflexe se joue en séries de 5 tirs : 25 tirs, 10 pièces par arrêt)
+create or replace function mini_limite(p_jeu text) returns int language sql stable security definer set search_path = public as $$
+  select case when p_jeu = 'gardien' then parami('mini_gardien_tirs_par_jour') else parami('mini_essais_par_jour') end
+$$;
+create or replace function mini_gain(p_jeu text) returns int language sql stable security definer set search_path = public as $$
+  select case when p_jeu = 'gardien' then parami('mini_gardien_pieces') else parami('mini_pieces') end
+$$;
+
 -- Mini-jeux du jour (remis à zéro chaque jour)
 create or replace function mini_jour(m jsonb) returns jsonb language sql stable as $$
   select case when m ->> 'jour' = aujourdhui()::text then m else jsonb_build_object('jour', aujourdhui()::text) end
@@ -480,7 +490,9 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'limite', parami('jet7m_tirs_par_jour'), 'piecesBut', parami('jet7m_pieces_but'), 'bonus', parami('jet7m_bonus_parfait')),
     'minijeux', jsonb_build_object('gardien', coalesce(mini_jour(p.minijeux) -> 'gardien', '[]'), 'contre', coalesce(mini_jour(p.minijeux) -> 'contre', '[]'),
       'suspension', coalesce(mini_jour(p.minijeux) -> 'suspension', '[]'),
-      'limite', parami('mini_essais_par_jour'), 'pieces', parami('mini_pieces'), 'bonus', parami('mini_bonus_parfait')),
+      'limite', parami('mini_essais_par_jour'), 'pieces', parami('mini_pieces'), 'bonus', parami('mini_bonus_parfait'),
+      'limites', jsonb_build_object('gardien', mini_limite('gardien'), 'contre', mini_limite('contre'), 'suspension', mini_limite('suspension')),
+      'gains', jsonb_build_object('gardien', mini_gain('gardien'), 'contre', mini_gain('contre'), 'suspension', mini_gain('suspension'))),
     'trophees', p.trophees,
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
@@ -1134,10 +1146,16 @@ end $$;
 create or replace function mini_preparer(p_jeu text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); m jsonb; col text; hau text;
 begin
-  if p_jeu is distinct from 'gardien' then raise exception 'Mini-jeu inconnu'; end if;
+  if p_jeu is null or p_jeu not in ('gardien', 'contre') then raise exception 'Mini-jeu inconnu'; end if;
   m := mini_jour(p.minijeux);
-  if jsonb_array_length(coalesce(m -> p_jeu, '[]')) >= parami('mini_essais_par_jour') then
-    raise exception 'Tu as joué tes % essais du jour : reviens demain', parami('mini_essais_par_jour');
+  if jsonb_array_length(coalesce(m -> p_jeu, '[]')) >= mini_limite(p_jeu) then
+    raise exception 'Tu as joué tes % essais du jour : reviens demain', mini_limite(p_jeu);
+  end if;
+  if p_jeu = 'contre' then   -- 2 contre 1 : le défenseur sortira sur le porteur (A) ou sur le partenaire (B), à un moment donné
+    insert into mini_attente (user_id, colonne, hauteur, info) values (p.user_id, 'contre', '-',
+      jsonb_build_object('defenseur', case when random() < .55 then 'A' else 'B' end, 'engage', 800 + floor(random() * 600)::int))
+      on conflict (user_id) do update set colonne = excluded.colonne, hauteur = excluded.hauteur, info = excluded.info, le = now();
+    return (select info from mini_attente where user_id = p.user_id);
   end if;
   col := case when random() < .4 then 'g' when random() < 2 / 3.0 then 'd' else 'c' end;
   hau := case when random() < .5 then 'h' else 'b' end;
@@ -1155,45 +1173,69 @@ begin
   if p_jeu is null or p_jeu not in ('gardien', 'contre', 'suspension') then raise exception 'Mini-jeu inconnu'; end if;
   if jsonb_typeof(p_entrees) is distinct from 'object' then raise exception 'Essai invalide'; end if;
   m := mini_jour(p.minijeux); liste := coalesce(m -> p_jeu, '[]');
-  if jsonb_array_length(liste) >= parami('mini_essais_par_jour') then
-    raise exception 'Tu as joué tes % essais du jour : reviens demain', parami('mini_essais_par_jour');
+  if jsonb_array_length(liste) >= mini_limite(p_jeu) then
+    raise exception 'Tu as joué tes % essais du jour : reviens demain', mini_limite(p_jeu);
   end if;
   begin
     if p_jeu = 'gardien' then
-      select jsonb_build_object('colonne', t.colonne, 'hauteur', t.hauteur) into a from mini_attente t where t.user_id = p.user_id;
+      select jsonb_build_object('colonne', t.colonne, 'hauteur', t.hauteur) into a from mini_attente t where t.user_id = p.user_id and t.colonne <> 'contre';
       if a is null then raise exception 'Le tir n’est pas encore parti'; end if;
       if coalesce(p_entrees ->> 'colonne', '') not in ('g', 'c', 'd') or coalesce(p_entrees ->> 'hauteur', '') not in ('h', 'b') then raise exception 'Essai invalide'; end if;
       x := coalesce((p_entrees ->> 'temps')::numeric, 99999);   -- ms après le départ du ballon (négatif = avant)
-      if x > 300 then res := 'tard';
+      if x > 450 then res := 'tard';
       elsif p_entrees ->> 'colonne' = a ->> 'colonne' and (p_entrees ->> 'hauteur' = a ->> 'hauteur' or random() < .4) then res := 'arret';
       else res := 'but'; end if;
       delete from mini_attente where user_id = p.user_id;
     elsif p_jeu = 'contre' then
-      x := (p_entrees ->> 'precision')::numeric;   -- 1 = passe parfaite
-      if x is null or x < 0 or x > 1 then raise exception 'Essai invalide'; end if;
-      if x < .35 and random() < .7 then res := 'interception';
-      elsif random() < .35 + .5 * x then res := 'but';
-      else res := 'arret'; end if;
+      -- 2 contre 1 : passe dessinée (qualite = dans la course du partenaire) ou on garde le ballon ; le serveur sait sur qui sort le défenseur
+      select t.info into a from mini_attente t where t.user_id = p.user_id and t.colonne = 'contre';
+      if a is null then raise exception 'La contre-attaque n’est pas encore lancée'; end if;
+      if jsonb_typeof(p_entrees -> 'passe') is distinct from 'boolean' then raise exception 'Essai invalide'; end if;
+      x := coalesce((p_entrees ->> 'qualite')::numeric, 0); y := coalesce((p_entrees ->> 'temps')::numeric, 99999);
+      if x < 0 or x > 1 then raise exception 'Essai invalide'; end if;
+      if (p_entrees ->> 'passe')::boolean then
+        if y > (a ->> 'engage')::numeric + 900 then res := 'neutralise';                    -- trop tard : il est déjà sur toi
+        elsif a ->> 'defenseur' = 'A' then                                                 -- bonne lecture : il sort sur toi
+          res := case when x < .35 and random() < .75 then 'interception' when random() < .35 + .55 * x then 'but' else 'arret' end;
+        else                                                                               -- il couvrait ton partenaire
+          res := case when random() < .65 then 'interception' when random() < .25 * x then 'but' else 'arret' end;
+        end if;
+      elsif a ->> 'defenseur' = 'B' then res := case when random() < .8 then 'but' else 'arret' end;   -- seul face au gardien
+      else res := case when random() < .85 then 'neutralise' when random() < .3 then 'but' else 'arret' end;
+      end if;
+      delete from mini_attente where user_id = p.user_id;
     else
-      x := (p_entrees ->> 'appel')::numeric;     -- 1 = appel juste avant les 6 m, plus de 1 = pied dans la zone
-      y := (p_entrees ->> 'hauteur')::numeric;   -- 1 = tir au sommet du saut
-      if x is null or y is null or x < 0 or x > 1.5 or y < 0 or y > 1 then raise exception 'Essai invalide'; end if;
-      if x > 1 then res := 'zone';
-      elsif y < .45 and random() < .5 then res := 'contre';
-      elsif random() < least(.9, .2 + .35 * y + .35 * x) then res := 'but';
-      else res := 'arret'; end if;
+      -- tir en suspension : vitesse de course (le saut en dépend), hauteur au moment du tir (1 = sommet), point visé (x, y du but) et force
+      x := (p_entrees ->> 'x')::numeric; y := (p_entrees ->> 'y')::numeric;
+      if x is null or y is null or (p_entrees ->> 'vitesse') is null or (p_entrees ->> 'hauteur') is null or (p_entrees ->> 'force') is null
+         or x < -.5 or x > 1.5 or y < -.5 or y > 1.2 then raise exception 'Essai invalide'; end if;
+      declare vit numeric := least(1, greatest(0, (p_entrees ->> 'vitesse')::numeric)); hau numeric := least(1, greatest(0, (p_entrees ->> 'hauteur')::numeric));
+        frc numeric := least(1, greatest(0, (p_entrees ->> 'force')::numeric)); elev numeric; gx numeric; gy numeric; prt numeric;
+      begin
+        elev := vit * hau;   -- plus on court vite et plus on tire haut dans le saut, plus on passe au-dessus du contreur
+        gx := case when random() < .3 then .2 when random() < .3 / .7 then .8 else .5 end; gy := case when random() < .5 then .3 else .75 end;
+        a := jsonb_build_object('x', gx, 'y', gy);
+        prt := .62 - .4 * frc + case when gx = .5 then .08 else 0 end;   -- portée du gardien : plus courte si le tir est fort
+        if x < 0 or x > 1 or y < 0 then res := 'dehors';
+        elsif x < .05 or x > .95 or y < .05 then res := 'poteau';
+        elsif random() < greatest(0, .75 - .8 * elev - .35 * (1 - y)) then res := 'contre';
+        elsif abs(x - .5) < .18 then res := 'arret';
+        elsif sqrt(power(x - (.5 + (gx - .5) * .6), 2) + power((y - gy) * .67, 2)) < prt then res := 'arret';
+        else res := 'but';
+        end if;
+      end;
     end if;
   exception when invalid_text_representation then raise exception 'Essai invalide';
   end;
   reussi := res = succes;
   liste := liste || to_jsonb(res);
-  if reussi then v_pieces := parami('mini_pieces'); end if;
-  if jsonb_array_length(liste) = parami('mini_essais_par_jour')
+  if reussi then v_pieces := mini_gain(p_jeu); end if;
+  if jsonb_array_length(liste) = mini_limite(p_jeu)
      and not exists (select 1 from jsonb_array_elements_text(liste) e where e <> succes) then v_bonus := parami('mini_bonus_parfait'); end if;
   update profils set minijeux = jsonb_set(m, array[p_jeu], liste), pieces = pieces + v_pieces + v_bonus where user_id = p.user_id;
   perform noter(p.user_id, 'mini-' || p_jeu, jsonb_build_object('entrees', p_entrees, 'resultat', res, 'pieces', v_pieces + v_bonus));
   return jsonb_build_object('resultat', res, 'reussi', reussi, 'reponse', a, 'pieces', v_pieces, 'bonus', v_bonus, 'essais', liste,
-    'restants', parami('mini_essais_par_jour') - jsonb_array_length(liste), 'etat', etat_de(p.user_id));
+    'restants', mini_limite(p_jeu) - jsonb_array_length(liste), 'etat', etat_de(p.user_id));
 end $$;
 
 -- Séance d'entraînement d'équipe : de l'expérience pour les joueurs alignés, sans risque

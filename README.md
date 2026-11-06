@@ -26,9 +26,11 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
 - **Jet de 7 mètres** (onglet Jouer) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
-  5 tirs par jour, 15 pièces par but, 25 de plus pour un 5 sur 5 (100 pièces par jour au plus).
-- **Mini-jeux** : l'arrêt réflexe (dans les buts, lire le bras du tireur), la passe en contre (passer quand le cercle touche la cible),
-  le tir en suspension (appel avant les 6 m, tir au sommet du saut). 5 essais par jour chacun, 10 pièces par réussite, 20 de plus pour 5 sur 5.
+  5 tirs par jour, 50 pièces par but, 100 de bonus pour un 5 sur 5.
+- **Mini-jeux** : l'arrêt réflexe (dans les buts, lire le bras du tireur ; 5 séries de 5 tirs enchaînés, 10 pièces par arrêt),
+  la contre-attaque en 2 contre 1 (dessiner la passe dans la course du partenaire, ou garder le ballon si le défenseur part sur lui),
+  le tir en suspension en 3D (appuis rapides pour courir, saut automatique selon la vitesse, tir dessiné au-dessus du contreur).
+  5 essais par jour, 50 pièces par réussite, 100 de bonus pour une journée parfaite.
   Démos sans pièces : `?demo=7m`, `?demo=gardien`, `?demo=contre`, `?demo=suspension`.
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
 - **Paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).

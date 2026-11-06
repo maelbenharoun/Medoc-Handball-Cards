@@ -756,3 +756,35 @@ body.avec-intro { overflow: hidden; }
 .s-jauge i { position: absolute; inset: 0; transform-origin: 50% 100%; transform: scaleY(0); background: linear-gradient(0deg, #e3b94a, #5bd68a 85%); }
 .s-jauge::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: #5bd68a; box-shadow: 0 0 8px #5bd68a; }
 @media (prefers-reduced-motion: reduce) { .c-j.court b, .profil.court g { animation: none; } }
+
+/* contre-attaque 2 contre 1 : la passe dessinée */
+.c-trace { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
+.c-trace polyline { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 9; filter: drop-shadow(0 0 6px rgba(255, 210, 87, .9)); }
+.passe-top .c-trace polyline { stroke: #5bd68a; filter: drop-shadow(0 0 8px #5bd68a); } .passe-moy .c-trace polyline { stroke: var(--accent); } .passe-rate .c-trace polyline { stroke: #e5484d; }
+.c-terrain { touch-action: none; }
+.c-j small { position: absolute; left: 50%; top: 100%; translate: -50% 2px; font-size: .62rem; font-weight: 900; color: var(--accent); text-shadow: 0 1px 4px #000; text-transform: uppercase; letter-spacing: .08em; }
+.c-a b { box-shadow: 0 0 0 3px var(--accent), 0 6px 10px rgba(0, 0, 0, .45); }
+.j7-pastilles small { margin-left: 6px; font-size: .72rem; font-weight: 800; color: var(--muted); align-self: center; }
+/* tir en suspension en 3D */
+.s3 { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: linear-gradient(180deg, #1b222c, #2c3542 33%, #3a2a1c 33.2%); }
+.s3-sol { position: absolute; left: 0; top: 0; }
+.s3-perso { position: absolute; transform: translate(-50%, -100%); pointer-events: none; }
+.s3-perso svg { display: block; width: 100%; height: auto; overflow: visible; }
+.s3-ballon { position: absolute; width: 20px; height: 20px; border-radius: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #fff, #f5d548 55%, #b98f1a); box-shadow: 0 4px 10px rgba(0, 0, 0, .5); }
+.s3-trace { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 300; pointer-events: none; }
+.s3-trace polyline { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 8px rgba(255, 210, 87, .9)); opacity: .9; }
+.s3-vitesse { position: absolute; left: 16px; top: 26%; width: 14px; height: 34%; border-radius: 7px; background: rgba(255, 255, 255, .1); z-index: 301; border: 1px solid rgba(255, 255, 255, .2); }
+.s3-vitesse i { position: absolute; inset: 0; border-radius: 7px; transform-origin: 50% 100%; transform: scaleY(.2); background: linear-gradient(0deg, #e3b94a, #5bd68a); }
+.s3-vitesse small { position: absolute; left: 50%; top: calc(100% + 6px); translate: -50% 0; font-size: .62rem; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+.dos g { transform-box: view-box; } .d-jg { transform-origin: 34px 78px; } .d-jd { transform-origin: 46px 78px; } .d-bg { transform-origin: 26px 38px; } .d-bd { transform-origin: 54px 38px; }
+.dos { --cadence: .4s; }
+.dos.court .d-jg, .dos.court .d-bd { animation: d-pas var(--cadence) ease-in-out infinite alternate; }
+.dos.court .d-jd, .dos.court .d-bg { animation: d-pas var(--cadence) ease-in-out infinite alternate-reverse; }
+@keyframes d-pas { from { transform: rotate(-14deg) translateY(-2px); } to { transform: rotate(14deg) translateY(2px); } }
+.dos.saute .d-jg { transform: rotate(18deg) scaleY(.85); transition: transform .2s; } .dos.saute .d-jd { transform: rotate(-8deg) scaleY(.7); transition: transform .2s; }
+.dos.saute .d-bd { transform: rotate(-150deg); transition: transform .25s; }   /* bras armé au-dessus de la tête */
+.dos.tire .d-bd { transform: rotate(-30deg); transition: transform .1s cubic-bezier(.2, .9, .3, 1); }
+.contreur .t-balle { display: none; }
+.contreur .t-bg { transform: rotate(155deg); } .contreur .t-bd { transform: rotate(-155deg); }   /* bras levés au contre */
+.contreur.saute .t-bg { transform: rotate(175deg); transition: transform .15s; } .contreur.saute .t-bd { transform: rotate(-175deg); transition: transform .15s; }
