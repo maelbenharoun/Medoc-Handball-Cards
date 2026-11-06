@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
   "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2,
-  "pve_par_jour": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
+  "pve_par_jour": 10, "match_minutes": 120, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
   "pve_xp_carte": {"gagne": 30, "nul": 20, "perdu": 10},
@@ -151,6 +151,9 @@ alter table profils add column if not exists xp int not null default 0;
 alter table profils add column if not exists depart boolean not null default false;   -- booster de départ ouvert
 alter table profils add column if not exists boosters int not null default 1;         -- boosters gratuits en stock
 alter table profils add column if not exists boosters_maj timestamptz not null default now();
+-- matchs de championnat en réserve (1 de plus toutes les 2 h, 10 au plus) ; les comptes existants commencent pleins
+alter table profils add column if not exists matchs int not null default 10;
+alter table profils add column if not exists matchs_maj timestamptz not null default now();
 alter table profils add column if not exists bonus int not null default 0;            -- boosters gagnés (niveaux…)
 alter table profils add column if not exists bonus_or int not null default 0;         -- boosters « Or ou mieux »
 alter table profils add column if not exists boosters_ouverts int not null default 0;
@@ -353,6 +356,17 @@ create or replace function xp_niveau(n int) returns int language sql stable secu
 $$;
 
 -- Boosters gratuits : un de plus toutes les 30 minutes, jusqu'à 5 en stock (le compteur ne tourne pas stock plein)
+create or replace function matchs_a_jour(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
+declare p profils; minutes int := parami('match_minutes'); maxi int := parami('match_stock_max'); n int;
+begin
+  select * into p from profils where user_id = p_uid;
+  if p.matchs >= maxi then update profils set matchs_maj = now() where user_id = p_uid; return; end if;
+  n := floor(extract(epoch from now() - p.matchs_maj) / (minutes * 60));
+  if n <= 0 then return; end if;
+  if p.matchs + n >= maxi then update profils set matchs = maxi, matchs_maj = now() where user_id = p_uid;
+  else update profils set matchs = matchs + n, matchs_maj = matchs_maj + make_interval(mins => n * minutes) where user_id = p_uid;
+  end if;
+end $$;
 create or replace function boosters_a_jour(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
 declare p profils; minutes int := parami('booster_minutes'); maxi int := parami('booster_stock_max'); n int;
 begin
@@ -537,6 +551,9 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'prochainBooster', case when p.boosters >= parami('booster_stock_max') then null
       else greatest(0, ceil(extract(epoch from p.boosters_maj + make_interval(mins => parami('booster_minutes')) - now())))::int end,
     'equipe', p.equipe, 'tactique', p.tactique,
+    'matchs', p.matchs, 'matchMax', parami('match_stock_max'),
+    'prochainMatch', case when p.matchs >= parami('match_stock_max') then null
+      else greatest(0, ceil(extract(epoch from p.matchs_maj + make_interval(mins => parami('match_minutes')) - now())))::int end,
     'parcours', parcours_vue(p.parcours),
     'jet7m', jsonb_build_object('tirs', case when p.jet7m ->> 'jour' = aujourdhui()::text then p.jet7m -> 'tirs' else '[]'::jsonb end,
       'limite', parami('jet7m_tirs_par_jour'), 'piecesBut', parami('jet7m_pieces_but'), 'bonus', parami('jet7m_bonus_parfait')),
@@ -600,6 +617,7 @@ begin
   if exists (select 1 from profils where user_id = auth.uid()) then
     perform expirer_annonces();
     perform boosters_a_jour(auth.uid());
+    perform matchs_a_jour(auth.uid());
     perform quetes_du_jour(auth.uid());
     update profils set parcours = parcours_nouveau(1, null, pseudo) where user_id = auth.uid() and parcours is null;
   end if;
@@ -1083,9 +1101,13 @@ declare p profils := moi(); pc jsonb; nv jsonb; niv int; typ text; mult numeric;
 begin
   perform verifier_tactique(p_tactique);
   perform verifier_equipe(p.user_id, p.equipe);
-  if compter_jour(p.user_id, 'championnat') >= parami('pve_par_jour') then
-    raise exception 'Tu as joué tes % matchs de championnat du jour : reviens demain', parami('pve_par_jour');
+  perform matchs_a_jour(p.user_id);
+  if (select matchs from profils where user_id = p.user_id) < 1 then
+    raise exception 'Plus de match pour l’instant : un nouveau arrive toutes les % heures', parami('match_minutes') / 60;
   end if;
+  -- un match de la réserve ; réserve pleine : la recharge repart maintenant
+  update profils set matchs = matchs - 1, matchs_maj = case when matchs >= parami('match_stock_max') then now() else matchs_maj end
+    where user_id = p.user_id;
   pc := coalesce(p.parcours, parcours_nouveau(1, null, p.pseudo));
   niv := (pc ->> 'niveau')::int; nv := param('parcours') -> (niv - 1); typ := pc ->> 'type';
   mult := 1 + (niv - 1) / 4.0;   -- les gains grandissent avec le niveau : ×1 en Promotion, ×4 contre les Légendes

@@ -32,7 +32,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   si elle est spécialisée, 0 % si elle est à l'opposé.
 - **Jouer** : deux portes. **Championnat** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
   tirées des feuilles de match (4 équipes en Promotion, une de plus à chaque niveau jusqu'à 12 en Nationale 1 ; les 2 premiers montent, le dernier descend, les 2 derniers dans les poules de 6 et plus), puis l'International en tournois à élimination
-  directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Matchs simulés selon les notes,
+  directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Les matchs se rechargent : 1 toutes les 2 h, 10 en réserve au plus. Matchs simulés selon les notes,
   les postes et la tactique. Pour entraîner un joueur : sa carte, dans le Club ; les défis se font entre ami(e)s.
 - **Gagner des pièces** (Jouer) : 4 grandes tuiles animées, une par mini-jeu, avec un **tuto rapide** à la première partie
   de chaque jeu (le « ? » de la tuile le remontre). Le **jet de 7 mètres** (en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
