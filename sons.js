@@ -116,34 +116,38 @@ const Son = (() => {
       arpege([69, 76, 81], q + .55, .09, {type: 'triangle', vol: .1, duree: .6, reverb: .5}); },
   };
 
-  // ── la musique : quatre thèmes originaux, un par partie du jeu (demande de Maël), joués en boucle ──
-  // Accueil (boosters) : entraînant, la mineur, 116 BPM · Club et Équipe : calme, accords de septième, 88 BPM ·
-  // Jouer (championnat, mini-jeux) : sportif, mi mineur, 128 BPM · Social (paris, transferts, classement) : funky, ré dorien, 104 BPM.
+  // ── la musique : un thème original par partie du jeu (demande de Maël), joué en boucle. Le jeu est calme : tous les thèmes
+  // sont dans l'esprit de celui du Club (piano électrique, basse ronde, batterie feutrée), sauf pendant les mini-jeux (sportif).
+  // Accueil : do majeur, 84 BPM · Club et Équipe : accords de septième, 88 BPM · Jouer et Championnat : ré dorien, 92 BPM ·
+  // Social : mi bémol majeur, 80 BPM · mini-jeux : sportif, mi mineur, 128 BPM.
   // Changement de partie : fondu de la musique, le nouveau thème démarre à son début.
   const musique = (() => {
     const M = () => busMusique;
     const grosse = (q, vol = .9) => note(150, q, .16, {type: 'sine', vol, glisse: 42, bus: M()});
     const claque = (q, vol = .55) => { bruit(q, .16, {type: 'bandpass', f: 1900, q: .9, vol, bus: M()}); bruit(q, .05, {type: 'highpass', f: 6000, vol: vol * .35, bus: M()}); };
     const charley = (q, vol, long = .03) => bruit(q, long, {type: 'highpass', f: 8000, vol, bus: M()});
-    const THEMES = {
-      accueil: {
-        bpm: 116,
-        acc: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62], [50, 53, 57], [53, 57, 60], [48, 52, 55], [52, 56, 59]],
-        grille: [0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3],
-        pas(q, k, mesure, acc, P) {
-          const MEL = [[0, 2, 3], [4, 1, 2], [6, 2, 2], [8, 3, 4], [12, 2, 2], [14, 1, 2]], MEL2 = [[0, 3, 2], [2, 2, 2], [4, 1, 4], [10, 0, 2], [12, 1, 2], [14, 2, 2]];
-          if (k % 4 === 0) grosse(q);
-          if (k === 4 || k === 12) claque(q);
-          if (k % 2 === 0) charley(q, k % 4 === 2 ? .22 : .12, k % 4 === 2 ? .06 : .03);
-          if (mesure % 4 === 3 && k >= 12) bruit(q, .08, {type: 'bandpass', f: 900 + (k - 12) * 300, q: 2, vol: .35, bus: M()});
-          if (k % 2 === 0) note(hz(acc[0] - 24 + (k % 4 === 2 ? 12 : 0)), q, P * 1.8, {type: 'sawtooth', vol: .32, filtre: 520, bus: M()});
-          if (k === 0) acc.forEach(n => { note(hz(n), q, P * 16, {type: 'sawtooth', vol: .045, att: .25, filtre: 1300, bus: M()});
-            note(hz(n) * 1.006, q, P * 16, {type: 'sawtooth', vol: .035, att: .25, filtre: 1300, bus: M()}); });
-          const ar = [0, 1, 2, 3, 2, 1][k % 6], na = acc[ar % 3] + 12 + (ar === 3 ? 12 : 0) + (mesure >= 8 ? 12 : 0);
-          if (mesure >= 2) note(hz(na), q, P * 1.4, {type: 'square', vol: .05, filtre: 2600, bus: M()});
-          if (mesure >= 4) for (const [p, d, l] of (mesure % 2 ? MEL2 : MEL)) if (p === k) note(hz(acc[d % 3] + 12 + (d === 3 ? 12 : 0)), q, P * l, {type: 'triangle', vol: .16, filtre: 3800, reverb: .3, bus: M()});
-        },
+    // thème calme : piano électrique, basse ronde, batterie feutrée, clochettes (accords de 4 notes, fondamentale en premier)
+    const calme = ({bpm, acc, grille, mel, basse = [[0, 0, 6], [8, 2, 4], [14, 0, 2, 2]], frappes = [0, 7], grosse: gc = [0, 10], cloche = 24}) => ({bpm, acc, grille,
+      pas(q, k, mesure, acc, P) {
+        if (gc.includes(k)) grosse(q, .5);
+        if (k === 4 || k === 12) bruit(q, .05, {type: 'bandpass', f: 3200, q: 3, vol: .2, bus: M()});
+        if (k % 2 === 0) charley(q, k % 4 === 2 ? .06 : .035);
+        for (const [p, d, l, t = 0] of basse) if (p === k) note(hz(acc[d] - 24 + t), q, P * l, {type: 'triangle', vol: .4, filtre: 420, bus: M()});
+        if (frappes.includes(k)) acc.forEach((n, i) => { note(hz(n), q + i * .012, P * 8, {type: 'sine', vol: .065, att: .01, reverb: .35, bus: M()});
+          note(hz(n) * 2, q + i * .012, P * 3, {type: 'triangle', vol: .014, att: .005, bus: M()}); });
+        if (mesure >= 4) for (const [p, d] of mel[mesure % 2]) if (p === k) note(hz(acc[d] + cloche), q, P * 6, {type: 'sine', vol: .085, att: .005, reverb: .5, bus: M()});
       },
+    });
+    const THEMES = {
+      // l'accueil : do majeur, lumineux (84 BPM)
+      accueil: calme({bpm: 84, acc: [[60, 64, 67, 71], [57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 64]], grille: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+        mel: [[[0, 2], [4, 3], [8, 1], [12, 2]], [[2, 1], [6, 3], [10, 2]]], cloche: 12}),
+      // les menus Jouer et Championnat : ré dorien, un peu plus allant (92 BPM)
+      jouer: calme({bpm: 92, acc: [[50, 53, 57, 60], [52, 55, 59, 62], [53, 57, 60, 64], [52, 55, 59, 62]], grille: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+        mel: [[[0, 3], [3, 2], [6, 1], [10, 2], [14, 3]], [[0, 1], [8, 2], [12, 3]]], basse: [[0, 0, 4], [6, 0, 2, 12], [8, 2, 4], [14, 3, 2]], grosse: [0, 8]}),
+      // Social : mi bémol majeur, très doux (80 BPM)
+      social: calme({bpm: 80, acc: [[51, 55, 58, 62], [48, 51, 55, 58], [56, 60, 63, 67], [58, 62, 65, 67]], grille: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+        mel: [[[0, 3], [6, 2], [12, 1]], [[4, 2], [8, 3], [14, 1]]], frappes: [0, 6, 11], grosse: [0, 11]}),
       club: {   // calme : piano électrique, basse ronde, batterie feutrée
         bpm: 88,
         acc: [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]],
@@ -163,7 +167,7 @@ const Son = (() => {
           if (mesure >= 4) for (const [p, d] of mel) if (p === k) note(hz(acc[d] + 24), q, P * 6, {type: 'sine', vol: .09, att: .005, reverb: .5, bus: M()});
         },
       },
-      jouer: {   // sportif : batterie qui pousse, basse en croches, cuivres en coups, riff pentatonique
+      minijeux: {   // sportif (seulement pendant les mini-jeux) : batterie qui pousse, basse en croches, cuivres en coups, riff pentatonique
         bpm: 128,
         acc: [[52, 55, 59], [48, 52, 55], [55, 59, 62], [50, 54, 57]],
         grille: [0, 1, 2, 3, 0, 1, 2, 3, 0, 0, 1, 1, 2, 2, 3, 3],
@@ -177,21 +181,6 @@ const Son = (() => {
           if (k === 0 || k === 6 || k === 10) acc.forEach(n => note(hz(n + 12), q, P * 1.8, {type: 'sawtooth', vol: .045, att: .008, filtre: 2400, bus: M()}));
           const RIFF = [[0, 64], [3, 67], [6, 69], [8, 71], [11, 69], [14, 67]], RIFF2 = [[0, 71], [2, 74], [4, 71], [6, 69], [8, 67], [12, 64]];
           if (mesure >= 4) for (const [p, n] of (mesure % 2 ? RIFF2 : RIFF)) if (p === k) note(hz(n + 12), q, P * 2, {type: 'square', vol: .06, filtre: 3000, reverb: .2, bus: M()});
-        },
-      },
-      social: {   // funky : basse syncopée, accords pincés (clavinet), charleston serré
-        bpm: 104,
-        acc: [[50, 53, 57, 60], [55, 59, 62, 65], [57, 60, 64, 67], [58, 62, 65, 69]],
-        grille: [0, 1, 0, 1, 0, 1, 0, 1, 2, 3, 2, 3, 0, 1, 0, 1],
-        pas(q, k, mesure, acc, P) {
-          if (k === 0 || k === 7 || k === 10) grosse(q, .8);
-          if (k === 4 || k === 12) claque(q, .5);
-          charley(q, k % 2 ? .05 : .11, .025);
-          const B = {0: 0, 3: 12, 6: 7, 8: 0, 11: 10, 14: 12};
-          if (k in B) note(hz(acc[0] - 24 + B[k]), q, P * 1.2, {type: 'square', vol: .2, filtre: 800, bus: M()});
-          if ([2, 6, 10, 13].includes(k)) acc.slice(1).forEach(n => note(hz(n + 12), q, P * .8, {type: 'square', vol: .03, att: .004, filtre: 3200, bus: M()}));
-          const MEL = [[0, 74], [2, 72], [4, 69], [7, 72], [10, 74], [12, 77]];
-          if (mesure >= 4 && mesure % 2 === 0) for (const [p, n] of MEL) if (p === k) note(hz(n), q, P * 2, {type: 'triangle', vol: .12, filtre: 3600, reverb: .3, bus: M()});
         },
       },
     };

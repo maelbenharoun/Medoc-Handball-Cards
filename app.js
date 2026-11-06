@@ -1553,7 +1553,7 @@ function ouvrirJet7m(demo) {
     <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true);
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux');
   Object.assign(J7, {el, tirs: [...j.tirs], limite: j.limite, gains: 0, demo: !!demo});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) { Son.jouer('tap'); toucherJet7m(); } });
@@ -1654,7 +1654,7 @@ function ouvrirMini(jeu, demo) {
   el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
     <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true);
+  document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux');
   Object.assign(MJ, {el, jeu, liste: [...liste], limite, gains: 0, demo: !!demo, toucher: null, timers: [], raf: 0, serie: [], serieN: 0});
   el.querySelector('.j7-quitter').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
   el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) { Son.jouer('tap'); MJ.toucher(e); } });
@@ -1722,7 +1722,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=38').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=39').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
