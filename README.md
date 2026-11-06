@@ -24,7 +24,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
   directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
-- **Jet de 7 mètres** (onglet Jouer) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
+- **Jet de 7 mètres** (onglet Jouer, en 3D comme les autres mini-jeux) : un viseur se promène sur tout le but et autour, puis une jauge de puissance avec un point idéal (80 %) :
   en dessous le tir est plus lent et le gardien a le temps, au-dessus il part de travers. Au centre, toujours arrêté ; dans les angles, ça rentre.
   5 tirs par jour, 50 pièces par but, 100 de bonus pour un 5 sur 5.
 - **Mini-jeux en vraie 3D** (`jeux3d.js`, three.js chargé seulement à l'ouverture) : l'arrêt réflexe (caméra derrière ton but,

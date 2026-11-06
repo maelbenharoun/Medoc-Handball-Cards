@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 const V = '29';
 const DOSSIER = new URL('./modeles/', import.meta.url);
@@ -51,6 +53,7 @@ function jogging(geo) {
 const qa = new THREE.Quaternion(), qp = new THREE.Quaternion(), qr = new THREE.Quaternion(), ax = new THREE.Vector3(), qm = new THREE.Quaternion();
 const AXES = {x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1)};
 function tourner(perso, os, axe, deg) {
+  if (axe === 'lx') { os.rotateX(deg * Math.PI / 180); os.updateMatrixWorld(true); return; }   // autour de l'os lui-même (poignet)
   perso.getWorldQuaternion(qr); ax.copy(AXES[axe]).applyQuaternion(qr);
   os.parent.getWorldQuaternion(qp);
   qa.setFromAxisAngle(ax, deg * Math.PI / 180);
@@ -63,19 +66,20 @@ const B = n => 'Bip01_' + n;
 // écrites pour le côté droit du gardien ; l'autre côté est le miroir
 const POSES = {
   pret: [[B('L_Thigh'), 'z', 12], [B('R_Thigh'), 'z', -12], [B('L_Thigh'), 'x', -8], [B('R_Thigh'), 'x', -8], [B('L_Calf'), 'x', 14], [B('R_Calf'), 'x', 14],
-    [B('R_UpperArm'), 'z', -95], [B('R_Forearm'), 'z', -80], [B('L_UpperArm'), 'z', 95], [B('L_Forearm'), 'z', 80]],
+    [B('R_UpperArm'), 'z', -95], [B('R_Forearm'), 'z', -80], [B('L_UpperArm'), 'z', 95], [B('L_Forearm'), 'z', 80], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeHaut: [[B('Spine'), 'z', 10], [B('R_UpperArm'), 'z', -160], [B('R_Forearm'), 'z', -5], [B('L_UpperArm'), 'z', 185], [B('L_Forearm'), 'z', 5],
-    [B('R_Thigh'), 'z', -32], [B('R_Thigh'), 'x', -25], [B('R_Calf'), 'x', 40], [B('L_Thigh'), 'x', -8], [B('L_Calf'), 'x', 14]],
+    [B('R_Thigh'), 'z', -32], [B('R_Thigh'), 'x', -25], [B('R_Calf'), 'x', 40], [B('L_Thigh'), 'x', -8], [B('L_Calf'), 'x', 14], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeMilieu: [[B('Spine'), 'z', 12], [B('R_UpperArm'), 'z', -105], [B('R_Forearm'), 'z', -10], [B('L_UpperArm'), 'z', 150], [B('L_Forearm'), 'z', 15],
-    [B('R_Thigh'), 'z', -50], [B('R_Calf'), 'x', 12], [B('L_Thigh'), 'x', -15], [B('L_Calf'), 'x', 28]],
+    [B('R_Thigh'), 'z', -50], [B('R_Calf'), 'x', 12], [B('L_Thigh'), 'x', -15], [B('L_Calf'), 'x', 28], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeBas: [[B('Spine'), 'z', 20], [B('R_UpperArm'), 'z', -38], [B('R_Forearm'), 'z', -8], [B('L_UpperArm'), 'z', 125], [B('L_Forearm'), 'z', 25],
-    [B('R_Thigh'), 'z', -72], [B('R_Calf'), 'x', 4], [B('L_Thigh'), 'x', -28], [B('L_Calf'), 'x', 50]],
-  paradeHautCentre: [[B('R_UpperArm'), 'z', -168], [B('L_UpperArm'), 'z', 168], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -10], [B('L_Calf'), 'x', 15]],
+    [B('R_Thigh'), 'z', -72], [B('R_Calf'), 'x', 4], [B('L_Thigh'), 'x', -28], [B('L_Calf'), 'x', 50], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
+  paradeHautCentre: [[B('R_UpperArm'), 'z', -168], [B('L_UpperArm'), 'z', 168], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -10], [B('L_Calf'), 'x', 15], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeBasCentre: [[B('R_UpperArm'), 'z', -30], [B('L_UpperArm'), 'z', 30], [B('R_Forearm'), 'x', -25], [B('L_Forearm'), 'x', -25],
     [B('L_Thigh'), 'z', 8], [B('R_Thigh'), 'z', -8], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -20], [B('L_Calf'), 'x', 35], [B('Spine'), 'x', 14]],
   arme: [[B('Spine1'), 'y', 25], [B('R_UpperArm'), 'z', -105], [B('R_UpperArm'), 'y', -40], [B('R_Forearm'), 'z', -95], [B('L_UpperArm'), 'z', 45], [B('L_UpperArm'), 'x', -40], [B('L_Forearm'), 'x', -50]],
   tir: [[B('Spine1'), 'y', -20], [B('Spine1'), 'x', 15], [B('R_UpperArm'), 'z', -120], [B('R_UpperArm'), 'y', 45], [B('R_Forearm'), 'z', -15], [B('L_UpperArm'), 'z', 25]],
-  contre: [[B('R_UpperArm'), 'z', -165], [B('L_UpperArm'), 'z', 165], [B('R_Forearm'), 'z', -5], [B('L_Forearm'), 'z', 5]],
+  contre: [[B('R_UpperArm'), 'z', -165], [B('L_UpperArm'), 'z', 165], [B('R_Forearm'), 'z', -5], [B('L_Forearm'), 'z', 5], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
+  dribble: [[B('R_UpperArm'), 'z', -18], [B('R_UpperArm'), 'x', -30], [B('R_Forearm'), 'x', -55]],
   defense: [[B('R_UpperArm'), 'z', -55], [B('L_UpperArm'), 'z', 55], [B('R_Forearm'), 'x', -60], [B('L_Forearm'), 'x', -60], [B('L_Thigh'), 'z', 10], [B('R_Thigh'), 'z', -10],
     [B('L_Thigh'), 'x', -14], [B('R_Thigh'), 'x', -14], [B('L_Calf'), 'x', 24], [B('R_Calf'), 'x', 24]],
   saut: [[B('L_Thigh'), 'x', -70], [B('L_Calf'), 'x', 95], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 30]],
@@ -131,78 +135,63 @@ class Joueur {
       this.o.position.y = .035 - bas;
     }
   }
+  mainProche(p) { const d = this.main('D'), g = this.main('G'); return d.distanceTo(p) < g.distanceTo(p) ? d : g; }
   main(cote = 'D') {   // position du ballon dans la main
     return this.os['main' + cote].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, .02, 0));
   }
 }
 
-// ── la salle : terrain 40 × 20 m aux vraies lignes, buts 3 × 2 m avec filet, panneaux, gradins, lumière ──────────
+// ── la salle, aux dimensions officielles (règles IHF) ─────────────────────────────────────────────────────────────
+// Terrain 40 × 20 m, zone de sécurité 1 m le long des touches et 2 m derrière les lignes de but. Lignes de 5 cm (8 cm
+// pour la ligne de but entre les poteaux), dessinées en vrai relief sur le sol (nettes de près comme de loin) :
+// zone des 6 m (quarts de cercle de 6 m autour de l'arrière intérieur des poteaux, reliés par 3 m de droite),
+// 9 m en traits de 15 cm espacés de 15 cm, 7 m (1 m), limite du gardien à 4 m (15 cm), ligne médiane, zones des
+// remplaçants (15 cm à 4,50 m de la ligne médiane). Buts 3 × 2 m (intérieur), poteaux carrés de 8 cm à bandes de
+// 20 cm, coins de 28 cm ; filet 1 m de profondeur en bas, 80 cm en haut. Salle omnisports : sol synthétique brillant,
+// tracé de basket discret comme dans les gymnases, gradins avec public, bancs, table de marque, tableau d'affichage.
 function toile(w, h, dessin) { const c = document.createElement('canvas'); c.width = w; c.height = h; dessin(c.getContext('2d'), w, h); return c; }
-function texTerrain() {
-  // 24 m (x de -12 à 12) sur 44 m (z de -2 à 42) ; haut de la toile = z = -2
-  const S = 46, W = 24 * S, H = 44 * S;
-  const c = toile(W, H, (g) => {
-    const P = (x, z) => [(x + 12) * S, (z + 2) * S];
-    g.fillStyle = '#35505e'; g.fillRect(0, 0, W, H);
-    g.fillStyle = '#2d68ad'; g.fillRect(...P(-10, 0), 20 * S, 40 * S);
-    // zones des 6 m : deux quarts de cercle autour des poteaux reliés par une droite
-    const zone = (z0, s) => { g.beginPath(); const [cx1, cz] = P(-1.5, z0), [cx2] = P(1.5, z0);
-      g.moveTo(...P(-7.5, z0)); g.arc(cx1, cz, 6 * S, Math.PI, Math.PI / 2 * (s > 0 ? 1 : 3), s < 0); g.lineTo(...P(1.5, z0 + 6 * s)); g.arc(cx2, cz, 6 * S, Math.PI / 2 * (s > 0 ? 1 : 3), 0, s < 0); g.closePath(); };
-    g.fillStyle = '#e08a3d'; zone(0, 1); g.fill(); zone(40, -1); g.fill();
-    g.strokeStyle = '#f4f4f0'; g.lineWidth = .05 * S;
-    g.strokeRect(...P(-10, 0), 20 * S, 40 * S);
-    g.beginPath(); g.moveTo(...P(-10, 20)); g.lineTo(...P(10, 20)); g.stroke();
-    zone(0, 1); g.stroke(); zone(40, -1); g.stroke();
-    // 9 m en pointillés (traits de 15 cm)
-    g.save(); g.setLineDash([.15 * S, .15 * S]);
-    const neuf = (z0, s) => { g.beginPath(); const [cx1, cz] = P(-1.5, z0), [cx2] = P(1.5, z0);
-      const a = Math.acos(Math.min(1, 8.5 / 9)); // le 9 m s'arrête sur la ligne de touche
-      g.arc(cx1, cz, 9 * S, s > 0 ? Math.PI - a : Math.PI + a, Math.PI / 2 * (s > 0 ? 1 : 3), s < 0); g.lineTo(...P(1.5, z0 + 9 * s)); g.arc(cx2, cz, 9 * S, Math.PI / 2 * (s > 0 ? 1 : 3), s > 0 ? a : -a, s < 0); g.stroke(); };
-    neuf(0, 1); neuf(40, -1); g.restore();
-    // 7 m (1 m), limite du gardien à 4 m (15 cm), lignes de but plus épaisses
-    g.lineWidth = .05 * S;
-    for (const [z0, s] of [[0, 1], [40, -1]]) {
-      g.beginPath(); g.moveTo(...P(-.5, z0 + 7 * s)); g.lineTo(...P(.5, z0 + 7 * s)); g.stroke();
-      g.beginPath(); g.moveTo(...P(-.075, z0 + 4 * s)); g.lineTo(...P(.075, z0 + 4 * s)); g.stroke();
-      g.lineWidth = .08 * S; g.beginPath(); g.moveTo(...P(-1.5, z0)); g.lineTo(...P(1.5, z0)); g.stroke(); g.lineWidth = .05 * S;
-    }
-    // zone des remplaçants : traits de 15 cm à 4,5 m de la ligne médiane
-    for (const z of [15.5, 24.5]) { g.beginPath(); g.moveTo(...P(10, z)); g.lineTo(...P(10.15, z)); g.stroke(); }
-    // logo au centre, discret
-    g.save(); g.translate(...P(0, 20)); g.rotate(-Math.PI / 2); g.fillStyle = 'rgba(255, 255, 255, .14)'; g.font = `800 ${1.2 * S}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('MÉDOC HANDBALL', 0, 0); g.restore();
-    // grain du revêtement
-    const im = g.getImageData(0, 0, W, H), d = im.data;
-    for (let i = 0; i < d.length; i += 4) { const k = (Math.random() - .5) * 7; d[i] += k; d[i + 1] += k; d[i + 2] += k; }
+function texGrain(base, ampl = 10) {   // grain fin du revêtement synthétique
+  const c = toile(256, 256, (g, w, h) => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    const im = g.getImageData(0, 0, w, h), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { const k = (Math.random() - .5) * ampl; d[i] += k; d[i + 1] += k; d[i + 2] += k; }
     g.putImageData(im, 0, 0);
   });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
 }
+function texTexte(w, h, dessin) { const t = new THREE.CanvasTexture(toile(w, h, dessin)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
 function texPanneau() {
-  const c = toile(1024, 64, (g, w, h) => {
-    g.fillStyle = '#16233d'; g.fillRect(0, 0, w, h);
-    g.font = '800 38px system-ui, sans-serif'; g.textBaseline = 'middle';
+  const t = texTexte(1024, 64, (g, w, h) => {
+    g.fillStyle = '#0f1a30'; g.fillRect(0, 0, w, h);
+    g.font = '800 36px system-ui, sans-serif'; g.textBaseline = 'middle';
     const txt = ['MÉDOC HANDBALL', 'ALLEZ MÉDOC !', 'MÉDOC HAND CARDS'];
     let x = 10; for (let i = 0; x < w; i++) { g.fillStyle = i % 2 ? '#ffd257' : '#ffffff'; const s = txt[i % 3] + '   •   '; g.fillText(s, x, h / 2); x += g.measureText(s).width; }
   });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; return t;
+  t.wrapS = THREE.RepeatWrapping; return t;
 }
-function texRayures(n) {
-  const c = toile(8, 64, (g) => { g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, 8, 64); g.fillStyle = '#d33a2c'; g.fillRect(0, 0, 8, 32); });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, n); return t;
+// bandes des poteaux : coin de 28 cm (rouge) puis bandes de 20 cm alternées
+function texBandes(longueur, coins) {
+  const px = 50, n = Math.round(longueur * px);
+  const t = texTexte(4, n, (g) => {
+    g.fillStyle = '#f4f4f2'; g.fillRect(0, 0, 4, n);
+    g.fillStyle = '#d3312a';
+    const coin = .28 * px; g.fillRect(0, 0, 4, coin); if (coins === 2) g.fillRect(0, n - coin, 4, coin);
+    for (let y = coin + .2 * px, k = 0; y < n - (coins === 2 ? coin : 0) - 1; y += .2 * px, k++) if (k % 2 === 0) g.fillRect(0, y, 4, .2 * px);
+  });
+  return t;
 }
 function texFilet() {
-  const c = toile(64, 64, (g) => { g.strokeStyle = 'rgba(255, 255, 255, .95)'; g.lineWidth = 3; g.strokeRect(0, 0, 64, 64); });
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+  const t = texTexte(64, 64, (g) => { g.strokeStyle = 'rgba(255, 255, 255, .9)'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(32, 0); g.lineTo(32, 64); g.moveTo(0, 32); g.lineTo(64, 32); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(32, 32, 2.6, 0, 7); g.fill(); });   // mailles de 10 cm, avec leurs nœuds
+  t.colorSpace = THREE.NoColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 }
 function texBallon() {
-  const c = toile(256, 128, (g, w, h) => {
+  return texTexte(256, 128, (g, w, h) => {
     g.fillStyle = '#f2cf3b'; g.fillRect(0, 0, w, h);
     g.strokeStyle = '#1f4f9a'; g.lineWidth = 14;
     for (let i = 0; i < 4; i++) { g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, h / 2 + Math.sin(x / w * Math.PI * 4 + i * 1.6) * h * .32); g.stroke(); }
     g.strokeStyle = '#ffffff'; g.lineWidth = 5; g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, h / 2 + Math.cos(x / w * Math.PI * 2) * h * .4); g.stroke();
   });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 class But {
@@ -210,28 +199,76 @@ class But {
   constructor(sc, z0, sens) {
     this.z0 = z0; this.sens = sens;
     const g = new THREE.Group(); g.position.z = z0; if (sens < 0) g.rotation.y = Math.PI; sc.add(g);
-    const matP = new THREE.MeshStandardMaterial({map: texRayures(5.2), roughness: .4}), matT = new THREE.MeshStandardMaterial({map: texRayures(1), roughness: .4});
-    matT.map.repeat.set(7.9, 1); matT.map.rotation = Math.PI / 2;
+    const matP = new THREE.MeshStandardMaterial({map: texBandes(2.08, 1), roughness: .35, metalness: .1});
+    const tb = texBandes(3.16, 2); tb.center.set(.5, .5); tb.rotation = Math.PI / 2;
+    const matT = new THREE.MeshStandardMaterial({map: tb, roughness: .35, metalness: .1});
     for (const x of [-1.54, 1.54]) { const p = new THREE.Mesh(new THREE.BoxGeometry(.08, 2.08, .08), matP); p.position.set(x, 1.04, -.04); p.castShadow = true; g.add(p); }
     const t = new THREE.Mesh(new THREE.BoxGeometry(3.16, .08, .08), matT); t.position.set(0, 2.04, -.04); t.castShadow = true; g.add(t);
+    // cadre arrière qui tient le filet (tubes gris au sol et en haut)
+    const matC = new THREE.MeshStandardMaterial({color: '#8d939b', roughness: .4, metalness: .6});
+    for (const x of [-1.5, 1.5]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(.016, .016, 1), matC); b.rotation.x = Math.PI / 2; b.position.set(x, .02, -.5); g.add(b); }
+    const bas = new THREE.Mesh(new THREE.CylinderGeometry(.016, .016, 3), matC); bas.rotation.z = Math.PI / 2; bas.position.set(0, .02, -1); g.add(bas);
     // filet : fond (déformable), côtés, dessus
-    const fil = texFilet(), mat = new THREE.MeshBasicMaterial({map: fil, transparent: true, opacity: .4, side: THREE.DoubleSide, depthWrite: false, color: '#e8eef5'});
-    const plan = (w, h, rx, ry) => { const m = mat.clone(); m.map = fil.clone(); m.map.repeat.set(rx, ry); m.map.needsUpdate = true; return m; };
-    this.fond = new THREE.Mesh(new THREE.PlaneGeometry(3, 2, 16, 10), plan(3, 2, 30, 20)); this.fond.position.set(0, 1, -1); g.add(this.fond);
-    this.base = Float32Array.from(this.fond.geometry.attributes.position.array);
+    const fil = texFilet(), mat = new THREE.MeshStandardMaterial({alphaMap: fil, transparent: true, opacity: .85, side: THREE.DoubleSide, depthWrite: false, color: '#f2f4f7', roughness: .9});
+    const plan = (rx, ry) => { const m = mat.clone(); m.alphaMap = fil.clone(); m.alphaMap.repeat.set(rx, ry); m.alphaMap.needsUpdate = true; return m; };
+    this.fond = new THREE.Mesh(new THREE.PlaneGeometry(3, 2, 18, 12), plan(30, 20)); this.fond.position.set(0, 1, -1); g.add(this.fond);
+    // le fond penche (1 m en bas, 80 cm en haut) et pend un peu
+    const pf = this.fond.geometry.attributes.position;
+    for (let i = 0; i < pf.count; i++) { const x = pf.getX(i), y = pf.getY(i) + 1; pf.setZ(i, .2 * y / 2 - .05 * Math.sin(Math.PI * (x + 1.5) / 3) * Math.sin(Math.PI * y / 2)); }
+    this.base = Float32Array.from(pf.array);
     const cote = x => { const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute([x, 0, 0, x, 0, -1, x, 2, -.8, x, 2, 0], 3));
-      ge.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, .8, 1, 0, 1], 2)); ge.setIndex([0, 1, 2, 0, 2, 3]); return new THREE.Mesh(ge, plan(1, 2, 10, 20)); };
+      ge.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, .8, 1, 0, 1], 2)); ge.setAttribute('normal', new THREE.Float32BufferAttribute([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], 3));
+      ge.setIndex([0, 1, 2, 0, 2, 3]); return new THREE.Mesh(ge, plan(10, 20)); };
     g.add(cote(-1.5), cote(1.5));
-    const dessus = new THREE.Mesh(new THREE.PlaneGeometry(3, .8), plan(3, .8, 30, 8)); dessus.rotation.x = -Math.PI / 2; dessus.position.set(0, 2, -.4); g.add(dessus);
+    const dessus = new THREE.Mesh(new THREE.PlaneGeometry(3, .8), plan(30, 8)); dessus.rotation.x = -Math.PI / 2; dessus.position.set(0, 2, -.4); g.add(dessus);
     this.g = g; this.bosseT = -1; this.bx = this.by = 0;
   }
   bosse(x, y) { this.bx = this.sens > 0 ? x : -x; this.by = y; this.bosseT = 0; }
   maj(dt) {
     if (this.bosseT < 0) return;
     this.bosseT += dt; const p = this.fond.geometry.attributes.position, a = Math.max(0, Math.sin(Math.min(1, this.bosseT / .5) * Math.PI)) * .45;
-    for (let i = 0; i < p.count; i++) { const x = this.base[i * 3], y = this.base[i * 3 + 1] + 1, d = Math.hypot(x - this.bx, y - this.by); p.setZ(i, -a * Math.exp(-d * d / .5)); }
+    for (let i = 0; i < p.count; i++) { const x = this.base[i * 3], y = this.base[i * 3 + 1] + 1, d = Math.hypot(x - this.bx, y - this.by); p.setZ(i, this.base[i * 3 + 2] - a * Math.exp(-d * d / .5)); }
     p.needsUpdate = true;
-    if (this.bosseT > .55) { this.bosseT = -1; for (let i = 0; i < p.count; i++) p.setZ(i, 0); }
+    if (this.bosseT > .55) { this.bosseT = -1; for (let i = 0; i < p.count; i++) p.setZ(i, this.base[i * 3 + 2]); }
+  }
+}
+
+// lignes au sol : bandes fines (droites) et anneaux (arcs), posées juste au-dessus du revêtement
+const SOL = {lignes: .004, zone: .002, terrain: .001};
+function bande(grp, mat, x1, z1, x2, z2, l = .05, y = SOL.lignes) {
+  const d = Math.hypot(x2 - x1, z2 - z1), m = new THREE.Mesh(new THREE.PlaneGeometry(d, l), mat);
+  m.rotation.set(-Math.PI / 2, 0, -Math.atan2(z2 - z1, x2 - x1)); m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); m.receiveShadow = true; grp.add(m); return m;
+}
+function arc(grp, mat, cx, cz, r, a0, a1, l = .05, y = SOL.lignes) {   // angles depuis +x vers +z
+  const m = new THREE.Mesh(new THREE.RingGeometry(r - l, r, Math.max(6, Math.ceil(Math.abs(a1 - a0) * r * 6)), 1, a0, a1 - a0), mat);
+  m.rotation.x = Math.PI / 2; m.position.set(cx, y, cz); m.receiveShadow = true; grp.add(m); return m;
+}
+function marquesDeBut(grp, matL, matZ) {   // demi-terrain vu depuis le but en z = 0 (le terrain est du côté des z positifs)
+  const s = new THREE.Shape();
+  s.moveTo(-7.5, 0); s.absarc(-1.5, 0, 6, Math.PI, Math.PI / 2, true); s.lineTo(1.5, 6); s.absarc(1.5, 0, 6, Math.PI / 2, 0, true); s.lineTo(-7.5, 0);
+  const zone = new THREE.Mesh(new THREE.ShapeGeometry(s, 32), matZ); zone.rotation.x = Math.PI / 2; zone.position.y = SOL.zone; zone.receiveShadow = true; grp.add(zone);
+  arc(grp, matL, 1.5, 0, 6, 0, Math.PI / 2); arc(grp, matL, -1.5, 0, 6, Math.PI / 2, Math.PI); bande(grp, matL, -1.5, 5.975, 1.5, 5.975);
+  // 9 m : traits de 15 cm, espaces de 15 cm, arrêtés à la ligne de touche
+  const a9 = Math.acos(8.5 / 9), pas = .3 / 9, trait = .15 / 9;
+  for (let a = a9; a < Math.PI / 2 - trait; a += pas) { arc(grp, matL, 1.5, 0, 9, a, a + trait); arc(grp, matL, -1.5, 0, 9, Math.PI - a - trait, Math.PI - a); }
+  for (let x = -1.5 + .075; x < 1.5; x += .3) bande(grp, matL, x - .075, 8.975, Math.min(1.5, x + .075), 8.975);
+  bande(grp, matL, -.5, 6.975, .5, 6.975);                 // 7 m
+  bande(grp, matL, -.075, 3.975, .075, 3.975);             // limite du gardien (4 m)
+  bande(grp, matL, -1.5, .04, 1.5, .04, .08);              // ligne de but entre les poteaux : 8 cm
+}
+
+// tout le décor fixe (lignes, tribune, murs, plafond…) fusionné par matériau : quelques dizaines d'appels de dessin au lieu de centaines
+function fusionnerFixes(sc) {
+  sc.updateMatrixWorld(true);
+  const parMat = new Map();
+  sc.traverse(o => { if (o.isMesh && !o.isInstancedMesh && !Array.isArray(o.material)) { const l = parMat.get(o.material) || []; l.push(o); parMat.set(o.material, l); } });
+  for (const [mat, liste] of parMat) {
+    if (liste.length < 2) continue;
+    const geos = liste.map(m => { const g = m.geometry.index ? m.geometry : null; return g && g.clone().applyMatrix4(m.matrixWorld); });
+    if (geos.some(g => !g)) continue;
+    const geo = mergeGeometries(geos); if (!geo) continue;
+    const m = new THREE.Mesh(geo, mat); m.castShadow = liste.some(x => x.castShadow); m.receiveShadow = liste.some(x => x.receiveShadow);
+    liste.forEach(x => x.removeFromParent()); sc.add(m);
   }
 }
 
@@ -240,34 +277,96 @@ class Salle {
     this.R = R;
     const r = this.r = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.08;
+    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = .9;
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.domElement.className = 't3-gl';
-    const sc = this.sc = new THREE.Scene(); sc.background = new THREE.Color('#1c232c'); sc.fog = new THREE.Fog('#1c232c', 34, 80);
-    this.cam = new THREE.PerspectiveCamera(45, 1, .1, 140);
-    sc.add(new THREE.HemisphereLight('#fff7ea', '#4d443a', 1.25));
-    const s = this.soleil = new THREE.DirectionalLight('#ffffff', 2.3);
+    const sc = this.sc = new THREE.Scene(); sc.background = new THREE.Color('#151a21');
+    // éclairage de salle : reflets doux venus de partout (environnement), un grand projecteur qui donne les ombres
+    const pm = new THREE.PMREMGenerator(r); sc.environment = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose();
+    sc.environmentIntensity = .55;
+    this.cam = new THREE.PerspectiveCamera(45, 1, .1, 160);
+    sc.add(new THREE.HemisphereLight('#fff8ee', '#3c3a36', .7));
+    const s = this.soleil = new THREE.DirectionalLight('#fffaf0', 2.1);
     s.castShadow = true; s.shadow.mapSize.set(1024, 1024); Object.assign(s.shadow.camera, {left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 50});
     s.shadow.bias = -.0004; s.shadow.normalBias = .03; sc.add(s, s.target);
-    const f = new THREE.DirectionalLight('#dfe8ff', .55); f.position.set(-8, 10, -6); sc.add(f);
-    // sol
-    const sol = new THREE.Mesh(new THREE.PlaneGeometry(24, 44), new THREE.MeshStandardMaterial({map: texTerrain(), roughness: .55}));
-    sol.rotation.x = -Math.PI / 2; sol.position.z = 20; sol.receiveShadow = true; sc.add(sol);
-    const autour = new THREE.Mesh(new THREE.PlaneGeometry(90, 120), new THREE.MeshStandardMaterial({color: '#2e3b44', roughness: .8}));
-    autour.rotation.x = -Math.PI / 2; autour.position.set(0, -.01, 20); autour.receiveShadow = true; sc.add(autour);
-    // panneaux autour du terrain
-    const pan = texPanneau(), matPan = (n) => { const m = new THREE.MeshStandardMaterial({map: pan.clone(), emissive: '#ffffff', emissiveIntensity: .25, emissiveMap: null, roughness: .5}); m.map.repeat.set(n, 1); m.map.needsUpdate = true; return m; };
-    for (const x of [-12.2, 12.2]) { const p = new THREE.Mesh(new THREE.BoxGeometry(.08, .9, 40), matPan(4)); p.position.set(x, .45, 20); p.rotation.y = x < 0 ? Math.PI : 0; p.castShadow = true; sc.add(p); }
-    // derrière le but du fond seulement (celui de devant serait entre la caméra et le but, à l'arrêt réflexe)
-    { const p = new THREE.Mesh(new THREE.BoxGeometry(20, .9, .08), matPan(2)); p.position.set(0, .45, 43.5); p.rotation.y = Math.PI; sc.add(p); }
-    // gradins sur un côté, murs, plafond lumineux
-    const matG = new THREE.MeshStandardMaterial({color: '#39424d', roughness: .9}), matSiege = new THREE.MeshStandardMaterial({color: '#1d5b8f', roughness: .7});
-    for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(2, .5 + i * .55, 44), matG); m.position.set(14.5 + i * 1.2, (.5 + i * .55) / 2, 20); sc.add(m);
-      const sg = new THREE.Mesh(new THREE.BoxGeometry(.5, .35, 44), matSiege); sg.position.set(14.2 + i * 1.2, .5 + i * .55 + .17, 20); sc.add(sg); }
-    const matMur = new THREE.MeshStandardMaterial({color: '#59626d', roughness: .95, side: THREE.BackSide});
-    const salle = new THREE.Mesh(new THREE.BoxGeometry(44, 14, 70), matMur); salle.position.set(0, 6.9, 20); sc.add(salle);   // fond sous le parquet (sinon il scintille avec lui)
-    const matL = new THREE.MeshBasicMaterial({color: '#fffdf2'});
-    for (let i = 0; i < 4; i++) for (const x of [-6, 6]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(2.4, .5), matL); l.rotation.x = Math.PI / 2; l.position.set(x, 13.9, 2 + i * 12); sc.add(l); }
+    const f = new THREE.DirectionalLight('#e4ecff', .45); f.position.set(-8, 10, -6); sc.add(f);
+    // sol : zone de sécurité (1 m le long des touches, 2 m derrière les buts) et au-delà, puis le terrain bleu
+    // revêtement satiné : un léger reflet des projecteurs, sans blanchir les couleurs du terrain
+    const matSol = (couleur, rep, rough = .66) => { const m = new THREE.MeshStandardMaterial({map: texGrain(couleur), roughness: rough, metalness: 0, envMapIntensity: .12}); m.map.repeat.set(rep, rep); return m; };
+    const plan = (w, h, mat, y, z = 20) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.rotation.x = -Math.PI / 2; m.position.set(0, y, z); m.receiveShadow = true; sc.add(m); return m; };
+    plan(60, 90, matSol('#2a5246', 30, .78), -.03);                // tout autour (vert, comme beaucoup de salles), un peu dessous : pas de scintillement
+    plan(20, 40, matSol('#245b9e', 20), SOL.terrain);              // terrain
+    // lignes du handball (blanches) et, discrètes, celles du basket (comme dans un gymnase)
+    const matL = new THREE.MeshStandardMaterial({color: '#f2f2ee', roughness: .5, envMapIntensity: .15, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2});
+    const matZ = matSol('#cf6d2a', 6);                              // zones des 6 m
+    matZ.polygonOffset = true; matZ.polygonOffsetFactor = -1; matZ.side = THREE.DoubleSide;
+    const lignes = new THREE.Group(); sc.add(lignes);
+    bande(lignes, matL, -9.975, 0, -9.975, 40); bande(lignes, matL, 9.975, 0, 9.975, 40);           // touches
+    bande(lignes, matL, -10, .025, 10, .025); bande(lignes, matL, -10, 39.975, 10, 39.975);         // lignes de but (sorties)
+    bande(lignes, matL, -10, 20, 10, 20);                                                            // médiane
+    for (const z of [15.5, 24.5]) bande(lignes, matL, -10.15, z, -9.85, z);                          // zones des remplaçants
+    const g0 = new THREE.Group(), g1 = new THREE.Group(); g1.position.z = 40; g1.rotation.y = Math.PI; lignes.add(g0, g1);
+    marquesDeBut(g0, matL, matZ); marquesDeBut(g1, matL, matZ);
+    const matB = new THREE.MeshStandardMaterial({color: '#e9c13b', roughness: .45, transparent: true, opacity: .55, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2});
+    const basket = new THREE.Group(); sc.add(basket);   // terrain de basket 28 × 15 m, plus fin
+    bande(basket, matB, -7.5, 6, 7.5, 6, .04); bande(basket, matB, -7.5, 34, 7.5, 34, .04); bande(basket, matB, -7.5, 6, -7.5, 34, .04); bande(basket, matB, 7.5, 6, 7.5, 34, .04);
+    arc(basket, matB, 0, 20, 1.8, 0, Math.PI * 2, .04);
+    for (const [z0, s0] of [[6, 1], [34, -1]]) { const z = z0 + 1.575 * s0; arc(basket, matB, 0, z, 6.75, s0 > 0 ? .2 : Math.PI + .2, s0 > 0 ? Math.PI - .2 : Math.PI * 2 - .2, .04);
+      bande(basket, matB, -2.45, z0, -2.45, z0 + 5.8 * s0, .04); bande(basket, matB, 2.45, z0, 2.45, z0 + 5.8 * s0, .04); bande(basket, matB, -2.45, z0 + 5.8 * s0, 2.45, z0 + 5.8 * s0, .04); }
+    // panneaux publicitaires le long de la touche, côté tribune, et derrière le but du fond
+    const pan = texPanneau(), matPan = n => { const m = new THREE.MeshStandardMaterial({map: pan.clone(), emissive: '#ffffff', emissiveIntensity: .35, roughness: .5}); m.emissiveMap = m.map; m.map.repeat.set(n, 1); m.map.needsUpdate = true; return m; };
+    { const p = new THREE.Mesh(new THREE.BoxGeometry(.1, .9, 40), matPan(4)); p.position.set(11.6, .45, 20); p.castShadow = true; sc.add(p); }
+    { const p = new THREE.Mesh(new THREE.BoxGeometry(20, .9, .1), matPan(2)); p.position.set(0, .45, 42.6); p.rotation.y = Math.PI; sc.add(p); }
+    // tribune : 7 rangs, sièges bleus, public
+    const matG = new THREE.MeshStandardMaterial({color: '#3a4049', roughness: .85}), matSiege = new THREE.MeshStandardMaterial({color: '#1d5b8f', roughness: .6});
+    const sieges = [];
+    for (let i = 0; i < 7; i++) {
+      const x = 13 + i * .85, h = .45 * (i + 1);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(.85, h, 44), matG); m.position.set(x + .42, h / 2, 20); m.receiveShadow = true; sc.add(m);
+      const sg = new THREE.Mesh(new THREE.BoxGeometry(.38, .12, 44), matSiege); sg.position.set(x + .3, h + .2, 20); sc.add(sg);
+      for (let z = -1.6; z < 41.6; z += .55) if (Math.random() < .42) sieges.push([x + .32, h + .26, z + (Math.random() - .5) * .08]);
+    }
+    const corps = new THREE.InstancedMesh(new THREE.CapsuleGeometry(.19, .42, 2, 6), new THREE.MeshStandardMaterial({roughness: .8}), sieges.length);
+    const tetes = new THREE.InstancedMesh(new THREE.SphereGeometry(.105, 7, 5), new THREE.MeshStandardMaterial({roughness: .7}), sieges.length);
+    const habits = ['#f4f4f4', '#1d5b8f', '#2b2f36', '#c8372d', '#ffd257', '#5c6b7a', '#e9e2d0', '#121417', '#3f7d5b'], peaux = ['#e8bf9a', '#c98f62', '#8a5a3b', '#f1d0b5', '#a8704a'];
+    const m4 = new THREE.Matrix4(), col = new THREE.Color();
+    sieges.forEach(([x, y, z], i) => {
+      m4.makeTranslation(x, y + .32, z); corps.setMatrixAt(i, m4); corps.setColorAt(i, col.set(habits[Math.floor(Math.random() * habits.length)]));
+      m4.makeTranslation(x - .02, y + .72, z); tetes.setMatrixAt(i, m4); tetes.setColorAt(i, col.set(peaux[Math.floor(Math.random() * peaux.length)]));
+    });
+    sc.add(corps, tetes);
+    // côté bancs : deux bancs d'équipe et la table de marque
+    const matBanc = new THREE.MeshStandardMaterial({color: '#20252c', roughness: .6}), matTable = new THREE.MeshStandardMaterial({color: '#e9ecef', roughness: .5});
+    for (const [z0, z1] of [[12.5, 17.5], [22.5, 27.5]]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(.5, .45, z1 - z0), matBanc); b.position.set(-11.6, .225, (z0 + z1) / 2); b.castShadow = true; sc.add(b);
+      const dos = new THREE.Mesh(new THREE.BoxGeometry(.08, .5, z1 - z0), matBanc); dos.position.set(-11.85, .7, (z0 + z1) / 2); sc.add(dos);
+    }
+    { const tb = new THREE.Mesh(new THREE.BoxGeometry(.8, .75, 4), matTable); tb.position.set(-11.4, .375, 20); tb.castShadow = true; sc.add(tb); }
+    // murs : bas bleu (protections) et haut clair à panneaux ; plafond sombre avec poutres et projecteurs
+    const texMur = texTexte(512, 256, (g, w, h) => {
+      g.fillStyle = '#c9ced4'; g.fillRect(0, 0, w, h);
+      for (let x = 0; x < w; x += 32) { g.fillStyle = x % 64 ? '#c2c7cd' : '#ced3d9'; g.fillRect(x, 0, 32, h); }
+      g.fillStyle = '#16365e'; g.fillRect(0, h * .78, w, h * .22); g.fillStyle = '#ffd257'; g.fillRect(0, h * .78, w, 3);
+    });
+    texMur.wrapS = THREE.RepeatWrapping;
+    const mur = (w, x, z, ry) => { const t = texMur.clone(); t.repeat.set(w / 16, 1); t.needsUpdate = true;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 12), new THREE.MeshStandardMaterial({map: t, roughness: .9})); m.position.set(x, 6, z); m.rotation.y = ry; sc.add(m); };
+    mur(34, -15, 20, Math.PI / 2); mur(90, 19.5, 20, -Math.PI / 2); mur(35, 2.25, -12, 0); mur(35, 2.25, 52, Math.PI);
+    const plafond = new THREE.Mesh(new THREE.PlaneGeometry(40, 70), new THREE.MeshStandardMaterial({color: '#2a2f36', roughness: 1})); plafond.rotation.x = Math.PI / 2; plafond.position.set(2.25, 12, 20); sc.add(plafond);
+    const matPoutre = new THREE.MeshStandardMaterial({color: '#59606a', roughness: .6, metalness: .4}), matLum = new THREE.MeshBasicMaterial({color: '#fffbea'});
+    for (let z = -8; z <= 48; z += 8) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(34, .5, .25), matPoutre); p.position.set(2.25, 11.6, z); sc.add(p);
+      for (const x of [-8, -2.5, 3, 8.5]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .9), matLum); l.rotation.x = Math.PI / 2; l.position.set(x, 11.3, z + 4); sc.add(l); }
+    }
+    // tableau d'affichage au fond
+    const texScore = texTexte(512, 160, (g, w, h) => {
+      g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
+      g.font = '800 30px system-ui, sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffffff'; g.fillText('MÉDOC', 110, 42); g.fillText('VISITEURS', 402, 42);
+      g.font = '900 78px ui-monospace, monospace'; g.fillStyle = '#ffb21a'; g.fillText('00', 110, 128); g.fillText('00', 402, 128);
+      g.fillStyle = '#ff4b3a'; g.font = '900 56px ui-monospace, monospace'; g.fillText('60:00', 256, 110);
+    });
+    const tab = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.9), new THREE.MeshBasicMaterial({map: texScore})); tab.position.set(0, 6.5, 51.9); tab.rotation.y = Math.PI; sc.add(tab);
+    fusionnerFixes(sc);
     this.buts = [new But(sc, 0, 1), new But(sc, 40, -1)];
     const ballon = this.ballon = new THREE.Mesh(new THREE.SphereGeometry(.095, 28, 18), new THREE.MeshStandardMaterial({map: texBallon(), roughness: .55}));
     ballon.castShadow = true; sc.add(ballon);
@@ -411,9 +510,12 @@ export async function gardien(sc, n) {
         S.montrerTrajectoire(posBallon);
         MJ.timers.push(setTimeout(() => { if (!choisi) { choisi = {colonne: 'c', hauteur: 'b', temps: 99999}; envoyer(choisi); } }, duree + 80));
       }
-      const u = cl((now - quand) / duree);
-      S.ballon.position.copy(posBallon(u));
-      if (u >= 1 && r) { fini = true; S.cacherTrajectoire(); impact().then(() => miniFin(r)); }
+      const u = cl((now - quand) / duree), p = posBallon(u);
+      // arrêt : le ballon finit dans les mains du gardien (un peu devant la ligne), et c'est sur lui qu'il rebondit
+      const arret = r?.resultat === 'arret', uStop = 1 - .75 / depart.z;
+      if (arret) p.lerp(moi.mainProche(p), doux(cl((u - uStop + .3) / .3)));
+      S.ballon.position.copy(p);
+      if (r && (u >= 1 || (arret && u >= uStop))) { fini = true; S.cacherTrajectoire(); impact().then(() => miniFin(r)); }
     }
     S.maj(dt, v3(0, 0, 4));
     if (!depart) S.ballon.position.copy(tireur.main());
@@ -421,8 +523,8 @@ export async function gardien(sc, n) {
   };
   // la suite : arrêt (le ballon repart vers le terrain) ou but (filet qui se creuse)
   const impact = () => new Promise(fin => {
-    const t1 = performance.now(), arret = r.resultat === 'arret', a = cible.clone();
-    const b = arret ? v3(a.x * 2.2 + (Math.random() - .5), .1, 5.5) : v3(a.x * .9, Math.max(.12, a.y - .3), -.85);
+    const t1 = performance.now(), arret = r.resultat === 'arret', a = arret ? S.ballon.position.clone() : cible.clone();
+    const b = arret ? v3(a.x * 2.2 + (Math.random() - .5), .1, 5.5) : v3(a.x * .9, Math.max(.12, a.y - .3), -.85);   // repoussé vers le terrain
     if (arret) { vibrer(30); z.animate([{translate: '0 0'}, {translate: '-5px 3px'}, {translate: '5px -2px'}, {translate: '0 0'}], {duration: 240}); }
     else S.buts[0].bosse(a.x, a.y);
     const pas = now => {
@@ -472,7 +574,6 @@ export async function contre(sc, n) {
   const posA = t => lp(A0, A1, cl(t / duree)), posB = t => lp(B0, B1, cl(t / duree));
   const vA = Math.hypot(A1.x - A0.x, A1.z - A0.z) / duree * 1000, vB = Math.hypot(B1.x - B0.x, B1.z - B0.z) / duree * 1000;
   ja.jouer('course', .1, vA / 6.5); jb.jouer('course', .1, vB / 6.5); jd.jouer('trot', .1, .8);
-  ja.pose('porte', 1);
   miniAide('Dessine ta passe… ou garde le ballon');
   let decision = null, fini = false, dessin = false, trace = [], D = {x: .3, z: 27}, anim = null;
   const poly = q('.t3-trace polyline');
@@ -496,7 +597,11 @@ export async function contre(sc, n) {
       ja.mettre(a.x, 0, a.z, Math.atan2(A1.x - A0.x, A1.z - A0.z)); jb.mettre(b.x, 0, b.z, Math.atan2(B1.x - B0.x, B1.z - B0.z));
       camera(a, b);
       S.maj(dt, v3(a.x, 0, a.z + 4));
-      if (!decision) S.ballon.position.copy(ja.main());
+      if (!decision) {   // il dribble : le ballon descend au sol devant sa main droite et remonte (un rebond tous les 2 pas)
+        const k = Math.abs(Math.cos(Math.PI * t / 470));
+        ja.pose('dribble', .45 + .55 * k);
+        S.ballon.position.copy(ja.g.localToWorld(v3(-.3, .11 + .82 * k, .42)));
+      }
     } else if (anim) anim(now, dt);
     MJ.raf = requestAnimationFrame(boucle);
   };
@@ -509,6 +614,7 @@ export async function contre(sc, n) {
   };
   // la suite, filmée : passe en cloche (ou interception), réception, saut, tir dans le but vide ; ou ballon gardé ; ou perdu
   const suite = (r, ent, sol, a, b, d) => new Promise(fin => {
+    ja.pose('dribble', 0); ja.pose('porte', 1);
     let t2 = 0, etape = 0, tE = 0, tireur = null, depT = null, ciblT = null;
     const tir = (j, t) => {   // saut puis tir vers l'angle opposé
       if (!tireur) { tireur = j; j.jouer('repos', .15); depT = null; }
@@ -580,7 +686,7 @@ export async function suspension(sc, n) {
   const ZB = 40, ZDEF = 33.7, jo = {x: -1.3, y: 0, z: 25.5}, D = {x: -.9, z: ZDEF};
   def.mettre(D.x, 0, D.z, Math.PI); def.pose('contre', .85); def.ancre = true;
   gb.mettre(0, 0, 39.4, Math.PI); gb.pose('pret', 1); gb.ancre = true;
-  let v = 1.6, phase = 'course', tSaut = 0, Tvol = 0, Hsaut = 0, zSaut = 0, tir = null, pts = [], tDessin = 0, par = null, tPar = 0;
+  let v = 1.6, phase = 'course', tAppel = 0, vAppel = 0, tSaut = 0, Tvol = 0, Hsaut = 0, zSaut = 0, tir = null, pts = [], tDessin = 0, par = null, tPar = 0;
   moi.jouer('trot', .1, .7); moi.pose('porte', 1);
   miniAide('Touche vite pour courir !');
   // vu de face (caméra derrière le tireur), la gauche de l'écran est du côté des x positifs
@@ -591,6 +697,7 @@ export async function suspension(sc, n) {
     const cx = versX(Math.max(-.2, Math.min(1.2, ent.x))), cy = versY(Math.max(-.2, Math.min(1.1, ent.y)));
     tir = {r, t: performance.now(), dep: moi.main(), arr: v3(cx, cy, ZB + .1), duree: 650 - 300 * ent.force};
     if (r.resultat === 'contre') { tir.arr = v3(D.x + .2, 2.45, ZDEF); tir.duree *= .5; def.sauteT = performance.now(); }
+    if (r.resultat === 'arret') tir.arr.z = ZB - .85;   // arrêté devant la ligne, dans les mains du gardien
     // le gardien part vers le tir (s'il l'arrête) ou vers son choix ; vu de face, sa droite est à gauche de l'écran
     const gg = r.resultat === 'arret' ? {x: (1.5 - cx) / 3, y: 1 - cy / 2} : r.reponse || {x: .5, y: .5};
     const gx = Math.abs(gg.x - .5) < .18 ? .5 : gg.x, hy = versY(gg.y);
@@ -606,7 +713,11 @@ export async function suspension(sc, n) {
       v = Math.max(1.2, v - 1.8 * dt); jo.z += v * dt;
       if (v > 3.6) moi.jouer('course', .25, v / 6.5); else moi.jouer('trot', .25, v / 3.4);
       jauge.style.transform = `scaleY(${v / 8})`;
-      if (jo.z >= 31) { phase = 'vol'; tSaut = now; Tvol = (500 + 65 * v) * 1.5;   // un peu de ralenti en l'air pour dessiner le tir
+      // fin de la course : une seconde d'appel (derniers pas, touchers ignorés) avant le saut, pour ne pas tirer sans le vouloir
+      if (jo.z >= 31 - .55 * v) { phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4); miniAide('Appel… prépare ton tir'); }
+    } else if (phase === 'appel') {
+      jo.z += vAppel * dt;
+      if (now - tAppel >= 1000) { phase = 'vol'; tSaut = now; Tvol = (500 + 65 * v) * 1.5;   // un peu de ralenti en l'air pour dessiner le tir
         Hsaut = .25 + .1 * v; zSaut = jo.z; moi.jouer('repos', .12);
         miniAide('Dessine ton tir vers le but !'); vibrer(15); }
     } else if (tSaut) {
@@ -628,10 +739,12 @@ export async function suspension(sc, n) {
     S.regarder(lerp(jo.x * .75, jo.x * .5, k), lerp(2.7, 3.5, k), jo.z - lerp(4.4, 6, k), lerp(jo.x * .3, 0, k), lerp(1.4, 1.2, k), lerp(jo.z + 9, ZB, k));
     if (tir) {
       const u = cl((now - tir.t) / tir.duree), a = tir.dep, b = tir.arr;
-      S.ballon.position.set(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + Math.sin(Math.PI * u) * .25, lerp(a.z, b.z, u));
+      const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + Math.sin(Math.PI * u) * .25, lerp(a.z, b.z, u));
+      if (!tir.rebond && tir.r.resultat === 'arret') p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));
+      S.ballon.position.copy(p);
       if (u >= 1 && !tir.arrive) {
         tir.arrive = true; const res = tir.r.resultat;
-        if (!tir.rebond && ['arret', 'contre', 'poteau'].includes(res)) { tir.dep = b.clone(); tir.arr = v3(b.x + (b.x < 0 ? -2 : 2), .1, b.z - 4); tir.t = now; tir.duree = 500; tir.arrive = false; tir.rebond = true; vibrer(30); }
+        if (!tir.rebond && ['arret', 'contre', 'poteau'].includes(res)) { tir.dep = p.clone(); tir.arr = v3(b.x + (b.x < 0 ? -2 : 2), .1, b.z - 4); tir.t = now; tir.duree = 500; tir.arrive = false; tir.rebond = true; vibrer(30); }
         else { if (res === 'but') S.buts[1].bosse(b.x, b.y); MJ.timers.push(setTimeout(() => tir.fin?.(), 520)); }
       }
     }
@@ -657,4 +770,87 @@ export async function suspension(sc, n) {
   };
   z.addEventListener('pointerup', lache); z.addEventListener('pointercancel', lache);
   MJ.raf = requestAnimationFrame(boucle);
+}
+
+// ── 4. Le jet de 7 mètres : caméra derrière le tireur (Médoc), le gardien adverse en face. Le viseur et la jauge restent
+// dans app.js (même règles, tirer_7m) ; ici on ne fait que la scène : le but projeté sert de cadre au viseur, puis le tir.
+// J7 = l'état du jeu de app.js (el, salle, raf3) ; renvoie les commandes de la scène, ou null si la 3D est impossible.
+export async function jet7m(J7, z) {
+  let R; try { R = await charger(); } catch (e) { return null; }
+  if (!J7.el) return null;
+  let S = J7.salle;
+  if (!S) { try { S = J7.salle = new Salle(R); } catch (e) { return null; } }
+  S.w = 0; S.attacher(z);
+  S.cacherJoueurs(['t7', 'g7']);
+  const tireur = S.joueur('t7', 'medoc'), gb = S.joueur('g7', 'gb-adv'), but = J7.el.querySelector('.j7-but');
+  // cadrage : on voit le but en grand, avec de la place autour pour viser à côté ; le tireur, de dos, sous le but
+  S.cadrage = () => {
+    const cam = S.cam, v = new THREE.Vector3();
+    const essai = fov => { cam.fov = fov; cam.updateProjectionMatrix(); S.regarder(-.5, 3.3, 11.8, 0, .9, 0); return v.set(1.5, 1, 0).project(cam).x; };
+    let a = 8, b = 90; for (let k = 0; k < 18; k++) { const m = (a + b) / 2; if (essai(m) > .7) a = m; else b = m; }
+    essai((a + b) / 2);
+    // vu depuis le tireur, la gauche de l'écran est du côté des x négatifs
+    const g0 = S.ecran(-1.5, 2, 0), g1 = S.ecran(1.5, 0, 0);
+    Object.assign(but.style, {left: g0.x + 'px', top: g0.y + 'px', width: (g1.x - g0.x) + 'px', height: (g1.y - g0.y) + 'px'});
+  };
+  S.w = 0; S.taille();
+  let etat = null, enMain = true;
+  const placer = () => {
+    etat = null; enMain = true;
+    tireur.sansPoses(); tireur.jouer('repos', 0); tireur.mettre(.1, 0, 7.6, Math.PI); tireur.pose('arme', .5);
+    gb.sansPoses(); gb.jouer('repos', 0); gb.ancre = true; gb.mettre(0, 0, .5, 0); gb.pose('pret', 1);
+    S.buts.forEach(b => { b.bosseT = .56; b.maj(0); }); S.ballon.visible = true;
+  };
+  placer(); S.prechauffer();
+  const boucle = () => {
+    if (!J7.el) return;
+    const dt = S.pas(), now = performance.now();
+    if (etat) etat(now);
+    S.maj(dt, v3(0, 0, 4));
+    if (enMain) S.ballon.position.copy(tireur.main());
+    J7.raf3 = requestAnimationFrame(boucle);
+  };
+  J7.raf3 = requestAnimationFrame(boucle);
+  return {
+    nouveau: placer,
+    armer() { tireur.pose('arme', 1); },
+    // r : réponse de tirer_7m (x, y sur le but, 0-1 de gauche à droite et de haut en bas ; gardien {x, y}) ; duree du vol en ms
+    tirer(r, duree) {
+      return new Promise(fin => {
+        const t0 = performance.now(), arret = r.resultat === 'arret';
+        const ix = r.resultat === 'poteau' ? (r.x < .05 ? 0 : r.x > .95 ? 1 : r.x) : r.x, iy = r.resultat === 'poteau' && r.y < .05 ? 0 : r.y;
+        const cible = v3(-1.5 + 3 * ix, 2 * (1 - iy), arret ? .7 : 0);
+        // le gardien pare vers ce qu'il a deviné (vers le ballon s'il l'arrête) ; il nous fait face : sa droite est à gauche de l'écran
+        const g = arret ? {x: Math.abs(r.x - .5) < .2 ? .5 : r.x, y: r.y} : r.gardien || {x: .5, y: .5};
+        const P = parade(gb, g.x < .5, g.x === .5, 2 * (1 - g.y)), dx = (-1.5 + 3 * g.x) * .42, saut = 2 * (1 - g.y) > 1.2 ? .14 : 0;
+        let dep = null, rebond = null, tR = 0, fini = false;
+        etat = now => {
+          const t = now - t0;
+          const w = doux(cl(t / 110)); tireur.pose('arme', (1 - w) * 1); tireur.pose('tir', w);
+          const v = doux(cl((t - 150) / Math.max(180, duree * .7)));
+          gb.pose('pret', 1 - v); gb.pose(P.nom, v, P.miroir); gb.mettre(lerp(0, dx, v), saut * Math.sin(Math.PI * cl((t - 150) / 420)), .5);
+          if (t < 110) return;
+          if (!dep) { dep = tireur.main(); enMain = false; }
+          if (!rebond) {
+            const u = cl((t - 110) / duree), p = v3(lerp(dep.x, cible.x, u), lerp(dep.y, cible.y, u) + Math.sin(Math.PI * u) * .12, lerp(dep.z, cible.z, u));
+            if (arret) p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));   // dans les mains du gardien
+            S.ballon.position.copy(p);
+            if (u >= 1) {
+              tR = now; const a = p.clone();
+              if (r.resultat === 'but') { S.buts[0].bosse(a.x, a.y); rebond = {a, b: v3(a.x * .9, Math.max(.12, a.y - .3), -.85), d: 380, chute: true}; }
+              else if (arret) rebond = {a, b: v3(a.x * 2.4 + (Math.random() - .5), .1, 5), d: 620, h: 1.1};
+              else if (r.resultat === 'poteau') rebond = iy === 0 ? {a, b: v3(a.x * 1.2, 3.4, -2.5), d: 520} : {a, b: v3(a.x * 2.2, .1, 4.5), d: 560, h: .6};
+              else rebond = {a, b: v3(a.x * 1.4 + (a.x - dep.x) * .3, a.y + (a.y - dep.y) * .4, -4.5), d: 420};   // à côté : il file
+            }
+          } else {
+            const u = cl((now - tR) / rebond.d), {a, b} = rebond;
+            const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + (rebond.h || 0) * Math.sin(Math.PI * u), lerp(a.z, b.z, u));
+            if (rebond.chute && u >= 1) p.y = Math.max(.1, b.y - (now - tR - rebond.d) / 400);
+            S.ballon.position.copy(p);
+            if (!fini && now - tR > rebond.d + 250) { fini = true; fin(); }
+          }
+        };
+      });
+    },
+  };
 }
