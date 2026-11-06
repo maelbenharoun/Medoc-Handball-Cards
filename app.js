@@ -352,11 +352,19 @@ function bonusTactique(m, stats) {
   return Math.max(0, Math.min(max, base + pente * spe));
 }
 const pc100 = x => Math.round(x * 100) + ' %';
+// vignette d'un joueur aligné : sa photo (ou ses initiales) dans un rond aux couleurs du palier, et son nom
+function vignetteHTML(c) {
+  const [prenom, ...reste] = c.nom.split(' ');
+  return `<span class="vig r-${c.rarete}" style="--tc:${TEINTE[c.rarete] || '212 140 88'}" aria-label="${esc(c.nom)}, ${R_LABEL[c.rarete] || ''}">
+    <span class="vig-p">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy">` : `<b>${esc(initiales(c.nom))}</b>`}</span>
+    <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span></span>`;
+}
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
+  // sur le terrain : une vignette résumée (photo ronde aux couleurs du palier + nom), bien plus lisible qu'une carte en petit
   const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id);
-    return `${c ? carteHTML(c, {note: noteAuPoste(c, p.id)}) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
+    return `${c ? vignetteHTML(c) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
   const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
   // notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
@@ -1722,7 +1730,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=39').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=40').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

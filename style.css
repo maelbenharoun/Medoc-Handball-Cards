@@ -217,7 +217,20 @@ h2 { font-size: 1.05rem; font-weight: 800; margin: 26px 0 10px; letter-spacing: 
 .pitch .slot { transition: left .45s cubic-bezier(.3, .8, .3, 1), top .45s cubic-bezier(.3, .8, .3, 1); }
 .pitch .slot .card { --w: min(60px, 15cqw); filter: drop-shadow(0 5px 7px rgba(0, 0, 0, .5)); }
 .pitch .slot .empty { width: min(60px, 15cqw); }
-.pitch .slot em { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%); font-size: .64rem; }
+.pitch .slot em { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); z-index: 2; font-size: .6rem; padding: 0 5px; }
+/* vignette : photo ronde (couleur du palier) + nom ; une vignette = 3 m de large, comme l'ancienne carte (pas de chevauchement) */
+.vig { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 18cqw; }
+.vig-p { width: min(58px, 15cqw); aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: grid; place-items: end center;
+  background: radial-gradient(circle at 50% 35%, rgb(var(--tc) / .55), rgb(var(--tc) / .18) 70%), #1b2330;
+  box-shadow: 0 0 0 3px rgb(var(--tc)), 0 0 0 5px rgba(11, 13, 16, .85), 0 6px 12px rgba(0, 0, 0, .5); }
+.vig-p img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
+.vig-p b { align-self: center; font-size: min(1.05rem, 4.5cqw); font-weight: 900; color: #fff; letter-spacing: .02em; }
+.vig.r-ultime .vig-p { box-shadow: 0 0 0 3px rgb(var(--tc)), 0 0 0 5px rgba(11, 13, 16, .85), 0 0 14px 2px rgb(var(--tc) / .7); }
+.vig-n { display: flex; flex-direction: column; align-items: center; max-width: 100%; padding: 1px 4px 2px; border-radius: 7px; background: rgba(11, 13, 16, .78);
+  line-height: 1.05; text-align: center; }
+.vig-n b { font-size: min(.68rem, 3.05cqw); letter-spacing: -.01em; font-weight: 900; color: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vig-n small { font-size: min(.55rem, 2.45cqw); font-weight: 700; color: rgba(255, 255, 255, .75); text-transform: uppercase; letter-spacing: .02em;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot { position: absolute; transform: translate(-50%, -50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 3px; border: 0; background: none; padding: 0; }
 .slot .card { --w: min(68px, 17.5vw); }
 .slot .empty { width: min(68px, 17.5vw); aspect-ratio: .69; border-radius: 10px 10px 22px 22px; border: 2px dashed rgba(255, 255, 255, .55);
