@@ -288,7 +288,7 @@ function chargerJeu(force) {
 }
 function vueJouer() {
   chargerJeu();
-  const e = S(), sa = e.saison || {}, j = e.jour || {}, l = e.limites || {}, t = JEU.tactique || e.tactique || 'equilibre';
+  const e = S(), j = e.jour || {}, l = e.limites || {}, t = JEU.tactique || e.tactique || 'equilibre';
   const complet = noteEquipe().n === 7, note = noteEquipe().note;
   const restant = (k) => Math.max(0, (l[k] || 0) - (j[k] || 0));
   const adv = (JEU.adversaires || []).map(x => `<div class="adv"><div><b>${esc(x.pseudo)}</b><small>niveau ${x.niveau} · 7 de ${x.note ?? '–'} · ${x.trophees} 🏆</small></div>
@@ -300,13 +300,7 @@ function vueJouer() {
     <h2>Tactique</h2>
     <div class="filters">${TACTIQUES.map(([k, n]) => `<button data-tactique="${k}" class="${t === k ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="sub petit">${TACTIQUES.find(x => x[0] === t)[2]}. Elle sert aussi quand on te défie.</p>
-    <div class="mode"><div class="mode-t"><b>${esc(e.divisionNom || 'Championnat')}</b><span>${sa.journee}/${sa.matchs} matchs · ${sa.points} pts</span></div>
-      <div class="bar"><i style="width:${100 * sa.points / (sa.montee || 20)}%"></i></div>
-      <p class="sub petit">${sa.points >= sa.montee ? 'Objectif atteint : la montée t’attend en fin de saison !' : `${sa.montee} points en fin de saison pour ${e.division < 4 ? 'monter' : 'être champion'}`}
-        · bilan ${sa.bilan?.v || 0} V, ${sa.bilan?.n || 0} N, ${sa.bilan?.d || 0} D</p>
-      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>contre</span><div><small>${esc(sa.adversaire || '')}</small><b>≈ ${sa.niveauAdversaire || '–'}</b></div></div>
-      <button class="btn gold large" data-act="championnat"${complet && restant('championnat') ? '' : ' disabled'}>Jouer la journée ${sa.journee + 1}</button>
-      <p class="sub petit centre">${restant('championnat')} match${restant('championnat') > 1 ? 's' : ''} restant${restant('championnat') > 1 ? 's' : ''} aujourd’hui</p></div>
+    ${blocParcours(e, complet && restant('championnat') > 0, note, restant('championnat'))}
     <div class="mode"><div class="mode-t"><b>Entraînement d’équipe</b><span>${restant('seance')}/${l.seance || 5} aujourd’hui</span></div>
       <p class="sub petit">+${PARAMS.seance_xp_carte || 40} XP pour chaque joueur de ton 7, sans risque. Pour entraîner une seule carte : touche-la dans le Club.</p>
       <button class="btn ghost large" data-act="seance"${restant('seance') && e.equipe && Object.keys(e.equipe).length ? '' : ' disabled'}>Séance gratuite · ${restant('seance')} restante${restant('seance') > 1 ? 's' : ''}</button>
@@ -318,6 +312,74 @@ function vueJouer() {
       ${JEU.adversaires ? (adv || '<p class="sub petit">Pas encore d’adversaire avec un 7 complet.</p>') : '<p class="sub petit">Chargement…</p>'}
       <button class="lien" data-act="classement">Voir le classement</button></div>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
+}
+// ── parcours : poules (Départemental, Régional, National), tournois (International), Légendes ──
+const TOURS = ['Quart de finale', 'Demi-finale', 'Finale'];
+const ordinal = n => n === 1 ? '1re' : n + 'e';
+function echelleParcours(pc) {
+  const L = PARAMS.parcours || [], groupes = [];
+  L.forEach((x, i) => { let g = groupes.find(y => y.nom === x.groupe); if (!g) groupes.push(g = {nom: x.groupe, n: []}); g.n.push({...x, i: i + 1}); });
+  return `<div class="echelle">${groupes.map(g => `<div class="ech-g${g.n.some(x => x.i === pc.niveau) ? ' ici' : ''}"><div>${g.n.map(x =>
+    `<i class="${x.i < pc.niveau ? 'fait' : x.i === pc.niveau ? 'ici' : x.i <= pc.meilleur ? 'vu' : ''}" title="${esc(x.groupe + ' ' + x.nom)}"></i>`).join('')}</div>
+    <small>${esc(g.nom === 'Départemental' ? 'Départ.' : g.nom === 'International' ? 'Inter.' : g.nom)}</small></div>`).join('')}</div>`;
+}
+function blocParcours(e, peut, note, reste) {
+  const pc = e.parcours;
+  if (!pc) return '';
+  const resteTxt = `<p class="sub petit centre">${reste} match${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''} aujourd’hui</p>`;
+  const titre = pc.type === 'legendes' ? esc(pc.nom) : `${esc(pc.groupe)} · ${esc(pc.nom)}`;
+  let corps = '';
+  if (pc.type === 'poule') {
+    const cl = pc.classement || [], n = cl.length, pr = pc.prochain;
+    const lignes = cl.map((x, i) => `<div class="${x.moi ? 'moi-l ' : ''}${i < pc.montee ? 'zm' : i >= n - pc.descente ? 'zd' : ''}">
+      <span>${i + 1}</span><b>${esc(x.nom)}</b><small>${x.j}</small><small>${x.bp - x.bc > 0 ? '+' : ''}${x.bp - x.bc}</small><em>${x.pts}</em></div>`).join('');
+    corps = `<p class="sub petit">Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. Les ${pc.montee} premiers montent${
+        pc.descente ? `, les ${pc.descente} derniers descendent` : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
+      ${pr ? `<div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
+        <div><small>${esc(pr.nom)}</small><b>≈ ${pr.force}</b></div></div>` : ''}
+      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la journée ${pc.journee + 1}</button>${resteTxt}
+      <div class="classe poule"><div class="tete"><span>#</span><b>Équipe</b><small>J</small><small>Diff.</small><em>Pts</em></div>${lignes}</div>`;
+  } else if (pc.type === 'tournoi') {
+    const adv = pc.adversaires || [], a = adv[pc.tour] || {};
+    corps = `<p class="sub petit">Élimination directe : 3 victoires pour le titre. Un nul se joue aux tirs au but. Éliminé ? Nouveau tirage, même tournoi.</p>
+      <div class="chemin">${adv.map((x, i) => `<div class="${i < pc.tour ? 'fait' : i === pc.tour ? 'ici' : ''}"><small>${TOURS[i] || 'Tour ' + (i + 1)}</small><b>${esc(x.nom)}</b><span>≈ ${x.force}</span></div>`).join('')}</div>
+      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
+      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}</button>${resteTxt}`;
+  } else {
+    const besoin = Math.floor(pc.manches / 2) + 1;
+    corps = `<p class="sub petit">Le 7 de rêve : ${(pc.joueurs || []).map(esc).join(', ')}. Série au meilleur des ${pc.manches} manches (${besoin} victoires).
+        Il faut un 7 de cartes Ultime bien entraînées.${pc.legendesBattues ? ` Déjà battues ${pc.legendesBattues} fois.` : ''}</p>
+      <div class="affiche"><div><small>Ton 7</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légendes</small><b>≈ ${pc.force}</b></div></div>
+      <button class="btn gold large" data-act="championnat"${peut ? '' : ' disabled'}>Jouer la manche ${pc.v + pc.d + 1}</button>${resteTxt}`;
+  }
+  const palm = (pc.palmares || []).slice(-4).reverse().map(x => `<li>🏆 ${esc(x.titre)} <small>saison ${x.saison}</small></li>`).join('');
+  return `<div class="mode parcours"><div class="mode-t"><b>${titre}</b><span>niveau ${pc.niveau}/${pc.niveaux}</span></div>
+    ${echelleParcours(pc)}${pc.international ? '<p class="sub petit">Champion de Nationale 1 : plus de descente possible.</p>' : ''}
+    ${corps}${palm ? `<ul class="palmares">${palm}</ul>` : ''}</div>`;
+}
+function texteFin(fin) {
+  if (!fin) return '';
+  const gains = [fin.pieces ? `+${nb(fin.pieces)} pièces` : '', fin.booster ? '+1 booster' : '', fin.boosterOr ? `+${fin.boosterOr} booster${fin.boosterOr > 1 ? 's' : ''} Or` : ''].filter(Boolean).join(' · ');
+  let t, s;
+  if (fin.type === 'saison') {
+    t = fin.montee ? (fin.international ? 'Champion de Nationale 1 : place à l’International !' : `Montée en ${fin.nouveauNom} !`)
+      : fin.descente ? `Relégation en ${fin.nouveauNom}` : 'Maintien';
+    s = `Fin de saison : ${ordinal(fin.rang)} sur ${fin.equipes}${fin.rang === 1 ? ', champion' : ''}.`;
+  } else if (fin.type === 'tournoi') {
+    t = fin.gagne ? `${fin.titre} !` : `Éliminé en ${(TOURS[fin.tour] || '').toLowerCase()}`;
+    s = fin.gagne ? (fin.nouveau > fin.niveau ? `Prochaine étape : ${fin.nouveauNom}.` : '') : 'Nouveau tirage : retente ta chance.';
+  } else {
+    t = fin.gagne ? 'Tu as battu les Légendes du handball !' : 'Les Légendes gagnent la série';
+    s = `Série ${fin.v} – ${fin.d}.${fin.gagne ? '' : ' Entraîne tes cartes Ultime et reviens.'}`;
+  }
+  return `<div class="daily depart"><p><b>${t}</b>${s}${gains ? ' ' + gains : ''}</p></div>`;
+}
+function texteEtape(r) {
+  const x = r.etape || {};
+  if (r.fin) return '';
+  if (r.type === 'poule') return `${ordinal(x.rang)} du classement après ${x.journee} journée${x.journee > 1 ? 's' : ''}`;
+  if (r.type === 'tournoi') return x.passe ? `Qualifié pour la ${(TOURS[x.tour + 1] || '').toLowerCase()}` : '';
+  return `Série ${x.v} – ${x.d}`;
 }
 function joueursDefi() {
   if (JEU.recherche.trim().length < 2) return '';
@@ -360,17 +422,18 @@ function avancerMatch(m) {
 }
 function finMatch() {
   clearInterval(MATCH.t);
-  const {r} = MATCH, g = r.gains || {}, res = r.match.resultat, fin = r.finSaison;
+  const {r} = MATCH, g = r.gains || {}, res = r.match.resultat, tab = r.match.tab, etape = r.type ? texteEtape(r) : '';
   if (MATCH.i < r.match.buts.length) avancerMatch(60);   // « voir le résultat » : on affiche tout
   if (!$('#fin-match') || $('#fin-match').dataset.fait) return;
   $('#fin-match').dataset.fait = 1;
   vibrer(res === 'gagne' ? [40, 60, 80] : 30);
   const progres = (r.progres || []).map(p => `${esc(p.nom)} ${p.avant} → <b>${p.apres}</b>`).join(' · ');
   $('#fin-match').innerHTML = `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
+      ${tab ? `<small class="tab">Tirs au but ${tab.a} – ${tab.b} : ${tab.a > tab.b ? 'gagnés' : 'perdus'}</small>` : ''}
       <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces · +${g.xp} XP${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
+    ${etape ? `<p class="sub petit centre">${esc(etape)}</p>` : ''}
     ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
-    ${fin ? `<div class="daily depart"><p><b>${fin.montee ? 'Montée !' : fin.champion ? 'Champion !' : 'Fin de saison'}</b>${fin.points} points · +${nb(fin.pieces)} pièces${fin.champion ? ' · +1 booster' : ''}${
-      fin.montee ? ` · bienvenue en ${esc(S().divisionNom)}` : fin.champion ? '' : ' · nouvelle saison, nouvel essai'}</p></div>` : ''}
+    ${texteFin(r.fin)}
     <button class="btn gold large" data-act="fin-match">Continuer</button>`;
 }
 

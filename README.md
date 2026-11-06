@@ -13,7 +13,9 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   (5 au plus en stock : 80 % Bronze, 12 % Argent, 7 % Or, 1 % Ultime), et des boosters gagnés en montant de niveau.
 - **Club** : entraîner ses cartes (de 50 à 59, de 60 à 74…), **fusionner** 3 fois le même joueur au même palier pour passer au palier suivant, vendre.
 - **Mon 7** : 6 joueurs de champ + 1 gardien(ne). Hors de son poste, un joueur perd 5 points ; bonus collectif entre coéquipier(e)s.
-- **Jouer** : championnat contre l'ordinateur (4 divisions, montée en fin de saison), séances d'entraînement d'équipe,
+- **Jouer** : un parcours contre l'ordinateur, du Départemental au National en poules de 8 avec classement et de vraies équipes
+  tirées des feuilles de match (les 2 premiers montent, les 2 derniers descendent), puis l'International en tournois à élimination
+  directe (Europe, Monde, Jeux olympiques : plus de descente) et enfin les Légendes du handball. Séances d'entraînement d'équipe,
   défis contre le 7 des autres joueurs avec trophées et classement. Matchs simulés selon les notes, les postes et la tactique.
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
 - **Paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
@@ -42,7 +44,9 @@ Le script lit les `site_data.json` du dépôt `handball-pronos` et écrit :
 - `data/cartes.json` : les joueurs ayant joué au moins un match cette saison (une carte par personne, dans l'équipe où elle a le plus joué),
   avec seulement le nom, l'équipe, les stats et le numéro de maillot le plus porté cette saison (lu dans les feuilles de match
   `fdm.json`, numéro et nom seulement) : aucun numéro de licence. Un numéro réglé dans l'outil passe avant ;
-- `data/matchs.json` : le calendrier et les résultats des poules SG1, SG2, SF1 et SF2, avec les probabilités du modèle.
+- `data/matchs.json` : le calendrier et les résultats des poules SG1, SG2, SF1 et SF2, avec les probabilités du modèle ;
+- `data/adversaires.json` : les vraies équipes de chaque niveau du parcours (noms de clubs seulement), tirées des poules +16 de Gironde
+  collectées dans `handball-pronos` (Promotion → Pré-régionale) et des poules suivies par le site (Régional, National).
 
 Il ne touche pas à `data/perso.json`. Ensuite : pousser, puis **Synchroniser avec le site** dans l'outil.
 
@@ -71,6 +75,7 @@ sw.js                 cache hors ligne
 manifest.webmanifest  installation sur téléphone
 data/cartes.json      les cartes du site (généré par le script)
 data/matchs.json      les matchs des poules (généré par le script)
+data/adversaires.json les équipes du parcours (généré par le script)
 data/perso.json       les réglages des cartes (outil, mode sans serveur)
 scripts/export_cartes.py
 supabase/schema.sql   base de données et règles du serveur (à coller dans Supabase)

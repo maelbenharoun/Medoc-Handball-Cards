@@ -37,18 +37,39 @@ insert into parametres values (1, '{
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
   "pve_xp_carte": {"gagne": 30, "nul": 20, "perdu": 10},
   "pve_pieces": {"gagne": 60, "nul": 30, "perdu": 10},
-  "saison_matchs": 10, "saison_points_montee": 20, "saison_pieces": 300,
-  "divisions": [{"nom": "Division Bronze", "base": 50, "pas": 0.9}, {"nom": "Division Argent", "base": 61, "pas": 1.2},
-                {"nom": "Division Or", "base": 76, "pas": 1.2}, {"nom": "Division Ultime", "base": 89, "pas": 0.9}],
-  "adversaires": ["Les Aigles", "Les Loups", "Les Requins", "Les Pirates", "Les Ours", "Les Lynx", "Les Faucons",
-                  "Les Bisons", "Les Panthères", "Les Corsaires"],
   "pvp_xp": {"gagne": 40, "nul": 20, "perdu": 10},
   "pvp_pieces": {"gagne": 80, "nul": 40, "perdu": 20},
   "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
   "pvp_defense_trophees": {"gagne": 5, "nul": 0, "perdu": -5},
   "pari_min": 10, "pari_max": 300, "pari_marge": 0.92, "cote_min": 1.05, "cote_max": 12, "paris_jours": 14, "xp_pari": 10,
   "annonces_max": 5, "annonce_jours": 7,
-  "booster_poste_prix": 300, "seance_payante_prix": 150
+  "booster_poste_prix": 300, "seance_payante_prix": 150,
+  "parcours": [
+    {"nom": "Promotion", "groupe": "Départemental", "type": "poule", "base": 50},
+    {"nom": "Honneur", "groupe": "Départemental", "type": "poule", "base": 53},
+    {"nom": "Excellence", "groupe": "Départemental", "type": "poule", "base": 56},
+    {"nom": "Honneur", "groupe": "Régional", "type": "poule", "base": 60},
+    {"nom": "Excellence", "groupe": "Régional", "type": "poule", "base": 64},
+    {"nom": "Pré-nationale", "groupe": "Régional", "type": "poule", "base": 68},
+    {"nom": "Nationale 3", "groupe": "National", "type": "poule", "base": 72},
+    {"nom": "Nationale 2", "groupe": "National", "type": "poule", "base": 76},
+    {"nom": "Nationale 1", "groupe": "National", "type": "poule", "base": 80},
+    {"nom": "Championnat d’Europe", "groupe": "International", "type": "tournoi", "base": 84,
+     "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Islande", "Portugal",
+                 "Slovénie", "Monténégro", "Serbie", "Pologne", "Autriche", "Suisse"]},
+    {"nom": "Championnat du monde", "groupe": "International", "type": "tournoi", "base": 88,
+     "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Égypte", "Brésil",
+                 "Japon", "Corée du Sud", "Argentine", "Tunisie", "Qatar", "Portugal"]},
+    {"nom": "Jeux olympiques", "groupe": "International", "type": "tournoi", "base": 91,
+     "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Égypte", "Slovénie",
+                 "Monténégro", "Brésil"]},
+    {"nom": "Légendes du handball", "groupe": "Légendes", "type": "legendes", "base": 99}],
+  "legendes": [{"n": "Amandine Leynaud", "p": 1}, {"n": "Uwe Gensheimer", "p": 15}, {"n": "Mikkel Hansen", "p": 18},
+               {"n": "Stine Oftedal", "p": 13}, {"n": "Kiril Lazarov", "p": 17}, {"n": "Luc Abalo", "p": 14}, {"n": "Pauletta Foppa", "p": 13}],
+  "poule_equipes": 8, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
+  "tournoi_ecart": 2, "legendes_manches": 5,
+  "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
+  "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -118,7 +139,7 @@ alter table profils add column if not exists bonus int not null default 0;      
 alter table profils add column if not exists bonus_or int not null default 0;         -- boosters « Or ou mieux »
 alter table profils add column if not exists boosters_ouverts int not null default 0;
 alter table profils add column if not exists tactique text not null default 'equilibre';
-alter table profils add column if not exists division int not null default 1;          -- championnat : 1 Bronze … 4 Ultime
+alter table profils add column if not exists division int not null default 1;          -- ancien championnat (remplacé par parcours)
 alter table profils add column if not exists saison_journee int not null default 0;
 alter table profils add column if not exists saison_points int not null default 0;
 alter table profils add column if not exists saison_bilan jsonb not null default '{"v": 0, "n": 0, "d": 0}';
@@ -207,6 +228,10 @@ create table if not exists mouvements (
 );
 create index if not exists mouvements_user on mouvements (user_id, le);
 
+-- Parcours : les vraies équipes de chaque niveau (data/adversaires.json, envoyé par l'outil ; noms de clubs seulement)
+create table if not exists equipes_reelles (niveau int not null, nom text not null, primary key (niveau, nom));
+alter table profils add column if not exists parcours jsonb;   -- poule ou tournoi en cours, palmarès (voir match_championnat)
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- Accès : lecture seulement de ce qui nous concerne, aucune écriture directe
 -- ════════════════════════════════════════════════════════════════════════════
@@ -220,6 +245,7 @@ alter table rencontres enable row level security;
 alter table matchs enable row level security;
 alter table paris enable row level security;
 alter table annonces enable row level security;
+alter table equipes_reelles enable row level security;   -- aucune politique : lue seulement par les fonctions
 
 drop policy if exists lecture on parametres;  create policy lecture on parametres for select using (true);
 drop policy if exists lecture on cartes;      create policy lecture on cartes for select using (true);
@@ -233,6 +259,7 @@ drop policy if exists lecture on annonces;    create policy lecture on annonces 
 -- mouvements : aucune politique, donc illisible depuis le jeu
 
 revoke insert, update, delete, truncate on parametres, cartes, profils, exemplaires, quetes, mouvements, rencontres, matchs, paris, annonces from anon, authenticated;
+revoke all on equipes_reelles from anon, authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Outils internes (non appelables depuis le jeu, voir les droits en bas)
@@ -392,6 +419,39 @@ language sql security definer set search_path = public as $$
 $$;
 
 -- État complet d'un joueur, dans le format qu'attend le jeu (serveur.js)
+-- Ce que le jeu affiche du parcours (forces des équipes arrondies ; voir match_championnat)
+create or replace function parcours_vue(pc jsonb) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare nv jsonb; v jsonb; j int; m jsonb; adv int; dom boolean;
+begin
+  if pc is null then return null; end if;
+  nv := param('parcours') -> ((pc ->> 'niveau')::int - 1);
+  v := jsonb_build_object('niveau', pc -> 'niveau', 'nom', nv ->> 'nom', 'groupe', nv ->> 'groupe', 'type', pc ->> 'type',
+    'saison', pc -> 'saison', 'international', pc -> 'international', 'meilleur', pc -> 'meilleur', 'palmares', pc -> 'palmares',
+    'legendesBattues', pc -> 'legendes_battues', 'niveaux', jsonb_array_length(param('parcours')));
+  if pc ->> 'type' = 'poule' then
+    j := (pc ->> 'journee')::int;
+    if j < jsonb_array_length(pc -> 'calendrier') then
+      select x into m from jsonb_array_elements(pc -> 'calendrier' -> j) x where (x ->> 0)::int = 0 or (x ->> 1)::int = 0;
+      dom := (m ->> 0)::int = 0; adv := case when dom then (m ->> 1)::int else (m ->> 0)::int end;
+    end if;
+    v := v || jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'),
+      'montee', parami('poule_montee'), 'descente', case when (pc ->> 'niveau')::int > 1 then parami('poule_descente') else 0 end,
+      'classement', (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'moi', coalesce((x ->> 'moi')::boolean, false),
+          'j', x -> 'j', 'v', x -> 'v', 'n', x -> 'n', 'd', x -> 'd', 'bp', x -> 'bp', 'bc', x -> 'bc', 'pts', x -> 'pts',
+          'force', round((x ->> 'f')::numeric)) order by o) from jsonb_array_elements(poule_classement(pc -> 'equipes')) with ordinality a(x, o)),
+      'prochain', case when adv is null then null else jsonb_build_object('nom', pc -> 'equipes' -> adv ->> 'nom',
+          'force', round((pc -> 'equipes' -> adv ->> 'f')::numeric), 'domicile', dom) end);
+  elsif pc ->> 'type' = 'tournoi' then
+    v := v || jsonb_build_object('tour', pc -> 'tour', 'adversaires',
+      (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'force', round((x ->> 'f')::numeric)) order by o)
+       from jsonb_array_elements(pc -> 'adversaires') with ordinality a(x, o)));
+  else
+    v := v || jsonb_build_object('v', pc -> 'v', 'd', pc -> 'd', 'manches', parami('legendes_manches'),
+      'force', nv -> 'base', 'joueurs', (select jsonb_agg(x ->> 'n') from jsonb_array_elements(param('legendes')) x));
+  end if;
+  return v;
+end $$;
+
 create or replace function etat_de(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'profil', true, 'pseudo', p.pseudo, 'role', p.role, 'pieces', p.pieces,
@@ -401,12 +461,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'prochainBooster', case when p.boosters >= parami('booster_stock_max') then null
       else greatest(0, ceil(extract(epoch from p.boosters_maj + make_interval(mins => parami('booster_minutes')) - now())))::int end,
     'equipe', p.equipe, 'tactique', p.tactique,
-    'division', p.division, 'divisionNom', param('divisions') -> (p.division - 1) ->> 'nom',
-    'saison', jsonb_build_object('journee', p.saison_journee, 'points', p.saison_points, 'bilan', p.saison_bilan,
-      'matchs', parami('saison_matchs'), 'montee', parami('saison_points_montee'),
-      'adversaire', param('adversaires') ->> (p.saison_journee % jsonb_array_length(param('adversaires'))),
-      'niveauAdversaire', round(((param('divisions') -> (p.division - 1) ->> 'base')::numeric
-        + (param('divisions') -> (p.division - 1) ->> 'pas')::numeric * p.saison_journee))::int),
+    'parcours', parcours_vue(p.parcours),
     'trophees', p.trophees,
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
@@ -460,6 +515,7 @@ begin
     perform expirer_annonces();
     perform boosters_a_jour(auth.uid());
     perform quetes_du_jour(auth.uid());
+    update profils set parcours = parcours_nouveau(1, null, pseudo) where user_id = auth.uid() and parcours is null;
   end if;
   return coalesce(etat_de(auth.uid()), '{"profil": false}'::jsonb);
 end $$;
@@ -477,8 +533,8 @@ begin
     raise exception 'Pseudo : 3 à 20 caractères (lettres, chiffres, point, tiret, tiret bas)';
   end if;
   begin
-    insert into profils (user_id, pseudo, pieces, boosters, boosters_maj)
-      values (auth.uid(), p_pseudo, parami('depart_pieces'), parami('booster_stock_depart'), now());
+    insert into profils (user_id, pseudo, pieces, boosters, boosters_maj, parcours)
+      values (auth.uid(), p_pseudo, parami('depart_pieces'), parami('booster_stock_depart'), now(), parcours_nouveau(1, null, p_pseudo));
   exception when unique_violation then
     raise exception 'Ce pseudo est déjà pris';
   end;
@@ -772,48 +828,239 @@ create or replace function compter_jour(p_uid uuid, p_type text) returns int lan
   select count(*)::int from rencontres where user_id = p_uid and type = p_type and le >= debut_du_jour()
 $$;
 
--- Championnat contre l'ordinateur : 10 journées, adversaires de plus en plus forts ;
--- 20 points ou plus en fin de saison = montée dans la division supérieure
+-- ════════════════════════════════════════════════════════════════════════════
+-- Parcours contre l'ordinateur : Départemental → Régional → National (poules à classement),
+-- puis International (tournois à élimination directe) et enfin les Légendes du handball.
+-- profils.parcours garde la saison en cours :
+--   poule    {niveau, type, saison, journee, equipes: [{nom, f, j, v, n, d, bp, bc, pts, moi?}], calendrier: [[[dom, ext], …], …]}
+--   tournoi  {niveau, type, saison, tour (0 quart, 1 demie, 2 finale), adversaires: [{nom, f}]}
+--   legendes {niveau, type, saison, v, d}
+-- et toujours : international (plus de descente une fois sorti de Nationale 1), meilleur (plus haut niveau atteint),
+-- palmares [{titre, saison}], legendes_battues.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Calendrier aller-retour (méthode du cercle) : chacun rencontre tout le monde, une fois à domicile, une fois à l'extérieur
+create or replace function calendrier(n int, tours int) returns jsonb language plpgsql immutable as $$
+declare cal jsonb := '[]'; jr jsonb; r int; i int; a int; b int; t int;
+begin
+  for t in 1..tours loop
+    for r in 0..n - 2 loop
+      jr := '[]';
+      for i in 0..n / 2 - 1 loop
+        if i = 0 then a := n - 1; b := r; else a := (r + i) % (n - 1); b := (r - i + n - 1) % (n - 1); end if;
+        jr := jr || case when (r + i + t) % 2 = 0 then jsonb_build_array(jsonb_build_array(a, b)) else jsonb_build_array(jsonb_build_array(b, a)) end;
+      end loop;
+      cal := cal || jsonb_build_array(jr);
+    end loop;
+  end loop;
+  return cal;
+end $$;
+
+-- k vraies équipes pour un niveau (celles du niveau d'abord, puis des niveaux voisins s'il en manque)
+create or replace function noms_reels(p_niveau int, k int) returns text[] language sql volatile security definer set search_path = public as $$
+  select coalesce(array_agg(nom), '{}') from (
+    select nom from (select distinct on (nom) nom, abs(niveau - p_niveau) d from equipes_reelles order by nom, abs(niveau - p_niveau)) x
+    order by d, random() limit k) y
+$$;
+
+-- Nouvelle saison (poule), nouveau tirage (tournoi) ou nouvelle série (Légendes) au niveau donné
+create or replace function parcours_nouveau(p_niveau int, p_ancien jsonb, p_pseudo text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare nv jsonb := param('parcours') -> (p_niveau - 1); typ text; base numeric; ec numeric; n int; noms text[]; eqs jsonb; i int; pc jsonb;
+begin
+  if nv is null then raise exception 'Niveau inconnu'; end if;
+  typ := nv ->> 'type'; base := (nv ->> 'base')::numeric;
+  pc := jsonb_build_object('niveau', p_niveau, 'type', typ, 'saison', coalesce((p_ancien ->> 'saison')::int, 0) + 1,
+    'international', coalesce((p_ancien ->> 'international')::boolean, false) or typ <> 'poule',
+    'meilleur', greatest(p_niveau, coalesce((p_ancien ->> 'meilleur')::int, 1)),
+    'palmares', coalesce(p_ancien -> 'palmares', '[]'), 'legendes_battues', coalesce((p_ancien ->> 'legendes_battues')::int, 0));
+  if typ = 'poule' then
+    n := parami('poule_equipes'); ec := parami('poule_ecart');
+    noms := noms_reels(p_niveau, n - 1);
+    eqs := jsonb_build_array(jsonb_build_object('nom', p_pseudo, 'moi', true, 'j', 0, 'v', 0, 'n', 0, 'd', 0, 'bp', 0, 'bc', 0, 'pts', 0));
+    for i in 1..n - 1 loop   -- forces réparties de base − écart à base + écart
+      eqs := eqs || jsonb_build_array(jsonb_build_object('nom', coalesce(noms[i], 'Équipe ' || i),
+        'f', round((base - ec + 2 * ec * (i - 1) / greatest(1, n - 2) + random() - .5)::numeric, 1),
+        'j', 0, 'v', 0, 'n', 0, 'd', 0, 'bp', 0, 'bc', 0, 'pts', 0));
+    end loop;
+    return pc || jsonb_build_object('journee', 0, 'equipes', eqs, 'calendrier', calendrier(n, parami('poule_tours')));
+  elsif typ = 'tournoi' then
+    ec := parami('tournoi_ecart');
+    return pc || jsonb_build_object('tour', 0, 'adversaires', (select jsonb_agg(jsonb_build_object('nom', z.x, 'f', base + ec * (z.rg - 2)) order by z.rg)
+      from (select y.x, row_number() over () rg from (select x from jsonb_array_elements_text(nv -> 'equipes') x order by random() limit 3) y) z));
+  else
+    return pc || jsonb_build_object('v', 0, 'd', 0);
+  end if;
+end $$;
+
+-- Une ligne du classement après un match (points FFHB : 3 victoire, 2 nul, 1 défaite)
+create or replace function poule_ligne(l jsonb, pour int, contre int) returns jsonb language sql stable security definer set search_path = public as $$
+  select l || jsonb_build_object('j', (l ->> 'j')::int + 1,
+    'v', (l ->> 'v')::int + (pour > contre)::int, 'n', (l ->> 'n')::int + (pour = contre)::int, 'd', (l ->> 'd')::int + (pour < contre)::int,
+    'bp', (l ->> 'bp')::int + pour, 'bc', (l ->> 'bc')::int + contre,
+    'pts', (l ->> 'pts')::int + (param('points_match') ->> case when pour > contre then 'gagne' when pour = contre then 'nul' else 'perdu' end)::int)
+$$;
+
+-- Classement : points, puis différence de buts, puis buts marqués ; i = place de l'équipe dans la liste
+create or replace function poule_classement(eqs jsonb) returns jsonb language sql immutable as $$
+  select jsonb_agg(x || jsonb_build_object('i', i - 1) order by (x ->> 'pts')::int desc, (x ->> 'bp')::int - (x ->> 'bc')::int desc,
+    (x ->> 'bp')::int desc, x ->> 'nom')
+  from jsonb_array_elements(eqs) with ordinality a(x, i)
+$$;
+
+-- Score d'un match entre deux équipes de l'ordinateur (même formule que simuler, sans le déroulé)
+create or replace function score_ordi(fa numeric, fb numeric) returns int[] language plpgsql volatile as $$
+declare base numeric := parami('match_base'); k numeric := (param('match_coef') #>> '{}')::numeric;
+  a numeric := fa + random() * 2 - 1; b numeric := fb + random() * 2 - 1;
+begin
+  return array[greatest(8, round(base + k * (a - b) + (random() + random() + random() + random() - 2) * 5))::int,
+               greatest(8, round(base + k * (b - a) + (random() + random() + random() + random() - 2) * 5))::int];
+end $$;
+
+-- Tirs au but (7 m) après un nul en tournoi : 5 tirs chacun, puis mort subite
+create or replace function tirs_au_but(p_a jsonb, p_b jsonb) returns jsonb language plpgsql volatile as $$
+declare pa numeric; pb numeric; a int := 0; b int := 0; i int := 0;
+begin
+  pa := least(.9, greatest(.5, .72 + .01 * ((p_a ->> 'att')::numeric - (p_b ->> 'def')::numeric)));
+  pb := least(.9, greatest(.5, .72 + .01 * ((p_b ->> 'att')::numeric - (p_a ->> 'def')::numeric)));
+  loop
+    i := i + 1;
+    a := a + (random() < pa)::int; b := b + (random() < pb)::int;
+    exit when i >= 5 and a <> b;
+    exit when i < 5 and (a > b + 5 - i or b > a + 5 - i);
+    exit when i > 40;
+  end loop;
+  if a = b then a := a + 1; end if;
+  return jsonb_build_object('a', a, 'b', b);
+end $$;
+
+-- Un match du parcours : la journée de la poule, le tour du tournoi ou une manche contre les Légendes
 create or replace function match_championnat(p_tactique text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); dv jsonb; j int; niv numeric; adv text; fa jsonb; r jsonb; res text; pts int;
-  xp int; xpc int; v_pieces int; niveaux jsonb; progres jsonb; bilan jsonb; fin jsonb := null; recompense int; cle text;
+declare p profils := moi(); pc jsonb; nv jsonb; niv int; typ text; mult numeric; fa jsonb; fb jsonb; r jsonb; res text;
+  adv text; fadv numeric; dom boolean; eqs jsonb; m jsonb; a int; b int; sc int[]; j int; t int; tab jsonb; rang int; n int;
+  montee boolean; descente boolean; nouveau int; passe boolean; etape jsonb; v int; d int; gagnes int;
+  xp int; xpc int; v_pieces int; pts int := null; recompense int := 0; bonus_b int := 0; bonus_o int := 0;
+  progres jsonb; niveaux jsonb; fin jsonb := null; titre text;
 begin
   perform verifier_tactique(p_tactique);
   perform verifier_equipe(p.user_id, p.equipe);
   if compter_jour(p.user_id, 'championnat') >= parami('pve_par_jour') then
     raise exception 'Tu as joué tes % matchs de championnat du jour : reviens demain', parami('pve_par_jour');
   end if;
-  dv := param('divisions') -> (p.division - 1);
-  j := p.saison_journee + 1;
-  niv := (dv ->> 'base')::numeric + (dv ->> 'pas')::numeric * (j - 1) + random() * 2 - 1;
-  adv := param('adversaires') ->> ((j - 1) % jsonb_array_length(param('adversaires')));
+  pc := coalesce(p.parcours, parcours_nouveau(1, null, p.pseudo));
+  niv := (pc ->> 'niveau')::int; nv := param('parcours') -> (niv - 1); typ := pc ->> 'type';
+  mult := 1 + (niv - 1) / 4.0;   -- les gains grandissent avec le niveau : ×1 en Promotion, ×4 contre les Légendes
   fa := force_equipe(p.equipe, p_tactique);
-  r := simuler(fa, equipe_ordi(niv));
-  res := r ->> 'resultat';
-  pts := case res when 'gagne' then 3 when 'nul' then 1 else 0 end;
-  xp := (param('pve_xp') ->> res)::int; xpc := (param('pve_xp_carte') ->> res)::int;
-  v_pieces := (param('pve_pieces') ->> res)::int * p.division;
-  cle := case res when 'gagne' then 'v' when 'nul' then 'n' else 'd' end;   -- bilan : victoires, nuls, défaites
-  bilan := jsonb_set(p.saison_bilan, array[cle], to_jsonb(coalesce((p.saison_bilan ->> cle)::int, 0) + 1));
-  update profils set tactique = p_tactique, pieces = pieces + v_pieces, saison_journee = j,
-    saison_points = saison_points + pts, saison_bilan = bilan where user_id = p.user_id;
-  -- fin de saison : récompense, montée éventuelle, nouvelle saison
-  if j >= parami('saison_matchs') then
-    recompense := parami('saison_pieces') * p.division * case when p.saison_points + pts >= parami('saison_points_montee') then 2 else 1 end;
-    fin := jsonb_build_object('points', p.saison_points + pts, 'montee', p.saison_points + pts >= parami('saison_points_montee') and p.division < 4,
-      'champion', p.saison_points + pts >= parami('saison_points_montee'), 'pieces', recompense, 'division', p.division);
-    update profils set pieces = pieces + recompense, saison_journee = 0, saison_points = 0, saison_bilan = '{"v": 0, "n": 0, "d": 0}',
-      division = least(4, division + case when (fin ->> 'montee')::boolean then 1 else 0 end),
-      bonus = bonus + case when (fin ->> 'champion')::boolean then 1 else 0 end where user_id = p.user_id;
+
+  if typ = 'poule' then
+    j := (pc ->> 'journee')::int; eqs := pc -> 'equipes';
+    for m in select x from jsonb_array_elements(pc -> 'calendrier' -> j) x loop
+      a := (m ->> 0)::int; b := (m ->> 1)::int;
+      if a = 0 or b = 0 then   -- notre match
+        dom := a = 0;
+        fadv := (eqs -> (a + b) ->> 'f')::numeric; adv := eqs -> (a + b) ->> 'nom';
+        r := simuler(fa, equipe_ordi(fadv));
+        if dom then sc := array[(r ->> 'a')::int, (r ->> 'b')::int]; else sc := array[(r ->> 'b')::int, (r ->> 'a')::int]; end if;
+      else                      -- les autres matchs de la journée
+        sc := score_ordi((eqs -> a ->> 'f')::numeric, (eqs -> b ->> 'f')::numeric);
+      end if;
+      eqs := jsonb_set(eqs, array[a::text], poule_ligne(eqs -> a, sc[1], sc[2]));
+      eqs := jsonb_set(eqs, array[b::text], poule_ligne(eqs -> b, sc[2], sc[1]));
+    end loop;
+    j := j + 1;
+    pc := pc || jsonb_build_object('journee', j, 'equipes', eqs);
+    res := r ->> 'resultat';
+    pts := (param('points_match') ->> res)::int;
+    tab := poule_classement(eqs); n := jsonb_array_length(tab);
+    select o into rang from jsonb_array_elements(tab) with ordinality x(e, o) where (e ->> 'i')::int = 0;
+    etape := jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'), 'rang', rang, 'domicile', dom);
+    if j >= jsonb_array_length(pc -> 'calendrier') then   -- fin de saison
+      montee := rang <= parami('poule_montee');
+      descente := not montee and rang > n - parami('poule_descente') and niv > 1 and not coalesce((pc ->> 'international')::boolean, false);
+      nouveau := niv + case when montee then 1 when descente then -1 else 0 end;
+      recompense := round(parami('parcours_saison_pieces') * mult * case when rang = 1 then 2 when montee then 1.5 when descente then .5 else 1 end);
+      bonus_b := case when rang = 1 then 1 else 0 end;
+      -- sortie de Nationale 1 : place à l'International, et plus jamais de descente
+      bonus_o := case when montee and param('parcours') -> (nouveau - 1) ->> 'type' <> 'poule' then 1 else 0 end;
+      if rang = 1 then
+        pc := jsonb_set(pc, '{palmares}', (pc -> 'palmares') || jsonb_build_array(jsonb_build_object(
+          'titre', 'Champion ' || (nv ->> 'groupe') || ' ' || (nv ->> 'nom'), 'saison', pc -> 'saison')));
+      end if;
+      fin := jsonb_build_object('type', 'saison', 'rang', rang, 'equipes', n, 'montee', montee, 'descente', descente,
+        'niveau', niv, 'nouveau', nouveau, 'nom', (nv ->> 'groupe') || ' ' || (nv ->> 'nom'),
+        'nouveauNom', (param('parcours') -> (nouveau - 1) ->> 'groupe') || ' ' || (param('parcours') -> (nouveau - 1) ->> 'nom'),
+        'international', param('parcours') -> (nouveau - 1) ->> 'type' <> 'poule',
+        'pieces', recompense, 'booster', bonus_b, 'boosterOr', bonus_o, 'classement', parcours_vue(pc) -> 'classement');
+      pc := parcours_nouveau(nouveau, pc, p.pseudo);
+    end if;
+
+  elsif typ = 'tournoi' then
+    t := (pc ->> 'tour')::int;
+    adv := pc -> 'adversaires' -> t ->> 'nom'; fadv := (pc -> 'adversaires' -> t ->> 'f')::numeric;
+    fb := equipe_ordi(fadv);
+    r := simuler(fa, fb);
+    res := r ->> 'resultat';
+    if res = 'nul' then r := r || jsonb_build_object('tab', tirs_au_but(fa, fb)); end if;
+    passe := res = 'gagne' or (res = 'nul' and (r -> 'tab' ->> 'a')::int > (r -> 'tab' ->> 'b')::int);
+    etape := jsonb_build_object('tour', t, 'passe', passe, 'tours', jsonb_array_length(pc -> 'adversaires'));
+    if passe and t + 1 >= jsonb_array_length(pc -> 'adversaires') then   -- finale gagnée
+      titre := 'Vainqueur ' || case when nv ->> 'nom' like 'Jeux%' then 'des ' else 'du ' end || (nv ->> 'nom');
+      recompense := round(parami('parcours_tournoi_pieces') * mult); bonus_o := 1;
+      pc := jsonb_set(pc, '{palmares}', (pc -> 'palmares') || jsonb_build_array(jsonb_build_object('titre', titre, 'saison', pc -> 'saison')));
+      nouveau := least(niv + 1, jsonb_array_length(param('parcours')));
+      fin := jsonb_build_object('type', 'tournoi', 'gagne', true, 'titre', titre, 'niveau', niv, 'nouveau', nouveau,
+        'nouveauNom', param('parcours') -> (nouveau - 1) ->> 'nom', 'pieces', recompense, 'boosterOr', bonus_o);
+      pc := parcours_nouveau(nouveau, pc, p.pseudo);
+    elsif passe then
+      pc := jsonb_set(pc, '{tour}', to_jsonb(t + 1));
+    else                                          -- éliminé : nouveau tirage, au même niveau
+      fin := jsonb_build_object('type', 'tournoi', 'gagne', false, 'tour', t, 'niveau', niv, 'nom', nv ->> 'nom');
+      pc := parcours_nouveau(niv, pc, p.pseudo);
+    end if;
+
+  else   -- Légendes du handball : une série au meilleur des 5 manches (3 victoires)
+    adv := nv ->> 'nom'; fadv := (nv ->> 'base')::numeric;
+    fb := jsonb_build_object('att', round((fadv + random() * 2 - 1)::numeric, 1), 'def', round((fadv + random() * 2 - 1)::numeric, 1), 'note', fadv,
+      'tireurs', (select jsonb_agg(jsonb_build_object('n', x ->> 'n', 'p', (x ->> 'p')::int)) from jsonb_array_elements(param('legendes')) x));
+    r := simuler(fa, fb);
+    res := r ->> 'resultat';
+    if res = 'nul' then r := r || jsonb_build_object('tab', tirs_au_but(fa, fb)); end if;
+    passe := res = 'gagne' or (res = 'nul' and (r -> 'tab' ->> 'a')::int > (r -> 'tab' ->> 'b')::int);
+    v := (pc ->> 'v')::int + passe::int; d := (pc ->> 'd')::int + (not passe)::int;
+    gagnes := parami('legendes_manches') / 2 + 1;
+    etape := jsonb_build_object('v', v, 'd', d, 'manches', parami('legendes_manches'), 'passe', passe);
+    if v >= gagnes then
+      recompense := round(parami('parcours_legendes_pieces') * case when (pc ->> 'legendes_battues')::int = 0 then 2 else 1 end);
+      bonus_o := parami('parcours_legendes_bonus_or');
+      pc := pc || jsonb_build_object('legendes_battues', (pc ->> 'legendes_battues')::int + 1);
+      if (pc ->> 'legendes_battues')::int = 1 then
+        pc := jsonb_set(pc, '{palmares}', (pc -> 'palmares') || jsonb_build_array(jsonb_build_object('titre', 'Vainqueur des Légendes du handball', 'saison', pc -> 'saison')));
+      end if;
+      fin := jsonb_build_object('type', 'legendes', 'gagne', true, 'v', v, 'd', d, 'fois', (pc ->> 'legendes_battues')::int,
+        'pieces', recompense, 'boosterOr', bonus_o);
+      pc := parcours_nouveau(niv, pc, p.pseudo);
+    elsif d >= gagnes then
+      fin := jsonb_build_object('type', 'legendes', 'gagne', false, 'v', v, 'd', d);
+      pc := parcours_nouveau(niv, pc, p.pseudo);
+    else
+      pc := pc || jsonb_build_object('v', v, 'd', d);
+    end if;
   end if;
+
+  xp := (param('pve_xp') ->> res)::int; xpc := (param('pve_xp_carte') ->> res)::int;
+  v_pieces := round((param('pve_pieces') ->> res)::int * mult);
+  update profils set tactique = p_tactique, parcours = pc, pieces = pieces + v_pieces + recompense,
+    bonus = bonus + bonus_b, bonus_or = bonus_or + bonus_o where user_id = p.user_id;
   progres := xp_equipe(p.equipe, xpc);
   niveaux := gagner_xp(p.user_id, xp);
   perform progresser(p.user_id, 'championnat');
   if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;
   insert into rencontres (user_id, type, adversaire, score, resultat, detail)
-    values (p.user_id, 'championnat', adv, array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('journee', j, 'niveau', round(niv)));
-  return jsonb_build_object('match', r, 'adversaire', adv, 'niveauAdversaire', round(niv), 'note', fa -> 'note', 'journee', j,
-    'gains', jsonb_build_object('xp', xp, 'xpCarte', xpc, 'pieces', v_pieces, 'points', pts), 'progres', progres, 'finSaison', fin,
+    values (p.user_id, 'championnat', adv, array[(r ->> 'a')::int, (r ->> 'b')::int], res,
+      jsonb_build_object('niveau', niv, 'force', round(fadv), 'etape', etape, 'tab', r -> 'tab'));
+  return jsonb_build_object('match', r, 'adversaire', adv, 'niveauAdversaire', round(fadv), 'note', fa -> 'note',
+    'niveau', niv, 'type', typ, 'etape', etape,
+    'gains', jsonb_build_object('xp', xp, 'xpCarte', xpc, 'pieces', v_pieces, 'points', pts), 'progres', progres, 'fin', fin,
     'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
@@ -1144,6 +1391,22 @@ begin
   return jsonb_build_object('matchs', n, 'parisRegles', regles);
 end $$;
 
+-- Vraies équipes du parcours (data/adversaires.json : {"niveaux": {"1": [noms…], …}}) : remplace toute la liste.
+-- Les poules déjà commencées gardent leurs équipes ; les nouvelles saisons prennent la nouvelle liste.
+create or replace function admin_publier_adversaires(p_niveaux jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
+  if jsonb_typeof(p_niveaux) <> 'object' then raise exception 'Liste invalide'; end if;
+  delete from equipes_reelles where true;
+  insert into equipes_reelles (niveau, nom)
+    select k::int, left(trim(v), 60) from jsonb_each(p_niveaux) e(k, l), jsonb_array_elements_text(l) v
+    where k ~ '^[0-9]{1,2}$' and trim(v) <> '' on conflict do nothing;
+  get diagnostics n = row_count;
+  perform noter(auth.uid(), 'admin-adversaires', jsonb_build_object('equipes', n));
+  return jsonb_build_object('equipes', n);
+end $$;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- Photos des cartes : lisibles par tous, déposées et supprimées par l'admin seulement
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1165,6 +1428,6 @@ grant execute on function
   aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
   match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
   matchs_paris(), parier(text, text, int),
-  marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid), admin_publier_matchs(jsonb),
+  marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;

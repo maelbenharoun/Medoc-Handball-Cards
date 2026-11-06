@@ -74,9 +74,9 @@ Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/pers
 
 - **Nouvelles feuilles de match** (chaque semaine) : lance `scripts/export_cartes.py`, pousse `data/cartes.json` et `data/matchs.json`,
   puis dans l'outil **Synchroniser avec le site**. Les paris des matchs joués sont réglés à ce moment-là.
-  Pour ne mettre à jour que les matchs : bouton **Matchs et paris seulement**.
+  Pour ne mettre à jour que les matchs et les équipes du parcours : bouton **Matchs, paris et équipes du parcours**.
   Une carte absente du site n'est plus tirée dans les boosters, mais reste dans les clubs de ceux qui l'ont.
-- **Changer un réglage** (chances des boosters, coûts, gains, limites du jour, divisions…) : **Table Editor** → table `parametres`,
+- **Changer un réglage** (chances des boosters, coûts, gains, limites du jour, niveaux du parcours…) : **Table Editor** → table `parametres`,
   colonne `valeurs`. Le jeu suit au prochain chargement.
 - **Voir ce qui s'est passé** (litige, soupçon de triche) : table `mouvements` (boosters, fusions, ventes, matchs, paris, transferts, avec la date).
 - **Offre gratuite** : un projet sans aucune visite pendant 7 jours est mis en pause par Supabase (un clic pour le relancer).
@@ -98,7 +98,7 @@ Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/pers
 | **Niveau du compte** | XP gagnée partout ; chaque niveau donne des pièces et un booster bonus, tous les 5 niveaux un booster Or ou Ultime |
 | **Quêtes** | 3 par jour, tirées parmi 11 (boosters, entraînement, matchs, défis, paris, marché…) |
 | **Matchs** | Simulés sur le serveur : notes (−5 hors poste), forme, collectif, tactique (attaque / équilibre / défense), hasard |
-| **Championnat** | 4 divisions de 10 journées, adversaires de plus en plus forts, 20 points pour monter. 10 matchs par jour |
+| **Parcours** | 13 niveaux : Départemental (Promotion, Honneur, Excellence), Régional (Honneur, Excellence, Pré-nationale), National (N3, N2, N1) en poules de 8 avec de vraies équipes (`data/adversaires.json`), aller-retour sur 14 journées, points FFHB 3 / 2 / 1 ; les 2 premiers montent, les 2 derniers descendent (pas sous la Promotion). Sortir de N1 = International pour de bon : Championnat d'Europe, du monde, Jeux olympiques en élimination directe (quart, demie, finale ; tirs au but sur un nul ; éliminé = nouveau tirage). Puis les Légendes du handball (force 99, série au meilleur des 5). Gains × 1 à × 4 selon le niveau. 10 matchs par jour |
 | **Séance d'équipe** | +40 XP aux joueurs de Mon 7, 5 par jour |
 | **Défis** | Contre le 7 d'un autre joueur (il défend avec sa dernière tactique) : trophées, classement. 5 par jour, 2 par adversaire |
 | **Paris** | 1N2 sur les vrais matchs des 14 prochains jours (SG1, SG2, SF1, SF2). Cote = 0,92 / probabilité du modèle, entre 1,05 et 12. Mise de 10 à 300, fermés au coup d'envoi |

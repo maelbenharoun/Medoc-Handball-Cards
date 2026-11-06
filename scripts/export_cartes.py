@@ -8,9 +8,11 @@ Usage :
     python scripts/export_cartes.py ../handball-pronos/medoc/pipeline/teams
 
 Sortie : data/cartes.json (noms, notes et numéro de maillot uniquement, aucun numéro de licence)
-         data/matchs.json (calendrier et résultats des poules SG1, SG2, SF1, SF2, pour les paris du jeu).
+         data/matchs.json (calendrier et résultats des poules SG1, SG2, SF1, SF2, pour les paris du jeu)
+         data/adversaires.json (vraies équipes par niveau du parcours : noms de clubs seulement).
 """
 import json
+import re
 import sys
 import unicodedata
 from datetime import date
@@ -108,6 +110,92 @@ def numeros(fdm_path, rids, cartes):
     return {cid: max(nums.items(), key=lambda x: (x[1][0], x[1][1]))[0] for cid, nums in comptes.items()}
 
 
+PETITS = {"de", "du", "des", "la", "le", "les", "et", "sur", "en", "d", "l"}
+
+
+def joli(nom):
+    """« HBC BAZADAIS 1 » → « HBC Bazadais 1 » ; les noms déjà écrits normalement ne changent pas."""
+    nom = re.sub(r"\s*\([^)]*\)\s*$", "", nom).strip()   # « Entente Brive / Objat (N3F) » → sans la parenthèse
+    if nom != nom.upper():
+        return nom
+    mots_ = []
+    for i, m in enumerate(nom.split()):
+        parts = []
+        for j, x in enumerate(m.split("'")):
+            low = x.lower()
+            if low in ("st", "ste"):
+                parts.append(low.capitalize())
+            elif len(x) <= 3 and not low in PETITS or any(ch.isdigit() for ch in x):
+                parts.append(x)                     # sigles (HBC, AS, ES, 33…)
+            elif low in PETITS and (i or j):
+                parts.append(low)
+            else:
+                parts.append("-".join(w.capitalize() for w in low.split("-")))
+        mots_.append("'".join(parts))
+    return " ".join(mots_)
+
+
+def adversaires(racine, sites):
+    """Vraies équipes pour chaque niveau du parcours (1 Promotion … 9 Nationale 1), sans les équipes du Médoc.
+    Départemental : poules +16 de la collecte Gironde ; régional et national : poules d'Excellence régionale
+    (avec la force du modèle), complétées par les équipes de Prénationale, N3 et N2 connues du crawl."""
+    vus, niveaux = set(), {str(n): [] for n in range(1, 10)}
+
+    def ajoute(n, nom):
+        nom = joli(nom)
+        cle = slug(nom)
+        if "medoc" in cle or cle in vus or not cle:
+            return
+        vus.add(cle)
+        niveaux[str(n)].append(nom)
+
+    g = racine / "donnees" / "gironde"
+    saisons = sorted(x for x in g.glob("saison-*") if (x / "poules.json").exists())
+    if saisons:
+        poules = json.loads((saisons[-1] / "poules.json").read_text(encoding="utf-8"))
+        rencontres = json.loads((saisons[-1] / "matchs.json").read_text(encoding="utf-8"))
+        comp = {p["pid"]: p["comp"] for p in poules}
+        def niveau_dep(c):
+            if "U18" in c or "+16" not in c:
+                return None
+            if "PROMOTION" in c: return 1
+            if "PRE-REGIONALE" in c: return 4
+            if "HONNEUR" in c: return 2
+            if "EXCELLENCE" in c: return 3
+            return None
+        for m in rencontres.values():
+            n = niveau_dep(comp.get(m[0], ""))
+            if n:
+                ajoute(n, m[5]); ajoute(n, m[6])
+    # Excellence régionale : équipes classées par la force du modèle (les plus fortes servent aux niveaux au-dessus)
+    regionales = {}
+    for d in sites:
+        if "regional" not in (d.get("source") or ""):
+            continue
+        for tid, t in d.get("teams", {}).items():
+            if str(tid) != str(d.get("club")):
+                nom = joli(t.get("short") or t.get("nom") or "")
+                regionales[slug(nom)] = (t.get("rating") or 0, nom)
+    crawl = racine / "medoc" / "pipeline" / "crawl_index.json"
+    connues = {6: [], 7: [], 8: []}
+    if crawl.exists():
+        for t in json.loads(crawl.read_text(encoding="utf-8")).get("club_teams", []):
+            c = t.get("comp", "")
+            n = 8 if "NATIONALE 2" in c else 7 if "NATIONALE 3" in c else 6 if "PRENATIONALE" in c else None
+            if n:
+                connues[n].append(t["team"])
+    for n in (8, 7, 6):
+        for nom in connues[n]:
+            ajoute(n, nom)
+    restes = [nom for _, nom in sorted(regionales.values(), reverse=True)]
+    for n in (9, 8, 7, 6):   # les plus fortes équipes régionales complètent les niveaux au-dessus
+        while len(niveaux[str(n)]) < 7 and restes:
+            ajoute(n, restes.pop(0))
+    for nom in restes:
+        ajoute(5, nom)
+    return niveaux
+
+
 def matchs_de(key, d):
     """Matchs à venir (avec les probabilités du modèle) et joués (avec le score) de la poule d'une équipe."""
     noms = {tid: (t.get("short") or t.get("nom") or tid) for tid, t in d["teams"].items()}
@@ -129,10 +217,12 @@ def matchs_de(key, d):
 def main(src):
     src = Path(src)
     matchs = {}
+    sites = []
     rids = {}   # matchs joués par les équipes du club cette saison → date (pour les numéros de maillot)
     par_nom = {}
     for key in EQUIPES:
         d = json.loads((src / key / "site_data.json").read_text(encoding="utf-8"))
+        sites.append(d)
         team = d["team"]
         for m in matchs_de(key, d):
             matchs[m["rid"]] = m
@@ -188,6 +278,13 @@ def main(src):
     liste = sorted(matchs.values(), key=lambda m: (m["date"], m.get("heure") or "", m["equipe"]))
     sortie.write_text(json.dumps({"maj": date.today().isoformat(), "matchs": liste}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(liste)} matchs → {sortie}")
+    racine = src.resolve().parents[2]
+    bec = racine / "bec" / "pipeline" / "teams"
+    for f in sorted(bec.glob("*/site_data.json")) if bec.exists() else []:
+        sites.append(json.loads(f.read_text(encoding="utf-8")))
+    niv = adversaires(racine, sites)
+    (out.parent / "adversaires.json").write_text(json.dumps({"maj": date.today().isoformat(), "niveaux": niv}, ensure_ascii=False, indent=1), encoding="utf-8")
+    print("adversaires par niveau :", {k: len(v) for k, v in niv.items()})
     compte = {}
     for c in cartes:
         compte[c["rarete"]] = compte.get(c["rarete"], 0) + 1
