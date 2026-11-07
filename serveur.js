@@ -212,6 +212,9 @@ const CompteServeur = (() => {
     reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
     reclamerQueteSemaine: id => rpc('reclamer_quete_semaine', {p_quete: id}),  // → {xp, pieces, niveaux}
     ouvrirBoosterSemaine: () => rpc('ouvrir_booster_semaine'),                 // un joueur de la semaine → {ids}
+    ouvrirBoosterEquipe: eq => rpc('ouvrir_booster_equipe', {p_equipe: eq}),   // une équipe du club, acheté en pièces → {ids}
+    choixCoachPreparer: poste => rpc('choix_coach_preparer', {p_poste: poste}), // 3 joueurs du poste montrés → {poste, cartes}
+    choixCoachChoisir: i => rpc('choix_coach_choisir', {p_i: i}),               // place touchée après le mélange → {id, places, cartes}
     reclamerPasse: () => rpc('reclamer_passe'),                                // tous les paliers atteints → {de, a, gains}
     faireDefi: (defi, ids) => rpc('faire_defi', {p_defi: defi, p_ex: ids}),     // défi de composition → {recompense}
     chercherJoueurs: texte => rpc('chercher_joueurs', {p_texte: texte}),

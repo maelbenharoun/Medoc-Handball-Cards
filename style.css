@@ -1549,3 +1549,39 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .cp-c:not(.on) { opacity: .5; transform: scale(.94); }
 .cp-c.on::after { content: "✓"; position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   background: #5bd68a; color: #06240f; font-weight: 900; font-size: .85rem; box-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
+/* boosters par équipe : une couleur par équipe */
+.sachet[data-p="SF1"] { --f1: #ff7eb6; --f2: #b8236a; --f3: #4a0a2a; }
+.sachet[data-p="SF2"] { --f1: #c49bff; --f2: #6b38c4; --f3: #24104f; }
+.sachet[data-p="SG1"] { --f1: #5fb8ff; --f2: #1b5fb4; --f3: #08244a; }
+.sachet[data-p="SG2"] { --f1: #63e0a8; --f2: #17865a; --f3: #063523; }
+/* choix du coach : le bloc de l'accueil */
+.cc-b { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 12px; border-radius: 20px; text-align: center;
+  background: linear-gradient(160deg, #10304a, #0a1d2e 60%, #061220); border: 1px solid #23557e; }
+.cc-b > .sub { margin: 0; }
+.cc-b .btn { width: 100%; }
+.cc-b .btn .coin { width: 16px; height: 16px; }
+.cc-postes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; width: 100%; }
+.cc-postes button { padding: 8px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); font-size: .74rem; font-weight: 900; }
+.cc-postes button.on { background: linear-gradient(180deg, #ffe08a, #e3b23c); color: #2a1d02; border-color: #ffe08a; }
+/* choix du coach : la scène (plein écran, comme l'ouverture d'un booster) */
+.cc { position: fixed; inset: 0; z-index: 100; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  padding: calc(20px + var(--safe-t)) 16px calc(24px + var(--safe-b)); background: radial-gradient(ellipse at 50% 40%, #12304f, #0a1626 60%, #05080f); }
+.cc > .fond-hand { position: absolute; inset: 0; z-index: 0; }
+.cc > *:not(.fond-hand) { position: relative; z-index: 1; }
+.cc-tete { display: flex; flex-direction: column; align-items: center; }
+.cc-tete b { font-size: 1.6rem; font-weight: 900; letter-spacing: -.01em; }
+.cc-tete small { color: var(--accent); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; }
+.cc-aide { margin: 0; min-height: 1.5em; font-size: 1.05rem; font-weight: 800; text-align: center; }
+.cc.a-toi .cc-aide { animation: pa-pulse 1.2s ease-in-out infinite; color: var(--accent); }
+.cc-l { display: flex; justify-content: center; gap: 12px; width: 100%; perspective: 900px; }
+.cc-c { padding: 0; border: 0; background: none; width: 104px; height: calc(104px / .69); transition: transform .35s, opacity .35s; }
+.cc-c:disabled { cursor: default; }
+.cc.a-toi .cc-c:active { transform: scale(.95); }
+.cc-in { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .5s cubic-bezier(.3, .7, .3, 1.2); }
+.cc-f, .cc-d { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.cc-d { transform: rotateY(180deg); }
+.cc .card { --w: 104px; }
+.cc-c.dos .cc-in { transform: rotateY(180deg); }
+.cc-c.choisi { transform: scale(1.14); z-index: 2; }
+.cc-c.rate { opacity: .5; transform: scale(.9); }
+.cc-fin { min-width: 220px; }

@@ -175,8 +175,12 @@ function minuteur() {
   }, 1000);
 }
 // Boosters par poste : un joueur sur chaque sachet (choix de Maël : [poste, carte, palier de la photo])
-const BOOSTERS_POSTE = [['AG', 'norah-de-wilde', 'bronze'], ['ARG', 'maxime-rabut', 'ultime'], ['DC', 'elodie-perez', 'bronze'],
-  ['ARD', 'fabienne-hecho', 'or'], ['AD', 'luigi-bataillon', 'or'], ['PIV', 'zaya-audard', 'bronze'], ['GB', 'yohann-besnard', 'or']];
+// boosters par équipe (demande de Maël : 5 à 9 joueurs par poste, trop peu) : [équipe, carte de la photo, palier de la photo]
+const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'or'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
+const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2'};
+const nbEquipe = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).length;
+const uneEquipe = eq => eq.startsWith('SF') ? 'Une joueuse de l’équipe' : 'Un joueur de l’équipe';
+const joueursEquipe = eq => { const n = nbEquipe(eq), f = eq.startsWith('SF'); return `${n} ${f ? 'joueuse' : 'joueur'}${n > 1 ? 's' : ''}`; };
 const CARROUSEL = {i: 0};
 const photoSachet = (carte, palier) => { const c = PAR_ID[carte]; return c ? c.photos?.[palier] || photoPalier(c, palier) : null; };
 // Fond animé des boosters (accueil et ouverture) : rayons qui tournent, halos colorés, lignes du terrain, ballons qui flottent
@@ -199,17 +203,15 @@ function sachetInterieur({nom, sous, photo, poste}) {
     <span class="ob-bande"><span class="sa-marque">Médoc Hand Cards</span><span class="sa-holo"></span><span class="ob-brille"></span></span>`;
 }
 function vueAccueil() {
-  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixPoste = PARAMS.booster_poste_prix || 300;
+  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixEq = PARAMS.booster_equipe_prix || 300;
   const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
-  const i = CARROUSEL.i, n = BOOSTERS_POSTE.length;
-  // les 7 sachets sont là, placés en cercle par transform (seuls le choisi et ses deux voisins se voient) : en changeant de
-  // poste, ils tournent avec une animation, et suivent le doigt pendant qu'on glisse (placerCarrousel)
-  const carrousel = BOOSTERS_POSTE.map(([poste, carte, palier], k) => {
-    const nbJ = CARTES.filter(c => c.actif !== false && c.poste === poste).length;
-    return `<button class="car-it${k === i ? ' centre' : ''}" data-car="${k}" style="${styleCar(ecartCar(k, i))}" aria-label="Booster ${POSTE_NOM[poste]}"${k === i ? ' aria-current="true"' : ''}>
-      ${sachetHTML({theme: 'pk-poste', nom: POSTE_NOM[poste], sous: `${nbJ} joueur${nbJ > 1 ? 's' : ''}`, photo: photoSachet(carte, palier), poste, pw: 168})}</button>`;
-  }).join('');
-  const [posteSel] = BOOSTERS_POSTE[i], nSel = CARTES.filter(c => c.actif !== false && c.poste === posteSel).length;
+  const i = CARROUSEL.i, n = BOOSTERS_EQUIPE.length;
+  // les sachets sont tous là, placés en cercle par transform (seuls le choisi et ses deux voisins se voient) : en changeant
+  // d'équipe, ils tournent avec une animation, et suivent le doigt pendant qu'on glisse (placerCarrousel)
+  const carrousel = BOOSTERS_EQUIPE.map(([eq, carte, palier], k) =>
+    `<button class="car-it${k === i ? ' centre' : ''}" data-car="${k}" style="${styleCar(ecartCar(k, i))}" aria-label="Booster ${NOM_EQUIPE[eq] || eq}"${k === i ? ' aria-current="true"' : ''}>
+      ${sachetHTML({theme: 'pk-poste', nom: eq, sous: joueursEquipe(eq), photo: photoSachet(carte, palier), poste: eq, pw: 168})}</button>`).join('');
+  const [eqSel] = BOOSTERS_EQUIPE[i], nSel = nbEquipe(eqSel);
   return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
     <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     ${blocPasse()}
@@ -225,17 +227,18 @@ function vueAccueil() {
     </section>
     <p class="sub petit centre">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}.</p>
     ${blocSemaine()}
-    <h2>Boosters par poste</h2>
+    <h2>Boosters par équipe</h2>
     <section class="scene-b petite">${fondHand()}
-      <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Poste précédent">‹</button>${carrousel}
-        <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Poste suivant">›</button></div>
-      <div class="scene-t"><b>${POSTE_NOM[posteSel]}</b><small>Un joueur dont c’est le poste principal · mêmes chances</small></div>
-      <button class="btn-penche" data-bposte="${posteSel}"${nSel && e.pieces >= prixPoste ? '' : ' disabled'}>Acheter · ${nb(prixPoste)} pièces</button>
-      <div class="car-points">${BOOSTERS_POSTE.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
-    </section>`;
+      <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Équipe précédente">‹</button>${carrousel}
+        <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Équipe suivante">›</button></div>
+      <div class="scene-t"><b>${NOM_EQUIPE[eqSel] || eqSel}</b><small>${uneEquipe(eqSel)} · mêmes chances · ${joueursEquipe(eqSel)}</small></div>
+      <button class="btn-penche" data-bequipe="${eqSel}"${nSel && e.pieces >= prixEq ? '' : ' disabled'}>Acheter · ${nb(prixEq)} pièces</button>
+      <div class="car-points">${BOOSTERS_EQUIPE.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
+    </section>
+    ${blocCoach()}`;
 }
 // ── carrousel des boosters par poste : place de chaque sachet selon son écart au choisi (d, fractionnaire pendant un glissé)
-const ecartCar = (k, i) => { const n = BOOSTERS_POSTE.length; let d = ((k - i) % n + n) % n; if (d > n / 2) d -= n; return d; };
+const ecartCar = (k, i) => { const n = BOOSTERS_EQUIPE.length; let d = ((k - i) % n + n) % n; if (d > n / 2) d -= n; return d; };
 function styleCar(d) {
   const a = Math.min(Math.abs(d), 2), sg = Math.sign(d);
   const x = sg * (a <= 1 ? a * 79 : 79 + (a - 1) * 70), echelle = 1 - .3 * Math.min(a, 1), r = sg * 8 * Math.min(a, 1);
@@ -252,14 +255,15 @@ function placerCarrousel(decalage = 0) {
 }
 // un autre poste choisi : les sachets tournent jusqu'à leur place ; le titre, le bouton d'achat et les points suivent
 function choisirCarrousel(k, auto) {
-  const n = BOOSTERS_POSTE.length, sc = $('.carrousel');
+  const n = BOOSTERS_EQUIPE.length, sc = $('.carrousel');
   CARROUSEL.i = ((k % n) + n) % n;
   if (!sc) return route(true);
   placerCarrousel();
-  const [poste] = BOOSTERS_POSTE[CARROUSEL.i], nSel = CARTES.filter(c => c.actif !== false && c.poste === poste).length, prix = PARAMS.booster_poste_prix || 300;
+  const [eq] = BOOSTERS_EQUIPE[CARROUSEL.i], nSel = nbEquipe(eq), prix = PARAMS.booster_equipe_prix || 300;
   const scene = sc.closest('.scene-b');
-  scene.querySelector('.scene-t b').textContent = POSTE_NOM[poste];
-  const achat = scene.querySelector('[data-bposte]'); achat.dataset.bposte = poste; achat.disabled = !(nSel && S().pieces >= prix);
+  scene.querySelector('.scene-t b').textContent = NOM_EQUIPE[eq] || eq;
+  scene.querySelector('.scene-t small').textContent = `${uneEquipe(eq)} · mêmes chances · ${joueursEquipe(eq)}`;
+  const achat = scene.querySelector('[data-bequipe]'); achat.dataset.bequipe = eq; achat.disabled = !(nSel && S().pieces >= prix);
   scene.querySelectorAll('.car-points i').forEach((x, j) => x.classList.toggle('on', j === CARROUSEL.i));
   sc.querySelector('.car-fl.g').dataset.car = (CARROUSEL.i - 1 + n) % n; sc.querySelector('.car-fl.d').dataset.car = (CARROUSEL.i + 1) % n;
   if (!auto) { Son.jouer('envol'); CARROUSEL.touche = Date.now(); }
@@ -379,6 +383,82 @@ function compoAuto(regle) {
     for (const e of pool) { if (v >= k.n || choix.length >= regle.n) break; if (libre(e) && condOk(k, e)) { prendre(e); v++; } } }
   for (const e of pool) { if (choix.length >= regle.n) break; if (libre(e)) prendre(e); }
   return {choix, ok: compoTest(regle, choix).every(t => t.ok)};
+}
+
+// ── choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste montrés, retournés,
+// mélangés ; on en touche un et il est à nous, puis les deux autres se retournent. Le serveur a tiré le mélange en secret
+// (choix_coach_preparer / choix_coach_choisir) : l'animation ne fait que le montrer. Seuls transform et opacity bougent.
+const CC = {poste: 'DC', el: null, data: null, etape: null};
+function blocCoach() {
+  const cc = S().choixCoach;
+  if (!cc) return '';
+  const att = cc.attente, reste = Math.max(0, (cc.parJour ?? 3) - (cc.faits || 0)), prix = cc.prix ?? 400;
+  return `<h2>🎴 Choix du coach</h2>
+    <section class="cc-b">
+      <p class="sub petit">3 joueurs d’un poste te sont montrés, puis mélangés face cachée : retournes-en un, il est à toi !</p>
+      ${att ? `<button class="btn gold" data-act="choix-coach">Reprendre ton choix · ${POSTE_NOM[att.poste]}</button>` : `
+      <div class="cc-postes">${POSTES.map(({id}) => `<button class="${CC.poste === id ? 'on' : ''}" data-cc-poste="${id}" aria-pressed="${CC.poste === id}">${id}</button>`).join('')}</div>
+      <button class="btn gold" data-act="choix-coach"${reste && S().pieces >= prix ? '' : ' disabled'}>${POSTE_NOM[CC.poste]} · ${nb(prix)} <i class="coin"></i></button>
+      <small class="js-r">${reste}/${cc.parJour} aujourd’hui</small>`}
+    </section>`;
+}
+function lancerCoach() {
+  if (occupe || CC.el) return;
+  action(Compte.choixCoachPreparer(S().choixCoach?.attente?.poste || CC.poste), sceneCoach);
+}
+const faceCoach = x => carteHTML(vueExemplaire(PAR_ID[x.carte], {palier: x.palier, note: PALIER[x.palier].min}));
+const coucheCC = () => fermerCoach(true);
+function sceneCoach(r) {
+  const el = document.createElement('div');
+  el.className = 'cc'; CC.el = el; CC.data = r; CC.etape = 'montre';
+  el.innerHTML = `${fondHand()}<div class="cc-tete"><b>Choix du coach</b><small>${POSTE_NOM[r.poste]}</small></div>
+    <p class="cc-aide">Ton coach te propose…</p>
+    <div class="cc-l">${r.cartes.map((x, i) => `<button class="cc-c" data-cc="${i}" disabled aria-label="Carte ${i + 1}">
+      <span class="cc-in"><span class="cc-f">${faceCoach(x)}</span><span class="cc-d">${dosHTML(104)}</span></span></button>`).join('')}</div>
+    <button class="btn gold cc-fin" data-act="cc-fin" hidden>Continuer</button>`;
+  document.body.appendChild(el); document.body.classList.add('avec-intro');
+  ouvrirCouche(coucheCC); Son.discret(true); Son.jouer('envol');
+  const aide = t => { el.querySelector('.cc-aide').textContent = t; };
+  const cs = [...el.querySelectorAll('.cc-c')], vite = moinsAnim();
+  setTimeout(() => { if (CC.el !== el) return;   // 1. retournées
+    CC.etape = 'retourne'; cs.forEach(c => c.classList.add('dos')); Son.jouer('retourne'); aide('On mélange…');
+    setTimeout(() => { if (CC.el !== el) return;   // 2. mélangées : elles se rassemblent au centre et repartent, deux fois
+      const W = cs[1].offsetLeft - cs[0].offsetLeft;
+      cs.forEach((c, i) => c.animate(vite ? [{transform: 'none'}] : [
+        {transform: 'none'}, {transform: `translateX(${(1 - i) * W}px) rotate(${(i - 1) * 6}deg) translateY(-14px)`, offset: .25},
+        {transform: `translateX(${(i - 1) * W * .35}px)`, offset: .5}, {transform: `translateX(${(1 - i) * W}px) rotate(${(1 - i) * 6}deg) translateY(-14px)`, offset: .75},
+        {transform: 'none'}], {duration: vite ? 1 : 1300, easing: 'ease-in-out'}));
+      Son.jouer('souffle');
+      setTimeout(() => { if (CC.el !== el) return;   // 3. au joueur de choisir
+        CC.etape = 'choix'; aide('Touche une carte !'); el.classList.add('a-toi'); cs.forEach(c => { c.disabled = false; });
+      }, vite ? 50 : 1350);
+    }, 600);
+  }, vite ? 600 : 1900);
+}
+function toucherCoach(i) {
+  const el = CC.el;
+  if (!el || CC.etape !== 'choix' || occupe) return;
+  CC.etape = 'attend'; el.classList.remove('a-toi');
+  const cs = [...el.querySelectorAll('.cc-c')]; cs.forEach(c => { c.disabled = true; });
+  action(Compte.choixCoachChoisir(i), res => {
+    if (CC.el !== el) return;
+    // chaque place reçoit la carte que le mélange y avait mise
+    cs.forEach((c, j) => { c.querySelector('.cc-f').innerHTML = faceCoach(res.cartes[res.places[j]]); });
+    const x = res.cartes[res.places[i]], c = PAR_ID[x.carte];
+    CC.etape = 'revele'; cs[i].classList.add('choisi'); cs[i].classList.remove('dos'); Son.jouer(RARETES.indexOf(x.palier) >= 2 ? 'recompense' : 'retourne');
+    el.querySelector('.cc-aide').innerHTML = `${esc(c?.nom || '')} · <b>${R_LABEL[x.palier]}</b> !`;
+    setTimeout(() => { if (CC.el !== el) return;
+      cs.forEach((b, j) => { if (j !== i) { b.classList.add('rate'); b.classList.remove('dos'); } });
+      el.querySelector('.cc-fin').hidden = false; CC.etape = 'fini';
+    }, 1000);
+  }).then(r => { if (r === undefined && CC.el === el && CC.etape === 'attend') fermerCoach(); });
+}
+function fermerCoach(parRetour) {
+  if (!CC.el) return;
+  if (parRetour !== true) quitterCouche(coucheCC);
+  CC.el.remove(); CC.el = null; CC.etape = null;
+  document.body.classList.remove('avec-intro'); Son.discret(false);
+  route(true);
 }
 const COMPO = {id: null, choix: []};
 function vueDefis() {
@@ -1774,8 +1854,8 @@ function demoBooster(type) {
     res.push({c: vueExemplaire(c, {palier, note: P.min + Math.floor(Math.random() * (P.max - P.min + 1))}), nouveau: true});
   }
   res.sort((a, b) => RARETES.indexOf(b.c.rarete) - RARETES.indexOf(a.c.rarete) || b.c.ovr - a.c.ovr);
-  const bp = type === 'poste' ? BOOSTERS_POSTE[Math.floor(Math.random() * BOOSTERS_POSTE.length)] : null;
-  sceneBooster(res, type === 'depart' ? 'Départ' : bp ? POSTE_NOM[bp[0]] : 'Booster', type === 'depart' ? 'pk-depart' : bp ? 'pk-poste' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-gratuit',
+  const bp = type === 'poste' || type === 'equipe' ? BOOSTERS_EQUIPE[Math.floor(Math.random() * BOOSTERS_EQUIPE.length)] : null;
+  sceneBooster(res, type === 'depart' ? 'Départ' : bp ? bp[0] : 'Booster', type === 'depart' ? 'pk-depart' : bp ? 'pk-poste' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-gratuit',
     bp ? {poste: bp[0], photo: photoSachet(bp[1], bp[2])} : {});
   OB.demo = type || 'hasard';
 }
@@ -2040,7 +2120,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2112,8 +2192,12 @@ document.addEventListener('click', e => {
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
-  if (d.bposte) { const bp = BOOSTERS_POSTE.find(x => x[0] === d.bposte);
-    return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), POSTE_NOM[d.bposte], 'pk-poste', {poste: d.bposte, photo: bp && photoSachet(bp[1], bp[2])}); }
+  if (d.bequipe) { const bp = BOOSTERS_EQUIPE.find(x => x[0] === d.bequipe);
+    return ouvrirBooster(Compte.ouvrirBoosterEquipe(d.bequipe), d.bequipe, 'pk-poste', {poste: d.bequipe, photo: bp && photoSachet(bp[1], bp[2])}); }
+  if (d.ccPoste) { CC.poste = d.ccPoste; return route(true); }
+  if (a === 'choix-coach') return lancerCoach();
+  if (d.cc !== undefined) return toucherCoach(+d.cc);
+  if (a === 'cc-fin') return fermerCoach();
   if (d.queteS) return action(Compte.reclamerQueteSemaine(d.queteS), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (a === 'passe') return fenetrePasse();
   if (a === 'rien') return;
@@ -2434,7 +2518,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=53').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=54').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

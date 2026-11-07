@@ -80,7 +80,8 @@ insert into parametres values (1, '{
   "semaine_forme": 3, "booster_semaine_prix": 400, "booster_semaine_par_jour": 3,
   "booster_semaine_chances": {"bronze": 45, "argent": 35, "or": 17, "ultime": 3},
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
-  "compo_par_semaine": 3
+  "compo_par_semaine": 3,
+  "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -553,6 +554,11 @@ create table if not exists defis_faits (user_id uuid not null references profils
   cartes jsonb not null default '[]', le timestamptz not null default now(), primary key (user_id, periode, defi));
 alter table defis_faits enable row level security;
 revoke all on defis_faits from anon, authenticated;
+-- Choix du coach en attente : les 3 cartes montrées et leur place secrète après le mélange (jamais lisible par le jeu)
+create table if not exists choix_coach (user_id uuid primary key references profils on delete cascade, poste text not null,
+  cartes jsonb not null, places int[] not null, le timestamptz not null default now());
+alter table choix_coach enable row level security;
+revoke all on choix_coach from anon, authenticated;
 
 -- Semaine affichée : la dernière semaine finie qui a des joueurs (jusqu'à 3 semaines en arrière, si le site tarde à être republié)
 create or replace function semaine_actuelle() returns date language sql stable security definer set search_path = public as $$
@@ -766,7 +772,10 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       from quetes_semaine q join quetes_semaine_catalogue() c on c.id = q.quete
       where q.user_id = p.user_id and q.lundi = date_trunc('week', aujourdhui())::date), '[]'),
     'finSemaine', date_trunc('week', aujourdhui())::date + 6,
-    'semaine', semaine_vue(p.user_id), 'passe', passe_vue(p.user_id), 'defis', compo_vue(p.user_id))
+    'semaine', semaine_vue(p.user_id), 'passe', passe_vue(p.user_id), 'defis', compo_vue(p.user_id),
+    'choixCoach', jsonb_build_object('prix', parami('choix_coach_prix'), 'parJour', parami('choix_coach_par_jour'),
+      'faits', (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'choix-coach' and m.le >= debut_du_jour()),
+      'attente', (select jsonb_build_object('poste', x.poste, 'cartes', x.cartes) from choix_coach x where x.user_id = p.user_id)))
   from profils p where p.user_id = p_uid
 $$;
 
@@ -2847,6 +2856,64 @@ begin
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- Boosters par équipe et choix du coach (demande de Maël : 5 à 9 joueurs par poste, c'était trop peu pour des boosters par poste)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Booster d'une équipe du club (SF1, SF2, SG1, SG2 : 12 à 16 joueurs), acheté en pièces, mêmes chances que le booster gratuit
+create or replace function ouvrir_booster_equipe(p_equipe text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); prix int := parami('booster_equipe_prix'); c text; ex uuid;
+begin
+  if p_equipe is null or not exists (select 1 from cartes where actif and equipe = p_equipe) then raise exception 'Équipe inconnue'; end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
+  select id into c from cartes where actif and equipe = p_equipe order by random() limit 1;
+  ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:' || p_equipe);
+  update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster');
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'equipe', 'equipe', p_equipe, 'prix', prix, 'exemplaire', ex, 'carte', c));
+  return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
+end $$;
+
+-- Choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste (poste principal) sont
+-- montrés, puis mélangés face cachée ; on en retourne un et on le garde. Le mélange est tiré ici et gardé secret (table illisible
+-- par le jeu) : le jeu ne peut pas savoir où est la meilleure carte. Payé à la préparation ; un choix commencé reste en attente
+-- (on ne peut pas relancer le tirage en quittant).
+create or replace function choix_coach_preparer(p_poste text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); prix int := parami('choix_coach_prix'); x choix_coach; tir jsonb := '[]'; c record;
+begin
+  select * into x from choix_coach where user_id = p.user_id;
+  if found then return jsonb_build_object('poste', x.poste, 'cartes', x.cartes, 'etat', etat_de(p.user_id)); end if;
+  if p_poste is null or p_poste not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB') then raise exception 'Poste inconnu'; end if;
+  if (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'choix-coach' and m.le >= debut_du_jour()) >= parami('choix_coach_par_jour') then
+    raise exception 'Tu as fait tes % choix du coach du jour : reviens demain', parami('choix_coach_par_jour');
+  end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour le choix du coach', prix; end if;
+  if (select count(*) from cartes where actif and poste = p_poste) < 3 then raise exception 'Pas assez de joueurs à ce poste'; end if;
+  for c in select id from cartes where actif and poste = p_poste order by random() limit 3 loop
+    tir := tir || jsonb_build_object('carte', c.id, 'palier', tirer_palier(param('booster_chances')));
+  end loop;
+  insert into choix_coach (user_id, poste, cartes, places)
+    values (p.user_id, p_poste, tir, (select array_agg(k order by random()) from generate_series(0, 2) k));
+  update profils set pieces = pieces - prix where user_id = p.user_id;
+  perform noter(p.user_id, 'choix-coach', jsonb_build_object('poste', p_poste, 'prix', prix, 'cartes', tir));
+  return jsonb_build_object('poste', p_poste, 'cartes', tir, 'etat', etat_de(p.user_id));
+end $$;
+-- p_i : la place touchée après le mélange (0 à 2, de gauche à droite) ; places[i] = la carte montrée qui y était
+create or replace function choix_coach_choisir(p_i int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); x choix_coach; k int; ex uuid; t jsonb;
+begin
+  select * into x from choix_coach where user_id = p.user_id for update;
+  if not found then raise exception 'Pas de choix du coach en cours'; end if;
+  if p_i is null or p_i not between 0 and 2 then raise exception 'Choisis une des 3 cartes'; end if;
+  k := x.places[p_i + 1]; t := x.cartes -> k;
+  ex := creer_exemplaire(p.user_id, t ->> 'carte', t ->> 'palier', 'choix-coach');
+  delete from choix_coach where user_id = p.user_id;
+  update profils set boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster');
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'choix-coach', 'poste', x.poste, 'exemplaire', ex, 'carte', t ->> 'carte'));
+  return jsonb_build_object('id', ex, 'carte', k, 'places', to_jsonb(x.places), 'cartes', x.cartes, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- Droits : le jeu ne peut appeler QUE ces fonctions-là, et seulement une fois connecté
 -- ════════════════════════════════════════════════════════════════════════════
 revoke execute on all functions in schema public from public, anon, authenticated;
@@ -2862,6 +2929,7 @@ grant execute on function
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
+  ouvrir_booster_equipe(text), choix_coach_preparer(text), choix_coach_choisir(int),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
 
