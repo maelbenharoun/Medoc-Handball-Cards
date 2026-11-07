@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.07, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95,
   "pve_par_jour": 10, "match_minutes": 120, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -1320,7 +1320,7 @@ declare a jsonb := e -> 'a'; b jsonb := e -> 'b'; att text := b ->> 'attaque'; d
   tmb jsonb := coalesce(e -> 'tmb', '{"restants": 3, "p1": 0, "p2": 0}'); ecart int := (e #>> '{score,1}')::int - (e #>> '{score,0}')::int;
   cons text := coalesce(b ->> 'consigne', 'normal'); ncons text; tm boolean := false;
   ia jsonb := coalesce(e -> 'ia', match_ia('reflechi')); p numeric := (ia ->> 'anticipe')::numeric; reac numeric := (ia ->> 'reac')::numeric;
-  aa text := a ->> 'attaque'; ad text := a ->> 'defense'; aa2 text; ad2 text; x text; v numeric; vmax numeric; ud numeric; ua numeric; u numeric;
+  aa text := a ->> 'attaque'; ad text := a ->> 'defense'; aa2 text; ad2 text; x text; v numeric; vmax numeric; ud numeric; ua numeric; u numeric; nch int; nb int;
 begin
   ncons := case when bl >= 8 and ecart <= -4 then 'pression' when bl >= 9 and ecart >= 5 then 'prudent' when ecart > -2 and cons = 'pression' then 'normal' else cons end;
   if ia ? 'hasard' then
@@ -1338,6 +1338,13 @@ begin
       return e;
     end if;
   else
+    -- l'anticipation se règle sur ce qu'il a vu : un joueur qui change souvent sera anticipé, un joueur figé sera simplement contré
+    if p > 0 then
+      select count(*) filter (where z.aa is distinct from z.paa or z.ad is distinct from z.pad), count(*) into nch, nb from (
+        select j ->> 'aa' aa, j ->> 'ad' ad, lag(j ->> 'aa') over (order by k) paa, lag(j ->> 'ad') over (order by k) pad, k
+        from jsonb_array_elements(coalesce(e -> 'blocs', '[]')) with ordinality y(j, k)) z where z.k > 1;
+      p := least(p, (nch + .5) / (nb + 1));
+    end if;
     -- ce que le joueur ferait ensuite : contrer notre défense actuelle (s'il ne le fait pas déjà) ; l'entraîneur choisit la défense
     -- (et l'attaque) qui marche le mieux contre notre tactique actuelle et celle d'après, pesées par « anticipe »
     aa2 := case when contre_tactique(aa, def) = 1 then aa else (select y from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, def) = 1) end;
