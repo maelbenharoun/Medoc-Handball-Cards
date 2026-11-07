@@ -32,6 +32,16 @@ async function supabaseClient() {
 // Adresse où revenir après un lien reçu par e-mail ou la connexion Google (à autoriser dans Supabase)
 const urlRetour = () => location.origin + location.pathname;
 
+// Retour d'un lien reçu par e-mail ou de la connexion Google avec une erreur (dans l'adresse, après « ? » ou « # ») : la vraie raison
+function texteErreurRetour(desc, code) {
+  const d = desc || '', c = code || '';
+  if (/otp_expired|expired|invalid.*(link|token)/i.test(c + ' ' + d)) return 'Ce lien a expiré ou a déjà servi : recommence';
+  if (/access_denied/i.test(c) || /denied|cancel/i.test(d)) return 'Connexion Google annulée ou refusée par Google';
+  if (/exchange external code/i.test(d)) return 'Google a refusé la connexion au retour (réglage Google du serveur) : connecte-toi avec ton e-mail en attendant';
+  if (/provider is not enabled/i.test(d)) return 'La connexion Google n’est pas encore activée';
+  if (/email/i.test(d) && /(already|exists|registered)/i.test(d)) return 'Un compte existe déjà avec cette adresse : connecte-toi avec ton e-mail et ton mot de passe';
+  return 'Connexion impossible' + (d ? ' : ' + d : '');
+}
 // Messages d'erreur de Supabase en français
 function texteErreur(e) {
   const m = e?.message || String(e || '');
@@ -117,8 +127,9 @@ const CompteServeur = (() => {
 
     async demarrer() {
       // un lien de connexion expiré revient avec une erreur dans l'adresse
-      const h = new URLSearchParams(location.hash.slice(1));
-      const erreurLien = h.get('error_description'), confirme = h.get('type') === 'signup';
+      const h = new URLSearchParams(location.hash.slice(1)), qs = new URLSearchParams(location.search);
+      const descErreur = h.get('error_description') || qs.get('error_description'), codeErreur = h.get('error_code') || qs.get('error_code') || h.get('error') || qs.get('error');
+      const erreurLien = descErreur || codeErreur ? texteErreurRetour(descErreur, codeErreur) : null, confirme = h.get('type') === 'signup';
       if (h.get('type') === 'recovery') recuperation = true;   // lien « mot de passe oublié » : nouveau mot de passe à choisir
       try {
         if (navigator.onLine === false) throw new Error('Pas de connexion au serveur');   // inutile d'attendre le réseau
@@ -143,7 +154,7 @@ const CompteServeur = (() => {
             session = null; S = vide();
           }
         }
-        if (erreurLien) history.replaceState(null, '', location.pathname + location.search);
+        if (erreurLien) history.replaceState(null, '', location.pathname);   // l'erreur peut être dans « ? » et dans « # »
         return {...info, erreurLien, confirme};
       } catch (e) {
         const c = lireCache();

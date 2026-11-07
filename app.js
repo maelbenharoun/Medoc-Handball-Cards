@@ -2324,7 +2324,7 @@ Compte.demarrer().then(info => {
   else if (MINI[demo]) ouvrirMini(demo, true);
   else if (demo === 'montee') demoMontee();
   else if (demo !== null) demoBooster(demo);
-  if (info.erreurLien) toast('Ce lien a expiré ou a déjà servi : recommence');
+  if (info.erreurLien) { toast(info.erreurLien); if (!Compte.connecte) { messageCompte = info.erreurLien; route(); } }
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
   else if (info.horsLigne) toast('Hors ligne : ton club reste consultable');
   else if (info.apercu) toast('Aperçu avec les modifications non publiées de l’outil');
