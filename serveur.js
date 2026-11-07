@@ -95,7 +95,7 @@ const CompteServeur = (() => {
     const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
       estGB: r.poste === 'GB', ecarts: r.ecarts || {}, equipe: r.equipe || r.site?.equipe, legende: !!r.legende,
       photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
-    return vueExemplaire(base, r.legende ? {palier: 'ultime', note: PALIER.ultime.min} : {palier: 'bronze', note: PALIER.bronze.min});
+    return vueExemplaire(base, r.legende ? {palier: 'ultime', note: NOTE_LEGENDE} : {palier: 'bronze', note: PALIER.bronze.min});
   }
   function appliquerCatalogue({cartes, parametres}) {
     Object.assign(PARAMS, parametres);

@@ -82,7 +82,7 @@ insert into parametres values (1, '{
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
   "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
-  "legende_chance": 0.002, "legende_note": 95
+  "legende_chance": 0.002, "legende_note": 100
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -190,6 +190,9 @@ create table if not exists exemplaires (
   obtenu_le timestamptz not null default now()
 );
 create index if not exists exemplaires_proprio on exemplaires (proprietaire, carte_id, palier);
+-- une légende a 100 de note générale (demande de Maël) ; les autres cartes plafonnent à 99 (palier_max)
+alter table exemplaires drop constraint if exists exemplaires_note_check;
+alter table exemplaires add constraint exemplaires_note_check check (note between 50 and 100);
 
 -- Quêtes du jour de chaque joueur
 create table if not exists quetes (
@@ -905,7 +908,7 @@ begin
   end if;
   if c is not null then
     ex := creer_exemplaire(p.user_id, c, 'ultime', 'booster:legende');
-    update exemplaires set note = greatest(palier_min('ultime'), least(99, parami('legende_note'))) where id = ex;
+    update exemplaires set note = greatest(palier_min('ultime'), least(100, parami('legende_note'))) where id = ex;
   else
     c := tirer_carte();
     if c is null then raise exception 'Le catalogue est vide'; end if;
@@ -1090,7 +1093,7 @@ begin
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
     -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then 5 else 0 end;
-    if l.forme then ne := least(99, ne + parami('semaine_forme')); end if;
+    if l.forme and ne < 99 then ne := least(99, ne + parami('semaine_forme')); end if;
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom);
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
@@ -2943,6 +2946,11 @@ begin
   perform noter(p.user_id, 'booster', jsonb_build_object('type', 'choix-coach', 'poste', x.poste, 'exemplaire', ex, 'carte', t ->> 'carte'));
   return jsonb_build_object('id', ex, 'carte', k, 'places', to_jsonb(x.places), 'cartes', x.cartes, 'etat', etat_de(p.user_id));
 end $$;
+
+-- Légendes : 100 de note générale (demande de Maël ; avant, 95) ; les exemplaires déjà tirés suivent
+update parametres set valeurs = valeurs || '{"legende_note": 100}' where (valeurs ->> 'legende_note')::int = 95;
+update exemplaires e set note = least(100, parami('legende_note')) from cartes c
+  where c.id = e.carte_id and c.legende and e.note < least(100, parami('legende_note'));
 
 -- Catalogue : les légendes ne se lisent pas (l'admin, si) ; celles qu'on possède arrivent par etat_de
 drop policy if exists lecture on cartes;

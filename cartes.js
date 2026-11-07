@@ -26,6 +26,7 @@ const RARETES = PALIERS.map(p => p.id);
 const R_LABEL = Object.fromEntries(PALIERS.map(p => [p.id, p.nom]));
 const PALIER = Object.fromEntries(PALIERS.map(p => [p.id, p]));
 const palierSuivant = id => RARETES[RARETES.indexOf(id) + 1] || null;
+const NOTE_LEGENDE = 100;   // une légende du club : 100 de note générale (legende_note dans schema.sql), ses stats gardent sa forme
 
 // ── postes et stats ─────────────────────────────────────────────────────────────
 const POSTES_JEU = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
@@ -125,7 +126,7 @@ function fusionnerCarte(c0, p = {}) {
     equipe: p.equipe || c0.equipe, legende: !!(p.legende ?? c0.legende),
     fiche: ficheDe(c0.fiche, p.fiche),
     perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length || p.fiche || p.equipe || p.legende)};
-  return vueExemplaire(c, c.legende ? {palier: 'ultime', note: PALIER.ultime.min} : {palier: 'bronze', note: PALIER.bronze.min});
+  return vueExemplaire(c, c.legende ? {palier: 'ultime', note: NOTE_LEGENDE} : {palier: 'bronze', note: PALIER.bronze.min});
 }
 // Fiche d'un joueur : les sections tirées des stats du site (export_cartes.py) + ce que l'outil y change.
 // auto : [{id, titre, style: 'lignes' | 'fun', lignes: [{id, l, v, d?}]}]

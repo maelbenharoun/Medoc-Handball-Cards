@@ -399,7 +399,7 @@ function carteEd() {
   const e = entree() || {};
   const c = fusionnerCarte(e.base ? {...e.base, id: ed.id} : PAR_ID[ed.id], {...e, photo: e.photo && local(e.photo),
     photos: e.photos && Object.fromEntries(Object.entries(e.photos).map(([k, v]) => [k, local(v)]))});
-  return vueExemplaire(c, {palier: ed.palier, note: PALIER[ed.palier].min});
+  return vueExemplaire(c, {palier: ed.palier, note: noteEd(ed.palier)});
 }
 const posteEd = () => ed.postes[0] || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : null);   // poste principal
 
@@ -424,7 +424,7 @@ function majEditeur() {
   const st = statsDu(poste), B = budgetPalier(ed.palier), reste = B - st.reduce((t, [k]) => t + ed.vals[k], 0), P = PALIER[ed.palier];
   $('#stats').innerHTML = `<div class="pts${reste === 0 ? ' ok' : reste < 0 ? ' trop' : ''}"><b>${reste > 0 ? reste : reste < 0 ? -reste : '0'}</b>
       <span>${reste > 0 ? `point${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''}` : reste < 0 ? `point${reste < -1 ? 's' : ''} en trop` : 'Tous les points sont placés'}
-      <small>${ed.legende ? 'Légende' : P.nom} ${P.min} : ${B} points à répartir sur les 6 stats</small></span>
+      <small>${ed.legende ? 'Légende' : P.nom} ${noteEd(ed.palier)} : ${B} points à répartir sur les 6 stats</small></span>
       ${reste ? '<button class="btn ghost petit" data-act="repartir">Répartir</button>' : ''}</div>`
     + st.map(([k, , nom]) => `<div class="stat-l pm"><span>${nom}</span>
       <button class="pm-b" data-pm="${k}:-1" aria-label="${nom} moins 1">−</button>
@@ -433,7 +433,7 @@ function majEditeur() {
       <input class="champ" type="number" min="1" max="99" value="${ed.vals[k]}" data-stat="${k}" inputmode="numeric"></div>`).join('')
     + `<div class="pal-tab" role="table" aria-label="Stats à chaque palier"><div class="pt-l pt-t" role="row"><span></span>${st.map(([, l]) => `<b>${l}</b>`).join('')}<b>Total</b></div>
       ${PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => { const s = statsPalier(p.id);
-        return `<div class="pt-l t-${p.id}${p.id === ed.palier ? ' on' : ''}" role="row"><span>${ed.legende ? 'Légende' : p.nom} ${p.min}</span>${st.map(([k]) => `<i>${s[k]}</i>`).join('')}<i>${st.reduce((t, [k]) => t + s[k], 0)}</i></div>`; }).join('')}</div>
+        return `<div class="pt-l t-${p.id}${p.id === ed.palier ? ' on' : ''}" role="row"><span>${ed.legende ? 'Légende' : p.nom} ${noteEd(p.id)}</span>${st.map(([k]) => `<i>${s[k]}</i>`).join('')}<i>${st.reduce((t, [k]) => t + s[k], 0)}</i></div>`; }).join('')}</div>
     <p class="sub petit">${ed.stats ? 'Réglées à la main.' : 'Par défaut, tirées des stats du site.'} Change les stats à un palier : les autres paliers suivent en proportion
       (une stat qui vaut 25 % du total le vaut à tous les paliers). Poids du poste ${poste || 'non défini'} : ${st.map(([k, l]) => `${l} ${Math.round(POIDS[poste || 'JDC'][k] * 100)} %`).join(' · ')}</p>`;
   $('#titre-photo').textContent = `Photo ${R_LABEL[ed.palier]}`;
@@ -442,19 +442,22 @@ function majEditeur() {
 function majApercu() {
   const c = carteEd(), p = PALIER[ed.palier];
   $('#apercu').innerHTML = carteHTML(c);
-  $('#note').textContent = p.min;
+  $('#note').textContent = noteEd(ed.palier);
   $('#note-site').textContent = `${p.nom} ${p.min}–${p.max}`;
 }
 
-const budgetPalier = p => Math.round(6 * moyenneExacte(PALIER[p].min));
-function initVals() { ed.vals = {...carteEd().s}; }   // les stats telles que le jeu les montre, au palier choisi
+// note où l'on règle les stats : le bas du palier ; une légende, sa note (100)
+const noteEd = p => ed?.legende ? NOTE_LEGENDE : PALIER[p].min;
+const budgetPalier = p => Math.round(6 * moyenneExacte(noteEd(p)));
+// les stats telles que le jeu les montre, au palier choisi, le total calé sur les points du palier (les arrondis le décalent d'un point ou deux)
+function initVals() { ed.vals = ajusterTotal({...carteEd().s}, budgetPalier(ed.palier)); }
 // les stats d'un autre palier : en proportion de la moyenne du palier (comme statsAuNiveau dans cartes.js)
 function statsPalier(p) {
-  const f = moyenneExacte(PALIER[p].min) / moyenneExacte(PALIER[ed.palier].min);
+  const f = moyenneExacte(noteEd(p)) / moyenneExacte(noteEd(ed.palier));
   return Object.fromEntries(statsDu(posteEd()).map(([k]) => [k, borne(ed.vals[k] * f, 1, 99)]));
 }
 function valsVersStats() {
-  const m = moyenneExacte(PALIER[ed.palier].min), b = carteEd().bonus || {};
+  const m = moyenneExacte(noteEd(ed.palier)), b = carteEd().bonus || {};
   ed.stats = Object.fromEntries(statsDu(posteEd()).map(([k]) => [k, Math.max(1, Math.round((ed.vals[k] - (b[k] || 0) * m / 40) * 10) / 10)]));
 }
 // ramène la somme au total voulu : en proportion, puis les arrondis sur les plus grosses stats
@@ -485,9 +488,15 @@ function changerPoste(p) {
   majEditeur();
 }
 // autre palier : les stats suivent en proportion (même part du total) ; avec tous les points placés, le total du nouveau palier
+// les stats réglées passent d'une note à l'autre en proportion ; si tous les points étaient placés, ils le restent
+function convertirVals(nAvant, nApres) {
+  const tot = n => Math.round(6 * moyenneExacte(n)), f = moyenneExacte(nApres) / moyenneExacte(nAvant);
+  const plein = tot(nAvant) === Object.values(ed.vals).reduce((t, v) => t + v, 0);
+  const s = Object.fromEntries(Object.entries(ed.vals).map(([k, v]) => [k, borne(v * f, 1, 99)]));
+  ed.vals = plein ? ajusterTotal(s, tot(nApres)) : s;
+}
 function changerPalier(p) {
-  if (ed.stats) { const plein = budgetPalier(ed.palier) === Object.values(ed.vals).reduce((t, v) => t + v, 0), s = statsPalier(p);
-    ed.vals = plein ? ajusterTotal(s, budgetPalier(p)) : s; }
+  if (ed.stats) convertirVals(noteEd(ed.palier), noteEd(p));
   ed.palier = p;
   if (ed.stats) valsVersStats(); else ed.vals = null;
   chargerPhoto(); majEditeur();
@@ -673,10 +682,13 @@ document.addEventListener('change', e => {
   if (!ed) return;
   if (e.target.id === 'fichier') return choisirFichier(e.target.files[0]);
   if (e.target.id === 'ed-genre') { ed.genre = e.target.value; return majApercu(); }
-  if (e.target.id === 'ed-legende') {   // une légende n'existe qu'en Ultime
+  if (e.target.id === 'ed-legende') {   // une légende n'existe qu'en Ultime, réglée à sa note (100)
+    const nAvant = noteEd(ed.palier), pAvant = ed.palier;
     ed.legende = e.target.checked;
-    if (ed.legende && ed.palier !== 'ultime') changerPalier('ultime'); else majEditeur();
-    return;
+    if (ed.legende) ed.palier = 'ultime';
+    if (ed.stats) { convertirVals(nAvant, noteEd(ed.palier)); valsVersStats(); } else ed.vals = null;
+    if (ed.palier !== pAvant) chargerPhoto();
+    return majEditeur();
   }
 });
 document.addEventListener('submit', async e => {

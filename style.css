@@ -1661,3 +1661,4 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .lg-scene.titre .lg-sous { opacity: 1; }
 .lg-flash { position: absolute; inset: 0; z-index: 12; background: #fff; opacity: 0; pointer-events: none; }
 .ob.lg .ob-c[data-i="0"] .card { filter: drop-shadow(0 0 22px rgba(255, 220, 140, .85)); }
+.card.legende .c-ovr { font-size: calc(var(--u) * 3.3); letter-spacing: -.05em; }   /* 100 : trois chiffres */

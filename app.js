@@ -40,7 +40,7 @@ const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
 const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
 const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
-const noteAuPoste = (c, slot) => Math.min(99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id));   // +3 : joueur de la semaine
+const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id));   // +3 : joueur de la semaine
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -659,7 +659,7 @@ function fiche(carte, poste) {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
     return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${c.legende ? 'Légende' : R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
-      <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
+      <small>${c.legende ? 'Note maximale' : e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
         ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
@@ -1892,7 +1892,7 @@ function demoBooster(type) {
   const tirer = () => { const ch = PARAMS.booster_chances || {bronze: 80, argent: 12, or: 7, ultime: 1}; let x = Math.random() * 100;
     for (const r of RARETES) { x -= ch[r] || 0; if (x < 0) return r; } return 'bronze'; };
   if (type === 'legende') { const c = hasard(tous);
-    sceneBooster([{c: vueExemplaire({...c, legende: true}, {palier: 'ultime', note: 95}), nouveau: true}], 'Booster', 'pk-gratuit'); OB.demo = type; return; }
+    sceneBooster([{c: vueExemplaire({...c, legende: true}, {palier: 'ultime', note: NOTE_LEGENDE}), nouveau: true}], 'Booster', 'pk-gratuit'); OB.demo = type; return; }
   const n = type === 'depart' ? 7 : 1, pris = new Set(), res = [];
   while (res.length < Math.min(n, tous.length)) {
     const c = hasard(tous); if (pris.has(c.id)) continue; pris.add(c.id);
@@ -2610,7 +2610,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=58').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=59').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
