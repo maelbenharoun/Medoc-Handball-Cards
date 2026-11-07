@@ -26,6 +26,9 @@ function charger() {
       tex('tete.jpg'), tex('tete-n.jpg', false), tex('corps-n.jpg', false), tex('corps-n-gb.jpg', false), ...KITS.map(k => tex(`corps-${k}.jpg`))]);
     const matTete = new THREE.MeshStandardMaterial({map: tete, normalMap: teteN, roughness: .62});
     const mat = Object.fromEntries(KITS.map((k, i) => [k, new THREE.MeshStandardMaterial({map: kits[i], normalMap: k.startsWith('gb') ? corpsNgb : corpsN, roughness: .86})]));
+    // position debout sans le bras droit : le bras du tir (brasTir) s'y pose seul, corps droit (jet de 7 m)
+    const brasPistes = new Set(g.animations.find(c => c.name === 'brasTir').tracks.map(t => t.name)), repos = g.animations.find(c => c.name === 'repos');
+    g.animations.push(new THREE.AnimationClip('reposSansBras', repos.duration, repos.tracks.filter(t => !brasPistes.has(t.name))));
     return {g, matTete, mat, jogging: null};
   })().catch(e => { ressources = null; throw e; });
 }
@@ -98,6 +101,8 @@ function poser(perso, nom, w, miroir) {
 const vt = new THREE.Vector3();
 // vitesse au sol (m/s) des clips de course à vitesse ×1 : les jambes suivent la vitesse réelle
 const FOULEE = {course: 6.5, trot: 3.4, courseBalle: 6.5, trotBalle: 3.4};
+// gestes capturés en entier (base CMU) : on n'y ajoute ni suivi de la tête ni penché
+const CAPTURES = new Set(['lancer', 'saut', 'paradeHaute']);
 class Joueur {
   constructor(R, kit) {
     this.g = new THREE.Group();
@@ -139,8 +144,6 @@ class Joueur {
   sansPoses() { this.poses = {}; this.frais = true; }
   // animation « pilotée » : c'est le jeu qui choisit l'instant (bras armé, puis lancer au toucher ; saut calé sur le vol)
   temps(t) { if (this.anim) { this.anim.timeScale = 0; this.anim.time = Math.max(0, Math.min(t, this.anim.getClip().duration - 1e-3)); } }
-  // adoucir une capture trop marquée (le lancer vient du baseball) : la position de repos garde une part (0 à 1)
-  adoucir(w) { const a = this.actions.repos; if (this.anim === a) return; a.reset().play(); a.setEffectiveWeight(w); }
   // le bras droit joué par-dessus l'animation du corps (pistes du bras seulement), instant choisi par le jeu ; null : retiré
   bras(nom, t) {
     if (!nom) { if (this.brasA) { this.brasA.fadeOut(.2); this.brasA = null; } return; }
@@ -191,17 +194,20 @@ class Joueur {
     const cap0 = this.g.rotation.y, vAvant = this.vit.x * Math.sin(cap0) + this.vit.z * Math.cos(cap0);   // vitesse vers l'avant seulement
     const av = Math.max(-3, Math.min(9, vAvant * 1.4)), cote = Math.max(-11, Math.min(11, -rot * v * 2.2));
     this.penche.av += (av - this.penche.av) * k(.2); this.penche.cote += (cote - this.penche.cote) * k(.15);
-    if (this.os.bassin && (Math.abs(this.penche.av) > .2 || Math.abs(this.penche.cote) > .2)) {
+    if (CAPTURES.has(nom)) { this.penche.av = this.penche.cote = 0; }
+    else if (this.os.bassin && (Math.abs(this.penche.av) > .2 || Math.abs(this.penche.cote) > .2)) {
       tourner(this.o, this.os.bassin, 'x', this.penche.av * .5); tourner(this.o, this.os.dos, 'x', this.penche.av * .5);
       tourner(this.o, this.os.bassin, 'z', this.penche.cote * .6); tourner(this.o, this.os.dos, 'z', this.penche.cote * .4);
     }
     // tête : suit le ballon (ou un point), sans se dévisser (±65° de côté, ±30° en hauteur), le cou en prend une part
+    // pas pendant un geste capturé (lancer, saut, parade) : la capture a déjà un vrai mouvement de tête (remarque de Maël)
     let ty = 0, tx = 0;
-    if (this.cibleTete?.visible !== false && this.cibleTete && this.os.tete) {
+    const capture = CAPTURES.has(this.anim?.getClip().name) || !!this.brasA;
+    if (!capture && this.cibleTete?.visible !== false && this.cibleTete && this.os.tete) {
       const c = this.cibleTete.position || this.cibleTete, t = this.os.tete.getWorldPosition(vt);
       const dx = c.x - t.x, dy = c.y - t.y, dz = c.z - t.z, cap = this.g.rotation.y, porte = Math.hypot(dx, dy, dz) < 1.1;   // ballon en main : il regarde devant
       const lx = dx * Math.cos(cap) - dz * Math.sin(cap), lz = dx * Math.sin(cap) + dz * Math.cos(cap);
-      if (lz > -.5 && !porte) { ty = Math.max(-65, Math.min(65, Math.atan2(lx, Math.max(.2, lz)) * 180 / Math.PI)); tx = Math.max(-30, Math.min(30, -Math.atan2(dy, Math.hypot(lx, lz)) * 180 / Math.PI)); }
+      if (lz > -.5 && !porte) { ty = Math.max(-40, Math.min(40, Math.atan2(lx, Math.max(.2, lz)) * 180 / Math.PI)); tx = Math.max(-25, Math.min(25, -Math.atan2(dy, Math.hypot(lx, lz)) * 180 / Math.PI)); }
     }
     this.teteAng.y += (ty - this.teteAng.y) * k(.12); this.teteAng.x += (tx - this.teteAng.x) * k(.12);
     if (this.os.tete && (Math.abs(this.teteAng.y) > .3 || Math.abs(this.teteAng.x) > .3)) {
@@ -891,7 +897,8 @@ export async function jet7m(J7, z) {
   let etat = null, enMain = true;
   const placer = () => {
     etat = null; enMain = true;
-    tireur.sansPoses(); tireur.jouer('lancer', 0, 0); tireur.adoucir(.35); tireur.temps(.27); tireur.mettre(.1, 0, 7.6, Math.PI);   // vraie capture, adoucie
+    // debout, bras du tir de handball (le même qu'en suspension) : le lancer de baseball pliait trop le buste (remarque de Maël)
+    tireur.sansPoses(); tireur.jouer('reposSansBras', 0); tireur.bras('brasTir', .45); tireur.mettre(.1, 0, 7.6, Math.PI);
     gb.sansPoses(); gb.jouer('repos', 0); gb.ancre = true; gb.mettre(0, 0, .5, 0); gb.pose('pret', 1);
     S.buts.forEach(b => { b.bosseT = .56; b.maj(0); }); S.ballon.visible = true;
   };
@@ -907,7 +914,7 @@ export async function jet7m(J7, z) {
   J7.raf3 = requestAnimationFrame(boucle);
   return {
     nouveau: placer,
-    armer() { tireur.temps(.33); },   // bras armé
+    armer() { tireur.bras('brasTir', .67); },   // bras armé
     // r : réponse de tirer_7m (x, y sur le but, 0-1 de gauche à droite et de haut en bas ; gardien {x, y}) ; duree du vol en ms
     tirer(r, duree) {
       return new Promise(fin => {
@@ -920,13 +927,13 @@ export async function jet7m(J7, z) {
         let dep = null, rebond = null, tR = 0, fini = false;
         etat = now => {
           const t = now - t0;
-          tireur.temps(Math.min(.76, .33 + t / 1000 * 1.1));   // armé (0,33 s) → lâcher (0,52 s, ≈ 170 ms) → accompagnement court (pas la flexion du baseball)
+          tireur.bras('brasTir', Math.min(1.05, .67 + t / 1000 * 1.25));   // armé (0,67 s) → lâcher (0,85 s, ≈ 145 ms) → accompagnement court
           const v = doux(cl((t - 150) / Math.max(180, duree * .7)));
           parer(gb, P, v); gb.mettre(lerp(0, dx, v), saut * Math.sin(Math.PI * cl((t - 150) / 420)), .5);
-          if (t < 170) return;
+          if (t < 145) return;
           if (!dep) { dep = tireur.main(); enMain = false; }
           if (!rebond) {
-            const u = cl((t - 170) / duree), p = v3(lerp(dep.x, cible.x, u), lerp(dep.y, cible.y, u) + Math.sin(Math.PI * u) * .12, lerp(dep.z, cible.z, u));
+            const u = cl((t - 145) / duree), p = v3(lerp(dep.x, cible.x, u), lerp(dep.y, cible.y, u) + Math.sin(Math.PI * u) * .12, lerp(dep.z, cible.z, u));
             if (arret) p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));   // dans les mains du gardien
             S.ballon.position.copy(p);
             if (u >= 1) {
