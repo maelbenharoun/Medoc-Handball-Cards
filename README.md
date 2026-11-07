@@ -48,7 +48,7 @@ Mise en route du serveur et liste complète des règles : [`docs/SERVEUR.md`](do
   5 essais par jour, 50 pièces par réussite, 100 de bonus pour une journée parfaite.
   Démos sans pièces : `?demo=7m`, `?demo=gardien`, `?demo=contre`, `?demo=suspension`.
 - **Niveau et quêtes** : de l'XP partout, des récompenses à chaque niveau, 3 quêtes par jour.
-- **Social** : le **classement** (niveau de poule de chaque joueur), les **transferts** (une carte contre une carte du même palier),
+- **Social** : le **classement** (niveau de poule de chaque joueur), les **transferts** (deux listes : jusqu’à 7 joueurs voulus et 7 à donner ; le jeu trouve les échanges compatibles avec les listes des autres, au même palier, et l’échange se fait d’un toucher),
   les **paris** sur les vrais matchs des poules SG et SF, avec les cotes du modèle de pronostic de medochandballstats.com (pièces du jeu seulement).
   Chaque match a sa **fiche** (« Voir la fiche du match ») : le pronostic et le face-à-face en chiffres du site.
   3 paris au plus par semaine. Les matchs sont rangés par semaine ; les paris gagnants sont **payés automatiquement le lundi matin** (voir plus bas).

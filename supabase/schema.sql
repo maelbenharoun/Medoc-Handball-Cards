@@ -42,7 +42,7 @@ insert into parametres values (1, '{
   "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
   "pvp_defense_trophees": {"gagne": 5, "nul": 0, "perdu": -5},
   "pari_min": 10, "pari_max": 300, "pari_marge": 0.92, "cote_min": 1.05, "cote_max": 12, "paris_jours": 14, "xp_pari": 10, "paris_par_semaine": 3,
-  "annonces_max": 5, "annonce_jours": 7,
+  "annonces_max": 5, "annonce_jours": 7, "transfert_liste_max": 7,
   "booster_poste_prix": 300, "seance_payante_prix": 150,
   "parcours": [
     {"nom": "Promotion", "groupe": "Départemental", "type": "poule", "base": 50},
@@ -250,6 +250,24 @@ create table if not exists annonces (
   cree_le timestamptz not null default now(), conclue_le timestamptz
 );
 create index if not exists annonces_ouvertes on annonces (statut, carte_cherchee, palier_cherche);
+-- Transferts par listes (demande de Maël) : jusqu'à 7 joueurs voulus et 7 qu'on peut donner (joueur + palier) ; le jeu montre les échanges
+-- compatibles avec les listes des autres (il veut un des miens, il donne un de ceux que je veux, même palier) et l'échange se fait d'un toucher
+create table if not exists listes_transfert (
+  user_id uuid not null references profils on delete cascade,
+  sens text not null check (sens in ('veux', 'donne')),
+  carte text not null references cartes on delete cascade,
+  palier text not null check (palier in ('bronze', 'argent', 'or', 'ultime')),
+  cree_le timestamptz not null default now(),
+  primary key (user_id, sens, carte, palier)
+);
+create index if not exists listes_transfert_carte on listes_transfert (sens, carte, palier);
+create table if not exists transferts_faits (
+  id uuid primary key default gen_random_uuid(),
+  a uuid references profils on delete set null, b uuid references profils on delete set null,   -- a a lancé l'échange
+  carte_a text not null, carte_b text not null, palier text not null,                            -- a donne carte_a, b donne carte_b
+  le timestamptz not null default now()
+);
+alter table profils add column if not exists transferts_vus timestamptz;   -- pour signaler un transfert fait par un autre avec nos listes
 
 -- Ami(e)s : une demande (« attente ») puis acceptée ; entre ami(e)s, des échanges de cartes directs (3 propositions par jour)
 create table if not exists amis (
@@ -305,6 +323,9 @@ alter table rencontres enable row level security;
 alter table matchs enable row level security;
 alter table paris enable row level security;
 alter table annonces enable row level security;
+alter table listes_transfert enable row level security;
+alter table transferts_faits enable row level security;
+revoke all on listes_transfert, transferts_faits from anon, authenticated;
 alter table equipes_reelles enable row level security;   -- aucune politique : lue seulement par les fonctions
 alter table mini_attente enable row level security;      -- aucune politique : illisible depuis le jeu
 
@@ -403,7 +424,7 @@ language sql immutable as $$
          ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi entre ami(e)s)'),
          ('defi', 2, 80, 150, 'Défie 2 fois tes ami(e)s'),
          ('pari', 1, 40, 80, 'Fais un pari sur un vrai match du club'),
-         ('marche', 1, 40, 100, 'Publie ou accepte une annonce aux transferts')
+         ('marche', 1, 40, 100, 'Mets à jour tes listes de transferts ou fais un transfert')
 $$;
 
 -- 3 quêtes par jour, choisies au hasard mais toujours les mêmes pour un joueur et un jour
@@ -574,7 +595,8 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'trophees', p.trophees,
     'social', jsonb_build_object('demandes', (select count(*) from amis a where a.pour = p.user_id and a.statut = 'attente'),
       'echanges', (select count(*) from echanges x where x.pour = p.user_id and x.statut = 'ouvert'),
-      'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu)),
+      'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu),
+      'transferts', (select count(*) from transferts_faits t where t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity'))),
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
       'seance', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'seance' and r.le >= debut_du_jour()),
@@ -2035,30 +2057,17 @@ end $$;
 
 create or replace function publier_annonce(p_ex uuid, p_carte text, p_palier text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); e exemplaires; id_annonce uuid;
+declare p profils := moi(); e exemplaires;
 begin
-  perform expirer_annonces();
+  -- ancien appel (anciens téléphones) : l'annonce devient une ligne de chaque liste de transferts, sans bloquer la carte
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
-  if e.verrou is not null then raise exception 'Cette carte est déjà proposée aux transferts'; end if;
-  if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
-    raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
-  end if;
-  if p_palier not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
-  if not exists (select 1 from cartes where id = p_carte) then raise exception 'Joueur inconnu'; end if;
-  if p_carte = e.carte_id and p_palier = e.palier then raise exception 'Tu cherches la même carte que celle que tu proposes'; end if;
-  -- demande de Maël : on n'échange au marché que des cartes de même valeur (même palier) ; entre ami(e)s, tout est permis
   if p_palier <> e.palier then raise exception 'Aux transferts, on échange seulement des cartes du même palier'; end if;
-  if (select count(*) from annonces where vendeur = p.user_id and statut = 'ouverte') >= parami('annonces_max') then
-    raise exception 'Tu as déjà % annonces ouvertes', parami('annonces_max');
-  end if;
-  insert into annonces (vendeur, exemplaire, offre, carte_cherchee, palier_cherche)
-    values (p.user_id, p_ex, jsonb_build_object('carte', e.carte_id, 'palier', e.palier, 'note', e.note), p_carte, p_palier)
-    returning id into id_annonce;
-  update exemplaires set verrou = 'marche' where id = p_ex;
+  if not exists (select 1 from cartes where id = p_carte) then raise exception 'Joueur inconnu'; end if;
+  insert into listes_transfert (user_id, sens, carte, palier) values (p.user_id, 'donne', e.carte_id, e.palier), (p.user_id, 'veux', p_carte, p_palier)
+    on conflict do nothing;
   perform progresser(p.user_id, 'marche');
-  perform noter(p.user_id, 'annonce', jsonb_build_object('annonce', id_annonce, 'offre', e.carte_id, 'cherche', p_carte, 'palier', p_palier));
-  return jsonb_build_object('id', id_annonce, 'etat', etat_de(p.user_id));
+  return jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
 
 create or replace function retirer_annonce(p_id uuid) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -2068,6 +2077,111 @@ begin
   if not found then raise exception 'Cette annonce n’est plus ouverte'; end if;
   update exemplaires set verrou = null where id = a.exemplaire;
   return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+
+-- un exemplaire libre (hors équipe, ni réservé ni en échange) de ce joueur à ce palier : le moins entraîné
+create or replace function ex_libre(p_uid uuid, p_carte text, p_palier text) returns uuid language sql stable security definer set search_path = public as $$
+  select e.id from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
+    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = e.id::text)
+  order by e.note, e.xp limit 1
+$$;
+create or replace function libres_nombre(p_uid uuid, p_carte text, p_palier text) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
+    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = e.id::text)
+$$;
+-- mes listes, les échanges possibles avec les listes des autres, combien cherchent / donnent ce qui m'intéresse, mes derniers transferts
+create or replace function mes_transferts() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); r jsonb;
+begin
+  r := jsonb_build_object('max', parami('transfert_liste_max'),
+    'veux', coalesce((select jsonb_agg(jsonb_build_object('carte', l.carte, 'palier', l.palier) order by l.cree_le)
+      from listes_transfert l where l.user_id = p.user_id and l.sens = 'veux'), '[]'),
+    'donne', coalesce((select jsonb_agg(jsonb_build_object('carte', l.carte, 'palier', l.palier, 'libres', libres_nombre(p.user_id, l.carte, l.palier)) order by l.cree_le)
+      from listes_transfert l where l.user_id = p.user_id and l.sens = 'donne'), '[]'),
+    -- compatible : il veut un joueur que je donne, il donne un joueur que je veux, même palier, et chacun a encore une carte libre
+    'possibles', coalesce((select jsonb_agg(jsonb_build_object('pseudo', o.pseudo, 'donne', c.donne, 'recoit', c.recoit, 'palier', c.palier,
+        'ami', sont_amis(p.user_id, o.user_id)) order by sont_amis(p.user_id, o.user_id) desc, o.pseudo, c.palier, c.donne, c.recoit)
+      from (select distinct ov.user_id, d.carte donne, od.carte recoit, d.palier
+        from listes_transfert d
+        join listes_transfert ov on ov.sens = 'veux' and ov.carte = d.carte and ov.palier = d.palier and ov.user_id <> p.user_id
+        join listes_transfert od on od.sens = 'donne' and od.user_id = ov.user_id and od.palier = d.palier and od.carte <> d.carte
+        join listes_transfert w on w.user_id = p.user_id and w.sens = 'veux' and w.carte = od.carte and w.palier = od.palier
+        where d.user_id = p.user_id and d.sens = 'donne'
+          and ex_libre(p.user_id, d.carte, d.palier) is not null and ex_libre(ov.user_id, od.carte, od.palier) is not null) c
+      join profils o on o.user_id = c.user_id), '[]'),
+    'cherchent', (select count(distinct ov.user_id) from listes_transfert d join listes_transfert ov on ov.sens = 'veux' and ov.carte = d.carte
+      and ov.palier = d.palier and ov.user_id <> p.user_id where d.user_id = p.user_id and d.sens = 'donne'),
+    'donnent', (select count(distinct od.user_id) from listes_transfert w join listes_transfert od on od.sens = 'donne' and od.carte = w.carte
+      and od.palier = w.palier and od.user_id <> p.user_id where w.user_id = p.user_id and w.sens = 'veux'),
+    'historique', coalesce((select jsonb_agg(h order by h ->> 'le' desc) from (select jsonb_build_object(
+        'avec', (select pseudo from profils where user_id = case when t.a = p.user_id then t.b else t.a end),
+        'donne', case when t.a = p.user_id then t.carte_a else t.carte_b end, 'recoit', case when t.a = p.user_id then t.carte_b else t.carte_a end,
+        'palier', t.palier, 'le', t.le, 'nouveau', t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity')) h
+      from transferts_faits t where p.user_id in (t.a, t.b) order by t.le desc limit 10) x), '[]'));
+  update profils set transferts_vus = now() where user_id = p.user_id;   -- vus : la pastille s'efface
+  return r || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+-- enregistrer mes deux listes d'un coup : [{carte, palier}] ; on ne peut donner qu'un joueur dont on a une carte libre au palier choisi
+create or replace function maj_listes_transfert(p_veux jsonb, p_donne jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m int := parami('transfert_liste_max'); x jsonb;
+begin
+  if jsonb_typeof(p_veux) is distinct from 'array' or jsonb_typeof(p_donne) is distinct from 'array' then raise exception 'Listes invalides'; end if;
+  for x in select v from jsonb_array_elements(p_veux || p_donne) v loop
+    if coalesce(x ->> 'palier', '') not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
+    if not exists (select 1 from cartes where id = x ->> 'carte') then raise exception 'Joueur inconnu'; end if;
+  end loop;
+  if (select count(distinct (v ->> 'carte', v ->> 'palier')) from jsonb_array_elements(p_veux) v) > m
+    or (select count(distinct (v ->> 'carte', v ->> 'palier')) from jsonb_array_elements(p_donne) v) > m then
+    raise exception '% joueurs au plus dans chaque liste', m;
+  end if;
+  for x in select v from jsonb_array_elements(p_donne) v loop
+    if libres_nombre(p.user_id, x ->> 'carte', x ->> 'palier') < 1 then
+      raise exception 'Tu n’as pas de carte libre (hors équipe) de ce joueur à ce palier';
+    end if;
+  end loop;
+  if exists (select 1 from jsonb_array_elements(p_veux) v, jsonb_array_elements(p_donne) w where v ->> 'carte' = w ->> 'carte' and v ->> 'palier' = w ->> 'palier') then
+    raise exception 'Un même joueur ne peut pas être dans les deux listes au même palier';
+  end if;
+  delete from listes_transfert where user_id = p.user_id;
+  insert into listes_transfert (user_id, sens, carte, palier, cree_le)
+    select p.user_id, 'veux', v ->> 'carte', v ->> 'palier', now() + i * interval '1 millisecond' from jsonb_array_elements(p_veux) with ordinality z(v, i)
+    on conflict do nothing;
+  insert into listes_transfert (user_id, sens, carte, palier, cree_le)
+    select p.user_id, 'donne', v ->> 'carte', v ->> 'palier', now() + i * interval '1 millisecond' from jsonb_array_elements(p_donne) with ordinality z(v, i)
+    on conflict do nothing;
+  perform progresser(p.user_id, 'marche');
+  return mes_transferts() || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+-- faire un échange compatible avec les listes d'un autre joueur (ses listes valent son accord) : chacun donne sa carte libre la moins entraînée
+create or replace function transferer(p_pseudo text, p_donne text, p_recoit text, p_palier text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); o profils; e1 uuid; e2 uuid;
+begin
+  select * into o from profils where lower(pseudo) = lower(trim(p_pseudo));
+  if not found or o.user_id = p.user_id then raise exception 'Joueur inconnu'; end if;
+  perform 1 from profils where user_id in (p.user_id, o.user_id) order by user_id for update;   -- toujours dans le même ordre
+  if p_donne = p_recoit then raise exception 'Échange impossible'; end if;
+  if not (exists (select 1 from listes_transfert where user_id = p.user_id and sens = 'donne' and carte = p_donne and palier = p_palier)
+      and exists (select 1 from listes_transfert where user_id = p.user_id and sens = 'veux' and carte = p_recoit and palier = p_palier)
+      and exists (select 1 from listes_transfert where user_id = o.user_id and sens = 'veux' and carte = p_donne and palier = p_palier)
+      and exists (select 1 from listes_transfert where user_id = o.user_id and sens = 'donne' and carte = p_recoit and palier = p_palier)) then
+    raise exception 'Cet échange n’est plus possible : les listes ont changé';
+  end if;
+  e1 := ex_libre(p.user_id, p_donne, p_palier); e2 := ex_libre(o.user_id, p_recoit, p_palier);
+  if e1 is null or e2 is null then raise exception 'Cet échange n’est plus possible : une des cartes n’est plus libre'; end if;
+  update exemplaires set proprietaire = o.user_id where id = e1;
+  update exemplaires set proprietaire = p.user_id where id = e2;
+  -- les joueurs voulus sont obtenus ; on garde un joueur à donner tant qu'il en reste une carte libre
+  delete from listes_transfert where palier = p_palier and ((user_id = p.user_id and sens = 'veux' and carte = p_recoit)
+    or (user_id = o.user_id and sens = 'veux' and carte = p_donne));
+  delete from listes_transfert where palier = p_palier and user_id = p.user_id and sens = 'donne' and carte = p_donne and libres_nombre(p.user_id, p_donne, p_palier) = 0;
+  delete from listes_transfert where palier = p_palier and user_id = o.user_id and sens = 'donne' and carte = p_recoit and libres_nombre(o.user_id, p_recoit, p_palier) = 0;
+  insert into transferts_faits (a, b, carte_a, carte_b, palier) values (p.user_id, o.user_id, p_donne, p_recoit, p_palier);
+  perform nettoyer_equipe(o.user_id); perform nettoyer_equipe(p.user_id);
+  perform progresser(p.user_id, 'marche'); perform progresser(o.user_id, 'marche');
+  perform noter(p.user_id, 'transfert', jsonb_build_object('avec', o.user_id, 'recu', e2, 'donne', e1));
+  perform noter(o.user_id, 'transfert', jsonb_build_object('avec', p.user_id, 'recu', e1, 'donne', e2));
+  return mes_transferts() || jsonb_build_object('exRecu', e2, 'exDonne', e1, 'etat', etat_de(p.user_id));
 end $$;
 
 -- Accepter une annonce : je donne un de mes exemplaires de la carte cherchée (le moins entraîné, hors Mon 7)
@@ -2452,6 +2566,7 @@ grant execute on function
   match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
   marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid),
+  mes_transferts(), maj_listes_transfert(jsonb, jsonb), transferer(text, text, text, text),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
@@ -2477,5 +2592,11 @@ begin
   end if;
 end $cron$;
 -- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue
+insert into listes_transfert (user_id, sens, carte, palier)
+  select vendeur, 'donne', offre ->> 'carte', offre ->> 'palier' from annonces where statut = 'ouverte' and offre ->> 'carte' in (select id from cartes)
+  union select vendeur, 'veux', carte_cherchee, palier_cherche from annonces where statut = 'ouverte'
+  on conflict do nothing;
+with x as (update annonces set statut = 'retiree' where statut = 'ouverte' returning exemplaire)
+update exemplaires set verrou = null where id in (select exemplaire from x) and verrou = 'marche';
 with x as (update annonces set statut = 'retiree' where statut = 'ouverte' and palier_cherche <> offre ->> 'palier' returning exemplaire)
 update exemplaires set verrou = null where id in (select exemplaire from x);

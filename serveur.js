@@ -239,6 +239,10 @@ const CompteServeur = (() => {
     publierAnnonce: (ex, carte, palier) => rpc('publier_annonce', {p_ex: ex, p_carte: carte, p_palier: palier}),
     retirerAnnonce: id => rpc('retirer_annonce', {p_id: id}),
     accepterAnnonce: id => rpc('accepter_annonce', {p_id: id}),                   // → {recu, donne}
+    // transferts par listes : {max, veux, donne, possibles, cherchent, donnent, historique}
+    mesTransferts: () => rpc('mes_transferts'),
+    majListesTransfert: (veux, donne) => rpc('maj_listes_transfert', {p_veux: veux, p_donne: donne}),
+    transferer: (pseudo, donne, recoit, palier) => rpc('transferer', {p_pseudo: pseudo, p_donne: donne, p_recoit: recoit, p_palier: palier}),
 
     // ── équipe : choix tactiques « attaque:défense » (duels | enclenchement | rapide : 06 | 15 | 33) ──
     choisirTactique: tactique => rpc('choisir_tactique', {p_tactique: tactique}),

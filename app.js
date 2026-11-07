@@ -91,7 +91,7 @@ function route(garderDefilement) {
   document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === (ONGLET[v] || v)));
   $('#view').innerHTML = VUES[v]();
   if (!garderDefilement) window.scrollTo(0, 0);
-  observerScenes(); echelleScenes();
+  observerScenes(); echelleScenes(); hexAnimer();
   // une musique par partie du jeu : Accueil, Club et Équipe, Jouer, Social
   Son.theme({club: 'club', equipe: 'club', jouer: 'jouer', social: 'social'}[ONGLET[v] || v] || 'accueil');
   minuteur();
@@ -126,6 +126,8 @@ function majEntete() {
   // ami(e)s : la bulle, avec une pastille pour les demandes, les échanges proposés et les messages non lus
   const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
   $('#bulle-amis').hidden = !Compte.pret; pa.hidden = !so || !Compte.pret; pa.textContent = so;
+  // transferts faits par d'autres avec mes listes, pas encore vus : pastille sur Social (et sur la porte Transferts)
+  const nt = S().social?.transferts || 0, ps = $('#pastille-s'); ps.hidden = !nt || !Compte.pret; ps.textContent = nt;
   if (Compte.pret && so > (majEntete.so ?? so)) Son.jouer('notif');
   majEntete.so = so;
   if (Compte.pret) majPieces();
@@ -312,9 +314,73 @@ function vueClub() {
     ${!mes.length && filtre === 'fusion' ? '<p class="sub">Aucune fusion possible : il faut 3 fois le même joueur au même palier.</p>' : ''}`;
 }
 
-// Fiche d'un joueur : ses 4 paliers, tes exemplaires, entraînement, fusion, vente
-function fiche(carte) {
+// ── hexagone des stats, façon jeu (demande de Maël : fiche du joueur et stats de l'équipe) ──────────────────────────
+// 6 axes (les 6 stats), grille en bandes, forme en dégradé à la couleur du palier qui grandit depuis le centre, pastilles des
+// valeurs qui comptent jusqu'à leur valeur (en relief, dorées pour les stats mises en avant). Seuls transform et opacity sont
+// animés ; changer de palier fait glisser la forme (hexMorph, quelques images sur un petit SVG).
+const HEX_R = 46, HEX_TON = {bronze: ['#f0b384', '#b86a35'], argent: ['#f1f5f9', '#8f9aa8'], or: ['#ffe39a', '#c9952b'], ultime: ['#b8f28f', '#4c9c2a'], equipe: ['#8fd0ff', '#2f6fc4']};
+let hexId = 0;
+const hexPoint = (i, v, min = 0) => { const a = (-90 + i * 60) * Math.PI / 180, r = HEX_R * Math.max(0, Math.min(1, (v - min) / (99 - min)));
+  return [r * Math.cos(a), r * Math.sin(a)]; };
+const hexPoints = (liste, s, min) => liste.map(([k], i) => hexPoint(i, s[k] || 0, min).map(n => n.toFixed(2)).join(',')).join(' ');
+// liste : STATS_CHAMP ou STATS_GB ; s : {clé: valeur} ; o : {ton, fond (contour en pointillé), forts: [clés], min (centre), titre}
+function hexHTML(liste, s, o = {}) {
+  const id = 'hx' + (++hexId), [c1, c2] = HEX_TON[o.ton] || HEX_TON.or, min = o.min ?? 0;
+  const bande = (f, cls) => `<polygon class="${cls}" points="${liste.map((_, i) => hexPoint(i, min + (99 - min) * f, min).map(n => n.toFixed(2)).join(',')).join(' ')}"/>`;
+  const pastilles = liste.map(([k, ab], i) => { const a = (-90 + i * 60) * Math.PI / 180, x = 50 + 41 * Math.cos(a), y = 50 + 41 * Math.sin(a) * .92;
+    return `<span class="hx-p${o.forts?.includes(k) ? ' fort' : ''}" style="left:${x}%;top:${y}%;--i:${i}"><small>${ab}</small><b data-v="${Math.round(s[k] || 0)}">${moinsAnim() ? Math.round(s[k] || 0) : 0}</b></span>`; }).join('');
+  return `<div class="hx" data-min="${min}" data-liste="${liste === STATS_GB ? 'gb' : 'champ'}" style="--c1:${c1};--c2:${c2}">
+    <svg viewBox="-60 -60 120 120" aria-hidden="true"><defs><radialGradient id="${id}" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="${c1}" stop-opacity=".95"/>
+      <stop offset="1" stop-color="${c2}" stop-opacity=".85"/></radialGradient></defs>
+      ${bande(1, 'hx-b1')}${bande(.75, 'hx-b2')}${bande(.5, 'hx-b1')}${bande(.25, 'hx-b2')}
+      ${liste.map((_, i) => { const [x, y] = hexPoint(i, 99, min); return `<line class="hx-a" x1="0" y1="0" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}"/>`; }).join('')}
+      ${o.fond ? `<polygon class="hx-fond" points="${hexPoints(liste, o.fond, min)}"/>` : ''}
+      <g class="hx-forme"><polygon class="hx-halo" points="${hexPoints(liste, s, min)}"/><polygon class="hx-f" fill="url(#${id})" points="${hexPoints(liste, s, min)}"/>
+      ${liste.map(([k], i) => { const [x, y] = hexPoint(i, s[k] || 0, min); return `<circle class="hx-d" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="2.2"/>`; }).join('')}</g>
+    </svg>${pastilles}${o.titre ? `<em class="hx-t">${o.titre}</em>` : ''}</div>`;
+}
+// à l'affichage : la forme grandit, les pastilles apparaissent puis comptent jusqu'à leur valeur
+function hexAnimer(racine = document) {
+  racine.querySelectorAll('.hx:not(.hx-on)').forEach(h => {
+    h.classList.add('hx-on');
+    if (moinsAnim()) return;
+    const vals = [...h.querySelectorAll('b[data-v]')], t0 = performance.now() + 250, D = 700;
+    const pas = t => { const k = Math.min(1, Math.max(0, (t - t0) / D)), e = 1 - Math.pow(1 - k, 3);
+      vals.forEach(b => { b.textContent = Math.round(+b.dataset.v * e); }); if (k < 1 && h.isConnected) requestAnimationFrame(pas); };
+    requestAnimationFrame(pas);
+  });
+}
+// changer les valeurs d'un hexagone déjà affiché (autre palier) : la forme glisse, les pastilles comptent de l'ancienne à la nouvelle valeur
+function hexMorph(h, liste, s, ton) {
+  if (!h) return;
+  const min = +h.dataset.min || 0, f = h.querySelectorAll('.hx-f, .hx-halo'), dots = h.querySelectorAll('.hx-d'), vals = [...h.querySelectorAll('b[data-v]')];
+  const avant = liste.map(([k], i) => +vals[i].dataset.v), apres = liste.map(([k]) => Math.round(s[k] || 0));
+  if (ton && HEX_TON[ton]) { const [c1, c2] = HEX_TON[ton]; h.style.setProperty('--c1', c1); h.style.setProperty('--c2', c2);
+    h.querySelectorAll('stop').forEach((st, i) => st.setAttribute('stop-color', i ? c2 : c1)); }
+  const t0 = performance.now(), D = moinsAnim() ? 0 : 420;
+  const pas = t => { const k = D ? Math.min(1, (t - t0) / D) : 1, e = 1 - Math.pow(1 - k, 3), cur = avant.map((a, i) => a + (apres[i] - a) * e);
+    const pts = liste.map((_, i) => hexPoint(i, cur[i], min));
+    f.forEach(p => p.setAttribute('points', pts.map(q => q.map(n => n.toFixed(2)).join(',')).join(' ')));
+    dots.forEach((d, i) => { d.setAttribute('cx', pts[i][0].toFixed(2)); d.setAttribute('cy', pts[i][1].toFixed(2)); });
+    vals.forEach((b, i) => { b.textContent = Math.round(cur[i]); });
+    if (k < 1) requestAnimationFrame(pas); else vals.forEach((b, i) => { b.dataset.v = apres[i]; });
+  };
+  requestAnimationFrame(pas);
+}
+
+// Fiche d'un joueur : ses stats en hexagone, ses 4 paliers, tes exemplaires, entraînement, fusion, vente
+// (poste : ouverte depuis le choix d'un poste de l'onglet Équipe, avec un retour vers ce choix)
+const FICHE = {carte: null, liste: null};
+function fiche(carte, poste) {
   const c = PAR_ID[carte], mes = mesEx(carte), n = PARAMS.fusion_nombre || 3;
+  const liste = statsDu(c.poste), meilleur = PALIERS.map(p => mes.filter(e => e.palier === p.id).sort((a, b) => b.note - a.note)[0]);
+  const best = [...meilleur].reverse().find(Boolean), palH = best ? best.palier : 'bronze', noteH = best ? best.note : PALIER.bronze.min;
+  Object.assign(FICHE, {carte, liste});
+  const forts = [...liste].sort((a, b) => (c.ecarts?.[b[0]] || 0) - (c.ecarts?.[a[0]] || 0)).slice(0, 2).map(x => x[0]);
+  const hex = `<div class="fiche-hex">${hexHTML(liste, statsAuNiveau(c, noteH), {ton: palH, fond: statsAuNiveau(c, 99), forts, min: 20})}
+    <div class="hx-ch">${PALIERS.map((p, i) => { const nt = meilleur[i] ? meilleur[i].note : p.min;
+      return `<button class="t-${p.id}${p.id === palH ? ' on' : ''}" data-hex="${p.id}:${nt}">${p.nom}<b>${nt}</b></button>`; }).join('')}</div>
+    <p class="sub petit centre">${best ? 'Ta meilleure carte' : 'Au plus bas du palier'} · en pointillé : au maximum (99) · points forts : ${forts.map(k => liste.find(x => x[0] === k)[2].toLowerCase()).join(' et ')}</p></div>`;
   const paliers = PALIERS.map(p => {
     const a = mes.some(e => e.palier === p.id);
     return `<div class="pal${a ? '' : ' absent'}">${carteHTML(vueExemplaire(c, {palier: p.id, note: p.min}))}<small>${p.nom} ${p.min}–${p.max}</small></div>`;
@@ -335,12 +401,14 @@ function fiche(carte) {
     return k >= n ? `<button class="btn gold large" data-fusion="${carte}:${r}">Fusionner ${n} ${R_LABEL[r]} → 1 ${R_LABEL[palierSuivant(r)]} ${PALIER[palierSuivant(r)].min} · ${nb(cout)} pièces</button>`
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
-  ouvrirOverlay(`<div class="sheet fiche">
+  ouvrirOverlay(`<div class="sheet fiche">${poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
     <h3>${esc(c.nom)} <small>${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
+    ${hex}
     <div class="paliers">${paliers}</div>
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
     <div class="fiche-j">${ficheHTML(c.fiche) || `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
+  hexAnimer($('#overlay'));
 }
 
 // ── Équipe ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -416,7 +484,8 @@ function vueEquipe() {
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
-    ${m ? `<div class="moy-eq">${STATS_CHAMP.map(([k, a]) => `<div><small>${a}</small><b>${Math.round(m[k])}</b><i style="--v:${Math.min(100, m[k])}%"></i></div>`).join('')}</div>
+    ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
+      <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
       <p class="sub petit">Moyennes des stats de tes 6 joueurs de champ. Chaque choix donne un bonus si ton équipe est forte dans ses deux stats :
         2 % pour une équipe moyenne, jusqu’à 10 % si elle est spécialisée, 0 % si elle est à l’opposé.</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
     <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
@@ -429,8 +498,12 @@ function choisir(poste) {
   const ailleurs = new Set(Object.entries(S().equipe || {}).filter(([k]) => k !== poste).map(([, id]) => exParId(id)?.carte));
   const ok = EX().filter(e => !e.verrou && PAR_ID[e.carte] && !ailleurs.has(e.carte) && peutJouer(PAR_ID[e.carte], poste))
     .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
+  const exA = S().equipe?.[poste] && exParId(S().equipe[poste]), actuel = exA && PAR_ID[exA.carte] ? vue(exA) : null;
   ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
-    <div class="picklist">${ok.length ? ok.map(c => `<button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>`).join('')
+    ${actuel ? `<div class="pick-actuel">${carteHTML(actuel, {note: noteAuPoste(actuel, poste)})}<div><small>Aligné(e)</small><b>${esc(actuel.nom)}</b></div>
+      <button class="btn ghost petit" data-voir-fiche="${actuel.id}" data-poste="${poste}">Voir la fiche</button></div>` : ''}
+    <div class="picklist">${ok.length ? ok.map(c => `<div class="pick-l"><button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>
+      <button class="pick-f" data-voir-fiche="${c.id}" data-poste="${poste}" aria-label="Fiche de ${esc(c.nom)}"><span aria-hidden="true">⬡</span>Fiche</button></div>`).join('')
       : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des boosters !</p>`}</div>
     <div style="display:flex;gap:10px">${S().equipe?.[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
     <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
@@ -1120,65 +1193,76 @@ function resultatMD(r) {
   majMD();
 }
 
-// ── marché des transferts : une carte contre une carte ──────────────────────────
-const MKT = {filtre: 'tout', liste: null, charge: false, compo: null};
+// ── transferts par listes (demande de Maël) : jusqu'à 7 joueurs voulus et 7 à donner ; le jeu montre les échanges compatibles
+// avec les listes des autres (même palier) et l'échange se fait d'un toucher. Les listes valent accord : pas besoin d'attendre l'autre.
+const MKT = {data: null, charge: false, ajout: null, recherche: '', palier: 'bronze'};
 const carteDe = (carte, palier, note) => PAR_ID[carte] ? vueExemplaire(PAR_ID[carte], {palier, note: note ?? PALIER[palier].min}) : null;
 function chargerMarche() {
-  if (MKT.charge || MKT.liste || Compte.horsLigne) return;
+  if (MKT.charge || MKT.data || Compte.horsLigne) return;
   MKT.charge = true;
-  Compte.marche(MKT.filtre).then(l => { MKT.liste = l; }).catch(e => { MKT.liste = []; toast(e.message); })
-    .finally(() => { MKT.charge = false; if (vueCourante() === 'marche' && $('#overlay').hidden) route(true); });
+  Compte.mesTransferts().then(d => { MKT.data = d; }).catch(e => { MKT.data = {veux: [], donne: [], possibles: [], historique: [], max: 7}; toast(e.message); })
+    .finally(() => { MKT.charge = false; majEntete(); if (vueCourante() === 'marche' && $('#overlay').hidden) route(true); });
 }
+// cartes libres de mon club (hors équipe, ni réservées) : une ligne par joueur et par palier, avec le nombre
+function mesLibres() {
+  const g = {};
+  for (const e of EX()) if (!e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]) { const k = e.carte + ':' + e.palier; (g[k] = g[k] || {carte: e.carte, palier: e.palier, n: 0, note: 0}).n++; g[k].note = Math.max(g[k].note, e.note); }
+  return Object.values(g).sort((a, b) => RARETES.indexOf(b.palier) - RARETES.indexOf(a.palier) || PAR_ID[a.carte].nom.localeCompare(PAR_ID[b.carte].nom));
+}
+const vignetteListe = (x, sens, i, extra) => { const c = carteDe(x.carte, x.palier, x.note);
+  return c ? `<div class="tr-v">${carteHTML(c)}<button class="tr-x" data-retirer-liste="${sens}:${i}" aria-label="Retirer ${esc(c.nom)}">✕</button>${extra || ''}</div>` : ''; };
 function vueMarche() {
   chargerMarche();
-  const L = MKT.liste;
-  const annonces = (L || []).map(a => {
-    const o = carteDe(a.offre.carte, a.offre.palier, a.offre.note), c = carteDe(a.cherche.carte, a.cherche.palier);
-    if (!o || !c) return '';
-    const fin = {conclue: a.moi ? `Échangée avec ${esc(a.acheteur || '?')}` : `Échangée avec ${esc(a.vendeur)}`, retiree: 'Retirée'}[a.statut];
-    const expire = new Date(a.expire_le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
-    return `<div class="ann${fin ? ' fini' : ''}"><div class="ann-l">
-        <div class="ann-c"><span>${a.moi ? 'Tu donnes' : 'Tu reçois'}</span>${carteHTML(o)}<small>${esc(o.nom)} · ${R_LABEL[o.rarete]} ${o.ovr}</small></div>
-        <div class="fleche">⇄</div>
-        <div class="ann-c"><span>${a.moi ? 'Tu reçois' : 'Tu donnes'}</span>${carteHTML(c)}<small>${esc(c.nom)} · ${R_LABEL[c.rarete]}</small></div></div>
-      <p class="ann-p">${a.moi ? 'Ton annonce' : `Proposée par <b>${esc(a.vendeur)}</b>`} · ${fin || 'jusqu’au ' + expire}</p>
-      ${a.statut !== 'ouverte' ? '' : a.moi ? `<button class="btn ghost petit" data-retirer-annonce="${a.id}">Retirer</button>`
-        : a.possible ? `<button class="btn gold petit" data-accepter="${a.id}">Accepter l’échange</button>` : '<p class="sub petit">Il te faut cette carte, au même palier, hors de ton équipe.</p>'}</div>`;
-  }).join('');
+  const D = MKT.data;
+  if (!D) return `${retour('social', 'Social')}<h1>Transferts</h1><p class="sub">Chargement…</p>`;
+  const max = D.max || 7;
+  const possibles = D.possibles.map((x, i) => { const o = carteDe(x.donne, x.palier), r = carteDe(x.recoit, x.palier);
+    return o && r ? `<div class="ann tr-p"><div class="ann-l"><div class="ann-c"><span>Tu donnes</span>${carteHTML(o)}<small>${esc(o.nom)}</small></div>
+      <div class="fleche">⇄</div><div class="ann-c"><span>Tu reçois</span>${carteHTML(r)}<small>${esc(r.nom)}</small></div></div>
+      <p class="ann-p">Avec <b>${esc(x.pseudo)}</b>${x.ami ? ' · ami(e)' : ''} · ${R_LABEL[x.palier]}</p>
+      <button class="btn gold" data-transferer="${i}">Échanger</button></div>` : ''; }).join('');
+  const veux = D.veux.map((x, i) => vignetteListe(x, 'veux', i)).join('');
+  const donne = D.donne.map((x, i) => vignetteListe(x, 'donne', i, x.libres > 1 ? `<i class="tr-n">×${x.libres}</i>` : '')).join('');
+  const ajout = (sens, n) => n < max ? `<button class="tr-plus" data-ajout-liste="${sens}"><b>+</b><small>Ajouter</small></button>` : '';
+  const histo = (D.historique || []).map(h => `<p class="tr-h${h.nouveau ? ' nouveau' : ''}">${h.nouveau ? '<b class="pastille-n">nouveau</b>' : ''}
+    Avec <b>${esc(h.avec || '?')}</b> : ${esc(PAR_ID[h.donne]?.nom || h.donne)} ⇄ ${esc(PAR_ID[h.recoit]?.nom || h.recoit)} <small>${R_LABEL[h.palier]} · ${new Date(h.le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></p>`).join('');
   return `${retour('social', 'Social')}<h1>Transferts</h1>
-    <p class="sub">Échange une carte contre une carte du même palier avec les autres joueurs. Ta carte est réservée tant que l’annonce est ouverte (${PARAMS.annonce_jours || 7} jours au plus).
-      Entre ami(e)s, tout est permis : passe par Ami(e)s.</p>
-    <button class="btn gold large" data-act="annoncer">Proposer une de mes cartes</button>
-    <div class="filters" style="margin-top:14px">${[['tout', 'Toutes'], ['pour_moi', 'Pour moi'], ['mes', 'Mes annonces']]
-      .map(([k, l]) => `<button data-mfiltre="${k}" class="${MKT.filtre === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-    ${L ? (annonces || `<p class="sub">${MKT.filtre === 'mes' ? 'Tu n’as pas d’annonce.' : MKT.filtre === 'pour_moi' ? 'Aucune annonce ne demande une carte que tu peux donner.' : 'Aucune annonce pour l’instant : lance la première !'}</p>`)
-      : '<p class="sub">Chargement…</p>'}`;
+    <p class="sub">Choisis jusqu’à ${max} joueurs que tu veux et ${max} que tu peux donner. Dès qu’un autre joueur veut un des tiens et donne un de ceux que tu veux,
+      au même palier, l’échange apparaît ici : un toucher et c’est fait. Entre ami(e)s, tout est permis : passe par la bulle Ami(e)s.</p>
+    <h2>Échanges possibles${D.possibles.length ? ` (${D.possibles.length})` : ''}</h2>
+    ${possibles || `<div class="daily"><p><b>Aucun pour l’instant</b>${D.cherchent ? `${D.cherchent} joueur${D.cherchent > 1 ? 's cherchent' : ' cherche'} un de ceux que tu donnes. ` : ''}${
+      D.donnent ? `${D.donnent} joueur${D.donnent > 1 ? 's donnent' : ' donne'} un de ceux que tu veux. ` : ''}Ajoute des joueurs à tes listes pour trouver plus d’échanges.</p></div>`}
+    <h2>Je veux <small class="tr-c">${D.veux.length}/${max}</small></h2>
+    <div class="tr-l">${veux}${ajout('veux', D.veux.length)}</div>
+    <h2>Je peux donner <small class="tr-c">${D.donne.length}/${max}</small></h2>
+    <p class="sub petit">Seulement des cartes libres : ni dans ton équipe, ni en échange avec un(e) ami(e). Tu donnes toujours ta moins entraînée.</p>
+    <div class="tr-l">${donne}${ajout('donne', D.donne.length)}</div>
+    ${histo ? `<h2>Derniers transferts</h2><div class="tr-hs">${histo}</div>` : ''}`;
 }
-// Proposer : 1) une de mes cartes libres, 2) le joueur et le palier voulus
-function composerAnnonce() {
-  MKT.compo = MKT.compo || {ex: null, carte: null, palier: 'bronze', recherche: ''};
-  const k = MKT.compo;
-  const libres = EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]).sort(rangEx);
-  const o = k.ex && exParId(k.ex), c = k.carte && carteDe(k.carte, k.palier);
-  ouvrirOverlay(`<div class="sheet compo">
-    <h3>Nouvelle annonce</h3>
-    <h4>1. Ta carte à proposer</h4>
-    <div class="pickgrid">${libres.map(e => `<button class="pc${k.ex === e.id ? ' choisi' : ''}" data-offre="${e.id}">${carteHTML(vue(e))}</button>`).join('')
-      || '<p class="sub">Pas de carte libre : les cartes de ton équipe ne peuvent pas être proposées.</p>'}</div>
-    <h4>2. Ce que tu veux en échange</h4>
-    <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(k.recherche)}" data-cherche-carte autocomplete="off" spellcheck="false">
-    <div class="veut" id="liste-veut">${listeVeut()}</div>
-    <p class="sub petit">Même palier que ta carte : ${o ? R_LABEL[o.palier] : '–'} (aux transferts, on n’échange que des cartes de même valeur).</p>
-    <div class="resume">${o ? `Tu donnes <b>${esc(PAR_ID[o.carte].nom)} ${R_LABEL[o.palier]} ${o.note}</b>` : 'Choisis ta carte'}
-      · ${c ? `tu veux <b>${esc(c.nom)} ${R_LABEL[k.palier]}</b>` : 'choisis le joueur voulu'}</div>
-    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button>
-      <button class="btn gold" data-act="publier-annonce"${o && c ? '' : ' disabled'}>Publier</button></div></div>`);
+// ajouter un joueur à une liste : « je veux » = tout le catalogue + le palier voulu ; « je donne » = mes cartes libres
+function fenetreAjoutListe() {
+  const sens = MKT.ajout, D = MKT.data;
+  if (sens === 'donne') {
+    const pris = new Set(D.donne.map(x => x.carte + ':' + x.palier)), l = mesLibres().filter(x => !pris.has(x.carte + ':' + x.palier));
+    return ouvrirOverlay(`<div class="sheet compo"><h3>Je peux donner</h3>
+      <p class="sub petit">Tes cartes libres (hors équipe). Touche celle à ajouter.</p>
+      <div class="pickgrid">${l.map(x => `<button class="pc" data-ajouter-donne="${x.carte}:${x.palier}">${carteHTML(carteDe(x.carte, x.palier, x.note), {qty: x.n > 1 ? x.n : 0})}</button>`).join('')
+        || '<p class="sub">Pas de carte libre : toutes tes cartes jouent dans ton équipe ou sont déjà dans la liste.</p>'}</div>
+      <button class="btn" data-act="fermer">Fermer</button></div>`);
+  }
+  const q = MKT.recherche.trim().toLowerCase(), pris = new Set(D.veux.map(x => x.carte + ':' + x.palier));
+  const l = CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 24 : 12);
+  ouvrirOverlay(`<div class="sheet compo"><h3>Je veux</h3>
+    <div class="filters">${RARETES.map(r => `<button data-palier-liste="${r}" class="${MKT.palier === r ? 'on' : ''}">${R_LABEL[r]}</button>`).join('')}</div>
+    <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(MKT.recherche)}" data-cherche-liste autocomplete="off" spellcheck="false">
+    <div class="pickgrid" id="liste-ajout">${listeAjoutVeux(l, pris)}</div>
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
-function listeVeut() {
-  const k = MKT.compo, q = k.recherche.trim().toLowerCase();
-  const l = CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 12 : 8);
-  return l.map(c => `<button class="${k.carte === c.id ? 'on' : ''}" data-veut="${c.id}">${esc(c.nom)} <small>${c.equipe}</small></button>`).join('')
-    || '<p class="sub petit">Aucun joueur trouvé.</p>';
+const listeAjoutVeux = (l, pris) => l.map(c => pris.has(c.id + ':' + MKT.palier) ? '' : `<button class="pc" data-ajouter-veux="${c.id}">${carteHTML(carteDe(c.id, MKT.palier))}</button>`).join('')
+  || '<p class="sub petit">Aucun joueur trouvé.</p>';
+function majListes(veux, donne, msg) {
+  const pl = l => l.map(x => ({carte: x.carte, palier: x.palier}));
+  return action(Compte.majListesTransfert(pl(veux), pl(donne)), d => { MKT.data = d; if (msg) toast(msg); if (!$('#overlay').hidden) cacherOverlay(); route(true); });
 }
 
 // ── paris sur les vrais matchs ──────────────────────────────────────────────────
@@ -1323,7 +1407,7 @@ function vueSocial() {
   const porte = (h, ic, t, st) => `<a class="porte social" href="#${h}"><span class="porte-ic" aria-hidden="true">${ic}</span><b>${t}</b><small>${st}</small></a>`;
   return `<h1>Social</h1>
     <div class="portes">${porte('classement', '🏅', 'Classement', 'Le niveau de poule de chaque joueur')}
-    ${porte('marche', '⇄', 'Transferts', 'Une carte contre une carte du même palier')}
+    ${porte('marche', '⇄', 'Transferts', 'Tes listes : 7 joueurs voulus, 7 à donner, et les échanges qui collent').replace('</a>', S().social?.transferts ? `<b class="pastille">${S().social.transferts}</b></a>` : '</a>')}
     ${porte('paris', '🎟️', 'Paris', 'Les vrais matchs du Médoc')}</div>
     <p class="sub petit">Tes ami(e)s sont dans la bulle en bas à droite : messages, échanges, défis.</p>`;
 }
@@ -1812,7 +1896,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-mfiltre],[data-offre],[data-veut],[data-palier-veut],[data-retirer-annonce],[data-accepter],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -1827,20 +1911,33 @@ document.addEventListener('click', e => {
   if (d.car !== undefined) return choisirCarrousel(+d.car);
   if (d.echDonne) { SOC.echange.donne = d.echDonne; return fenetreEchange(); }
   if (d.echDemande) { SOC.echange.demande = d.echDemande; return fenetreEchange(); }
-  if (d.mfiltre) { MKT.filtre = d.mfiltre; MKT.liste = null; return route(true); }
-  if (a === 'annoncer') { MKT.compo = null; return composerAnnonce(); }
-  if (d.offre) { MKT.compo.ex = d.offre; MKT.compo.palier = exParId(d.offre)?.palier || 'bronze'; return composerAnnonce(); }
-  if (d.veut) { MKT.compo.carte = d.veut; return composerAnnonce(); }
-  if (d.palierVeut) { MKT.compo.palier = d.palierVeut; return composerAnnonce(); }
+  if (d.ajoutListe) { MKT.ajout = d.ajoutListe; MKT.recherche = ''; return fenetreAjoutListe(); }
+  if (d.palierListe) { MKT.palier = d.palierListe; return fenetreAjoutListe(); }
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (d.fiche) return fenetreFiche(d.fiche);
+  if (d.voirFiche) return fiche(d.voirFiche, d.poste);
+  if (d.retourPoste) return choisir(d.retourPoste);
+  if (d.hex) { const [pal, nt] = d.hex.split(':'); t.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === t));
+    return hexMorph($('.fiche .hx'), FICHE.liste, statsAuNiveau(PAR_ID[FICHE.carte], +nt), pal); }
   if (a === 'passer') return finMatch();
   if (a === 'fin-match') { JEU.rencontres = null; return fermerOverlay(); }
   if (occupe) return;
   if (d.tac) {   // choix tactique : gardé tout de suite sur le serveur
     const [cle, v] = d.tac.split(':'), T = tactiqueActuelle(); T[cle] = v;
     return action(Compte.choisirTactique(`${T.att}:${T.def}`), () => route(true));
+  }
+  if (d.ajouterVeux || d.ajouterDonne) {
+    const D = MKT.data, [carte, palier] = d.ajouterVeux ? [d.ajouterVeux, MKT.palier] : d.ajouterDonne.split(':');
+    const veux = d.ajouterVeux ? [...D.veux, {carte, palier}] : D.veux, donne = d.ajouterDonne ? [...D.donne, {carte, palier}] : D.donne;
+    return majListes(veux, donne, `${PAR_ID[carte]?.nom || ''} ajouté(e)`);
+  }
+  if (d.retirerListe) { const [sens, i] = d.retirerListe.split(':'), D = MKT.data;
+    return majListes(sens === 'veux' ? D.veux.filter((x, k) => k !== +i) : D.veux, sens === 'donne' ? D.donne.filter((x, k) => k !== +i) : D.donne); }
+  if (d.transferer) {
+    const x = MKT.data.possibles[+d.transferer], o = PAR_ID[x.donne], r = PAR_ID[x.recoit];
+    if (!confirm(`Tu donnes ${o.nom} ${R_LABEL[x.palier]} (ta moins entraînée) et tu reçois ${r.nom} ${R_LABEL[x.palier]} de ${x.pseudo}. D’accord ?`)) return;
+    return action(Compte.transferer(x.pseudo, x.donne, x.recoit, x.palier), dd => { MKT.data = dd; Son.jouer('recompense'); toast(`${r.nom} rejoint ton club !`); vibrer([40, 60, 80]); route(true); });
   }
   const amis = (pr, msg) => action(pr, r => { if (r?.amis) SOC.amis = r; if (msg) toast(msg); route(true); revoirAmis(); });
   if (d.repondreAmi) { const [ps, oui] = d.repondreAmi.split(':'); return amis(Compte.repondreAmi(ps, oui === '1'), oui === '1' ? `${ps} est ton ami(e) !` : ''); }
@@ -1854,16 +1951,6 @@ document.addEventListener('click', e => {
   if (a === 'envoyer-echange') { const k = SOC.echange;
     return action(Compte.proposerEchange(k.pseudo, k.donne, k.demande), r => { SOC.amis = r; SOC.echange = null; toast(`Proposition envoyée à ${k.pseudo}`); ficheAmi(k.pseudo); }); }
   if (d.defierAmi) return fenetreDefi(d.defierAmi);
-  if (a === 'publier-annonce') {
-    const k = MKT.compo;
-    return action(Compte.publierAnnonce(k.ex, k.carte, k.palier), () => { toast('Annonce publiée'); MKT.compo = null; MKT.filtre = 'mes'; MKT.liste = null; fermerOverlay(); });
-  }
-  if (d.retirerAnnonce) return action(Compte.retirerAnnonce(d.retirerAnnonce), () => { toast('Annonce retirée : ta carte est revenue au club'); MKT.liste = null; route(true); });
-  if (d.accepter) {
-    const an = MKT.liste.find(x => x.id === d.accepter), o = PAR_ID[an.offre.carte], c = PAR_ID[an.cherche.carte];
-    if (!confirm(`Tu donnes ${c.nom} ${R_LABEL[an.cherche.palier]} (ton moins entraîné, hors de ton équipe) et tu reçois ${o.nom} ${R_LABEL[an.offre.palier]} ${an.offre.note}. D’accord ?`)) return;
-    return action(Compte.accepterAnnonce(d.accepter), () => { toast(`${o.nom} rejoint ton club !`); vibrer([40, 60, 80]); MKT.liste = null; route(true); });
-  }
   if (d.validerPari) {
     const [rid, choix] = d.validerPari.split(':'), mise = +$('input.champ[data-mise]').value;
     return action(Compte.parier(rid, choix, mise), r => { Son.jouer('pari'); toast(`Pari enregistré : gain possible ${nb(r.gainPossible)} pièces`); PARIS.data = null; fermerOverlay(); });
@@ -1935,7 +2022,8 @@ document.addEventListener('submit', e => {
 // annonce : recherche du joueur voulu ; pari : mise et gain possible
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.dataset.chercheCarte !== undefined) { MKT.compo.recherche = t.value; $('#liste-veut').innerHTML = listeVeut(); return; }
+  if (t.dataset.chercheListe !== undefined) { MKT.recherche = t.value; const q = t.value.trim().toLowerCase(), pris = new Set(MKT.data.veux.map(x => x.carte + ':' + x.palier));
+    $('#liste-ajout').innerHTML = listeAjoutVeux(CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 24 : 12), pris); return; }
   if (t.dataset.mise !== undefined) {
     document.querySelectorAll('[data-mise]').forEach(el => { if (el !== t) el.value = t.value; });
     const [rid, choix] = $('[data-valider-pari]').dataset.validerPari.split(':');

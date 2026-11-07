@@ -1417,3 +1417,53 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .rs-p { background: #5bd68a !important; } .rs-m { background: #ff9b8f !important; } .rs-n { background: #3a3f48 !important; }
 .rs-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 6px 0 8px; font-size: .68rem; color: var(--muted); }
 .rs-leg i { width: 12px; height: 12px; display: inline-block; }
+
+/* transferts par listes : vignettes des deux listes (croix pour retirer), case « + Ajouter », historique */
+.tr-c { color: var(--muted); font-weight: 700; font-size: .8rem; margin-left: 6px; }
+.tr-l { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 12px 8px; justify-items: center; }
+.tr-v { position: relative; } .tr-v .card { --w: min(84px, 22vw); }
+.tr-x { position: absolute; top: -6px; right: -6px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #0b0d10; background: #e5484d; color: #fff; font-weight: 900; font-size: .72rem; padding: 0; }
+.tr-n { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); z-index: 3; padding: 1px 7px; border-radius: 99px; background: var(--accent); color: #2a1d02; font: 900 .7rem var(--f); font-style: normal; }
+.tr-plus { width: min(84px, 22vw); aspect-ratio: 5 / 7; border-radius: 12px; border: 2px dashed #3a4150; background: rgba(255, 255, 255, .03); color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.tr-plus b { font-size: 1.8rem; line-height: 1; color: var(--accent); } .tr-plus small { font-size: .72rem; font-weight: 700; }
+.tr-p .btn { align-self: stretch; }
+.tr-hs { display: flex; flex-direction: column; gap: 6px; }
+.tr-h { margin: 0; padding: 8px 10px; border-radius: 12px; background: var(--bg2); font-size: .84rem; } .tr-h small { color: var(--muted); }
+.tr-h.nouveau { border: 1px solid var(--accent); }
+.pastille-n { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 99px; background: #e5484d; color: #fff; font-size: .66rem; }
+.tabs a .pastille#pastille-s { left: calc(50% + 6px); }
+
+/* hexagone des stats façon jeu : panneau en relief, grille en bandes, forme en dégradé qui grandit, pastilles qui comptent */
+.hx { position: relative; width: min(300px, 82vw); aspect-ratio: 1; margin: 6px auto 4px; }
+.hx svg { position: absolute; inset: 9%; width: 82%; height: 82%; overflow: visible; }
+.hx-b1 { fill: rgba(255, 255, 255, .055); stroke: rgba(255, 255, 255, .14); stroke-width: .5; } .hx-b2 { fill: rgba(255, 255, 255, .02); stroke: rgba(255, 255, 255, .1); stroke-width: .4; }
+.hx-a { stroke: rgba(255, 255, 255, .12); stroke-width: .5; }
+.hx-fond { fill: none; stroke: rgba(255, 255, 255, .35); stroke-width: .7; stroke-dasharray: 2 1.6; }
+.hx-forme { transform-box: view-box; transform-origin: 50% 50%; transform: scale(0); opacity: 0; }
+.hx-on .hx-forme { animation: hx-grandit .75s cubic-bezier(.2, 1.4, .4, 1) .15s forwards; }
+@keyframes hx-grandit { to { transform: scale(1); opacity: 1; } }
+.hx-halo { fill: none; stroke: var(--c1); stroke-width: 5; stroke-opacity: .22; stroke-linejoin: round; }
+.hx-f { stroke: var(--c1); stroke-width: 1.4; stroke-linejoin: round; }
+.hx-d { fill: #fff; stroke: var(--c2); stroke-width: 1; }
+.hx-p { position: absolute; transform: translate(-50%, -50%) scale(.4); opacity: 0; display: flex; flex-direction: column; align-items: center; min-width: 46px; padding: 3px 8px 4px;
+  border-radius: 12px; background: linear-gradient(180deg, #2d3646, #1a202a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 3px 0 #0a0d12; line-height: 1; }
+.hx-on .hx-p { animation: hx-pop .4s cubic-bezier(.2, 1.6, .4, 1) calc(.35s + var(--i) * .06s) forwards; }
+@keyframes hx-pop { to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+.hx-p small { font-size: .58rem; font-weight: 900; letter-spacing: .08em; color: var(--muted); }
+.hx-p b { font-size: 1.05rem; font-weight: 900; font-variant-numeric: tabular-nums; color: #fff; margin-top: 2px; }
+.hx-p.fort { background: linear-gradient(180deg, #fff0b8, #ffd257 45%, #e3a92c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 3px 0 #9b7413, 0 0 14px rgba(255, 210, 87, .35); }
+.hx-p.fort small { color: #6b4b08; } .hx-p.fort b { color: #2a1d02; }
+.hx-t { position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-size: .68rem; font-weight: 700; color: var(--muted); }
+.fiche-hex, .hex-eq { margin: 8px 0 12px; padding: 12px 8px 10px; border-radius: 22px; background: radial-gradient(120% 90% at 50% 0%, #22324e, #121821 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 5px 0 rgba(0, 0, 0, .3); }
+.hex-eq .hx { width: min(280px, 76vw); margin-bottom: 14px; }
+.hx-ch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 4px 4px; }
+.hx-ch button { padding: 6px 2px; border-radius: 12px; border: 0; background: #1b2433; color: var(--muted); font-weight: 800; font-size: .72rem; box-shadow: 0 3px 0 #0b0f15; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.hx-ch button b { font-size: .95rem; color: #fff; }
+.hx-ch button.on { background: linear-gradient(180deg, #fff0b8, #ffd257 45%, #e3a92c); color: #6b4b08; box-shadow: 0 3px 0 #9b7413; } .hx-ch button.on b { color: #2a1d02; }
+.hx-ch button:active { transform: translateY(2px); box-shadow: 0 1px 0 #0b0f15; }
+.pick-l { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: stretch; }
+.pick-f { border: 0; border-radius: 14px; padding: 0 10px; background: linear-gradient(180deg, #2b3340, #1c222b); color: var(--accent); font-weight: 800; font-size: .72rem; box-shadow: 0 3px 0 #0b0e13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.pick-f span { font-size: 1.1rem; line-height: 1; }
+.pick-actuel { display: flex; align-items: center; gap: 12px; padding: 8px 10px; margin-bottom: 10px; border-radius: 14px; border: 1px solid var(--accent); background: #1d1b12; }
+.pick-actuel .card { --w: 46px; box-shadow: none; } .pick-actuel > div { flex: 1; min-width: 0; } .pick-actuel small { display: block; color: var(--muted); font-size: .7rem; } .pick-actuel .btn { flex: none; }
