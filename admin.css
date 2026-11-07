@@ -69,3 +69,34 @@
 .fe-plie { margin-top: 10px; }
 .fe-plie summary { cursor: pointer; font-size: .95rem; font-weight: 800; padding: 6px 0; }
 .fe-plie[open] summary { margin-bottom: 6px; }
+/* étiquettes : plusieurs à la suite (légende, créée, brouillon) */
+.row { position: relative; }
+.tags { position: absolute; top: 8px; right: 10px; display: flex; gap: 4px; }
+.tags .tag { position: static; }
+.tag.leg { background: linear-gradient(90deg, #fff0b8, #e8ac30); color: #2a1d02; }
+.tag.cree { background: #12304a; color: #8fd0ff; }
+/* éditeur : nom et genre d'une carte créée, légende, stats avec points restants */
+.ed-ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ed-leg { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; padding: 10px 12px; border-radius: 12px; border: 1px solid #5b4a1c;
+  background: linear-gradient(135deg, #2b2310, #15110a); cursor: pointer; }
+.ed-leg input { margin-top: 3px; width: 18px; height: 18px; accent-color: #e8ac30; flex: none; }
+.ed-leg b { color: #ffe39a; display: block; }
+.ed-leg small { color: var(--muted); font-size: .78rem; }
+#desc-n { color: var(--muted); font-weight: 600; font-size: .75rem; }
+.pts { display: flex; align-items: center; gap: 12px; margin: 6px 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--line); }
+.pts > b { min-width: 2.2em; font-size: 1.6rem; font-weight: 900; text-align: center; color: var(--accent); }
+.pts span { flex: 1; font-weight: 700; font-size: .9rem; }
+.pts small { display: block; color: var(--muted); font-weight: 600; font-size: .76rem; }
+.pts.ok { border-color: rgba(91, 214, 138, .5); } .pts.ok > b { color: #5bd68a; }
+.pts.trop { border-color: rgba(229, 72, 77, .6); } .pts.trop > b { color: #ff6b6b; }
+.stat-l.pm { grid-template-columns: 5.6em 30px 1fr 30px 4.2em; gap: 6px; }
+.pm-b { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg2); font-weight: 900; font-size: 1.05rem; padding: 0; }
+.pm-b:active { transform: scale(.9); }
+.pal-tab { margin-top: 12px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.pt-l { display: grid; grid-template-columns: 5.4em repeat(6, 1fr) 3.2em; align-items: center; padding: 6px 8px; font-size: .82rem; text-align: center; }
+.pt-l > span { text-align: left; font-weight: 700; }
+.pt-l i { font-style: normal; }
+.pt-l + .pt-l { border-top: 1px solid var(--line); }
+.pt-t { background: var(--bg2); color: var(--muted); font-size: .72rem; }
+.pt-l.on { background: rgba(255, 210, 87, .1); font-weight: 800; }
+.pt-l.t-bronze > span { color: #f0b384; } .pt-l.t-argent > span { color: #e4ebf2; } .pt-l.t-or > span { color: #ffd257; } .pt-l.t-ultime > span { color: #9ef06a; }

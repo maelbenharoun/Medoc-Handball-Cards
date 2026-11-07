@@ -2939,7 +2939,8 @@ end $$;
 
 -- Catalogue : les légendes ne se lisent pas (l'admin, si) ; celles qu'on possède arrivent par etat_de
 drop policy if exists lecture on cartes;
-create policy lecture on cartes for select using (not legende or est_admin());
+create policy lecture on cartes for select using (not legende
+  or exists (select 1 from profils pr where pr.user_id = auth.uid() and pr.role = 'admin'));   -- sans fonction : les visiteurs lisent aussi le catalogue
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Droits : le jeu ne peut appeler QUE ces fonctions-là, et seulement une fois connecté

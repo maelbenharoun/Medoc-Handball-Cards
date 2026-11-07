@@ -1,5 +1,6 @@
 'use strict';
-/* Outil de gestion des cartes (admin.html) : postes de jeu, 6 stats (forme du joueur) et une photo par palier de chaque carte.
+/* Outil de gestion des cartes (admin.html) : postes de jeu, 6 stats (forme du joueur) et une photo par palier de chaque carte ;
+   équipe, description, légende du club ; création de cartes qui ne sont pas sur le site (mode serveur).
    Les modifications vont d'abord dans un brouillon (localStorage, visible en aperçu dans le jeu du même navigateur),
    puis « Publier » les enregistre :
    - mode serveur (config.js rempli) : dans la base Supabase (table cartes) et son stockage de photos,
@@ -20,6 +21,11 @@ let BROUILLON = lireBrouillon();
 let REGL = lireReglages();
 const PHOTOS_LOCALES = {};   // photos publiées pendant cette session, le temps que GitHub Pages les mette en ligne
 let filtre = 'tous', filtrePoste = 'tous', tri = 'nom', recherche = '', ed = null;   // filtres : équipe, poste ; tri : nom ou poste
+const EQUIPES_CARTES = ['SF1', 'SF2', 'SG1', 'SG2'];
+// identifiant d'une carte créée : nom sans accents, en minuscules, mots reliés par des tirets (comme le site)
+const slugAdmin = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+// une carte créée (pas sur le site) rejoint la liste ; SITE et PAR_ID partagent le même objet
+function ajouterCreee(c) { if (!c?.id) return; if (PAR_ID[c.id]) Object.assign(PAR_ID[c.id], c); else { const x = {...c}; SITE.push(x); PAR_ID[c.id] = x; } }
 
 const $ = s => document.querySelector(s);
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2600); }
@@ -120,9 +126,10 @@ async function chargerServeur() {
   adminOk = false;
   if (session) { const r = await sbA.rpc('est_admin'); adminOk = !r.error && r.data === true; }
   marquerAdmin(adminOk);
-  const {data, error} = await sbA.from('cartes').select('id, reglages');
+  const {data, error} = await sbA.from('cartes').select('id, reglages, site, legende');
   if (error) throw error;
   IDS_SERVEUR = data.map(r => r.id);
+  data.forEach(r => { if (r.site?.cree) ajouterCreee({...r.site, id: r.id}); });   // cartes créées dans l'outil
   if (!data.length) {   // premier lancement : on part des réglages de data/perso.json
     PERSO = await fetch('data/perso.json', {cache: 'no-store'}).then(r => r.ok ? r.json() : {}).then(p => p.cartes || {}).catch(() => ({}));
   } else { PERSO = {}; data.forEach(r => { if (r.reglages) PERSO[r.id] = r.reglages; }); }
@@ -133,8 +140,9 @@ async function chargerServeur() {
 }
 // carte telle qu'enregistrée sur le serveur : stats du site + réglages, note et rareté calculées par cartes.js
 function ligneServeur(id, reglages) {
-  const site = PAR_ID[id], c = fusionnerCarte(site, reglages || {});
-  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, postes: c.postes, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site, reglages: reglages || null};
+  const {base, ...rg} = reglages || {}, site = base ? {...base, id} : PAR_ID[id], c = fusionnerCarte(site, rg);
+  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, postes: c.postes, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site,
+    reglages: Object.keys(rg).length ? rg : null, legende: c.legende};
 }
 // envoie ces cartes au serveur (photos du brouillon déposées d'abord) ; complet : les autres ne sont plus tirées
 async function envoyer(ids, complet) {
@@ -216,9 +224,9 @@ function vue() {
   const parPoste = p => toutes.filter(c => c.postes.includes(p)).length;
   $('#view').innerHTML = `<h1>Gestion des cartes</h1>
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
-    ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs, paris et équipes du parcours</button></p>' : ''}
+    ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn gold petit" data-act="creer">＋ Créer une carte</button> <button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs, paris et équipes du parcours</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
-    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2']]
+    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['legendes', `Légendes (${toutes.filter(c => c.legende).length})`]]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
     <div class="filters">${[['tous', 'Tous les postes'], ...POSTES_JEU.map(p => [p, `${p} (${parPoste(p)})`]), ['sans', `Sans poste (${sansPoste})`]]
       .map(([k, l]) => `<button data-fposte="${k}" class="${filtrePoste === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -236,7 +244,7 @@ function majListe() {
   const q = recherche.trim().toLowerCase();
   // poste : le joueur apparaît à chacun de ses postes ; tri par poste = par poste principal, puis par nom
   const rang = c => c.postes.length ? POSTES_JEU.indexOf(c.postes[0]) : POSTES_JEU.length;
-  const liste = cartes().filter(c => (filtre === 'tous' || c.equipe === filtre)
+  const liste = cartes().filter(c => (filtre === 'tous' || (filtre === 'legendes' ? c.legende : c.equipe === filtre))
     && (filtrePoste === 'tous' || (filtrePoste === 'sans' ? !c.postes.length : c.postes.includes(filtrePoste)))
     && (!q || c.nom.toLowerCase().includes(q)))
     .sort((a, b) => (tri === 'poste' ? rang(a) - rang(b) : 0) || a.nom.localeCompare(b.nom, 'fr'));
@@ -247,10 +255,11 @@ function majListe() {
       groupe = g;
       const principal = filtrePoste !== 'tous' && filtrePoste !== 'sans' && c.postes.length > 1
         ? (c.postes[0] === filtrePoste ? ' · principal' : ` · principal ${c.postes[0]}`) : '';
-      const etat = c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '';
+      const etat = (c.legende ? '<span class="tag leg">légende</span>' : '') + (c.cree ? '<span class="tag cree">créée</span>' : '')
+        + (c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '');
       return `${titre}<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
         <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.equipe}</small>
-        <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat}</button>`;
+        <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat ? `<span class="tags">${etat}</span>` : ''}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
 
@@ -259,17 +268,27 @@ function majListe() {
 function ouvrir(id) {
   const p = appliquerBrouillon(PERSO, BROUILLON)[id] || {}, c = fusionnerCarte(PAR_ID[id], p);
   // postes réglés à la main (le premier = principal) ; vide = valeur par défaut (GB pour un gardien du site)
+  const site = PAR_ID[id];
   ed = {id, postes: Array.isArray(p.postes) ? [...p.postes] : p.poste ? [p.poste] : [], stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
     numero: Number.isInteger(p.numero) ? p.numero : null, fiche: JSON.parse(JSON.stringify(p.fiche || {})),
-    photos: {...(p.photos || {})}, photo: p.photo || null, palier: 'bronze', img: null, cadre: null};
+    photos: {...(p.photos || {})}, photo: p.photo || null, palier: c.legende ? 'ultime' : 'bronze', img: null, cadre: null,
+    equipe: c.equipe, legende: c.legende, cree: !!site.cree, nom: site.nom, genre: site.genre || 'F', vals: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
     <div class="ed-haut"><div id="apercu"></div><div class="ed-note"><small>Palier</small><b id="note"></b><small id="note-site"></small></div></div>
     <div class="filters postes" id="paliers"></div>
-    <h3>${esc(c.nom)} <small>${c.equipe}</small></h3>
+    <h3 id="ed-titre">${esc(c.nom)} <small>${c.equipe}</small></h3>
+    ${ed.cree ? `<div class="ed-ligne"><label class="lab">Nom<input class="champ" id="ed-nom" maxlength="40" value="${esc(ed.nom)}"></label>
+      <label class="lab">Genre<select class="champ" id="ed-genre"><option value="F"${ed.genre === 'F' ? ' selected' : ''}>Fille</option><option value="M"${ed.genre === 'M' ? ' selected' : ''}>Garçon</option></select></label></div>` : ''}
+    <h4>Équipe</h4><div class="filters postes" id="equipes"></div>
+    <label class="ed-leg"><input type="checkbox" id="ed-legende"${ed.legende ? ' checked' : ''}><span><b>Légende du club</b>
+      <small>Une seule édition (Ultime, cadre à part), tirée 1 fois sur 500 dans le booster gratuit, jamais montrée ailleurs dans le jeu.</small></span></label>
+    <h4>Description <small id="desc-n"></small></h4>
+    <textarea class="champ" id="ed-desc" rows="2" maxlength="160" placeholder="Ex. Capitaine de la SF1, la reine des contre-attaques.">${esc(ed.fiche.intro || '')}</textarea>
+    <p class="sub petit">Une petite phrase, affichée sur la fiche du joueur, sous son nom.</p>
     <h4>Postes de jeu</h4><div class="filters postes" id="postes"></div><p class="sub petit" id="aide-postes"></p>
     <h4>Numéro de maillot</h4><input class="champ numero" type="number" min="0" max="99" id="numero" inputmode="numeric" placeholder="Ex. 10">
-    <h4>Forme du joueur <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
+    <h4>Stats <button class="lien" data-act="defaut">Remettre par défaut</button></h4><div id="stats"></div>
     <h4 id="titre-photo">Photo</h4>
     <div class="photo"><canvas id="cadre" width="${PHOTO_L}" height="${PHOTO_H}"></canvas>
       <div class="photo-ctl"><label class="btn ghost petit">Choisir une photo<input type="file" accept="image/*" id="fichier" hidden></label>
@@ -292,7 +311,13 @@ function ouvrir(id) {
 }
 
 function entree() {
-  const r = {};
+  const r = {}, site = PAR_ID[ed.id];
+  if (ed.cree) r.base = carteCreee(ed.id, {nom: (ed.nom || '').trim() || site.nom, genre: ed.genre, equipe: ed.equipe, legende: ed.legende,
+    poste: ed.postes[0] === 'GB' ? 'GB' : 'JDC'});
+  else {
+    if (ed.equipe && ed.equipe !== site.equipe) r.equipe = ed.equipe;
+    if (ed.legende !== !!site.legende) r.legende = ed.legende;
+  }
   if (ed.postes.length) r.postes = [...ed.postes];
   if (ed.numero != null) r.numero = ed.numero;
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
@@ -317,9 +342,7 @@ function ficheNette(f) {
 const ficheAuto = () => PAR_ID[ed.id].fiche || [];
 function majFiche() {
   const fi = ficheDe(ficheAuto(), ed.fiche), a = v => esc(v ?? '');
-  $('#fiche-ed').innerHTML = `<label class="lab">Présentation (facultatif)<textarea class="champ" rows="3" maxlength="800" data-fi-intro
-      placeholder="Ex. Capitaine de la SF1, au club depuis les moins de 11 ans.">${a(fi.intro)}</textarea></label>`
-    + fi.sections.map(sec => `<div class="fe-sec${sec.cache ? ' off' : ''}">
+  $('#fiche-ed').innerHTML = fi.sections.map(sec => `<div class="fe-sec${sec.cache ? ' off' : ''}">
       <div class="fe-tete"><input class="champ" data-fi-titre="${a(sec.id)}" value="${a(sec.titre)}" placeholder="Titre de la section">
         <button class="btn ghost petit" data-fi-cache="${a(sec.id)}">${sec.cache ? 'Afficher' : 'Masquer'}</button>
         ${sec.auto ? '' : `<button class="btn ghost petit" data-fi-suppr-sec="${a(sec.id)}">Supprimer</button>`}</div>
@@ -374,7 +397,7 @@ function ficheClic(t) {
 const local = u => PHOTOS_LOCALES[u] || u;
 function carteEd() {
   const e = entree() || {};
-  const c = fusionnerCarte(PAR_ID[ed.id], {...e, photo: e.photo && local(e.photo),
+  const c = fusionnerCarte(e.base ? {...e.base, id: ed.id} : PAR_ID[ed.id], {...e, photo: e.photo && local(e.photo),
     photos: e.photos && Object.fromEntries(Object.entries(e.photos).map(([k, v]) => [k, local(v)]))});
   return vueExemplaire(c, {palier: ed.palier, note: PALIER[ed.palier].min});
 }
@@ -382,7 +405,12 @@ const posteEd = () => ed.postes[0] || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : nul
 
 function majEditeur() {
   const c = carteEd(), poste = posteEd();
-  $('#paliers').innerHTML = PALIERS.map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
+  if (!ed.vals) initVals();
+  $('#paliers').innerHTML = PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${ed.legende ? 'Légende' : p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
+  const eqs = [...new Set([...EQUIPES_CARTES, ed.equipe].filter(Boolean))];
+  $('#equipes').innerHTML = eqs.map(e => `<button data-equipe="${esc(e)}" class="${ed.equipe === e ? 'on' : ''}">${esc(e)}</button>`).join('');
+  $('#ed-titre').innerHTML = `${esc(c.nom)} <small>${esc(c.equipe)}${c.legende ? ' · légende' : ''}</small>`;
+  $('#desc-n').textContent = `${(ed.fiche.intro || '').length}/160`;
   // plusieurs postes possibles : on touche pour ajouter ou retirer, le premier choisi est le principal (★)
   $('#postes').innerHTML = POSTES_JEU.map(p => {
     const i = c.postes.indexOf(p);
@@ -392,11 +420,22 @@ function majEditeur() {
   $('#aide-postes').textContent = (c.postes.length ? `${nomsPostes(c)}. ` : 'Aucun poste : joue partout sans malus. ')
     + (c.postes.length > 1 ? `Principal : ${c.postes[0]} (le seul qui compte pour les boosters par poste). ` : '')
     + 'Pas de malus à chacun de ses postes, −5 ailleurs. ' + (bonus ? `Bonus de ses postes sur les stats : ${bonus}.` : '');
-  $('#stats').innerHTML = statsDu(poste).map(([k, , nom]) => `<label class="stat-l"><span>${nom}</span>
-    <input type="range" min="1" max="99" value="${c.stats[k]}" data-stat="${k}"><input class="champ" type="number" min="1" max="99" value="${c.stats[k]}" data-stat="${k}" inputmode="numeric"></label>`).join('')
-    + `<p class="sub petit">${ed.stats ? 'Réglée à la main.' : 'Par défaut, tirée des stats du site.'} Tous les joueurs ont la même note à palier égal :
-      ces stats ne donnent que la forme du joueur (${statsDu(poste).map(([k, l]) => `${l} ${c.ecarts[k] >= 0 ? '+' : ''}${c.ecarts[k]}`).join(' · ')}),
-      gardée à chaque palier. Poids du poste ${poste || 'non défini'} : ${statsDu(poste).map(([k, l]) => `${l} ${Math.round(POIDS[poste || 'JDC'][k] * 100)} %`).join(' · ')}</p>`;
+  // points à répartir : le total des 6 stats au palier choisi (le même pour tous les joueurs, selon le palier)
+  const st = statsDu(poste), B = budgetPalier(ed.palier), reste = B - st.reduce((t, [k]) => t + ed.vals[k], 0), P = PALIER[ed.palier];
+  $('#stats').innerHTML = `<div class="pts${reste === 0 ? ' ok' : reste < 0 ? ' trop' : ''}"><b>${reste > 0 ? reste : reste < 0 ? -reste : '0'}</b>
+      <span>${reste > 0 ? `point${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''}` : reste < 0 ? `point${reste < -1 ? 's' : ''} en trop` : 'Tous les points sont placés'}
+      <small>${ed.legende ? 'Légende' : P.nom} ${P.min} : ${B} points à répartir sur les 6 stats</small></span>
+      ${reste ? '<button class="btn ghost petit" data-act="repartir">Répartir</button>' : ''}</div>`
+    + st.map(([k, , nom]) => `<div class="stat-l pm"><span>${nom}</span>
+      <button class="pm-b" data-pm="${k}:-1" aria-label="${nom} moins 1">−</button>
+      <input type="range" min="1" max="99" value="${ed.vals[k]}" data-stat="${k}">
+      <button class="pm-b" data-pm="${k}:1" aria-label="${nom} plus 1">+</button>
+      <input class="champ" type="number" min="1" max="99" value="${ed.vals[k]}" data-stat="${k}" inputmode="numeric"></div>`).join('')
+    + `<div class="pal-tab" role="table" aria-label="Stats à chaque palier"><div class="pt-l pt-t" role="row"><span></span>${st.map(([, l]) => `<b>${l}</b>`).join('')}<b>Total</b></div>
+      ${PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => { const s = statsPalier(p.id);
+        return `<div class="pt-l t-${p.id}${p.id === ed.palier ? ' on' : ''}" role="row"><span>${ed.legende ? 'Légende' : p.nom} ${p.min}</span>${st.map(([k]) => `<i>${s[k]}</i>`).join('')}<i>${st.reduce((t, [k]) => t + s[k], 0)}</i></div>`; }).join('')}</div>
+    <p class="sub petit">${ed.stats ? 'Réglées à la main.' : 'Par défaut, tirées des stats du site.'} Change les stats à un palier : les autres paliers suivent en proportion
+      (une stat qui vaut 25 % du total le vaut à tous les paliers). Poids du poste ${poste || 'non défini'} : ${st.map(([k, l]) => `${l} ${Math.round(POIDS[poste || 'JDC'][k] * 100)} %`).join(' · ')}</p>`;
   $('#titre-photo').textContent = `Photo ${R_LABEL[ed.palier]}`;
   majApercu();
 }
@@ -407,21 +446,52 @@ function majApercu() {
   $('#note-site').textContent = `${p.nom} ${p.min}–${p.max}`;
 }
 
+const budgetPalier = p => Math.round(6 * moyenneExacte(PALIER[p].min));
+function initVals() { ed.vals = {...carteEd().s}; }   // les stats telles que le jeu les montre, au palier choisi
+// les stats d'un autre palier : en proportion de la moyenne du palier (comme statsAuNiveau dans cartes.js)
+function statsPalier(p) {
+  const f = moyenneExacte(PALIER[p].min) / moyenneExacte(PALIER[ed.palier].min);
+  return Object.fromEntries(statsDu(posteEd()).map(([k]) => [k, borne(ed.vals[k] * f, 1, 99)]));
+}
+function valsVersStats() {
+  const m = moyenneExacte(PALIER[ed.palier].min), b = carteEd().bonus || {};
+  ed.stats = Object.fromEntries(statsDu(posteEd()).map(([k]) => [k, Math.max(1, Math.round((ed.vals[k] - (b[k] || 0) * m / 40) * 10) / 10)]));
+}
+// ramène la somme au total voulu : en proportion, puis les arrondis sur les plus grosses stats
+function ajusterTotal(vals, total) {
+  const ks = Object.keys(vals), s = ks.reduce((t, k) => t + vals[k], 0) || 1;
+  const r = Object.fromEntries(ks.map(k => [k, borne(vals[k] * total / s, 1, 99)]));
+  for (let i = 0; i < 200; i++) {
+    const d = total - ks.reduce((t, k) => t + r[k], 0); if (!d) break;
+    const k = [...ks].sort((a, b) => d > 0 ? r[a] - r[b] : r[b] - r[a]).find(x => d > 0 ? r[x] < 99 : r[x] > 1); if (!k) break;
+    r[k] += Math.sign(d);
+  }
+  return r;
+}
 function changerStat(k, v, source) {
-  if (!ed.stats) ed.stats = {...carteEd().stats};
-  ed.stats[k] = borne(+v || 1, 1, 99);
-  document.querySelectorAll(`[data-stat="${k}"]`).forEach(el => { if (el !== source) el.value = ed.stats[k]; });
+  ed.vals[k] = borne(+v || 1, 1, 99);
+  valsVersStats();
+  document.querySelectorAll(`[data-stat="${k}"]`).forEach(el => { if (el !== source) el.value = ed.vals[k]; });
   majEditeur();
 }
+function repartir() { ed.vals = ajusterTotal(ed.vals, budgetPalier(ed.palier)); valsVersStats(); majEditeur(); }
 function changerPoste(p) {
   const avantGB = posteEd() === 'GB';
   if (!p) ed.postes = [];
   else if (ed.postes.includes(p)) ed.postes = ed.postes.filter(x => x !== p);
   else ed.postes = [...(ed.postes.length ? ed.postes : PAR_ID[ed.id].poste === 'GB' ? ['GB'] : []), p];
-  if (avantGB !== (posteEd() === 'GB')) ed.stats = null;   // champ ↔ gardien(ne) : autres stats, on repart des valeurs par défaut
+  if (avantGB !== (posteEd() === 'GB')) { ed.stats = null; ed.vals = null; }   // champ ↔ gardien(ne) : autres stats, on repart des valeurs par défaut
+  else if (ed.stats) valsVersStats();   // le bonus des postes change : les stats affichées restent celles réglées
   majEditeur();
 }
-function changerPalier(p) { ed.palier = p; chargerPhoto(); majEditeur(); }
+// autre palier : les stats suivent en proportion (même part du total) ; avec tous les points placés, le total du nouveau palier
+function changerPalier(p) {
+  if (ed.stats) { const plein = budgetPalier(ed.palier) === Object.values(ed.vals).reduce((t, v) => t + v, 0), s = statsPalier(p);
+    ed.vals = plein ? ajusterTotal(s, budgetPalier(p)) : s; }
+  ed.palier = p;
+  if (ed.stats) valsVersStats(); else ed.vals = null;
+  chargerPhoto(); majEditeur();
+}
 
 // Photo du palier choisi : recadrage carré (zoom + position) dans un canvas, puis JPEG
 function chargerPhoto() {
@@ -475,12 +545,49 @@ function choisirFichier(f) {
 }
 
 function enregistrer() {
+  if (ed.stats) {
+    const reste = budgetPalier(ed.palier) - Object.values(ed.vals).reduce((t, v) => t + v, 0);
+    if (reste) return alert(reste > 0 ? `Il reste ${reste} point${reste > 1 ? 's' : ''} à placer dans les stats (ou touche « Répartir »).`
+      : `${-reste} point${reste < -1 ? 's' : ''} en trop dans les stats : retires-en (ou touche « Répartir »).`);
+  }
+  if (ed.cree && !(ed.nom || '').trim()) return alert('Donne un nom à la carte.');
   const e = entree();
+  if (e?.base) ajouterCreee({...e.base, id: ed.id});
   if (memeEntree(e, PERSO[ed.id])) delete BROUILLON[ed.id]; else BROUILLON[ed.id] = e;
   if (!sauverBrouillon()) return;
   fermer(); toast('Enregistré dans le brouillon');
 }
 function fermer() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; ed = null; vue(); }
+
+// ── créer une carte (pas sur le site : un ancien, une légende du club…) ────────────
+function fenetreCreer() {
+  if (!adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur pour créer une carte.');
+  const o = $('#overlay'); o.hidden = false;
+  o.innerHTML = `<div class="sheet"><h3>Nouvelle carte</h3>
+    <form class="form" data-form="creer">
+      <label class="lab">Nom<input class="champ" name="nom" required maxlength="40" placeholder="Prénom Nom" autocomplete="off"></label>
+      <div class="ed-ligne"><label class="lab">Genre<select class="champ" name="genre"><option value="F">Fille</option><option value="M">Garçon</option></select></label>
+        <label class="lab">Équipe<select class="champ" name="equipe">${EQUIPES_CARTES.map(e => `<option>${e}</option>`).join('')}</select></label></div>
+      <label class="lab">Poste principal<select class="champ" name="poste">${POSTES_JEU.map(p => `<option value="${p}">${POSTE_NOM[p]}</option>`).join('')}</select></label>
+      <label class="ed-leg"><input type="checkbox" name="legende"><span><b>Légende du club</b><small>Une seule édition, cadre à part, tirée 1 fois sur 500 dans le booster gratuit.</small></span></label>
+      <p class="sub petit">Ensuite : stats, photo et description dans l’éditeur, puis « Publier ». Uniquement nom, équipe et infos sportives ; une photo seulement avec l’accord de la personne.</p>
+      <div class="ed-btns"><button type="button" class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" type="submit">Créer</button></div>
+    </form></div>`;
+  o.querySelector('[name=nom]').focus();
+}
+function creerCarte(d) {
+  const nom = (d.nom || '').trim().replace(/\s+/g, ' ');
+  if (!nom) return;
+  let id = slugAdmin(nom) || 'carte', n = 2;
+  if (id.length < 2) id += '-carte';
+  while (PAR_ID[id + (n > 2 ? '-' + (n - 1) : '')] && n < 99) n++;
+  if (n > 2) id += '-' + (n - 1);
+  const base = carteCreee(id, {nom, genre: d.genre, equipe: d.equipe, poste: d.poste, legende: !!d.legende});
+  ajouterCreee(base);
+  BROUILLON[id] = {base, postes: [d.poste]};
+  if (!sauverBrouillon()) return;
+  fermer(); ouvrir(id);
+}
 
 // Photos d'une entrée (photo unique + une par palier) ; deposer(dataURL, nom) envoie une photo neuve et renvoie son adresse
 const photosDe = e => [e?.photo, ...Object.values(e?.photos || {})].filter(Boolean);
@@ -523,7 +630,7 @@ async function validerReglages() {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier],[data-fi-tout],[data-fi-cache],[data-fi-reset],[data-fi-suppr],[data-fi-suppr-sec],[data-fi-ajout],[data-fi-sec]');
+  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier],[data-equipe],[data-pm],[data-fi-tout],[data-fi-cache],[data-fi-reset],[data-fi-suppr],[data-fi-suppr-sec],[data-fi-ajout],[data-fi-sec]');
   if (!t) { if (e.target.id === 'overlay' && !ed) fermer(); return; }   // l'éditeur ne se ferme pas par erreur
   const a = t.dataset.act;
   if (t.dataset.ed) return ouvrir(t.dataset.ed);
@@ -533,9 +640,13 @@ document.addEventListener('click', e => {
   if (t.dataset.tri) { tri = t.dataset.tri; return vue(); }
   if (t.dataset.poste !== undefined && ed) return changerPoste(t.dataset.poste);
   if (t.dataset.palier && ed) return changerPalier(t.dataset.palier);
+  if (t.dataset.equipe && ed) { ed.equipe = t.dataset.equipe; return majEditeur(); }
+  if (t.dataset.pm && ed) { const [k, d] = t.dataset.pm.split(':'); return changerStat(k, ed.vals[k] + +d); }
+  if (a === 'repartir') return repartir();
+  if (a === 'creer') return fenetreCreer();
   if (a === 'fermer') return fermer();
   if (a === 'enregistrer') return enregistrer();
-  if (a === 'defaut') { ed.stats = null; return majEditeur(); }
+  if (a === 'defaut') { ed.stats = null; ed.vals = null; return majEditeur(); }
   if (a === 'sansphoto') return retirerPhoto();
   if (a === 'publier') return SERVEUR ? publierServeur() : publier();
   if (a === 'synchro') return synchroniser();
@@ -552,6 +663,8 @@ document.addEventListener('input', e => {
   if (t.dataset.recherche !== undefined) { recherche = t.value; return majListe(); }
   if (!ed) return;
   if (t.dataset.stat) return changerStat(t.dataset.stat, t.value, t);
+  if (t.id === 'ed-desc') { ed.fiche.intro = t.value; $('#desc-n').textContent = `${t.value.length}/160`; return; }
+  if (t.id === 'ed-nom') { ed.nom = t.value; return majApercu(); }
   if (t.dataset.fiIntro !== undefined || t.dataset.fiTitre !== undefined || t.dataset.fiCle) return ficheSaisie(t);
   if (t.id === 'numero') { ed.numero = t.value === '' ? null : borne(+t.value, 0, 99); return majApercu(); }
   if (t.dataset.cadre) { ed.cadre[t.dataset.cadre] = t.dataset.cadre === 'z' ? t.value / 100 : +t.value; return photoDepuisCadre(); }
@@ -559,8 +672,15 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (!ed) return;
   if (e.target.id === 'fichier') return choisirFichier(e.target.files[0]);
+  if (e.target.id === 'ed-genre') { ed.genre = e.target.value; return majApercu(); }
+  if (e.target.id === 'ed-legende') {   // une légende n'existe qu'en Ultime
+    ed.legende = e.target.checked;
+    if (ed.legende && ed.palier !== 'ultime') changerPalier('ultime'); else majEditeur();
+    return;
+  }
 });
 document.addEventListener('submit', async e => {
+  if (e.target.dataset.form === 'creer') { e.preventDefault(); return creerCarte(Object.fromEntries(new FormData(e.target))); }
   if (e.target.dataset.form !== 'admin') return;
   e.preventDefault();
   const d = Object.fromEntries(new FormData(e.target));
@@ -576,7 +696,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#overl
 async function charger() {
   try {
     const d = await fetch('data/cartes.json', {cache: 'no-store'}).then(r => r.json());
-    SITE = d.cartes; SITE.forEach(c => PAR_ID[c.id] = c);
+    SITE = d.cartes; PAR_ID = {}; SITE.forEach(c => PAR_ID[c.id] = c);
+    for (const [id, e] of Object.entries(BROUILLON)) if (e?.base) ajouterCreee({...e.base, id});   // cartes créées, pas encore publiées
     $('[data-act=reglages]').textContent = SERVEUR ? 'Compte' : 'GitHub';
     if (SERVEUR) {
       try { await chargerServeur(); }

@@ -658,7 +658,7 @@ function fiche(carte, poste) {
   const lignes = mes.map(e => {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
-    return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
+    return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${c.legende ? 'Légende' : R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
       <small>${e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
@@ -677,7 +677,7 @@ function fiche(carte, poste) {
     ${hex}
     ${paliers ? `<div class="paliers">${paliers}</div>` : ''}
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
-    <div class="fiche-j">${ficheHTML(c.fiche && {...c.fiche, intro: ''}) || `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`}</div>
+    <div class="fiche-j">${ficheHTML(c.fiche && {...c.fiche, intro: ''}) || (c.cree ? '' : `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`)}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
   hexAnimer($('#overlay'));
 }
@@ -2610,7 +2610,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=57').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=58').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
