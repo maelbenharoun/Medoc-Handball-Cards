@@ -75,7 +75,12 @@ insert into parametres values (1, '{
   "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
   "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.10, "tactique_pente": 0.4,
   "amis_max": 50, "echanges_amis_par_jour": 3, "echange_jours": 7,
-  "messages_par_jour": 100, "message_longueur": 300, "defis_amis_par_jour": 5, "defi_ami_pieces": 30
+  "messages_par_jour": 100, "message_longueur": 300, "defis_amis_par_jour": 5, "defi_ami_pieces": 30,
+  "synchro_semaine_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/semaine.json",
+  "semaine_forme": 3, "booster_semaine_prix": 400, "booster_semaine_par_jour": 3,
+  "booster_semaine_chances": {"bronze": 45, "argent": 35, "or": 17, "ultime": 3},
+  "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
+  "compo_par_semaine": 3
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -443,6 +448,9 @@ language plpgsql security definer set search_path = public as $$
 begin
   perform quetes_du_jour(p_uid);
   update quetes set progres = progres + p_n where user_id = p_uid and jour = aujourdhui() and quete = p_quete;
+  -- les quêtes de la semaine avancent avec les mêmes actions
+  perform quetes_de_la_semaine(p_uid);
+  update quetes_semaine set progres = progres + p_n where user_id = p_uid and lundi = date_trunc('week', aujourdhui())::date and quete = p_quete;
 end $$;
 
 -- Gagne de l'expérience de compte ; chaque niveau donne des pièces et un booster (Or ou mieux tous les 5 niveaux)
@@ -450,6 +458,10 @@ create or replace function gagner_xp(p_uid uuid, p_xp int) returns jsonb languag
 declare p profils; gains jsonb := '[]'; v_pieces int; orr boolean;
 begin
   update profils set xp = xp + p_xp where user_id = p_uid returning * into p;
+  if p_xp > 0 then
+    insert into passe (user_id, saison, xp) values (p_uid, passe_saison(), p_xp)
+    on conflict (user_id, saison) do update set xp = passe.xp + excluded.xp;
+  end if;
   while p.xp >= xp_niveau(p.niveau) loop
     v_pieces := least(parami('niveau_pieces') * (p.niveau + 1), parami('niveau_pieces_max'));
     orr := (p.niveau + 1) % parami('niveau_or_tous') = 0;
@@ -513,6 +525,148 @@ create or replace function creer_exemplaire(p_uid uuid, p_carte text, p_palier t
 language sql security definer set search_path = public as $$
   insert into exemplaires (proprietaire, carte_id, palier, note, origine)
   values (p_uid, p_carte, p_palier, palier_min(p_palier), p_origine) returning id
+$$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Pour ne pas tourner en rond (demande de Maël) : joueurs de la semaine, passe de saison et quêtes de la semaine, défis de composition
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Joueurs de la semaine : pour chaque équipe du club, le meilleur joueur des vrais matchs de la semaine (data/semaine.json, fait par
+-- scripts/semaine.py d'après les feuilles du site, sans répétition dans une équipe ; relu avec data/matchs.json). Pendant la semaine
+-- qui suit, ils sont « en forme » (+3 en match) et sortent dans le booster de la semaine. Le jeu ne peut rien y écrire.
+create table if not exists joueurs_semaine (lundi date not null, equipe text not null, carte text not null, stats jsonb not null default '{}',
+  primary key (lundi, equipe));
+alter table joueurs_semaine enable row level security;
+revoke all on joueurs_semaine from anon, authenticated;
+-- Passe de saison : XP gagnée pendant la saison (4 semaines) et dernier palier dont la récompense est récupérée
+create table if not exists passe (user_id uuid not null references profils on delete cascade, saison int not null, xp int not null default 0,
+  reclame int not null default 0, primary key (user_id, saison));
+alter table passe enable row level security;
+revoke all on passe from anon, authenticated;
+-- Quêtes de la semaine (du lundi au dimanche)
+create table if not exists quetes_semaine (user_id uuid not null references profils on delete cascade, lundi date not null, quete text not null,
+  progres int not null default 0, reclamee boolean not null default false, primary key (user_id, lundi, quete));
+alter table quetes_semaine enable row level security;
+revoke all on quetes_semaine from anon, authenticated;
+-- Défis de composition réussis (une fois par défi et par période : semaine ou mois) et les cartes données
+create table if not exists defis_faits (user_id uuid not null references profils on delete cascade, periode date not null, defi text not null,
+  cartes jsonb not null default '[]', le timestamptz not null default now(), primary key (user_id, periode, defi));
+alter table defis_faits enable row level security;
+revoke all on defis_faits from anon, authenticated;
+
+-- Semaine affichée : la dernière semaine finie qui a des joueurs (jusqu'à 3 semaines en arrière, si le site tarde à être republié)
+create or replace function semaine_actuelle() returns date language sql stable security definer set search_path = public as $$
+  select max(lundi) from joueurs_semaine
+  where lundi < date_trunc('week', aujourdhui())::date and lundi >= date_trunc('week', aujourdhui())::date - 21
+$$;
+create or replace function en_forme(p_carte text) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from joueurs_semaine where lundi = semaine_actuelle() and carte = p_carte)
+$$;
+create or replace function semaine_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('lundi', semaine_actuelle(), 'forme', parami('semaine_forme'),
+    'prix', parami('booster_semaine_prix'), 'parJour', parami('booster_semaine_par_jour'),
+    'achetes', (select count(*) from mouvements m where m.user_id = p_uid and m.quoi = 'booster' and m.detail ->> 'type' = 'semaine'
+      and m.le >= debut_du_jour()),
+    'chances', param('booster_semaine_chances'),
+    'joueurs', coalesce((select jsonb_agg(jsonb_build_object('equipe', j.equipe, 'carte', j.carte, 'stats', j.stats) order by j.equipe)
+      from joueurs_semaine j join cartes c on c.id = j.carte where j.lundi = semaine_actuelle()), '[]'))
+$$;
+-- relu par la synchro des matchs : remplace les joueurs des semaines du fichier (le fichier fait foi, il ne change plus une semaine finie)
+create or replace function maj_semaine(p jsonb) returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if jsonb_typeof(p -> 'semaines') <> 'array' then raise exception 'Fichier des joueurs de la semaine invalide'; end if;
+  insert into joueurs_semaine (lundi, equipe, carte, stats)
+    select (s ->> 'lundi')::date, e.key, e.value ->> 'carte', e.value - 'carte'
+    from jsonb_array_elements(p -> 'semaines') s, jsonb_each(s -> 'equipes') e
+    where e.value ->> 'carte' in (select id from cartes)
+  on conflict (lundi, equipe) do update set carte = excluded.carte, stats = excluded.stats;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- Passe de saison : saisons de 4 semaines depuis passe_debut ; 30 paliers de 400 XP (toute l'XP gagnée compte)
+create or replace function passe_saison() returns int language sql stable security definer set search_path = public as $$
+  select greatest(1, floor((aujourdhui() - (param('passe_debut') #>> '{}')::date) / (7 * parami('passe_semaines')))::int + 1)
+$$;
+create or replace function passe_debut_saison(n int) returns date language sql stable security definer set search_path = public as $$
+  select (param('passe_debut') #>> '{}')::date + (n - 1) * 7 * parami('passe_semaines')
+$$;
+-- récompense d'un palier : des pièces ; un booster tous les 3 ; 2 boosters tous les 5 ; un booster Or tous les 10 ; le 30e : 2 Or
+create or replace function passe_recompense(n int) returns jsonb language sql immutable as $$
+  select case when n = 30 then '{"or": 2, "pieces": 2000}'::jsonb
+    when n % 10 = 0 then jsonb_build_object('or', 1, 'pieces', 50 * n)
+    when n % 5 = 0 then jsonb_build_object('bonus', 2, 'pieces', 200)
+    when n % 3 = 0 then '{"bonus": 1}'::jsonb
+    else jsonb_build_object('pieces', 100 + 10 * n) end
+$$;
+create or replace function passe_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('saison', passe_saison(), 'debut', passe_debut_saison(passe_saison()),
+    'fin', passe_debut_saison(passe_saison() + 1) - 1, 'xp', coalesce(x.xp, 0), 'reclame', coalesce(x.reclame, 0),
+    'xpPalier', parami('passe_xp_palier'), 'paliers', parami('passe_paliers'),
+    'palier', least(parami('passe_paliers'), coalesce(x.xp, 0) / parami('passe_xp_palier')),
+    'recompenses', (select jsonb_agg(passe_recompense(k) order by k) from generate_series(1, parami('passe_paliers')) k))
+  from (select 1) u left join passe x on x.user_id = p_uid and x.saison = passe_saison()
+$$;
+
+-- Quêtes de la semaine : [id, objectif, xp, pièces, texte] ; 4 par semaine, toujours les mêmes pour un joueur et une semaine
+create or replace function quetes_semaine_catalogue() returns table (id text, objectif int, xp int, pieces int, texte text)
+language sql immutable as $$
+  values ('championnat', 15, 300, 400, 'Joue 15 matchs de championnat'),
+         ('victoire', 10, 300, 400, 'Gagne 10 matchs'),
+         ('mini', 40, 250, 300, 'Joue 40 parties de mini-jeux'),
+         ('compo', 2, 300, 300, 'Réussis 2 défis de composition'),
+         ('booster', 10, 250, 300, 'Ouvre 10 boosters'),
+         ('entrainement', 10, 250, 300, 'Fais 10 séances d’entraînement'),
+         ('fusion', 3, 300, 400, 'Fais 3 fusions'),
+         ('defi', 5, 250, 300, 'Défie 5 fois tes ami(e)s'),
+         ('pari', 2, 200, 250, 'Fais 2 paris sur de vrais matchs')
+$$;
+create or replace function quetes_de_la_semaine(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
+declare l date := date_trunc('week', aujourdhui())::date;
+begin
+  if exists (select 1 from quetes_semaine where user_id = p_uid and lundi = l) then return; end if;
+  insert into quetes_semaine (user_id, lundi, quete)
+    select p_uid, l, q.id from quetes_semaine_catalogue() q order by md5(p_uid::text || l::text || q.id) limit 4
+  on conflict do nothing;
+end $$;
+
+-- Défis de composition (comme les « défis de création d'équipe » des jeux de foot) : on donne des cartes libres qui suivent la règle,
+-- elles disparaissent, on reçoit la récompense. Règle : n cartes ; differents (joueurs tous différents) ; palier_min ;
+-- conds [{n, palier | equipe | genre | poste (principal)}] ; un_par_poste (les 7 postes principaux) ; equipes (équipes différentes) ;
+-- note_moy. 3 défis de la semaine (tirés dans la liste, les mêmes pour tous) et 1 défi du mois.
+create or replace function compo_catalogue() returns table (id text, periode text, titre text, texte text, regle jsonb, recompense jsonb)
+language sql immutable as $$
+  values ('ailes', 'semaine', 'Les ailes', '2 ailiers gauches et 2 ailiers droits', '{"n": 4, "conds": [{"n": 2, "poste": "AG"}, {"n": 2, "poste": "AD"}]}'::jsonb, '{"bonus": 1, "pieces": 200}'::jsonb),
+         ('base', 'semaine', 'La base arrière', 'Un arrière gauche, un demi-centre, un arrière droit', '{"n": 3, "conds": [{"n": 1, "poste": "ARG"}, {"n": 1, "poste": "DC"}, {"n": 1, "poste": "ARD"}]}', '{"bonus": 1, "pieces": 150}'),
+         ('sf1', 'semaine', '100 % SF1', '3 joueuses différentes de SF1', '{"n": 3, "differents": true, "conds": [{"n": 3, "equipe": "SF1"}]}', '{"bonus": 1, "pieces": 200}'),
+         ('sf2', 'semaine', '100 % SF2', '3 joueuses différentes de SF2', '{"n": 3, "differents": true, "conds": [{"n": 3, "equipe": "SF2"}]}', '{"bonus": 1, "pieces": 200}'),
+         ('sg1', 'semaine', '100 % SG1', '3 joueurs différents de SG1', '{"n": 3, "differents": true, "conds": [{"n": 3, "equipe": "SG1"}]}', '{"bonus": 1, "pieces": 200}'),
+         ('sg2', 'semaine', '100 % SG2', '3 joueurs différents de SG2', '{"n": 3, "differents": true, "conds": [{"n": 3, "equipe": "SG2"}]}', '{"bonus": 1, "pieces": 200}'),
+         ('argent', 'semaine', 'Collection d’argent', '4 cartes Argent, toutes différentes', '{"n": 4, "differents": true, "conds": [{"n": 4, "palier": "argent"}]}', '{"or": 1}'),
+         ('mixte', 'semaine', 'Mixte', '2 filles et 2 garçons', '{"n": 4, "conds": [{"n": 2, "genre": "F"}, {"n": 2, "genre": "M"}]}', '{"bonus": 2}'),
+         ('menage', 'semaine', 'Grand ménage', '6 cartes Bronze, toutes différentes', '{"n": 6, "differents": true, "conds": [{"n": 6, "palier": "bronze"}]}', '{"bonus": 2, "pieces": 100}'),
+         ('murailles', 'semaine', 'Les murailles', '2 gardien(ne)s', '{"n": 2, "conds": [{"n": 2, "poste": "GB"}]}', '{"bonus": 1, "pieces": 300}'),
+         ('pivots', 'semaine', 'Le cœur du jeu', '2 pivots et un demi-centre', '{"n": 3, "conds": [{"n": 2, "poste": "PIV"}, {"n": 1, "poste": "DC"}]}', '{"bonus": 1, "pieces": 200}'),
+         ('lourd', 'semaine', 'Du lourd', '3 cartes, note moyenne de 70 ou plus', '{"n": 3, "note_moy": 70}', '{"or": 1, "pieces": 300}'),
+         ('equipe7', 'mois', 'Une équipe complète', '7 cartes, une à chaque poste', '{"n": 7, "un_par_poste": true}', '{"or": 2, "pieces": 1000}'),
+         ('club', 'mois', 'Tout le club', '4 cartes Argent ou mieux, de 4 équipes différentes', '{"n": 4, "palier_min": "argent", "equipes": 4}', '{"or": 2, "pieces": 800}'),
+         ('tresor', 'mois', 'Le trésor', '3 cartes Or, toutes différentes', '{"n": 3, "differents": true, "conds": [{"n": 3, "palier": "or"}]}', '{"or": 3, "pieces": 1500}')
+$$;
+create or replace function compo_periode(p text) returns date language sql stable as $$
+  select case when p = 'mois' then date_trunc('month', aujourdhui())::date else date_trunc('week', aujourdhui())::date end
+$$;
+-- les défis du moment : 3 de la semaine, 1 du mois (tirés selon la date, les mêmes pour tout le monde)
+create or replace function compo_actifs() returns setof text language sql stable security definer set search_path = public as $$
+  (select id from compo_catalogue() where periode = 'semaine' order by md5(compo_periode('semaine')::text || id) limit greatest(0, parami('compo_par_semaine')))
+  union all
+  (select id from compo_catalogue() where periode = 'mois' order by md5(compo_periode('mois')::text || id) limit 1)
+$$;
+create or replace function compo_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'periode', c.periode, 'titre', c.titre, 'texte', c.texte, 'regle', c.regle,
+      'recompense', c.recompense, 'fait', exists (select 1 from defis_faits f where f.user_id = p_uid and f.defi = c.id and f.periode = compo_periode(c.periode)))
+    order by c.periode desc, c.id), '[]')
+  from compo_catalogue() c where c.id in (select compo_actifs())
 $$;
 
 -- État complet d'un joueur, dans le format qu'attend le jeu (serveur.js)
@@ -606,7 +760,13 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
         'xp', e.xp, 'verrou', e.verrou) order by e.obtenu_le) from exemplaires e where e.proprietaire = p.user_id), '[]'),
     'quetes', coalesce((select jsonb_agg(jsonb_build_object('id', q.quete, 'progres', least(q.progres, c.objectif), 'objectif', c.objectif,
         'xp', c.xp, 'pieces', c.pieces, 'texte', c.texte, 'reclamee', q.reclamee) order by c.id)
-      from quetes q join quetes_catalogue() c on c.id = q.quete where q.user_id = p.user_id and q.jour = aujourdhui()), '[]'))
+      from quetes q join quetes_catalogue() c on c.id = q.quete where q.user_id = p.user_id and q.jour = aujourdhui()), '[]'),
+    'quetesSemaine', coalesce((select jsonb_agg(jsonb_build_object('id', q.quete, 'progres', least(q.progres, c.objectif), 'objectif', c.objectif,
+        'xp', c.xp, 'pieces', c.pieces, 'texte', c.texte, 'reclamee', q.reclamee) order by c.id)
+      from quetes_semaine q join quetes_semaine_catalogue() c on c.id = q.quete
+      where q.user_id = p.user_id and q.lundi = date_trunc('week', aujourdhui())::date), '[]'),
+    'finSemaine', date_trunc('week', aujourdhui())::date + 6,
+    'semaine', semaine_vue(p.user_id), 'passe', passe_vue(p.user_id), 'defis', compo_vue(p.user_id))
   from profils p where p.user_id = p_uid
 $$;
 
@@ -650,6 +810,7 @@ begin
     perform boosters_a_jour(auth.uid());
     perform matchs_a_jour(auth.uid());
     perform quetes_du_jour(auth.uid());
+    perform quetes_de_la_semaine(auth.uid());
     update profils set parcours = parcours_nouveau(1, null, pseudo) where user_id = auth.uid() and parcours is null;
   end if;
   return coalesce(etat_de(auth.uid()), '{"profil": false}'::jsonb);
@@ -899,10 +1060,11 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
 begin
-  for l in select j.key as slot, e.note, c.postes, c.nom, c.equipe, c.ecarts
+  for l in select j.key as slot, e.note, c.postes, c.nom, c.equipe, c.ecarts, en_forme(c.id) forme
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
-    -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus)
+    -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then 5 else 0 end;
+    if l.forme then ne := least(99, ne + parami('semaine_forme')); end if;
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom);
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
@@ -1727,6 +1889,7 @@ begin
   if jsonb_array_length(tirs) = parami('jet7m_tirs_par_jour')
      and not exists (select 1 from jsonb_array_elements_text(tirs) e where e <> 'but') then v_bonus := parami('jet7m_bonus_parfait'); end if;
   update profils set pieces = pieces + v_pieces + v_bonus, jet7m = jsonb_build_object('jour', aujourdhui(), 'tirs', tirs) where user_id = p.user_id;
+  perform progresser(p.user_id, 'mini');
   perform noter(p.user_id, 'jet7m', jsonb_build_object('x', p_x, 'y', p_y, 'puissance', p_puissance, 'resultat', res, 'pieces', v_pieces + v_bonus));
   return jsonb_build_object('resultat', res, 'x', round(x, 3), 'y', round(y, 3), 'vitesse', round(vitesse, 2), 'gardien', jsonb_build_object('x', gx, 'y', gy),
     'pieces', v_pieces, 'bonus', v_bonus, 'tirs', tirs, 'restants', parami('jet7m_tirs_par_jour') - jsonb_array_length(tirs), 'etat', etat_de(p.user_id));
@@ -1822,6 +1985,7 @@ begin
   if jsonb_array_length(liste) = mini_limite(p_jeu)
      and not exists (select 1 from jsonb_array_elements_text(liste) e where e <> succes) then v_bonus := parami('mini_bonus_parfait'); end if;
   update profils set minijeux = jsonb_set(m, array[p_jeu], liste), pieces = pieces + v_pieces + v_bonus where user_id = p.user_id;
+  if p_jeu <> 'gardien' or jsonb_array_length(liste) % 5 = 0 then perform progresser(p.user_id, 'mini'); end if;
   perform noter(p.user_id, 'mini-' || p_jeu, jsonb_build_object('entrees', p_entrees, 'resultat', res, 'pieces', v_pieces + v_bonus));
   return jsonb_build_object('resultat', res, 'reussi', reussi, 'reponse', a, 'pieces', v_pieces, 'bonus', v_bonus, 'essais', liste,
     'restants', mini_limite(p_jeu) - jsonb_array_length(liste), 'etat', etat_de(p.user_id));
@@ -2503,11 +2667,13 @@ create table if not exists synchro_matchs (
   lu_le timestamptz, resultat jsonb
 );
 revoke all on synchro_matchs from anon, authenticated;
+alter table synchro_matchs add column if not exists demande_semaine bigint;
 create or replace function synchro_matchs_demander() returns bigint language plpgsql security definer set search_path = public as $$
 declare d bigint;
 begin
   d := net.http_get(url := param('synchro_matchs_url') #>> '{}', timeout_milliseconds := 20000);
-  insert into synchro_matchs (demande) values (d);
+  insert into synchro_matchs (demande, demande_semaine)
+    values (d, net.http_get(url := param('synchro_semaine_url') #>> '{}', timeout_milliseconds := 20000));
   return d;
 end $$;
 -- lit la dernière réponse arrivée (quelques minutes après la demande) ; sans réponse valable, rien ne change
@@ -2522,6 +2688,12 @@ begin
     if rep.status_code <> 200 then raise exception 'réponse %', rep.status_code; end if;
     r := maj_matchs(rep.content::jsonb -> 'matchs', date_trunc('week', aujourdhui())::date);   -- paie les matchs d'avant ce lundi
   exception when others then r := jsonb_build_object('erreur', sqlerrm);
+  end;
+  -- joueurs de la semaine (data/semaine.json) : une erreur ici n'empêche pas la mise à jour des matchs
+  begin
+    select status_code, content into rep from net._http_response where id = s.demande_semaine;
+    if found and rep.status_code = 200 then r := r || jsonb_build_object('semaine', maj_semaine(rep.content::jsonb)); end if;
+  exception when others then r := r || jsonb_build_object('erreurSemaine', sqlerrm);
   end;
   update synchro_matchs set lu_le = now(), resultat = r where id = s.id;
   perform noter(null, 'synchro-matchs', r);
@@ -2556,6 +2728,125 @@ create policy "photos admin ajout" on storage.objects for insert to authenticate
 create policy "photos admin suppression" on storage.objects for delete to authenticated using (bucket_id = 'photos' and public.est_admin());
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- Joueurs de la semaine, passe de saison, quêtes de la semaine, défis de composition : les actions du jeu
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Booster de la semaine : un des joueurs de la semaine, chances meilleures que le booster gratuit ; payé en pièces, 3 par jour
+create or replace function ouvrir_booster_semaine() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); prix int := parami('booster_semaine_prix'); c text; ex uuid; pal text;
+begin
+  if (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'booster' and m.detail ->> 'type' = 'semaine'
+      and m.le >= debut_du_jour()) >= parami('booster_semaine_par_jour') then
+    raise exception 'Tu as ouvert tes % boosters de la semaine du jour : reviens demain', parami('booster_semaine_par_jour');
+  end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
+  select j.carte into c from joueurs_semaine j join cartes k on k.id = j.carte
+    where j.lundi = semaine_actuelle() and k.actif order by random() limit 1;
+  if c is null then raise exception 'Pas encore de joueurs de la semaine : reviens après le week-end'; end if;
+  pal := tirer_palier(param('booster_semaine_chances'));
+  ex := creer_exemplaire(p.user_id, c, pal, 'booster:semaine');
+  update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster');
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'semaine', 'prix', prix, 'exemplaire', ex, 'carte', c, 'palier', pal));
+  return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
+end $$;
+
+-- Passe de saison : récupère d'un coup les récompenses de tous les paliers atteints
+create or replace function reclamer_passe() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); x passe; s int := passe_saison(); atteint int; k int; r jsonb; tot jsonb := '{"pieces": 0, "bonus": 0, "or": 0}';
+begin
+  select * into x from passe where user_id = p.user_id and saison = s for update;
+  if not found then raise exception 'Gagne de l’XP pour avancer dans le passe'; end if;
+  atteint := least(parami('passe_paliers'), x.xp / parami('passe_xp_palier'));
+  if atteint <= x.reclame then raise exception 'Rien à récupérer pour l’instant'; end if;
+  for k in x.reclame + 1 .. atteint loop
+    r := passe_recompense(k);
+    tot := jsonb_build_object('pieces', (tot ->> 'pieces')::int + coalesce((r ->> 'pieces')::int, 0),
+      'bonus', (tot ->> 'bonus')::int + coalesce((r ->> 'bonus')::int, 0), 'or', (tot ->> 'or')::int + coalesce((r ->> 'or')::int, 0));
+  end loop;
+  update passe set reclame = atteint where user_id = p.user_id and saison = s;
+  update profils set pieces = pieces + (tot ->> 'pieces')::int, bonus = bonus + (tot ->> 'bonus')::int, bonus_or = bonus_or + (tot ->> 'or')::int
+    where user_id = p.user_id;
+  perform noter(p.user_id, 'passe', jsonb_build_object('saison', s, 'de', x.reclame + 1, 'a', atteint, 'gains', tot));
+  return jsonb_build_object('de', x.reclame + 1, 'a', atteint, 'gains', tot, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Récompense d'une quête de la semaine terminée
+create or replace function reclamer_quete_semaine(p_quete text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); q quetes_semaine; c record; niveaux jsonb; l date := date_trunc('week', aujourdhui())::date;
+begin
+  select * into q from quetes_semaine where user_id = p.user_id and lundi = l and quete = p_quete for update;
+  select * into c from quetes_semaine_catalogue() k where k.id = p_quete;
+  if c.id is null or q.user_id is null then raise exception 'Quête inconnue'; end if;
+  if q.reclamee then raise exception 'Récompense déjà récupérée'; end if;
+  if q.progres < c.objectif then raise exception 'Quête pas encore terminée'; end if;
+  update quetes_semaine set reclamee = true where user_id = p.user_id and lundi = l and quete = p_quete;
+  update profils set pieces = pieces + c.pieces where user_id = p.user_id;
+  niveaux := gagner_xp(p.user_id, c.xp);
+  perform noter(p.user_id, 'quete-semaine', jsonb_build_object('quete', p_quete, 'xp', c.xp, 'pieces', c.pieces));
+  return jsonb_build_object('xp', c.xp, 'pieces', c.pieces, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
+-- Ce qui manque à des cartes pour suivre la règle d'un défi (null : tout est bon). Les cartes doivent être au joueur et libres.
+create or replace function compo_erreur(p_uid uuid, p_regle jsonb, p_ex uuid[]) returns text language plpgsql stable security definer set search_path = public as $$
+declare n int := (p_regle ->> 'n')::int; k record; c jsonb; v int;
+begin
+  if p_ex is null or cardinality(p_ex) <> n or (select count(distinct x) from unnest(p_ex) x) <> n then
+    return format('Il faut %s cartes différentes', n);
+  end if;
+  if (select count(*) from unnest(p_ex) x where carte_libre(p_uid, x)) <> n then
+    return 'Une carte n’est plus libre (dans ton équipe, aux transferts ou plus dans ton club)';
+  end if;
+  if exists (select 1 from echanges x where x.statut = 'ouvert' and (x.de = p_uid and x.donne = any(p_ex) or x.pour = p_uid and x.demande = any(p_ex))) then
+    return 'Une carte est proposée dans un échange avec un(e) ami(e)';
+  end if;
+  select count(distinct e.carte_id) nd, count(distinct c.equipe) neq, avg(e.note) moy,
+      min(array_position(array['bronze', 'argent', 'or', 'ultime'], e.palier)) pmin,
+      count(distinct c.poste) filter (where c.poste is not null) npostes
+    into k from exemplaires e join cartes c on c.id = e.carte_id where e.id = any(p_ex);
+  if (p_regle ->> 'differents')::boolean and k.nd < n then return 'Les joueurs doivent tous être différents'; end if;
+  if p_regle ? 'palier_min' and k.pmin < array_position(array['bronze', 'argent', 'or', 'ultime'], p_regle ->> 'palier_min') then
+    return 'Une carte n’a pas le palier demandé';
+  end if;
+  if p_regle ? 'equipes' and k.neq < (p_regle ->> 'equipes')::int then return format('Il faut %s équipes différentes', p_regle ->> 'equipes'); end if;
+  if p_regle ? 'note_moy' and k.moy < (p_regle ->> 'note_moy')::numeric then return format('La note moyenne doit atteindre %s', p_regle ->> 'note_moy'); end if;
+  if (p_regle ->> 'un_par_poste')::boolean and (select count(distinct c.poste) from exemplaires e join cartes c on c.id = e.carte_id
+      where e.id = any(p_ex) and c.poste is not null) < 7 then
+    return 'Il faut un joueur à chaque poste (son poste principal)';
+  end if;
+  for c in select * from jsonb_array_elements(coalesce(p_regle -> 'conds', '[]')) loop
+    select count(*) into v from exemplaires e join cartes ca on ca.id = e.carte_id where e.id = any(p_ex)
+      and (not c ? 'palier' or e.palier = c ->> 'palier') and (not c ? 'equipe' or ca.equipe = c ->> 'equipe')
+      and (not c ? 'genre' or ca.site ->> 'genre' = c ->> 'genre') and (not c ? 'poste' or ca.poste = c ->> 'poste');
+    if v < (c ->> 'n')::int then return 'Les cartes ne suivent pas toute la règle'; end if;
+  end loop;
+  return null;
+end $$;
+
+-- Réussir un défi de composition : les cartes données disparaissent, la récompense arrive
+create or replace function faire_defi(p_defi text, p_ex uuid[]) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); d record; per date; err text; r jsonb; donnees jsonb;
+begin
+  select * into d from compo_catalogue() c where c.id = p_defi and c.id in (select compo_actifs());
+  if d.id is null then raise exception 'Ce défi n’est plus proposé'; end if;
+  per := compo_periode(d.periode);
+  if exists (select 1 from defis_faits where user_id = p.user_id and periode = per and defi = p_defi) then raise exception 'Défi déjà réussi'; end if;
+  err := compo_erreur(p.user_id, d.regle, p_ex);
+  if err is not null then raise exception '%', err; end if;
+  select jsonb_agg(jsonb_build_object('carte', e.carte_id, 'palier', e.palier, 'note', e.note)) into donnees from exemplaires e where e.id = any(p_ex);
+  delete from exemplaires where id = any(p_ex) and proprietaire = p.user_id;
+  -- listes de transferts : plus rien à donner de ce joueur à ce palier → la ligne s'en va
+  delete from listes_transfert l where l.user_id = p.user_id and l.sens = 'donne' and libres_nombre(p.user_id, l.carte, l.palier) = 0;
+  r := d.recompense;
+  update profils set pieces = pieces + coalesce((r ->> 'pieces')::int, 0), bonus = bonus + coalesce((r ->> 'bonus')::int, 0),
+    bonus_or = bonus_or + coalesce((r ->> 'or')::int, 0) where user_id = p.user_id;
+  insert into defis_faits (user_id, periode, defi, cartes) values (p.user_id, per, p_defi, donnees);
+  perform progresser(p.user_id, 'compo');
+  perform noter(p.user_id, 'defi-compo', jsonb_build_object('defi', p_defi, 'cartes', donnees, 'recompense', r));
+  return jsonb_build_object('recompense', r, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- Droits : le jeu ne peut appeler QUE ces fonctions-là, et seulement une fois connecté
 -- ════════════════════════════════════════════════════════════════════════════
 revoke execute on all functions in schema public from public, anon, authenticated;
@@ -2570,6 +2861,7 @@ grant execute on function
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
+  ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
 

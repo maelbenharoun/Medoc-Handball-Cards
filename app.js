@@ -40,7 +40,7 @@ const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
 const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
 const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
-const noteAuPoste = (c, slot) => c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0);
+const noteAuPoste = (c, slot) => Math.min(99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id));   // +3 : joueur de la semaine
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -75,10 +75,10 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, pieces: vuePieces,
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, pieces: vuePieces, defis: vueDefis,
   social: vueSocial, classement: vueClassement, marche: vueMarche, paris: vueParis, compte: vueCompte};
 // sous-pages : l'onglet qui reste allumé, et le retour
-const ONGLET = {championnat: 'jouer', pieces: 'jouer', classement: 'social', marche: 'social', paris: 'social'};
+const ONGLET = {championnat: 'jouer', pieces: 'jouer', defis: 'jouer', classement: 'social', marche: 'social', paris: 'social'};
 const retour = (h, l) => `<a class="retour" href="#${h}">‹ ${l}</a>`;
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
@@ -121,7 +121,7 @@ function majEntete() {
   const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0);
   const pastille = $('#pastille'); pastille.hidden = !n || !Compte.pret; pastille.textContent = n;
   // quêtes : une icône en haut à droite, avec une pastille quand une récompense attend
-  const q = (S().quetes || []).filter(x => x.progres >= x.objectif && !x.reclamee).length;
+  const q = [...(S().quetes || []), ...(S().quetesSemaine || [])].filter(x => x.progres >= x.objectif && !x.reclamee).length + (passePret() ? 1 : 0);
   $('#quetes-b').hidden = !Compte.pret; const pq = $('#pastille-q'); pq.hidden = !q || !Compte.pret; pq.textContent = q;
   // ami(e)s : la bulle, avec une pastille pour les demandes, les échanges proposés et les messages non lus
   const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
@@ -212,6 +212,7 @@ function vueAccueil() {
   const [posteSel] = BOOSTERS_POSTE[i], nSel = CARTES.filter(c => c.actif !== false && c.poste === posteSel).length;
   return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
     <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div></div>
+    ${blocPasse()}
     ${e.depart === false ? `<div class="daily depart"><p><b>Booster de départ</b>7 joueurs, un à chaque poste : ta première équipe !</p>
       <button class="btn gold" data-act="depart">Ouvrir</button></div>` : ''}
     <section class="scene-b">${fondHand()}
@@ -223,6 +224,7 @@ function vueAccueil() {
         ${e.bonusOr ? `<button class="mini-sachet" data-booster="or">${sachetHTML({theme: 'pk-or', nom: 'Or', sous: 'Or ou Ultime', pw: 64})}<span>Or ×${e.bonusOr}</span></button>` : ''}</div>` : ''}
     </section>
     <p class="sub petit centre">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}.</p>
+    ${blocSemaine()}
     <h2>Boosters par poste</h2>
     <section class="scene-b petite">${fondHand()}
       <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Poste précédent">‹</button>${carrousel}
@@ -272,15 +274,161 @@ setInterval(() => {
   choisirCarrousel(CARROUSEL.i + 1, true);
 }, CAR_AUTO);
 // Quêtes du jour : dans une fenêtre, depuis l'icône en haut à droite
+const queteHTML = (q, attr) => { const fini = q.progres >= q.objectif;
+  return `<div class="quete${q.reclamee ? ' faite' : ''}"><div><b>${esc(q.texte)}</b><small>${q.progres}/${q.objectif} · +${q.xp} XP · +${nb(q.pieces)} pièces</small>
+    <div class="bar"><i style="width:${100 * q.progres / q.objectif}%"></i></div></div>
+    ${q.reclamee ? '<span class="ok">✓</span>' : fini ? `<button class="btn gold petit" ${attr}="${q.id}">Récupérer</button>` : ''}</div>`; };
 function fenetreQuetes() {
-  const quetes = (S().quetes || []).map(q => {
-    const fini = q.progres >= q.objectif;
-    return `<div class="quete${q.reclamee ? ' faite' : ''}"><div><b>${esc(q.texte)}</b><small>${q.progres}/${q.objectif} · +${q.xp} XP · +${nb(q.pieces)} pièces</small>
-      <div class="bar"><i style="width:${100 * q.progres / q.objectif}%"></i></div></div>
-      ${q.reclamee ? '<span class="ok">✓</span>' : fini ? `<button class="btn gold petit" data-quete="${q.id}">Récupérer</button>` : ''}</div>`;
-  }).join('');
-  ouvrirOverlay(`<div class="sheet"><h3>Quêtes du jour</h3><div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
+  const quetes = (S().quetes || []).map(q => queteHTML(q, 'data-quete')).join(''), sem = (S().quetesSemaine || []).map(q => queteHTML(q, 'data-quete-s')).join('');
+  ouvrirOverlay(`<div class="sheet quetes-s"><h3>Quêtes du jour</h3><div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
+    ${sem ? `<h3>Quêtes de la semaine</h3><p class="sub petit">Jusqu’au ${S().finSemaine ? dateCourte(S().finSemaine) : 'dimanche'} · grosses récompenses 💪</p><div class="quetes">${sem}</div>` : ''}
+    ${blocPasse()}
     <button class="btn" data-act="fermer">Fermer</button></div>`);
+}
+
+// ── pour ne pas tourner en rond (demande de Maël, d'après les jeux du genre) : joueurs de la semaine (vrais matchs du club),
+// passe de saison (toute l'XP compte, 30 paliers en 4 semaines), quêtes de la semaine, défis de composition (cartes en trop
+// données contre des boosters). Tout est réglé par le serveur (schema.sql) ; ici, l'affichage.
+const enForme = carte => !!S().semaine?.joueurs?.some(j => j.carte === carte);
+const bonusForme = carte => enForme(carte) ? (S().semaine.forme ?? 3) : 0;
+const RECOMP = r => [r.or ? `<span class="rc rc-or">⭐ Or${r.or > 1 ? ' ×' + r.or : ''}</span>` : '',
+  r.bonus ? `<span class="rc rc-b">🎁 Booster${r.bonus > 1 ? ' ×' + r.bonus : ''}</span>` : '',
+  r.pieces ? `<span class="rc rc-p"><i class="coin"></i>${nb(r.pieces)}</span>` : ''].join('');
+const texteRecomp = r => [r.or ? `${r.or} booster${r.or > 1 ? 's' : ''} Or` : '', r.bonus ? `${r.bonus} booster${r.bonus > 1 ? 's' : ''}` : '',
+  r.pieces ? `${nb(r.pieces)} pièces` : ''].filter(Boolean).join(' + ');
+const dateCourte = j => new Date(j + 'T12:00').toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
+const ligneStats = s => s.arrets && s.arrets / 2 >= s.buts ? `${s.arrets} arrêts` : `${s.buts} but${s.buts > 1 ? 's' : ''}${s.tirs ? ` sur ${s.tirs} tirs` : ''}`;
+// la carte à montrer d'un joueur : ma meilleure, sinon la carte de base
+const carteMontree = id => { const ex = mesEx(id)[0]; return ex ? vue(ex) : PAR_ID[id]; };
+
+function blocSemaine() {
+  const w = S().semaine;
+  if (!w?.joueurs?.some(j => PAR_ID[j.carte])) return '';
+  const reste = Math.max(0, (w.parJour ?? 3) - (w.achetes || 0)), prix = w.prix ?? 400;
+  return `<h2>⭐ Joueurs de la semaine</h2>
+    <section class="js-b">
+      <p class="sub petit">Les meilleurs des vrais matchs du week-end (semaine du ${dateCourte(w.lundi)}) : <b>+${w.forme} en match</b> toute la semaine 🔥</p>
+      <div class="js-l">${w.joueurs.filter(j => PAR_ID[j.carte]).map(j => { const m = j.stats.match;
+        return `<button class="js-j" data-voir-fiche="${j.carte}">${vignetteHTML(carteMontree(j.carte))}<span class="js-t"><b>${esc(j.equipe)}</b><span>${ligneStats(j.stats)}</span>
+          ${m ? `<small>${m.lieu === 'dom' ? 'contre' : 'à'} ${esc(m.adv)} · ${m.score.join(' – ')}</small>` : ''}</span></button>`; }).join('')}</div>
+      <button class="btn gold js-go" data-act="booster-semaine"${reste && S().pieces >= prix ? '' : ' disabled'}>Booster de la semaine · ${nb(prix)} <i class="coin"></i></button>
+      <small class="js-r">Un de ces joueurs, plus de chances d’Argent et d’Or · ${reste}/${w.parJour} aujourd’hui</small>
+    </section>`;
+}
+
+const passePret = () => { const p = S().passe; return p ? Math.max(0, p.palier - p.reclame) : 0; };
+function blocPasse() {
+  const p = S().passe;
+  if (!p) return '';
+  const fini = p.palier >= p.paliers, dans = p.xp - p.palier * p.xpPalier, pret = passePret();
+  return `<button class="passe-b${pret ? ' pret' : ''}" data-act="passe"><span class="pa-n"><small>palier</small><b>${p.palier}</b></span>
+    <span class="pa-t"><b>Passe de la saison ${p.saison}</b><small>${fini ? 'Tous les paliers atteints 🏆' : `${nb(dans)} / ${nb(p.xpPalier)} XP · jusqu’au ${dateCourte(p.fin)}`}</small>
+      <span class="bar"><i style="width:${fini ? 100 : Math.round(100 * dans / p.xpPalier)}%"></i></span></span>
+    <span class="pa-go">${pret ? `🎁 ${pret}` : 'Voir'}</span></button>`;
+}
+function fenetrePasse() {
+  const p = S().passe;
+  if (!p) return;
+  const liste = p.recompenses.map((r, i) => { const k = i + 1, cls = k <= p.reclame ? 'recu' : k <= p.palier ? 'pret' : 'verrou';
+    return `<div class="pa-pal ${cls}${k % 10 === 0 ? ' gros' : ''}"><b>${k}</b><span>${RECOMP(r)}</span><em>${cls === 'recu' ? '✓' : cls === 'pret' ? '🎁' : '🔒'}</em></div>`; }).join('');
+  ouvrirOverlay(`<div class="sheet passe-s"><h3>Passe de la saison ${p.saison}</h3>
+    <p class="sub petit">Du ${dateCourte(p.debut)} au ${dateCourte(p.fin)} · toute ton XP compte (matchs, quêtes, mini-jeux…) · ${nb(p.xpPalier)} XP par palier</p>
+    ${blocPasse().replace('data-act="passe"', 'data-act="rien"')}
+    <div class="pa-grille">${liste}</div>
+    ${passePret() ? `<button class="btn gold" data-act="passe-reclamer">Tout récupérer (${passePret()} palier${passePret() > 1 ? 's' : ''})</button>` : ''}
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
+  const ici = $('.pa-pal.pret, .pa-pal.verrou');
+  if (ici) ici.parentNode.scrollTop = ici.offsetTop - ici.parentNode.offsetTop - 60;
+}
+
+// ── défis de composition ─────────────────────────────────────────────────────────
+const RANG = p => RARETES.indexOf(p);
+const compoLibres = () => EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]);
+const condOk = (k, e) => { const c = PAR_ID[e.carte];
+  return (!k.palier || e.palier === k.palier) && (!k.equipe || c.equipe === k.equipe) && (!k.genre || c.genre === k.genre) && (!k.poste || c.poste === k.poste); };
+const condNom = k => k.poste ? POSTE_NOM[k.poste] : k.equipe ? `de ${k.equipe}` : k.genre ? (k.genre === 'F' ? 'fille' : 'garçon') : k.palier ? R_LABEL[k.palier] : '';
+// les morceaux de la règle, cochés ou non (même règle que compo_erreur dans schema.sql)
+function compoTest(regle, exs) {
+  const out = [{ok: exs.length === regle.n, txt: `${exs.length}/${regle.n} cartes`}];
+  if (regle.differents) out.push({ok: exs.length > 0 && new Set(exs.map(e => e.carte)).size === exs.length, txt: 'Joueurs tous différents'});
+  if (regle.palier_min) out.push({ok: exs.length > 0 && exs.every(e => RANG(e.palier) >= RANG(regle.palier_min)), txt: `${R_LABEL[regle.palier_min]} ou mieux`});
+  if (regle.equipes) { const v = new Set(exs.map(e => PAR_ID[e.carte].equipe)).size; out.push({ok: v >= regle.equipes, txt: `${regle.equipes} équipes différentes (${v})`}); }
+  if (regle.note_moy) { const m = exs.length ? exs.reduce((t, e) => t + e.note, 0) / exs.length : 0;
+    out.push({ok: m >= regle.note_moy, txt: `Note moyenne ${regle.note_moy} ou plus (${exs.length ? Math.floor(m) : '–'})`}); }
+  if (regle.un_par_poste) { const v = new Set(exs.map(e => PAR_ID[e.carte].poste).filter(Boolean)).size; out.push({ok: v >= 7, txt: `Un à chaque poste (${v}/7)`}); }
+  for (const k of regle.conds || []) { const v = exs.filter(e => condOk(k, e)).length; out.push({ok: v >= k.n, txt: `${k.n} × ${condNom(k)} (${v})`}); }
+  return out;
+}
+// une carte qui peut servir au défi
+const compoUtile = (regle, e) => (!regle.palier_min || RANG(e.palier) >= RANG(regle.palier_min)) && (!regle.note_moy || e.note >= regle.note_moy)
+  && (!regle.conds?.length || regle.conds.some(k => condOk(k, e)));
+// proposition de départ : les cartes qui coûtent le moins (doublons d'abord, palier et note les plus bas)
+function compoAuto(regle) {
+  const nbJ = {}; EX().forEach(e => { nbJ[e.carte] = (nbJ[e.carte] || 0) + 1; });
+  const cout = e => (nbJ[e.carte] > 1 ? 0 : 1000) + RANG(e.palier) * 100 + e.note;
+  const pool = compoLibres().filter(e => compoUtile(regle, e)).sort((a, b) => cout(a) - cout(b));
+  const choix = [], pris = new Set(), joueurs = new Set(), unique = regle.differents || regle.un_par_poste;
+  const libre = e => !pris.has(e.id) && !(unique && joueurs.has(e.carte));
+  const prendre = e => { choix.push(e); pris.add(e.id); joueurs.add(e.carte); };
+  if (regle.un_par_poste) for (const {id} of POSTES) { const e = pool.find(x => libre(x) && PAR_ID[x.carte].poste === id); if (e) prendre(e); }
+  if (regle.equipes) for (const eq of new Set(pool.map(e => PAR_ID[e.carte].equipe))) {
+    if (new Set(choix.map(e => PAR_ID[e.carte].equipe)).size >= regle.equipes) break;
+    const e = pool.find(x => libre(x) && PAR_ID[x.carte].equipe === eq); if (e) prendre(e);
+  }
+  for (const k of regle.conds || []) { let v = choix.filter(e => condOk(k, e)).length;
+    for (const e of pool) { if (v >= k.n || choix.length >= regle.n) break; if (libre(e) && condOk(k, e)) { prendre(e); v++; } } }
+  for (const e of pool) { if (choix.length >= regle.n) break; if (libre(e)) prendre(e); }
+  return {choix, ok: compoTest(regle, choix).every(t => t.ok)};
+}
+const COMPO = {id: null, choix: []};
+function vueDefis() {
+  const d = S().defis || [];
+  const tuile = x => { const pos = !x.fait && compoAuto(x.regle).ok;
+    return `<div class="df${x.fait ? ' fait' : ''}${pos ? ' possible' : ''}"><div class="df-t"><b>${esc(x.titre)}</b><small>${esc(x.texte)}</small>
+      <span class="df-r">${RECOMP(x.recompense)}</span></div>
+      ${x.fait ? '<span class="df-ok">✓ Réussi</span>' : `<button class="btn ${pos ? 'gold' : 'ghost'} petit" data-compo="${x.id}">${pos ? 'Faire' : 'Voir'}</button>`}</div>`; };
+  const sem = d.filter(x => x.periode === 'semaine'), mois = d.filter(x => x.periode === 'mois');
+  return `${retour('jouer', 'Jouer')}<h1>Défis</h1>
+    <p class="sub">Donne des cartes en trop qui suivent la règle : elles partent, la récompense arrive 🎁</p>
+    <h2>Cette semaine</h2><p class="sub petit">Nouveaux défis lundi · jusqu’au ${S().finSemaine ? dateCourte(S().finSemaine) : 'dimanche'}</p>
+    <div class="dfs">${sem.map(tuile).join('') || '<p class="sub">Pas de défi cette semaine.</p>'}</div>
+    ${mois.length ? `<h2>Défi du mois</h2><div class="dfs">${mois.map(tuile).join('')}</div>` : ''}`;
+}
+function fenetreCompo(id) {
+  const x = (S().defis || []).find(d => d.id === id);
+  if (!x) return;
+  COMPO.id = id; COMPO.choix = compoAuto(x.regle).choix.map(e => e.id);
+  const nbJ = {}; EX().forEach(e => { nbJ[e.carte] = (nbJ[e.carte] || 0) + 1; });
+  const libres = compoLibres().filter(e => compoUtile(x.regle, e))
+    .sort((a, b) => (nbJ[a.carte] > 1 ? 0 : 1) - (nbJ[b.carte] > 1 ? 0 : 1) || RANG(a.palier) - RANG(b.palier) || a.note - b.note);
+  ouvrirOverlay(`<div class="sheet compo-s"><h3>${esc(x.titre)}</h3>
+    <p class="sub petit">${esc(x.texte)} · ${RECOMP(x.recompense)}</p>
+    <ul class="cp-regles"></ul>
+    <p class="sub petit">On t’a proposé tes cartes en trop : touche une carte pour la choisir ou la retirer (cartes hors de ton équipe).</p>
+    <div class="cp-grille">${libres.map(e => `<button class="cp-c" data-compo-c="${e.id}" aria-pressed="false">${carteHTML(vue(e), {qty: nbJ[e.carte]})}</button>`).join('')
+      || '<p class="sub">Aucune de tes cartes libres ne convient pour l’instant.</p>'}</div>
+    <button class="btn gold" data-act="compo-ok" disabled>Donner les cartes</button>
+    <button class="btn" data-act="fermer">Annuler</button></div>`);
+  majCompo();
+}
+function majCompo() {
+  const x = (S().defis || []).find(d => d.id === COMPO.id), o = $('#overlay');
+  if (!x || !o.querySelector('.compo-s')) return;
+  const choix = COMPO.choix.map(exParId).filter(Boolean), test = compoTest(x.regle, choix), ok = test.every(t => t.ok);
+  o.querySelector('.cp-regles').innerHTML = test.map(t => `<li class="${t.ok ? 'r-ok' : ''}">${t.ok ? '✓' : '○'} ${esc(t.txt)}</li>`).join('');
+  o.querySelectorAll('[data-compo-c]').forEach(b => { const on = COMPO.choix.includes(b.dataset.compoC); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  const btn = o.querySelector('[data-act="compo-ok"]');
+  btn.disabled = !ok; btn.textContent = `Donner ${choix.length} carte${choix.length > 1 ? 's' : ''} · ${texteRecomp(x.recompense)}`;
+}
+function basculerCompo(id) {
+  const i = COMPO.choix.indexOf(id);
+  if (i >= 0) COMPO.choix.splice(i, 1); else COMPO.choix.push(id);
+  majCompo();
+}
+function validerCompo() {
+  const x = (S().defis || []).find(d => d.id === COMPO.id);
+  if (!x || !confirm(`Donner ces ${COMPO.choix.length} cartes ? Elles quittent ton club pour de bon.`)) return;
+  action(Compte.faireDefi(COMPO.id, COMPO.choix.slice()), r => { Son.jouer('recompense'); toast(`Défi réussi ! +${texteRecomp(r.recompense)}`); fermerOverlay(); });
 }
 
 // ── club : la collection ────────────────────────────────────────────────────────
@@ -307,6 +455,7 @@ function vueClub() {
       const ex = mesEx(c.id), best = ex[0], n = ex.length, nf = PARAMS.fusion_nombre || 3;
       const par = PALIERS.map(p => [p, ex.filter(e => e.palier === p.id).length]).filter(([, k]) => k);
       return `<div class="cg">${carteHTML(vue(best), {qty: n, cls: fusionsPossibles(c.id).length ? 'peut-fusion' : ''})}
+        ${enForme(c.id) ? `<span class="cg-forme">🔥 +${bonusForme(c.id)} en match</span>` : ''}
         <div class="cg-q" aria-label="${n} exemplaire${n > 1 ? 's' : ''}">${par.map(([p, k]) =>
           `<span class="pq t-${p.id}${k >= nf && p.id !== 'ultime' ? ' plein' : ''}" title="${p.nom}">${p.nom[0]}<b>×${k}</b></span>`).join('')}</div></div>`;
     }).join('')}${autres.map(c => carteHTML(c, {cache: true})).join('')}</div>
@@ -451,7 +600,7 @@ function vignetteHTML(c) {
   const [prenom, ...reste] = c.nom.split(' ');
   return `<span class="vig r-${c.rarete}" style="--tc:${TEINTE[c.rarete] || '212 140 88'}" aria-label="${esc(c.nom)}, ${R_LABEL[c.rarete] || ''}">
     <span class="vig-p">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy">` : `<b>${esc(initiales(c.nom))}</b>`}</span>
-    <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span></span>`;
+    <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span>${enForme(c.id) ? '<i class="vig-f" aria-label="joueur de la semaine">🔥</i>' : ''}</span>`;
 }
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
@@ -555,7 +704,9 @@ function vueJouer() {
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
       <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
-      <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>`;
+      <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>
+    <a class="porte defis" href="#defis"><span class="porte-ic" aria-hidden="true">🧩</span><b>Défis</b>
+      <small>${(e.defis || []).filter(x => !x.fait).length} à faire · donne tes cartes en trop contre des boosters</small></a>`;
 }
 function vueChampionnat() {
   chargerJeu();
@@ -1889,7 +2040,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -1963,6 +2114,14 @@ document.addEventListener('click', e => {
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
   if (d.bposte) { const bp = BOOSTERS_POSTE.find(x => x[0] === d.bposte);
     return ouvrirBooster(Compte.ouvrirBoosterPoste(d.bposte), POSTE_NOM[d.bposte], 'pk-poste', {poste: d.bposte, photo: bp && photoSachet(bp[1], bp[2])}); }
+  if (d.queteS) return action(Compte.reclamerQueteSemaine(d.queteS), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
+  if (a === 'passe') return fenetrePasse();
+  if (a === 'rien') return;
+  if (a === 'passe-reclamer') return action(Compte.reclamerPasse(), r => { Son.jouer('recompense'); toast(`Passe : +${texteRecomp(r.gains)}`); route(true); fenetrePasse(); });
+  if (a === 'booster-semaine') return ouvrirBooster(Compte.ouvrirBoosterSemaine(), 'Semaine', 'pk-semaine');
+  if (d.compo) return fenetreCompo(d.compo);
+  if (d.compoC) return basculerCompo(d.compoC);
+  if (a === 'compo-ok') return validerCompo();
   if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
@@ -2275,7 +2434,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=52').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=53').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

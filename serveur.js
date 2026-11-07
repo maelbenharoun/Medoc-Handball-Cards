@@ -210,6 +210,10 @@ const CompteServeur = (() => {
     aligner: (poste, ex) => rpc('aligner', {p_poste: poste, p_ex: ex || null}),
     alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}),
     reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
+    reclamerQueteSemaine: id => rpc('reclamer_quete_semaine', {p_quete: id}),  // → {xp, pieces, niveaux}
+    ouvrirBoosterSemaine: () => rpc('ouvrir_booster_semaine'),                 // un joueur de la semaine → {ids}
+    reclamerPasse: () => rpc('reclamer_passe'),                                // tous les paliers atteints → {de, a, gains}
+    faireDefi: (defi, ids) => rpc('faire_defi', {p_defi: defi, p_ex: ids}),     // défi de composition → {recompense}
     chercherJoueurs: texte => rpc('chercher_joueurs', {p_texte: texte}),
 
     // ── matchs ── (→ {match: {a, b, buts, resultat}, adversaire, gains, progres, finSaison, niveaux})

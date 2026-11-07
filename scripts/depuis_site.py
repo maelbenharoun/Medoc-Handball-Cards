@@ -1,7 +1,8 @@
 """Met à jour les cotes et les fiches des matchs à parier d'après la page publique de medochandballstats.com.
 
 Lancé par l'action GitHub « site » (.github/workflows/site.yml) toutes les heures : dès que le site a été republié,
-data/matchs.json (calendrier, probabilités du modèle) et data/face.json (fiches des matchs) sont refaits, et le serveur
+data/matchs.json (calendrier, probabilités du modèle), data/face.json (fiches des matchs) et data/semaine.json
+(joueurs de la semaine, scripts/semaine.py) sont refaits, et le serveur
 les reprend à sa synchro suivante (synchro_matchs_* dans supabase/schema.sql).
 La page publique ne contient que ce que tout visiteur voit (les données réservées en sont retirées par acces.py) :
 calendrier, résultats, classements et statistiques d'équipes ; aucun numéro de licence.
@@ -20,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from export_cartes import EQUIPES, matchs_de   # noqa: E402  (même calcul que l'export complet)
 from export_face import fiches                 # noqa: E402
+import semaine                                 # noqa: E402  (joueurs de la semaine)
 
 ADRESSES = ["https://raw.githubusercontent.com/maelbenharoun/medochandballstats/main/index.html", "https://medochandballstats.com/"]
 DATA = Path(__file__).resolve().parent.parent / "data"
@@ -100,8 +102,10 @@ def main():
         home = home or (D[k].get("model") or {}).get("home")
         fm.update(fiches(D[k]))
     b_change = ecrire_si_change(DATA / "face.json", {"maj": date.today().isoformat(), "home": round(home, 2) if home else None, "matchs": fm})
+    # 3. les joueurs de la semaine (feuilles de match du site), sans répétition dans une équipe
+    js, c_change = semaine.maj(D)
     print(f"site du {', '.join(sorted({str(D[k].get('generated')) for k in EQUIPES}))} : {len(liste)} matchs{' (mis à jour)' if a_change else ''}, "
-          f"{len(fm)} fiches{' (mises à jour)' if b_change else ''}")
+          f"{len(fm)} fiches{' (mises à jour)' if b_change else ''}, {len(js['semaines'])} semaines de joueurs{' (mises à jour)' if c_change else ''}")
 
 
 if __name__ == "__main__":

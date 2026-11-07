@@ -1,0 +1,354 @@
+{
+ "maj": "2026-11-07",
+ "saison": "2026-2027",
+ "semaines": [
+  {
+   "lundi": "2026-09-14",
+   "equipes": {
+    "SF1": {
+     "carte": "cecilia-ennelin",
+     "nom": "Cecilia Ennelin",
+     "buts": 6,
+     "tirs": 8,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-19",
+      "adv": "Montpon-Ménestérol",
+      "score": [
+       28,
+       26
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SF2": {
+     "carte": "elodie-perez",
+     "nom": "Elodie Perez",
+     "buts": 11,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-20",
+      "adv": "Saint Médard d'Eyrans",
+      "score": [
+       25,
+       15
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG1": {
+     "carte": "zadig-stora-simonet",
+     "nom": "Zadig Stora--Simonet",
+     "buts": 11,
+     "tirs": 15,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-19",
+      "adv": "Léognan",
+      "score": [
+       37,
+       35
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG2": {
+     "carte": "clement-joannon",
+     "nom": "Clement Joannon",
+     "buts": 9,
+     "tirs": 10,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-20",
+      "adv": "Canejan 3",
+      "score": [
+       31,
+       21
+      ],
+      "lieu": "dom"
+     }
+    }
+   }
+  },
+  {
+   "lundi": "2026-09-21",
+   "equipes": {
+    "SF1": {
+     "carte": "julie-valentin",
+     "nom": "Julie Valentin",
+     "buts": 14,
+     "tirs": 19,
+     "arrets": 1,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-26",
+      "adv": "Léognan",
+      "score": [
+       33,
+       28
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SF2": {
+     "carte": "camille-seurin",
+     "nom": "Camille Seurin",
+     "buts": 8,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-26",
+      "adv": "Cubzaguais",
+      "score": [
+       24,
+       32
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SG1": {
+     "carte": "yohann-besnard",
+     "nom": "Yohann Besnard",
+     "buts": 0,
+     "tirs": 0,
+     "arrets": 21,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-26",
+      "adv": "Objat Correze 2",
+      "score": [
+       34,
+       34
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SG2": {
+     "carte": "enguerran-chaigneau",
+     "nom": "Enguerran Chaigneau",
+     "buts": 14,
+     "tirs": 17,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-26",
+      "adv": "Bruges 33",
+      "score": [
+       32,
+       35
+      ],
+      "lieu": "ext"
+     }
+    }
+   }
+  },
+  {
+   "lundi": "2026-09-28",
+   "equipes": {
+    "SF1": {
+     "carte": "victoire-grivet",
+     "nom": "Victoire Grivet",
+     "buts": 5,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Marmande 2",
+      "score": [
+       34,
+       32
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SF2": {
+     "carte": "lea-perez",
+     "nom": "Lea Perez",
+     "buts": 8,
+     "tirs": 16,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-04",
+      "adv": "Haillan",
+      "score": [
+       25,
+       20
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG1": {
+     "carte": "wassia-donzow",
+     "nom": "Wassia Donzow",
+     "buts": 8,
+     "tirs": 12,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Grand Périgueux Erm",
+      "score": [
+       32,
+       35
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG2": {
+     "carte": "luigi-bataillon",
+     "nom": "Luigi Bataillon",
+     "buts": 4,
+     "tirs": 5,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-04",
+      "adv": "Cubzaguais",
+      "score": [
+       31,
+       32
+      ],
+      "lieu": "dom"
+     }
+    }
+   }
+  },
+  {
+   "lundi": "2026-10-05",
+   "equipes": {
+    "SF1": {
+     "carte": "zaya-audard",
+     "nom": "Zaya Audard",
+     "buts": 6,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-10",
+      "adv": "Brive",
+      "score": [
+       38,
+       31
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG1": {
+     "carte": "mathis-durand",
+     "nom": "Mathis Durand",
+     "buts": 11,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-10",
+      "adv": "Pana Loisirs",
+      "score": [
+       40,
+       22
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG2": {
+     "carte": "julien-enginger",
+     "nom": "Julien Enginger",
+     "buts": 5,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-11",
+      "adv": "Béglais 2",
+      "score": [
+       23,
+       24
+      ],
+      "lieu": "ext"
+     }
+    }
+   }
+  },
+  {
+   "lundi": "2026-10-26",
+   "equipes": {
+    "SF1": {
+     "carte": "leonie-celhay",
+     "nom": "Leonie Celhay",
+     "buts": 0,
+     "tirs": 0,
+     "arrets": 20,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-31",
+      "adv": "Agen",
+      "score": [
+       31,
+       28
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SF2": {
+     "carte": "amandine-pazat",
+     "nom": "Amandine Pazat",
+     "buts": 7,
+     "tirs": 9,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-01",
+      "adv": "Fronsadais",
+      "score": [
+       36,
+       20
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG1": {
+     "carte": "maxime-rabut",
+     "nom": "Maxime Rabut",
+     "buts": 10,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-01",
+      "adv": "Béglais",
+      "score": [
+       41,
+       41
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SG2": {
+     "carte": "maxence-pascual",
+     "nom": "Maxence Pascual",
+     "buts": 7,
+     "tirs": 9,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-01",
+      "adv": "Andernos Nord Bassin 3",
+      "score": [
+       31,
+       39
+      ],
+      "lieu": "dom"
+     }
+    }
+   }
+  }
+ ]
+}

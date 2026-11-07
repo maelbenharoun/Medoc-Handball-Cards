@@ -1,6 +1,6 @@
 name: site
 # Cotes et fiches des matchs à parier : relues sur medochandballstats.com (page publique) toutes les heures ;
-# dès que le site a été republié, data/matchs.json et data/face.json sont refaits (scripts/depuis_site.py).
+# dès que le site a été republié, data/matchs.json, data/face.json et data/semaine.json (joueurs de la semaine) sont refaits (scripts/depuis_site.py).
 # Le serveur relit data/matchs.json toutes les 3 h (pg_cron, supabase/schema.sql).
 on:
   schedule:
@@ -23,7 +23,7 @@ jobs:
         run: |
           git config user.name "medochandballstats"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/matchs.json data/face.json
+          git add data/matchs.json data/face.json data/semaine.json
           if git diff --cached --quiet; then echo "rien de nouveau"; exit 0; fi
           git commit -qm "Site : cotes et fiches des matchs à parier"
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 10; done
