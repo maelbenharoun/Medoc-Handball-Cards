@@ -1195,7 +1195,11 @@ function resultatMD(r) {
 
 // ── transferts par listes (demande de Maël) : jusqu'à 7 joueurs voulus et 7 à donner ; le jeu montre les échanges compatibles
 // avec les listes des autres (même palier) et l'échange se fait d'un toucher. Les listes valent accord : pas besoin d'attendre l'autre.
-const MKT = {data: null, charge: false, ajout: null, recherche: '', palier: 'bronze'};
+const MKT = {data: null, charge: false, ajout: null, recherche: '', palier: 'bronze', equipe: ''};
+// joueurs proposés dans « Je veux » : tri par équipe (demande de Maël), puis recherche par nom, sans limite
+const joueursVoulus = () => { const q = MKT.recherche.trim().toLowerCase();
+  const l = CARTES.filter(c => c.actif !== false && (!MKT.equipe || c.equipe === MKT.equipe) && (!q || c.nom.toLowerCase().includes(q)));
+  return l; };   // tous : la fenêtre défile (demande de Maël)
 const carteDe = (carte, palier, note) => PAR_ID[carte] ? vueExemplaire(PAR_ID[carte], {palier, note: note ?? PALIER[palier].min}) : null;
 function chargerMarche() {
   if (MKT.charge || MKT.data || Compte.horsLigne) return;
@@ -1250,10 +1254,11 @@ function fenetreAjoutListe() {
         || '<p class="sub">Pas de carte libre : toutes tes cartes jouent dans ton équipe ou sont déjà dans la liste.</p>'}</div>
       <button class="btn" data-act="fermer">Fermer</button></div>`);
   }
-  const q = MKT.recherche.trim().toLowerCase(), pris = new Set(D.veux.map(x => x.carte + ':' + x.palier));
-  const l = CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 24 : 12);
+  const pris = new Set(D.veux.map(x => x.carte + ':' + x.palier)), l = joueursVoulus();
+  const equipes = [...new Set(CARTES.filter(c => c.actif !== false).map(c => c.equipe))].sort();
   ouvrirOverlay(`<div class="sheet compo"><h3>Je veux</h3>
     <div class="filters">${RARETES.map(r => `<button data-palier-liste="${r}" class="${MKT.palier === r ? 'on' : ''}">${R_LABEL[r]}</button>`).join('')}</div>
+    <div class="filters">${['', ...equipes].map(e => `<button data-equipe-liste="${e || '*'}" class="${MKT.equipe === e ? 'on' : ''}">${e || 'Toutes les équipes'}</button>`).join('')}</div>
     <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(MKT.recherche)}" data-cherche-liste autocomplete="off" spellcheck="false">
     <div class="pickgrid" id="liste-ajout">${listeAjoutVeux(l, pris)}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
@@ -1896,7 +1901,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -1913,6 +1918,7 @@ document.addEventListener('click', e => {
   if (d.echDemande) { SOC.echange.demande = d.echDemande; return fenetreEchange(); }
   if (d.ajoutListe) { MKT.ajout = d.ajoutListe; MKT.recherche = ''; return fenetreAjoutListe(); }
   if (d.palierListe) { MKT.palier = d.palierListe; return fenetreAjoutListe(); }
+  if (d.equipeListe) { MKT.equipe = d.equipeListe === '*' ? '' : d.equipeListe; return fenetreAjoutListe(); }
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (d.fiche) return fenetreFiche(d.fiche);
@@ -2022,8 +2028,8 @@ document.addEventListener('submit', e => {
 // annonce : recherche du joueur voulu ; pari : mise et gain possible
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.dataset.chercheListe !== undefined) { MKT.recherche = t.value; const q = t.value.trim().toLowerCase(), pris = new Set(MKT.data.veux.map(x => x.carte + ':' + x.palier));
-    $('#liste-ajout').innerHTML = listeAjoutVeux(CARTES.filter(c => c.actif !== false && (!q || c.nom.toLowerCase().includes(q))).slice(0, q ? 24 : 12), pris); return; }
+  if (t.dataset.chercheListe !== undefined) { MKT.recherche = t.value; const pris = new Set(MKT.data.veux.map(x => x.carte + ':' + x.palier));
+    $('#liste-ajout').innerHTML = listeAjoutVeux(joueursVoulus(), pris); return; }
   if (t.dataset.mise !== undefined) {
     document.querySelectorAll('[data-mise]').forEach(el => { if (el !== t) el.value = t.value; });
     const [rid, choix] = $('[data-valider-pari]').dataset.validerPari.split(':');
@@ -2281,7 +2287,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=49').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=50').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

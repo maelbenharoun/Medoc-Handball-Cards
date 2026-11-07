@@ -1467,3 +1467,7 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .pick-f span { font-size: 1.1rem; line-height: 1; }
 .pick-actuel { display: flex; align-items: center; gap: 12px; padding: 8px 10px; margin-bottom: 10px; border-radius: 14px; border: 1px solid var(--accent); background: #1d1b12; }
 .pick-actuel .card { --w: 46px; box-shadow: none; } .pick-actuel > div { flex: 1; min-width: 0; } .pick-actuel small { display: block; color: var(--muted); font-size: .7rem; } .pick-actuel .btn { flex: none; }
+/* listes de transferts : la grille des joueurs défile dans la fenêtre (filtres et recherche restent en haut, « Fermer » en bas) */
+.sheet.compo { min-height: 0; }
+.sheet.compo .pickgrid { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 6px 2px 8px; }
+.sheet.compo .filters { flex: none; }
