@@ -2605,19 +2605,26 @@ end $$;
 -- stat a une moyenne nulle (champ et gardiens à part) : aucune stat n'est en moyenne plus forte que les autres.
 -- Relancer ne change rien (les écarts déjà normalisés restent les mêmes).
 create or replace function normaliser_ecarts() returns void language plpgsql security definer set search_path = public as $$
-declare fam text; ks text[]; k text; moy jsonb;
+-- répété jusqu'à ce que plus rien ne bouge (les arrondis) : la relancer ne change rien ; seuls les décalages d'au moins ½ point comptent
+declare fam text; ks text[]; moy jsonb; avant text; it int;
 begin
-  for fam in select unnest(array['champ', 'gb']) loop
-    ks := case fam when 'gb' then array['ref', 'pla', 'rel', 'men', 'phy', 'vit'] else array['tir', 'pas', 'def', 'men', 'phy', 'vit'] end;
-    -- 1. chaque joueur : écarts centrés (somme nulle)
-    update cartes c set ecarts = (select jsonb_object_agg(k2, round(coalesce((c.ecarts ->> k2)::numeric, 0)
-        - (select avg(coalesce((c.ecarts ->> k3)::numeric, 0)) from unnest(ks) k3))) from unnest(ks) k2)
-      where coalesce(c.poste = 'GB', false) = (fam = 'gb');
-    -- 2. moyenne de chaque stat sur le catalogue, retirée à tous
-    select jsonb_object_agg(k2, (select avg((c.ecarts ->> k2)::numeric) from cartes c where c.actif and coalesce(c.poste = 'GB', false) = (fam = 'gb'))) into moy from unnest(ks) k2;
-    if moy is null then continue; end if;
-    update cartes c set ecarts = (select jsonb_object_agg(k2, round((c.ecarts ->> k2)::numeric - coalesce((moy ->> k2)::numeric, 0))) from unnest(ks) k2)
-      where coalesce(c.poste = 'GB', false) = (fam = 'gb');
+  for it in 1 .. 6 loop
+    select string_agg(id || ecarts::text, '|' order by id) into avant from cartes;
+    for fam in select unnest(array['champ', 'gb']) loop
+      ks := case fam when 'gb' then array['ref', 'pla', 'rel', 'men', 'phy', 'vit'] else array['tir', 'pas', 'def', 'men', 'phy', 'vit'] end;
+      -- 1. chaque joueur : écarts centrés (somme nulle)
+      update cartes c set ecarts = (select jsonb_object_agg(k2, round(coalesce((c.ecarts ->> k2)::numeric, 0) - x.m)) from unnest(ks) k2)
+        from (select c2.id, (select avg(coalesce((c2.ecarts ->> k3)::numeric, 0)) from unnest(ks) k3) m from cartes c2) x
+        where x.id = c.id and abs(x.m) >= .5 and coalesce(c.poste = 'GB', false) = (fam = 'gb');
+      -- 2. moyenne de chaque stat sur le catalogue (cartes en jeu), retirée à tous
+      select jsonb_object_agg(k2, (select avg((c.ecarts ->> k2)::numeric) from cartes c where c.actif and coalesce(c.poste = 'GB', false) = (fam = 'gb'))) into moy from unnest(ks) k2;
+      if moy is null then continue; end if;
+      update cartes c set ecarts = (select jsonb_object_agg(k2, round((c.ecarts ->> k2)::numeric
+          - case when abs(coalesce((moy ->> k2)::numeric, 0)) >= .5 then (moy ->> k2)::numeric else 0 end)) from unnest(ks) k2)
+        where coalesce(c.poste = 'GB', false) = (fam = 'gb')
+          and exists (select 1 from unnest(ks) k2 where abs(coalesce((moy ->> k2)::numeric, 0)) >= .5);
+    end loop;
+    exit when avant is not distinct from (select string_agg(id || ecarts::text, '|' order by id) from cartes);
   end loop;
 end $$;
 
