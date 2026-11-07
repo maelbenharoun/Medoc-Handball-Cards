@@ -176,7 +176,7 @@ function minuteur() {
 }
 // Boosters par poste : un joueur sur chaque sachet (choix de Maël : [poste, carte, palier de la photo])
 // boosters par équipe (demande de Maël : 5 à 9 joueurs par poste, trop peu) : [équipe, carte de la photo, palier de la photo]
-const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'or'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
+const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
 const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2'};
 const nbEquipe = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).length;
 const uneEquipe = eq => eq.startsWith('SF') ? 'Une joueuse de l’équipe' : 'Un joueur de l’équipe';
@@ -2518,7 +2518,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=54').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=55').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
