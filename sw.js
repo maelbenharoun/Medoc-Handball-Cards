@@ -1,6 +1,6 @@
 // Cache hors ligne : le jeu s'ouvre sans réseau une fois installé.
 // Changer VERSION à chaque mise à jour des fichiers pour forcer le rafraîchissement.
-const VERSION = 'mhc-v46';
+const VERSION = 'mhc-v47';
 const FICHIERS = ['./', 'index.html', 'style.css', 'config.js', 'cartes.js', 'serveur.js', 'sons.js', 'app.js', 'confidentialite.html',
   'manifest.webmanifest', 'data/cartes.json', 'data/perso.json',
   'assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png'];

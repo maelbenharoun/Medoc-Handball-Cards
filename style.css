@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;   /* page déjà sombre : pas d'assombrissement forcé par le navigateur */
   --bg: #0b0d10;
   --bg2: #14171c;
   --line: #262a31;
