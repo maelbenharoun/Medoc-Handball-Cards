@@ -109,7 +109,12 @@ function departAuto() {
     ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   }, 700);
 }
+// légendes du club : absentes du catalogue (jamais annoncées) ; celles qu'on possède arrivent par l'état du joueur
+function integrerLegendes() {
+  for (const r of S().legendes || []) if (!PAR_ID[r.id] && Compte.carteDepuisLigne) { const c = Compte.carteDepuisLigne(r); CARTES.push(c); PAR_ID[c.id] = c; }
+}
 function majEntete() {
+  integrerLegendes();
   $('#coins').hidden = !Compte.pret;
   $('.tabs').hidden = !Compte.pret;
   const moi = $('#moi');
@@ -347,7 +352,7 @@ function fenetrePasse() {
 
 // ── défis de composition ─────────────────────────────────────────────────────────
 const RANG = p => RARETES.indexOf(p);
-const compoLibres = () => EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]);
+const compoLibres = () => EX().filter(e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte] && !PAR_ID[e.carte].legende);
 const condOk = (k, e) => { const c = PAR_ID[e.carte];
   return (!k.palier || e.palier === k.palier) && (!k.equipe || c.equipe === k.equipe) && (!k.genre || c.genre === k.genre) && (!k.poste || c.poste === k.poste); };
 const condNom = k => k.poste ? POSTE_NOM[k.poste] : k.equipe ? `de ${k.equipe}` : k.genre ? (k.genre === 'F' ? 'fille' : 'garçon') : k.palier ? R_LABEL[k.palier] : '';
@@ -557,7 +562,7 @@ function vueClub() {
   const mes = vus.filter(c => mesEx(c.id).length).sort((a, b) => rangEx(mesEx(a.id)[0], mesEx(b.id)[0]));
   const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
   const nf = CARTES.filter(c => fusionsPossibles(c.id).length).length;
-  const differentes = new Set(EX().map(x => x.carte)).size;
+  const differentes = new Set(EX().filter(x => !PAR_ID[x.carte]?.legende).map(x => x.carte)).size;
   return `<h1>Mon club</h1>
     <h2>Ta collection</h2>
     <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
@@ -583,7 +588,7 @@ function vueClub() {
 // 6 axes (les 6 stats), grille en bandes, forme en dégradé à la couleur du palier qui grandit depuis le centre, pastilles des
 // valeurs qui comptent jusqu'à leur valeur (en relief, dorées pour les stats mises en avant). Seuls transform et opacity sont
 // animés ; changer de palier fait glisser la forme (hexMorph, quelques images sur un petit SVG).
-const HEX_R = 46, HEX_TON = {bronze: ['#f0b384', '#b86a35'], argent: ['#f1f5f9', '#8f9aa8'], or: ['#ffe39a', '#c9952b'], ultime: ['#b8f28f', '#4c9c2a'], equipe: ['#8fd0ff', '#2f6fc4']};
+const HEX_R = 46, HEX_TON = {legende: ['#fff6d8', '#c9a24a'], bronze: ['#f0b384', '#b86a35'], argent: ['#f1f5f9', '#8f9aa8'], or: ['#ffe39a', '#c9952b'], ultime: ['#b8f28f', '#4c9c2a'], equipe: ['#8fd0ff', '#2f6fc4']};
 let hexId = 0;
 const hexPoint = (i, v, min = 0) => { const a = (-90 + i * 60) * Math.PI / 180, r = HEX_R * Math.max(0, Math.min(1, (v - min) / (99 - min)));
   return [r * Math.cos(a), r * Math.sin(a)]; };
@@ -642,11 +647,11 @@ function fiche(carte, poste) {
   const best = [...meilleur].reverse().find(Boolean), palH = best ? best.palier : 'bronze', noteH = best ? best.note : PALIER.bronze.min;
   Object.assign(FICHE, {carte, liste});
   const forts = [...liste].sort((a, b) => (c.ecarts?.[b[0]] || 0) - (c.ecarts?.[a[0]] || 0)).slice(0, 2).map(x => x[0]);
-  const hex = `<div class="fiche-hex">${hexHTML(liste, statsAuNiveau(c, noteH), {ton: palH, fond: statsAuNiveau(c, 99), forts, min: 20})}
-    <div class="hx-ch">${PALIERS.map((p, i) => { const nt = meilleur[i] ? meilleur[i].note : p.min;
-      return `<button class="t-${p.id}${p.id === palH ? ' on' : ''}" data-hex="${p.id}:${nt}">${p.nom}<b>${nt}</b></button>`; }).join('')}</div>
+  const hex = `<div class="fiche-hex">${hexHTML(liste, statsAuNiveau(c, noteH), {ton: c.legende ? 'legende' : palH, fond: statsAuNiveau(c, 99), forts, min: 20})}
+    ${c.legende ? '' : `<div class="hx-ch">${PALIERS.map((p, i) => { const nt = meilleur[i] ? meilleur[i].note : p.min;
+      return `<button class="t-${p.id}${p.id === palH ? ' on' : ''}" data-hex="${p.id}:${nt}">${p.nom}<b>${nt}</b></button>`; }).join('')}</div>`}
     <p class="sub petit centre">${best ? 'Ta meilleure carte' : 'Au plus bas du palier'} · en pointillé : au maximum (99) · points forts : ${forts.map(k => liste.find(x => x[0] === k)[2].toLowerCase()).join(' et ')}</p></div>`;
-  const paliers = PALIERS.map(p => {
+  const paliers = c.legende ? '' : PALIERS.map(p => {
     const a = mes.some(e => e.palier === p.id);
     return `<div class="pal${a ? '' : ' absent'}">${carteHTML(vueExemplaire(c, {palier: p.id, note: p.min}))}<small>${p.nom} ${p.min}–${p.max}</small></div>`;
   }).join('');
@@ -667,11 +672,12 @@ function fiche(carte, poste) {
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">${poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
-    <h3>${esc(c.nom)} <small>${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
+    <h3>${esc(c.nom)} <small>${c.legende ? 'Légende du club · ' : ''}${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
+    ${c.fiche?.intro ? `<p class="f-desc">${esc(c.fiche.intro)}</p>` : ''}
     ${hex}
-    <div class="paliers">${paliers}</div>
+    ${paliers ? `<div class="paliers">${paliers}</div>` : ''}
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
-    <div class="fiche-j">${ficheHTML(c.fiche) || `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`}</div>
+    <div class="fiche-j">${ficheHTML(c.fiche && {...c.fiche, intro: ''}) || `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
   hexAnimer($('#overlay'));
 }
@@ -715,7 +721,7 @@ const pc100 = x => Math.round(x * 100) + ' %';
 // vignette d'un joueur aligné : sa photo (ou ses initiales) dans un rond aux couleurs du palier, et son nom
 function vignetteHTML(c) {
   const [prenom, ...reste] = c.nom.split(' ');
-  return `<span class="vig r-${c.rarete}" style="--tc:${TEINTE[c.rarete] || '212 140 88'}" aria-label="${esc(c.nom)}, ${R_LABEL[c.rarete] || ''}">
+  return `<span class="vig r-${c.rarete}${c.legende ? ' legende' : ''}" style="--tc:${TEINTE[c.rarete] || '212 140 88'}" aria-label="${esc(c.nom)}, ${R_LABEL[c.rarete] || ''}">
     <span class="vig-p">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy">` : `<b>${esc(initiales(c.nom))}</b>`}</span>
     <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span>${enForme(c.id) ? '<i class="vig-f" aria-label="joueur de la semaine">🔥</i>' : ''}</span>`;
 }
@@ -1467,7 +1473,7 @@ function chargerMarche() {
 // cartes libres de mon club (hors équipe, ni réservées) : une ligne par joueur et par palier, avec le nombre
 function mesLibres() {
   const g = {};
-  for (const e of EX()) if (!e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte]) { const k = e.carte + ':' + e.palier; (g[k] = g[k] || {carte: e.carte, palier: e.palier, n: 0, note: 0}).n++; g[k].note = Math.max(g[k].note, e.note); }
+  for (const e of EX()) if (!e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte] && !PAR_ID[e.carte].legende) { const k = e.carte + ':' + e.palier; (g[k] = g[k] || {carte: e.carte, palier: e.palier, n: 0, note: 0}).n++; g[k].note = Math.max(g[k].note, e.note); }
   return Object.values(g).sort((a, b) => RARETES.indexOf(b.palier) - RARETES.indexOf(a.palier) || PAR_ID[a.carte].nom.localeCompare(PAR_ID[b.carte].nom));
 }
 const vignetteListe = (x, sens, i, extra) => { const c = carteDe(x.carte, x.palier, x.note);
@@ -1861,6 +1867,7 @@ function ouvrirBooster(promesse, nom, cls, deco) {
   if (occupe) return;
   const avant = new Set(EX().map(e => e.carte));
   action(promesse, ({ids}) => {
+    integrerLegendes();
     const res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
       .sort((a, b) => rangEx(a.c.ex, b.c.ex));
     if (res.length) sceneBooster(res, nom, cls, deco);
@@ -1884,6 +1891,8 @@ function demoBooster(type) {
   if (!tous.length) return;
   const tirer = () => { const ch = PARAMS.booster_chances || {bronze: 80, argent: 12, or: 7, ultime: 1}; let x = Math.random() * 100;
     for (const r of RARETES) { x -= ch[r] || 0; if (x < 0) return r; } return 'bronze'; };
+  if (type === 'legende') { const c = hasard(tous);
+    sceneBooster([{c: vueExemplaire({...c, legende: true}, {palier: 'ultime', note: 95}), nouveau: true}], 'Booster', 'pk-gratuit'); OB.demo = type; return; }
   const n = type === 'depart' ? 7 : 1, pris = new Set(), res = [];
   while (res.length < Math.min(n, tous.length)) {
     const c = hasard(tous); if (pris.has(c.id)) continue; pris.add(c.id);
@@ -1910,7 +1919,7 @@ function sceneBooster(res, nom, cls, deco = {}) {
   });
   const el = document.createElement('div');
   el.className = 'ob';
-  el.style.setProperty('--tc', TEINTE[res[0].c.rarete]);
+  el.style.setProperty('--tc', res[0].c.legende ? '255 226 140' : TEINTE[res[0].c.rarete]);
   el.style.setProperty('--pw', pw + 'px');
   el.innerHTML = `${fondHand()}<div class="ob-lueur"></div><div class="ob-rayons"></div>
     <div class="ob-cartes">${res.map((r, i) => `<div class="ob-c" data-i="${i}" style="width:${finales[i].w}px;height:${finales[i].w / .69}px">
@@ -1986,10 +1995,56 @@ async function dechirerBooster() {
       {transform: place(f.x, f.y, 1.045, f.r), offset: .85}, {transform: place(f.x, f.y, 1, f.r)}],
       {duration: 640, delay: (cartes.length - 1 - i) * 70, easing: 'cubic-bezier(.3, .7, .3, 1)'}).then(() => { c.style.transform = place(f.x, f.y, 1, f.r); });
   }));
+  if (res[0].c.legende && !OB.vite) return sequenceLegende();   // une légende du club : sa scène à elle
   // 5. les autres cartes se retournent d'elles-mêmes (de la moins bonne à la meilleure), la meilleure attend
   for (const c of cartes.slice(1).reverse()) { retourner(c); await obPause(240); }
   if (RARETES.indexOf(res[0].c.rarete) >= RARETES.indexOf('or') && !OB.vite) { OB.etape = 'indices'; OB.indice = 0; indiceSuivant(); }
   else attendreRetournement();
+}
+
+// Légende du club (1 booster gratuit sur 500) : la scène la plus spectaculaire du jeu. Tout s'éteint, un faisceau doré monte,
+// des étincelles s'envolent, la carte tourne dans la lumière, les lettres de LÉGENDE tombent une à une et l'écran tremble ;
+// éclair blanc, la carte se retourne devant des rayons qui tournent, couronne. Seuls transform et opacity bougent.
+async function sequenceLegende() {
+  OB.etape = 'legende';
+  const {el, finales} = OB, f = finales[0], h = el.querySelector('.ob-c[data-i="0"]'), W = innerWidth, H = innerHeight;
+  const scene = document.createElement('div');
+  scene.className = 'lg-scene';
+  scene.innerHTML = `<i class="lg-noir"></i><i class="lg-faisceau"></i><i class="lg-rayons"></i><div class="lg-part"></div>
+    <div class="lg-titre" aria-hidden="true">${[...'LÉGENDE'].map((l, i) => `<span style="--i:${i}">${l}</span>`).join('')}</div>
+    <p class="lg-sous">du Médoc Handball</p>`;
+  el.querySelector('.ob-cartes').before(scene);
+  const flash = document.createElement('i'); flash.className = 'lg-flash'; el.appendChild(flash);
+  const part = scene.querySelector('.lg-part');
+  for (let i = 0; i < 48; i++) {
+    const p = document.createElement('i');
+    p.style.cssText = `left:${(Math.random() * 100).toFixed(1)}%;--d:${(1.8 + Math.random() * 2.4).toFixed(2)}s;--r:${(-Math.random() * 4).toFixed(2)}s;--t:${(2 + Math.random() * 5).toFixed(1)}px;--x:${((Math.random() - .5) * 60).toFixed(0)}px`;
+    part.appendChild(p);
+  }
+  el.classList.add('lg'); el.style.setProperty('--tc', '255 226 140');
+  Son.jouer('legende'); vibrer([80, 60, 120]);
+  await obPause(60); scene.classList.add('allume');
+  await obPause(1100);
+  // la carte, encore de dos, monte au centre en tournant dans le faisceau
+  const cy = H * .44;
+  await obAnim(h, [{transform: place(f.x, f.y, 1, f.r)}, {transform: `${place(W / 2, cy + 30, 1.06, 0)} rotateY(540deg)`, offset: .7},
+    {transform: `${place(W / 2, cy, 1.12, 0)} rotateY(720deg)`}], {duration: 1700, easing: 'cubic-bezier(.45, 0, .2, 1)'});
+  h.style.transform = place(W / 2, cy, 1.12, 0);
+  // les lettres tombent une à une, puis tout tremble
+  scene.classList.add('titre');
+  for (let i = 0; i < 7; i++) { await obPause(110); vibrer(12); }
+  await obPause(260);
+  obAnim(el, [{transform: 'none'}, {transform: 'translate(-7px, 4px)'}, {transform: 'translate(6px, -5px)'}, {transform: 'translate(-4px, 3px)'},
+    {transform: 'translate(3px, -2px)'}, {transform: 'none'}], {duration: 420, easing: 'linear'});
+  vibrer([40, 30, 90]);
+  await obPause(650);
+  // éclair blanc, la carte se retourne
+  obAnim(flash, [{opacity: 0}, {opacity: 1, offset: .12}, {opacity: 0}], {duration: 900, easing: 'ease-out'});
+  await obPause(110);
+  scene.classList.add('revele'); el.classList.add('t-haut', 'eclair');
+  retourner(h); Son.jouer('revele-ultime'); vibrer([60, 40, 140]);
+  OB.etape = 'fini';
+  finBooster();
 }
 function etincelles(coupe, lw) {
   for (let i = 0; i < 16; i++) {

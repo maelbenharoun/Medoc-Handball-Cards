@@ -11,7 +11,11 @@
    et de son entraînement ; les 6 stats réglées dans l'outil ne donnent que la forme du joueur (ses « écarts »).
    À note égale, tous les joueurs ont le même total de stats : 240 en moyenne à 50 (40 par stat), 480 à 99 (80 par stat) ;
    la forme répartit ce total (écarts de somme nulle), et sur tout le catalogue chaque stat a la même moyenne
-   (stat_note et normaliser_ecarts dans supabase/schema.sql font la même chose). */
+   (stat_note et normaliser_ecarts dans supabase/schema.sql font la même chose).
+   La forme est proportionnelle (demande de Maël) : un écart est donné pour une moyenne de 40 (note 50) et grandit avec
+   la moyenne du palier : stat = moyenne × (1 + écart / 40). Une stat qui vaut 25 % du total le vaut à tous les paliers.
+   Légendes du club : cartes créées dans l'outil (legende), en une seule édition (Ultime, cadre à part), jamais tirées
+   ailleurs que dans le booster gratuit (1 sur 500, schema.sql). */
 
 // ── paliers ─────────────────────────────────────────────────────────────────────
 const PALIERS = [
@@ -110,17 +114,18 @@ function fusionnerCarte(c0, p = {}) {
   const calc = noteDepuisStats(profil, poste);
   // la forme du joueur : ses stats (plus le bonus de ses postes) moins leur moyenne : des écarts de somme nulle
   const bonus = estGB ? {} : bonusPostes(postes), ks = statsDu(poste).map(([k]) => k);
-  const brut = Object.fromEntries(ks.map(k => [k, profil[k] + (bonus[k] || 0)])), m = ks.reduce((t, k) => t + brut[k], 0) / 6;
-  const ecarts = Object.fromEntries(ks.map(k => [k, Math.round(brut[k] - m)]));
+  const mp = ks.reduce((t, k) => t + profil[k], 0) / 6 || 40, mb = ks.reduce((t, k) => t + (bonus[k] || 0), 0) / 6;
+  const ecarts = Object.fromEntries(ks.map(k => [k, Math.round(40 * (profil[k] - mp) / mp + (bonus[k] || 0) - mb)]));
   const photos = {};
   for (const r of RARETES) if (p.photos?.[r]) photos[r] = p.photos[r];
   // numéro de maillot : celui réglé dans l'outil, sinon le plus porté cette saison d'après les feuilles de match
   const ok = n => Number.isInteger(n) && n >= 0 && n <= 99;
   const numero = ok(p.numero) ? p.numero : ok(c0.numero) ? c0.numero : null;
   const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null, numero,
+    equipe: p.equipe || c0.equipe, legende: !!(p.legende ?? c0.legende),
     fiche: ficheDe(c0.fiche, p.fiche),
-    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length || p.fiche)};
-  return vueExemplaire(c, {palier: 'bronze', note: PALIER.bronze.min});
+    perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length || p.fiche || p.equipe || p.legende)};
+  return vueExemplaire(c, c.legende ? {palier: 'ultime', note: PALIER.ultime.min} : {palier: 'bronze', note: PALIER.bronze.min});
 }
 // Fiche d'un joueur : les sections tirées des stats du site (export_cartes.py) + ce que l'outil y change.
 // auto : [{id, titre, style: 'lignes' | 'fun', lignes: [{id, l, v, d?}]}]
@@ -148,11 +153,18 @@ function ficheHTML(fi) {
     ? `<div class="f-fun">${s.lignes.map(x => `<div><small>${esc(x.l)}</small><b>${esc(x.v)}</b>${x.d ? `<p>${esc(x.d)}</p>` : ''}</div>`).join('')}</div>`
     : `<dl class="f-l">${s.lignes.map(x => `<div><dt>${esc(x.l)}</dt><dd${String(x.v).length <= 26 ? ' class="court"' : ''}>${esc(x.v)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</dd></div>`).join('')}</dl>`}</section>`).join('');
 }
-// Moyenne des 6 stats à une note : 40 à 50, 80 à 99
-const moyenneStats = note => Math.round(40 + (note - 50) * 40 / 49);
-// Les 6 stats d'un joueur à une note : la moyenne + son écart, de 1 à 99
+// Moyenne des 6 stats à une note : 40 à 50, 80 à 99 (moyenneExacte : sans arrondi, pour les calculs)
+const moyenneExacte = note => 40 + (note - 50) * 40 / 49;
+const moyenneStats = note => Math.round(moyenneExacte(note));
+// Les 6 stats d'un joueur à une note : la moyenne × (1 + écart / 40), de 1 à 99 (la forme reste proportionnelle à chaque palier)
 function statsAuNiveau(c, note) {
-  return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(moyenneStats(note) + (c.ecarts?.[k] || 0), 1, 99)]));
+  const m = moyenneExacte(note);
+  return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(m * (1 + (c.ecarts?.[k] || 0) / 40), 1, 99)]));
+}
+// Une carte créée dans l'outil (pas sur le site) : le minimum que le jeu attend d'une carte du site
+function carteCreee(id, b) {
+  return {id, nom: b.nom, equipe: b.equipe, genre: b.genre === 'M' ? 'M' : 'F', poste: b.poste === 'GB' ? 'GB' : 'JDC', ovr: 75, att: 75, def: 75, tir: 75,
+    gb: b.poste === 'GB' ? 75 : null, arr: 0, mj: 0, buts: 0, bpm: 0, record: 0, recrue: false, numero: null, fiche: [], cree: true, legende: !!b.legende};
 }
 // Photo d'un palier ; sinon celle du palier inférieur le plus proche ; sinon la photo unique ; sinon rien
 function photoPalier(c, palier) {
@@ -212,9 +224,10 @@ function carteHTML(c, o = {}) {
   const note = o.note ?? c.ovr;
   const visage = c.photo ? `<img class="c-photo" src="${esc(c.photo)}" alt="" loading="lazy">`
     : `<div class="c-face">${silhouette(c.rarete)}</div><div class="c-mono">${initiales(c.nom)}</div>`;
-  return `<div class="card r-${c.rarete}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, ${posteAffiche(c)}, ${R_LABEL[c.rarete] || ''} ${note}">
-    <i class="c-eclat"></i>${visage}
-    <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pal">${R_LABEL[c.rarete] || ''}</span><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
+  const pal = c.legende ? 'Légende' : R_LABEL[c.rarete] || '';
+  return `<div class="card r-${c.rarete}${c.legende ? ' legende' : ''}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, ${posteAffiche(c)}, ${pal} ${note}">
+    <i class="c-eclat"></i>${c.legende ? '<i class="c-holo"></i><i class="c-couronne" aria-hidden="true">♛</i>' : ''}${visage}
+    <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pal">${pal}</span><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
     <div class="c-name">${esc(c.nom)}</div>
     <div class="c-stats">${statsDu(c.poste).map(([k, l]) => `<span><small>${l}</small><b>${c.s[k]}</b></span>`).join('')}</div>
     <div class="c-bas"><span class="c-num">${c.numero != null ? 'N°' + c.numero : 'N°–'}</span><img class="c-logo" src="assets/logo.png" alt=""><span class="c-eq">${c.equipe}</span></div>

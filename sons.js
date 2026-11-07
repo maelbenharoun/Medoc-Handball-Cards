@@ -85,6 +85,13 @@ const Son = (() => {
       arpege([69, 73, 76, 81, 85, 88, 93], q + .08, .07, {type: 'square', vol: .08, duree: .8, filtre: 4500, reverb: .6});
       [57, 64, 69, 73].forEach(n => note(hz(n), q + .55, 1.6, {type: 'sawtooth', vol: .04, att: .2, filtre: 2200, reverb: .6}));
       bruit(q + .2, 1.8, {type: 'highpass', f: 6500, vol: .1, att: .3}); },
+    // légende du club (1 booster gratuit sur 500) : grondement grave, chœur qui monte dans le faisceau, coups sourds des lettres
+    legende: q => { note(55, q, 2.2, {type: 'sine', vol: .5, glisse: 32}); bruit(q, 1.2, {type: 'lowpass', f: 300, vol: .4});
+      bruit(q + .2, 3, {type: 'bandpass', f: 300, f2: 3200, q: .7, vol: .14, att: 2.2, reverb: .7});
+      [45, 52, 57, 61, 64].forEach((n, i) => note(hz(n), q + .3 + i * .18, 3.2, {type: 'sawtooth', vol: .035, att: 1.4, filtre: 1600, reverb: .8}));
+      for (let i = 0; i < 7; i++) { const t = q + 3.0 + i * .11; note(70, t, .35, {type: 'sine', vol: .32, glisse: 42}); bruit(t, .18, {type: 'lowpass', f: 900, vol: .18}); }
+      note(45, q + 4.6, 1.4, {type: 'sine', vol: .5, glisse: 28}); bruit(q + 4.6, 1, {type: 'lowpass', f: 500, vol: .35});
+      bruit(q + 4.6, 2.4, {type: 'highpass', f: 7000, vol: .1, att: .1, reverb: .6}); },
     // la fusion : trois cartes qui se rejoignent (montée), l'éclair, puis la fanfare
     fusion: q => { note(180, q, 1.1, {type: 'sawtooth', vol: .07, glisse: 1400, filtre: 3000, att: .3}); bruit(q, 1.1, {type: 'bandpass', f: 600, f2: 5000, q: 2, vol: .12, att: .4});
       bruit(q + 1.1, .4, {type: 'lowpass', f: 1200, vol: .35}); note(60, q + 1.1, .6, {type: 'sine', vol: .4, glisse: 40}); },

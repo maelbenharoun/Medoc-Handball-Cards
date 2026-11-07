@@ -90,17 +90,18 @@ const CompteServeur = (() => {
     for (const x of [cs, pr]) if (x.error) throw x.error;
     return {cartes: cs.data, parametres: pr.data.valeurs};
   }
+  // une ligne de la table cartes → carte du jeu ; le serveur fait foi : poste, équipe, forme du joueur et photos tels que publiés
+  function carteDepuisLigne(r) {
+    const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
+      estGB: r.poste === 'GB', ecarts: r.ecarts || {}, equipe: r.equipe || r.site?.equipe, legende: !!r.legende,
+      photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
+    return vueExemplaire(base, r.legende ? {palier: 'ultime', note: PALIER.ultime.min} : {palier: 'bronze', note: PALIER.bronze.min});
+  }
   function appliquerCatalogue({cartes, parametres}) {
     Object.assign(PARAMS, parametres);
     const brouillon = outilConnecte() ? lireBrouillon() : {};   // aperçu, seulement dans le navigateur de l'admin
-    const liste = cartes.map(r => {
-      if (r.id in brouillon) return {...fusionnerCarte(r.site, brouillon[r.id] || {}), actif: r.actif};
-      // le serveur fait foi : poste, forme du joueur et photos tels que publiés
-      const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
-        estGB: r.poste === 'GB', ecarts: r.ecarts || {},
-        photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
-      return vueExemplaire(base, {palier: 'bronze', note: PALIER.bronze.min});
-    });
+    // les légendes ne font pas partie du catalogue du jeu (seul l'admin les lit) : celles qu'on possède arrivent par l'état
+    const liste = cartes.filter(r => !r.legende).map(r => r.id in brouillon ? {...fusionnerCarte(r.site, brouillon[r.id] || {}), actif: r.actif} : carteDepuisLigne(r));
     liste.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     const maj = cartes.reduce((m, r) => r.maj > m ? r.maj : m, '');
     return {cartes: liste, maj: maj.slice(0, 10), apercu: Object.keys(brouillon).length > 0};
@@ -116,6 +117,7 @@ const CompteServeur = (() => {
 
   return {
     mode: 'serveur',
+    carteDepuisLigne,
     get etat() { return S; },
     get connecte() { return !!session; },
     get pret() { return !!session && !!S.profil && !recuperation; },   // connecté, avec un profil : on peut jouer

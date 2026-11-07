@@ -81,7 +81,8 @@ insert into parametres values (1, '{
   "booster_semaine_chances": {"bronze": 45, "argent": 35, "or": 17, "ultime": 3},
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
-  "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3
+  "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
+  "legende_chance": 0.002, "legende_note": 95
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -104,9 +105,10 @@ create or replace function palier_suivant(p text) returns text language sql immu
 $$;
 -- Les 6 stats d'un joueur à une note (demande de Maël) : à note égale, tous les joueurs ont le même total de stats,
 -- 240 en moyenne à 50 (40 par stat) et 480 à 99 (80 par stat). La forme du joueur (ses écarts, de somme nulle) répartit
--- ce total entre ses stats. Même calcul dans cartes.js (moyenneStats, statsAuNiveau).
+-- ce total entre ses stats, en proportion (demande de Maël) : l'écart est donné pour une moyenne de 40 et grandit avec elle,
+-- stat = moyenne × (1 + écart / 40). Même calcul dans cartes.js (moyenneExacte, statsAuNiveau).
 create or replace function stat_note(p_note numeric, p_ecart numeric) returns int language sql immutable as $$
-  select greatest(1, least(99, round(40 + (p_note - 50) * 40 / 49.0) + round(coalesce(p_ecart, 0))))::int
+  select greatest(1, least(99, round((40 + (p_note - 50) * 40 / 49.0) * (1 + coalesce(p_ecart, 0) / 40.0))))::int
 $$;
 -- et l'inverse : une moyenne de stats ramenée sur l'échelle des notes (pour comparer à une équipe de l'ordinateur)
 create or replace function note_depuis_stat(p_stat numeric) returns numeric language sql immutable as $$
@@ -141,6 +143,10 @@ alter table cartes add column if not exists ovr int;
 alter table cartes add column if not exists rarete text;
 alter table cartes alter column ovr drop not null;
 alter table cartes alter column rarete drop not null;
+-- Légendes du club (demande de Maël) : cartes créées dans l'outil, en une seule édition (Ultime, cadre à part). Elles restent
+-- « inactives » pour tous les autres tirages (boosters, équipe, coach, semaine, défis) : seul le booster gratuit les tire,
+-- 1 fois sur 500 (legende_chance). Le jeu ne les voit que si on en a une (etat_de → legendes) ; l'admin les voit toutes.
+alter table cartes add column if not exists legende boolean not null default false;
 
 -- Un compte joueur (l'e-mail reste dans auth.users, géré par Supabase).
 create table if not exists profils (
@@ -773,6 +779,8 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       where q.user_id = p.user_id and q.lundi = date_trunc('week', aujourdhui())::date), '[]'),
     'finSemaine', date_trunc('week', aujourdhui())::date + 6,
     'semaine', semaine_vue(p.user_id), 'passe', passe_vue(p.user_id), 'defis', compo_vue(p.user_id),
+    'legendes', coalesce((select jsonb_agg(to_jsonb(c)) from cartes c where c.legende
+      and exists (select 1 from exemplaires e where e.proprietaire = p.user_id and e.carte_id = c.id)), '[]'),
     'choixCoach', jsonb_build_object('prix', parami('choix_coach_prix'), 'parJour', parami('choix_coach_par_jour'),
       'faits', (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'choix-coach' and m.le >= debut_du_jour()),
       'attente', (select jsonb_build_object('poste', x.poste, 'cartes', x.cartes) from choix_coach x where x.user_id = p.user_id)))
@@ -891,9 +899,18 @@ begin
   if p_type = 'bonus' and p.bonus < 1 then raise exception 'Pas de booster bonus'; end if;
   if p_type = 'or' and p.bonus_or < 1 then raise exception 'Pas de booster Or'; end if;
   if p_type not in ('gratuit', 'bonus', 'or') then raise exception 'Booster inconnu'; end if;
-  c := tirer_carte();
-  if c is null then raise exception 'Le catalogue est vide'; end if;
-  ex := creer_exemplaire(p.user_id, c, tirer_palier(param(case when p_type = 'or' then 'booster_or_chances' else 'booster_chances' end)), 'booster:' || p_type);
+  -- booster gratuit : une légende du club, très rarement (seulement là, jamais annoncé dans le jeu)
+  if p_type = 'gratuit' and random() < coalesce((param('legende_chance') #>> '{}')::numeric, 0) then
+    select id into c from cartes where legende order by random() limit 1;
+  end if;
+  if c is not null then
+    ex := creer_exemplaire(p.user_id, c, 'ultime', 'booster:legende');
+    update exemplaires set note = greatest(palier_min('ultime'), least(99, parami('legende_note'))) where id = ex;
+  else
+    c := tirer_carte();
+    if c is null then raise exception 'Le catalogue est vide'; end if;
+    ex := creer_exemplaire(p.user_id, c, tirer_palier(param(case when p_type = 'or' then 'booster_or_chances' else 'booster_chances' end)), 'booster:' || p_type);
+  end if;
   update profils set
     boosters = boosters - case when p_type = 'gratuit' then 1 else 0 end,
     -- stock plein : le compteur repart au moment où on ouvre
@@ -2236,7 +2253,7 @@ begin
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
   if p_palier <> e.palier then raise exception 'Aux transferts, on échange seulement des cartes du même palier'; end if;
-  if not exists (select 1 from cartes where id = p_carte) then raise exception 'Joueur inconnu'; end if;
+  if not exists (select 1 from cartes where id = p_carte and not legende) then raise exception 'Joueur inconnu'; end if;
   insert into listes_transfert (user_id, sens, carte, palier) values (p.user_id, 'donne', e.carte_id, e.palier), (p.user_id, 'veux', p_carte, p_palier)
     on conflict do nothing;
   perform progresser(p.user_id, 'marche');
@@ -2301,7 +2318,7 @@ begin
   if jsonb_typeof(p_veux) is distinct from 'array' or jsonb_typeof(p_donne) is distinct from 'array' then raise exception 'Listes invalides'; end if;
   for x in select v from jsonb_array_elements(p_veux || p_donne) v loop
     if coalesce(x ->> 'palier', '') not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
-    if not exists (select 1 from cartes where id = x ->> 'carte') then raise exception 'Joueur inconnu'; end if;
+    if not exists (select 1 from cartes where id = x ->> 'carte' and not legende) then raise exception 'Joueur inconnu'; end if;
   end loop;
   if (select count(distinct (v ->> 'carte', v ->> 'palier')) from jsonb_array_elements(p_veux) v) > m
     or (select count(distinct (v ->> 'carte', v ->> 'palier')) from jsonb_array_elements(p_donne) v) > m then
@@ -2615,15 +2632,19 @@ language plpgsql security definer set search_path = public as $$
 declare n int := 0;
 begin
   if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
-  insert into cartes (id, nom, equipe, poste, postes, stats, ecarts, photos, photo, site, reglages, actif, maj)
+  if exists (select 1 from jsonb_array_elements(p_cartes) x where coalesce(x ->> 'id', '') !~ '^[a-z0-9-]{2,60}$' or coalesce(btrim(x ->> 'nom'), '') = '') then
+    raise exception 'Carte invalide (identifiant ou nom)';
+  end if;
+  insert into cartes (id, nom, equipe, poste, postes, stats, ecarts, photos, photo, site, reglages, legende, actif, maj)
     select x ->> 'id', x ->> 'nom', x ->> 'equipe', x ->> 'poste',
       coalesce((select array_agg(v) from jsonb_array_elements_text(x -> 'postes') v), case when x ->> 'poste' is null then '{}' else array[x ->> 'poste'] end),
       x -> 'stats', coalesce(x -> 'ecarts', '{}'),
-      coalesce(x -> 'photos', '{}'), x ->> 'photo', x -> 'site', nullif(x -> 'reglages', 'null'::jsonb), true, now()
+      coalesce(x -> 'photos', '{}'), x ->> 'photo', x -> 'site', nullif(x -> 'reglages', 'null'::jsonb),
+      coalesce((x ->> 'legende')::boolean, false), not coalesce((x ->> 'legende')::boolean, false), now()
     from jsonb_array_elements(p_cartes) x
     on conflict (id) do update set nom = excluded.nom, equipe = excluded.equipe, poste = excluded.poste, postes = excluded.postes, stats = excluded.stats,
       ecarts = excluded.ecarts, photos = excluded.photos, photo = excluded.photo, site = excluded.site,
-      reglages = excluded.reglages, actif = true, maj = now();
+      reglages = excluded.reglages, legende = excluded.legende, actif = excluded.actif, maj = now();
   if p_complet then
     update cartes set actif = false, maj = now()
       where actif and id not in (select x ->> 'id' from jsonb_array_elements(p_cartes) x);
@@ -2806,6 +2827,9 @@ begin
   if (select count(*) from unnest(p_ex) x where carte_libre(p_uid, x)) <> n then
     return 'Une carte n’est plus libre (dans ton équipe, aux transferts ou plus dans ton club)';
   end if;
+  if exists (select 1 from exemplaires e join cartes c on c.id = e.carte_id where e.id = any(p_ex) and c.legende) then
+    return 'Une légende ne se donne pas';
+  end if;
   if exists (select 1 from echanges x where x.statut = 'ouvert' and (x.de = p_uid and x.donne = any(p_ex) or x.pour = p_uid and x.demande = any(p_ex))) then
     return 'Une carte est proposée dans un échange avec un(e) ami(e)';
   end if;
@@ -2912,6 +2936,10 @@ begin
   perform noter(p.user_id, 'booster', jsonb_build_object('type', 'choix-coach', 'poste', x.poste, 'exemplaire', ex, 'carte', t ->> 'carte'));
   return jsonb_build_object('id', ex, 'carte', k, 'places', to_jsonb(x.places), 'cartes', x.cartes, 'etat', etat_de(p.user_id));
 end $$;
+
+-- Catalogue : les légendes ne se lisent pas (l'admin, si) ; celles qu'on possède arrivent par etat_de
+drop policy if exists lecture on cartes;
+create policy lecture on cartes for select using (not legende or est_admin());
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Droits : le jeu ne peut appeler QUE ces fonctions-là, et seulement une fois connecté
