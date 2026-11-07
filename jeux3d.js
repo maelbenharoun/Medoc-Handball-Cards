@@ -9,7 +9,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
-const V = '29';
+const V = '30';
 const DOSSIER = new URL('./modeles/', import.meta.url);
 const fichier = f => new URL(f + '?v=' + V, DOSSIER).href;
 let A = null;            // fonctions du jeu (app.js) : MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte
@@ -97,7 +97,7 @@ function poser(perso, nom, w, miroir) {
 // ── un joueur : modèle cloné, tenue, animations, poses mélangées ─────────────────────────────────────────────────
 const vt = new THREE.Vector3();
 // vitesse au sol (m/s) des clips de course à vitesse ×1 : les jambes suivent la vitesse réelle
-const FOULEE = {course: 6.5, trot: 3.4};
+const FOULEE = {course: 6.5, trot: 3.4, courseBalle: 6.5, trotBalle: 3.4};
 class Joueur {
   constructor(R, kit) {
     this.g = new THREE.Group();
@@ -137,6 +137,23 @@ class Joueur {
     p.cible = Math.max(0, Math.min(1, w)); p.miroir = miroir;
   }
   sansPoses() { this.poses = {}; this.frais = true; }
+  // animation « pilotée » : c'est le jeu qui choisit l'instant (bras armé, puis lancer au toucher ; saut calé sur le vol)
+  temps(t) { if (this.anim) { this.anim.timeScale = 0; this.anim.time = Math.max(0, Math.min(t, this.anim.getClip().duration - 1e-3)); } }
+  // adoucir une capture trop marquée (le lancer vient du baseball) : la position de repos garde une part (0 à 1)
+  adoucir(w) { const a = this.actions.repos; if (this.anim === a) return; a.reset().play(); a.setEffectiveWeight(w); }
+  // le bras droit joué par-dessus l'animation du corps (pistes du bras seulement), instant choisi par le jeu ; null : retiré
+  bras(nom, t) {
+    if (!nom) { if (this.brasA) { this.brasA.fadeOut(.2); this.brasA = null; } return; }
+    const a = this.actions[nom];
+    if (this.brasA !== a) { this.brasA?.stop(); a.reset().play(); a.timeScale = 0; a.setEffectiveWeight(1); a.fadeIn(.12); this.brasA = a; }
+    a.time = Math.max(0, Math.min(t, a.getClip().duration - 1e-3));
+  }
+  // le ballon du dribble : il descend de la main au sol et remonte, au rythme du bras (vraie capture : main en haut au début du cycle)
+  balleDribble() {
+    const a = this.anim, u = a ? (a.time / a.getClip().duration) % 1 : 0, c = this.g.rotation.y;
+    const m = this.os.mainD.getWorldPosition(new THREE.Vector3()), k = Math.abs(Math.cos(Math.PI * u)), av = .12 + .22 * Math.sin(Math.PI * u);
+    return new THREE.Vector3(m.x + Math.sin(c) * av - Math.cos(c) * .04, .11 + (m.y - .11) * k, m.z + Math.cos(c) * av + Math.sin(c) * .04);
+  }
   mettre(x, y, z, cap) {
     const p = this.g.position;
     if (this.pp && Math.hypot(x - p.x, z - p.z) > 2.5) this.pp = null;   // déplacé d'un coup (nouvel essai) : pas une vraie course
@@ -455,7 +472,7 @@ class Salle {
   joueur(role, kit) {
     const j = this.joueurs[role] ||= (() => { const j = new Joueur(this.R, kit); this.sc.add(j.g); return j; })();
     j.g.visible = true; j.sansPoses(); j.ancre = false; j.enlair = j.sorti = false; j.sauteT = 0; j.g.position.set(0, 0, 0); j.g.rotation.set(0, 0, 0); j.jouer('repos', 0);
-    j.capCible = null; j.pp = null; j.vit.set(0, 0, 0); j.cibleTete = this.ballon;   // nouvel essai : rien d'hérité ; la tête suit le ballon
+    j.capCible = null; j.pp = null; j.vit.set(0, 0, 0); j.cibleTete = this.ballon; j.brasA?.stop(); j.brasA = null;   // nouvel essai : rien d'hérité ; la tête suit le ballon
     return j;
   }
   // compile les matériaux et fait un premier rendu avant de lancer l'horloge du jeu (sinon le premier affichage saute)
@@ -504,6 +521,12 @@ export function fermer() { A?.MJ.salle?.detruire(); if (A) A.MJ.salle = null; }
 const lerp = (a, b, u) => a + (b - a) * u, cl = u => Math.max(0, Math.min(1, u)), doux = u => u * u * (3 - 2 * u);
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 // parade du gardien vers une zone (côté vu par le gardien : 'droite' = son côté droit)
+// appliquer une parade avec le poids w (0 → 1) : capture « paradeHaute » pour le haut au centre, pose calculée sinon
+function parer(j, P, w) {
+  j.pose('pret', 1 - w);
+  if (P.nom === 'paradeHautCentre') { if (j.anim?.getClip().name !== 'paradeHaute') j.jouer('paradeHaute', .1, 0); j.temps(.2 + .62 * w); }
+  else j.pose(P.nom, w, P.miroir);
+}
 function parade(gb, droite, centre, hauteur) {
   const nom = centre ? (hauteur > .55 ? 'paradeHautCentre' : 'paradeBasCentre') : hauteur > 1.25 ? 'paradeHaut' : hauteur > .7 ? 'paradeMilieu' : 'paradeBas';
   return {nom, miroir: !droite};
@@ -567,7 +590,7 @@ export async function gardien(sc, n) {
       else { const v = doux(cl((t - course - saut) / 120)); tireur.pose('arme', 1 - v); tireur.pose('tir', v); }
     }
     // gardien : prêt, puis parade vers la zone touchée
-    if (par) { const v = doux(cl((now - tChoix) / 170)); moi.pose('pret', 1 - v); moi.pose(par.nom, v, par.miroir);
+    if (par) { const v = doux(cl((now - tChoix) / 170)); parer(moi, par, v);
       moi.mettre(lerp(0, par.dx, v), par.saut * Math.sin(Math.PI * cl((now - tChoix) / 420)), .55); }
     // ballon : dans la main, puis sur sa trajectoire (montrée dès qu'il part)
     if (t >= course + saut) {
@@ -599,7 +622,7 @@ export async function gardien(sc, n) {
       const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + (arret ? Math.sin(Math.PI * u) * 1.2 : 0), lerp(a.z, b.z, u));
       if (!arret && u >= 1) p.y = Math.max(.1, b.y - (now - t1 - 380) / 400);
       S.ballon.position.copy(p);
-      if (par) { const v = doux(cl((now - tChoix) / 170)); moi.pose('pret', 1 - v); moi.pose(par.nom, v, par.miroir); }
+      if (par) { const v = doux(cl((now - tChoix) / 170)); parer(moi, par, v); }
       S.maj(dt, v3(0, 0, 4));
       if (now - t1 < 820) MJ.raf = requestAnimationFrame(pas); else fin();
     };
@@ -754,7 +777,7 @@ export async function suspension(sc, n) {
   def.mettre(D.x, 0, D.z, Math.PI); def.pose('contre', .85); def.ancre = true;
   gb.mettre(0, 0, 39.4, Math.PI); gb.pose('pret', 1); gb.ancre = true;
   let v = 1.6, phase = 'course', tAppel = 0, vAppel = 0, tSaut = 0, Tvol = 0, Hsaut = 0, zSaut = 0, tir = null, par = null, tPar = 0;
-  moi.jouer('trot', .1, .7); moi.pose('porte', 1);
+  moi.jouer('trotBalle', .1, .7);   // il dribble pendant la course (vraie capture), prend la balle à l'appel
   miniAide('Touche vite pour courir !');
   // vu de face (caméra derrière le tireur), la gauche de l'écran est du côté des x positifs
   const versX = fx => 1.5 - 3 * fx, versY = fy => 2 * (1 - fy);
@@ -765,7 +788,8 @@ export async function suspension(sc, n) {
     const g = r.reponse && r.reponse.x !== undefined ? r.reponse : {x: Math.random() < .5 ? .2 : .8, y: Math.random() < .5 ? .3 : .75};
     const opp = g.x < .5 ? .86 : g.x > .5 ? .14 : (Math.random() < .5 ? .14 : .86), haut = Math.random() < .5 ? .18 : .78;
     const fx = r.resultat === 'arret' ? g.x : opp, fy = r.resultat === 'arret' ? g.y : haut;
-    tir = {r, t: performance.now(), dep: moi.main(), arr: v3(versX(fx), versY(fy), ZB + .1), duree: 430};
+    // le bras part tout de suite (armé → lancer) ; le ballon quitte la main au lâcher, 140 ms plus tard
+    tir = {r, t0: performance.now(), t: performance.now() + 140, dep: null, arr: v3(versX(fx), versY(fy), ZB + .1), duree: 430};
     if (r.resultat === 'contre') { tir.arr = v3(D.x + .1, 2.55, ZDEF + .1); tir.duree = 200; }
     if (r.resultat === 'arret') tir.arr.z = ZB - .85;   // arrêté devant la ligne, dans les mains du gardien
     // le gardien part vers son choix (vers le ballon s'il l'arrête) ; vu de face, sa droite est à gauche de l'écran
@@ -784,11 +808,11 @@ export async function suspension(sc, n) {
     const dt = S.pas();
     if (phase === 'course') {
       v = Math.max(1.2, v - 1.5 * dt); jo.z += v * dt;
-      if (v > 3.6) moi.jouer('course', .25, v / 6.5); else moi.jouer('trot', .25, v / 3.4);
+      if (v > 3.6) moi.jouer('courseBalle', .25, v / 6.5); else moi.jouer('trotBalle', .25, v / 3.4);
       jauge.style.transform = `scaleY(${v / VMAX})`;
       // fin de la course : la barre se bloque et montre sa valeur, puis disparaît pendant une seconde d'appel (touchers ignorés)
       if (jo.z >= 31 - .55 * v) {
-        phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4);
+        phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4); moi.pose('porte', 1);   // il prend la balle
         const pc = Math.min(1, v / VMAX);
         barre.dataset.valeur = pc >= .95 ? 'Parfait !' : Math.round(pc * 100) + ' %';
         barre.classList.toggle('parfaite', pc >= .95); barre.classList.add('bloquee'); vibrer(pc >= .95 ? [20, 30, 20] : 15);
@@ -798,26 +822,28 @@ export async function suspension(sc, n) {
     } else if (phase === 'appel') {
       jo.z += vAppel * dt;
       if (now - tAppel >= 1000) { phase = 'vol'; tSaut = now; Tvol = (500 + 65 * v) * 1.5;   // un peu de ralenti en l'air
-        Hsaut = .25 + .1 * v; zSaut = jo.z; moi.jouer('repos', .12); def.sauteT = now + 120;
+        Hsaut = .25 + .1 * v; zSaut = jo.z; moi.jouer('saut', .12, 0); def.sauteT = now + 120;
         miniAide('Touche pour tirer au sommet du saut !'); vibrer(15); }
     } else if (tSaut) {
       const u = cl((now - tSaut) / Tvol);
       jo.z = zSaut + v * .2 * u * Tvol / 1000; jo.y = Hsaut * Math.sin(Math.PI * u);
-      moi.pose('saut', Math.sin(Math.PI * Math.min(1, u * 1.2))); moi.pose('porte', 1 - doux(cl(u * 4)));
-      if (!tir) moi.pose('arme', doux(cl(u * 3)));
+      // le saut capturé, calé sur le vol (impulsion ≈ 0,58 s, sommet ≈ 0,98 s, réception ≈ 1,4 s du clip)
+      moi.temps(.52 + .88 * u); moi.pose('porte', 1 - doux(cl(u * 4)));
+      if (!tir) moi.bras('brasTir', .35 + .32 * doux(cl(u * 2.2)));   // le bras s'arme en montant
       if (phase === 'vol' && u >= 1) tirer(now, true);   // retombé sans tirer
     }
-    if (tir) { const w = doux(cl((now - tir.t) / 110)); moi.pose('arme', 1 - w); moi.pose('tir', w); }
+    if (tir) moi.bras('brasTir', .67 + (now - tir.t0) / 1000 * 1.25);   // armé (0,67 s) → lâcher (0,85 s) → accompagnement
     moi.mettre(jo.x, jo.y, jo.z, 0);
     // contreur : il saute avec toi, bras levés (plus haut que toi si tu tires bas)
     const ds = def.sauteT && now > def.sauteT ? cl((now - def.sauteT) / (Tvol * .8)) : 0;
     def.mettre(D.x, Math.sin(Math.PI * ds) * .42, D.z); def.pose('contre', .85 + .15 * Math.sin(Math.PI * ds)); def.ancre = !ds;
-    if (par && now > tPar) { const w = doux(cl((now - tPar) / 170)); gb.pose('pret', 1 - w); gb.pose(par.nom, w, par.miroir);
+    if (par && now > tPar) { const w = doux(cl((now - tPar) / 170)); parer(gb, par, w);
       gb.mettre(lerp(0, par.dx, w), par.saut * Math.sin(Math.PI * cl((now - tPar) / 420)), 39.4); }
     // en course la caméra suit de près ; en l'air elle recule et monte pour montrer le but au-dessus du contreur
     const k = tSaut ? doux(cl((now - tSaut) / 350)) : 0;
     S.regarder(lerp(jo.x * .75, jo.x * .5, k), lerp(2.7, 3.5, k), jo.z - lerp(4.4, 6, k), lerp(jo.x * .3, 0, k), lerp(1.4, 1.2, k), lerp(jo.z + 9, ZB, k));
-    if (tir) {
+    if (tir && !tir.dep && now >= tir.t) tir.dep = moi.main();
+    if (tir && tir.dep) {
       const u = cl((now - tir.t) / tir.duree), a = tir.dep, b = tir.arr;
       const p = v3(lerp(a.x, b.x, u), lerp(a.y, b.y, u) + Math.sin(Math.PI * u) * .2, lerp(a.z, b.z, u));
       if (!tir.rebond && tir.r.resultat === 'arret') p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));
@@ -830,7 +856,7 @@ export async function suspension(sc, n) {
       }
     }
     S.maj(dt, v3(jo.x, 0, jo.z + 3));
-    if (!tir) S.ballon.position.copy(moi.main());
+    if (!tir || !tir.dep) S.ballon.position.copy(phase === 'course' ? moi.balleDribble() : moi.main());
     MJ.raf = requestAnimationFrame(boucle);
   };
   MJ.toucher = () => {
@@ -865,7 +891,7 @@ export async function jet7m(J7, z) {
   let etat = null, enMain = true;
   const placer = () => {
     etat = null; enMain = true;
-    tireur.sansPoses(); tireur.jouer('repos', 0); tireur.mettre(.1, 0, 7.6, Math.PI); tireur.pose('arme', .5);
+    tireur.sansPoses(); tireur.jouer('lancer', 0, 0); tireur.adoucir(.35); tireur.temps(.27); tireur.mettre(.1, 0, 7.6, Math.PI);   // vraie capture, adoucie
     gb.sansPoses(); gb.jouer('repos', 0); gb.ancre = true; gb.mettre(0, 0, .5, 0); gb.pose('pret', 1);
     S.buts.forEach(b => { b.bosseT = .56; b.maj(0); }); S.ballon.visible = true;
   };
@@ -881,7 +907,7 @@ export async function jet7m(J7, z) {
   J7.raf3 = requestAnimationFrame(boucle);
   return {
     nouveau: placer,
-    armer() { tireur.pose('arme', 1); },
+    armer() { tireur.temps(.33); },   // bras armé
     // r : réponse de tirer_7m (x, y sur le but, 0-1 de gauche à droite et de haut en bas ; gardien {x, y}) ; duree du vol en ms
     tirer(r, duree) {
       return new Promise(fin => {
@@ -894,13 +920,13 @@ export async function jet7m(J7, z) {
         let dep = null, rebond = null, tR = 0, fini = false;
         etat = now => {
           const t = now - t0;
-          const w = doux(cl(t / 110)); tireur.pose('arme', (1 - w) * 1); tireur.pose('tir', w);
+          tireur.temps(Math.min(.76, .33 + t / 1000 * 1.1));   // armé (0,33 s) → lâcher (0,52 s, ≈ 170 ms) → accompagnement court (pas la flexion du baseball)
           const v = doux(cl((t - 150) / Math.max(180, duree * .7)));
-          gb.pose('pret', 1 - v); gb.pose(P.nom, v, P.miroir); gb.mettre(lerp(0, dx, v), saut * Math.sin(Math.PI * cl((t - 150) / 420)), .5);
-          if (t < 110) return;
+          parer(gb, P, v); gb.mettre(lerp(0, dx, v), saut * Math.sin(Math.PI * cl((t - 150) / 420)), .5);
+          if (t < 170) return;
           if (!dep) { dep = tireur.main(); enMain = false; }
           if (!rebond) {
-            const u = cl((t - 110) / duree), p = v3(lerp(dep.x, cible.x, u), lerp(dep.y, cible.y, u) + Math.sin(Math.PI * u) * .12, lerp(dep.z, cible.z, u));
+            const u = cl((t - 170) / duree), p = v3(lerp(dep.x, cible.x, u), lerp(dep.y, cible.y, u) + Math.sin(Math.PI * u) * .12, lerp(dep.z, cible.z, u));
             if (arret) p.lerp(gb.mainProche(p), doux(cl((u - .7) / .3)));   // dans les mains du gardien
             S.ballon.position.copy(p);
             if (u >= 1) {

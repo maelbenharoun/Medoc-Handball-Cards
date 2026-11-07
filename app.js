@@ -298,8 +298,7 @@ function vueClub() {
     <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
     <div class="stat"><b>${EX().length}</b><span>cartes</span></div>
     <div class="stat"><b>${noteEquipe().note || '–'}</b><span>note de l’équipe</span></div></div>
-    <p class="sub petit">4 paliers pour chaque joueur : ${PALIERS.map(p => `${p.nom} ${p.min}–${p.max}`).join(' · ')}. Entraîne tes cartes pour les faire monter ;
-      3 fois le même joueur au même palier = 1 au palier suivant. Touche une carte pour l’entraîner, la fusionner ou la vendre.</p>
+    <p class="sub petit">Touche une carte pour l’entraîner, la fusionner ou la vendre. 3 cartes identiques = 1 palier au-dessus ⬆️</p>
     <div class="bar"><i style="width:${vus.length ? 100 * mes.length / vus.length : 0}%"></i></div>
     <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${
       e === 'tous' ? 'Toutes' : e === 'fusion' ? `Fusions (${nf})` : e}</button>`).join('')}</div>
@@ -476,7 +475,7 @@ function vueEquipe() {
     return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${b >= .06 ? 'fort' : b <= .005 ? 'nul' : ''}">+${pc100(b)}</em></button>`; }).join('');
   const att = TACT_ATT.find(x => x[0] === T.att), def = TACT_DEF.find(x => x[0] === T.def);
   return `<h1>Équipe</h1>
-    <p class="sub">Touche un poste pour aligner une carte. Hors de son poste, un joueur perd ${MALUS_HORS_POSTE} points ; des coéquipier(e)s de la même équipe donnent un bonus collectif.</p>
+    <p class="sub">Touche un poste pour aligner un joueur. Hors de son poste : −${MALUS_HORS_POSTE}. Des coéquipiers ensemble : bonus 🤝</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
     <p class="pitch-dispo">Placement en défense <b>${def[1]}</b><small>à changer dans Tactique, plus bas</small></p>
@@ -486,12 +485,10 @@ function vueEquipe() {
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
       <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
-      <p class="sub petit">Moyennes des stats de tes 6 joueurs de champ. Chaque choix donne un bonus si ton équipe est forte dans ses deux stats :
-        2 % pour une équipe moyenne, jusqu’à 10 % si elle est spécialisée, 0 % si elle est à l’opposé.</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
+      <p class="sub petit">Chaque tactique donne un bonus si ton équipe est forte dans ses deux stats (jusqu’à +10 %).</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
     <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
     <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
-    <p class="sub petit">${T.choisie ? `Tactique : ${att[1]} et ${def[1]}, gardée pour tes matchs (et quand on te défie).` : 'Choisis ton attaque et ton dispositif : ils seront gardés pour tes matchs.'}
-      En match, tu peux en changer (le bonus suit la tactique jouée), et prendre le dessus sur la tactique adverse compte plus que ce bonus.</p>`;
+    <p class="sub petit">${T.choisie ? `${att[1]} + ${def[1]} : ta tactique de départ.` : 'Choisis ton attaque et ta défense de départ.'} En match, contrer l’adversaire compte encore plus 😉</p>`;
 }
 function choisir(poste) {
   // un même joueur ne joue qu'une fois : on écarte ceux déjà alignés à un autre poste
@@ -572,7 +569,7 @@ function vueChampionnat() {
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
     <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
     ${blocParcours(e, complet && matchsDispo(e) > 0, note, matchsDispo(e))}
-    <p class="sub petit">Pour entraîner un joueur : touche sa carte dans le Club. Pour défier quelqu’un : la bulle Ami(e)s, en bas à droite.</p>
+    <p class="sub petit">Entraîner un joueur : sa carte, dans le Club. Défier un(e) ami(e) : la bulle en bas à droite 💬</p>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
 }
 // Gagner des pièces : 4 grandes tuiles animées (une scène par jeu) ; « ? » pour revoir le tuto
@@ -600,7 +597,7 @@ function vuePieces() {
       <button class="jeu-aide" data-tuto="${t.k}" aria-label="Comment jouer : ${NOMS_TUILE[t.k]}">?</button></div>`;
   }).join('');
   return `${retour('jouer', 'Jouer')}<h1>Gagner des pièces</h1>
-    <p class="sub">4 mini-jeux de hand, chaque jour : de quoi ouvrir des boosters par poste et payer les séances.</p>
+    <p class="sub">4 mini-jeux, chaque jour : gagne des pièces pour tes boosters ! 🪙</p>
     <p class="pieces-tete"><b>${essais}</b> essai${essais > 1 ? 's' : ''} aujourd’hui</p>
     <div class="jeux">${html}</div>`;
 }
@@ -646,25 +643,18 @@ const echelleScenes = (racine = document) => racine.querySelectorAll('.stage').f
 window.addEventListener('resize', () => echelleScenes());
 // ── tuto rapide : à la première partie de chaque jeu (localStorage « mhc-tuto »), ou avec le « ? » de sa tuile ──
 const TUTOS = {
-  '7m': ['Le viseur se promène sur le but : <b>touche l’écran</b> pour viser, loin du gardien, dans les angles.',
-    'La jauge de puissance monte et descend : <b>touche encore</b> pour tirer, près du trait.',
-    'Trop fort, le tir part de travers ; trop faible, le gardien a le temps de l’arrêter.'],
-  gardien: ['Tu es dans les buts : le tireur arrive en face de toi.', 'Dès que le ballon part, <b>sa trajectoire s’affiche</b>.',
-    '<b>Touche vite la zone du but</b> où il va, avant qu’il n’arrive. 5 tirs enchaînés par série.'],
-  contre: ['2 contre 1 : tu dribbles vers le but, ton partenaire court à côté.',
-    '<b>Pose le doigt sur ton joueur et glisse</b> pour dessiner la passe, devant ton partenaire, dans sa course.',
-    'Si le défenseur part sur ton partenaire, <b>ne fais rien</b> : tu gardes le ballon et tu vas marquer.'],
-  suspension: ['<b>Touche vite, encore et encore</b>, pour remplir la barre de course.', 'Le saut part tout seul après l’appel : une seconde pour te préparer.',
-    'En l’air, <b>touche pour tirer au sommet du saut</b>, au-dessus du contreur. Barre pleine et tir au sommet : but à coup sûr !'],
+  '7m': ['<b>Touche</b> pour viser 🎯', '<b>Touche encore</b> pour la puissance 💥', 'Vise les coins, loin du gardien !'],
+  gardien: ['Le tireur arrive… 👀', 'La trajectoire s’allume ✨', '<b>Touche vite</b> la bonne zone 🧤'],
+  contre: ['Tu fonces, ton coéquipier aussi 🏃', '<b>Glisse le doigt</b> pour faire la passe ➜', 'Défenseur sur lui ? <b>Garde la balle</b> et marque !'],
+  suspension: ['<b>Tape vite</b> pour prendre de l’élan ⚡', 'Le saut part tout seul 🚀', '<b>Touche au sommet</b> : but assuré ! 🔥'],
 };
 const CLE_TUTO = 'mhc-tuto';
 const tutosVus = () => { try { return JSON.parse(localStorage.getItem(CLE_TUTO) || '[]'); } catch (e) { return []; } };
 const tutoVu = k => { try { const v = tutosVus(); if (!v.includes(k)) localStorage.setItem(CLE_TUTO, JSON.stringify([...v, k])); } catch (e) {} };
 function gainTuto(k) {
   const e = S(), m = e.minijeux || {};
-  if (k === '7m') { const j = e.jet7m || {}; return `${j.piecesBut ?? 50} pièces par but · +${j.bonus ?? 100} pour un 5 sur 5 · ${j.limite ?? 5} tirs par jour`; }
-  return k === 'gardien' ? `${gainMini(k)} pièces par arrêt · 5 séries de 5 tirs par jour`
-    : `${gainMini(k)} pièces par but · ${m.limites?.[k] || m.limite || 5} essais par jour · +${m.bonus ?? 100} pour un 5 sur 5`;
+  if (k === '7m') { const j = e.jet7m || {}; return `${j.piecesBut ?? 50} par but · 5/5 = +${j.bonus ?? 100}`; }
+  return k === 'gardien' ? `${gainMini(k)} par arrêt · 5 séries par jour` : `${gainMini(k)} par but · 5/5 = +${m.bonus ?? 100}`;
 }
 function tuto(k, dans, revoir) {
   if (!revoir && tutosVus().includes(k)) return Promise.resolve();
@@ -838,9 +828,9 @@ const REPLI = [[22, 4], [24.5, 8], [21, 11.5], [25, 13], [22.5, 16], [27, 9]];
 const TIR_POS = {ailes: s => s === 'AD' ? [37.4, 16.6] : [37.4, 3.4], arrieres: s => [31.2, s === 'ARG' ? 6.6 : s === 'ARD' ? 13.4 : 10],
   pivot: () => [35.2, 10.2], contre: () => [34.8, 9.6], '7m': () => [33, 10]};
 // ce que fait l'entraîneur adverse, selon le niveau (match_ia dans schema.sql)
-const ASTUCE_IA = {'imprévisible': 'il change parfois au hasard, sans lire ton jeu.', 'lent à réagir': 'il finit par réagir quand tu le contres, mais lentement.',
-  'réfléchi': 'il réagit quand tu le contres, et cherche à te contrer s’il est mené.', 'rapide': 'il réagit vite et cherche toujours à te contrer.',
-  'légendaire': 'il s’adapte à chaque tranche de 5 minutes, sans temps mort, et anticipe tes changements.'};
+const ASTUCE_IA = {'imprévisible': 'il change au hasard 🎲', 'lent à réagir': 'il réagit… mais lentement 🐢',
+  'réfléchi': 'il réagit quand tu le contres 🧠', 'rapide': 'il réagit vite et cherche à te contrer ⚡',
+  'légendaire': 'il s’adapte sans arrêt et devine tes changements 👑'};
 // résumé tactique de fin (match_resume) : tranche par tranche, qui avait le dessus en attaque et en défense, puis les tactiques révélées
 function htmlResume(R) {
   if (!R?.blocs?.length) return '';
@@ -1101,7 +1091,7 @@ function majStatsMD() {
     ${ligne('Buts', A.buts, B.buts)}${ligne('Tirs', A.tirs, B.tirs)}${ligne('Réussite', reu(A), reu(B), ' %')}${ligne('Arrêts', A.arrets, B.arrets)}
     ${ligne('Pertes de balle', A.pertes, B.pertes)}${ligne('Exclusions', A.excl, B.excl)}${ligne('Jets de 7 m', A.sept, B.sept)}
     ${zones(B, `D’où viennent leurs buts`)}${zones(A, 'Tes buts')}
-    <p class="sub petit">Les tirs adverses trahissent leur attaque : arrières pour les duels, pivot pour l’enclenchement, ailes et contre-attaques pour le jeu rapide.</p>`;
+    <p class="sub petit">🕵️ D’où tirent-ils ? Arrières = duels, pivot = enclenchement, ailes et contres = jeu rapide.</p>`;
 }
 // panneau de choix : coup d'envoi, mi-temps, temps mort (changements permis) ; pause (reprise) ; erreur réseau
 function panneauMD(type) {
@@ -1113,13 +1103,12 @@ function panneauMD(type) {
   const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
   const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
   const change = ['envoi', 'mi-temps', 'tm'].includes(type);
-  const intro = {envoi: `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Choisis ton attaque, ta défense et ta consigne.`,
-    'mi-temps': `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Tu peux tout changer sans temps mort.`,
-    tm: `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Le temps mort redonne aussi de l’élan (3 minutes) et un peu de fraîcheur.`,
-    pause: 'Pour changer de tactique pendant une période, prends un temps mort.', erreur: 'Le bloc suivant n’a pas pu être joué.'}[type];
+  const intro = {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer !`,
+    'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
+    tm: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Bonus : élan pendant 3 minutes ⚡`,
+    pause: 'Pour changer de tactique : prends un temps mort ⏱️', erreur: 'Oups, la connexion a coupé.'}[type];
   p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3><p class="sub petit">${intro}</p>
-    ${change ? `<p class="md-astuce">Entraîneur adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}
-      Prendre le dessus sur sa tactique compte plus que le bonus de ton équipe.</p>` : ''}
+    ${change ? `<p class="md-astuce">Coach adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}</p>` : ''}
     ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
@@ -1231,15 +1220,14 @@ function vueMarche() {
   const histo = (D.historique || []).map(h => `<p class="tr-h${h.nouveau ? ' nouveau' : ''}">${h.nouveau ? '<b class="pastille-n">nouveau</b>' : ''}
     Avec <b>${esc(h.avec || '?')}</b> : ${esc(PAR_ID[h.donne]?.nom || h.donne)} ⇄ ${esc(PAR_ID[h.recoit]?.nom || h.recoit)} <small>${R_LABEL[h.palier]} · ${new Date(h.le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></p>`).join('');
   return `${retour('social', 'Social')}<h1>Transferts</h1>
-    <p class="sub">Choisis jusqu’à ${max} joueurs que tu veux et ${max} que tu peux donner. Dès qu’un autre joueur veut un des tiens et donne un de ceux que tu veux,
-      au même palier, l’échange apparaît ici : un toucher et c’est fait. Entre ami(e)s, tout est permis : passe par la bulle Ami(e)s.</p>
+    <p class="sub">${max} joueurs que tu veux, ${max} que tu donnes : on te trouve les échanges qui collent, un toucher et c’est fait ⇄</p>
     <h2>Échanges possibles${D.possibles.length ? ` (${D.possibles.length})` : ''}</h2>
     ${possibles || `<div class="daily"><p><b>Aucun pour l’instant</b>${D.cherchent ? `${D.cherchent} joueur${D.cherchent > 1 ? 's cherchent' : ' cherche'} un de ceux que tu donnes. ` : ''}${
       D.donnent ? `${D.donnent} joueur${D.donnent > 1 ? 's donnent' : ' donne'} un de ceux que tu veux. ` : ''}Ajoute des joueurs à tes listes pour trouver plus d’échanges.</p></div>`}
     <h2>Je veux <small class="tr-c">${D.veux.length}/${max}</small></h2>
     <div class="tr-l">${veux}${ajout('veux', D.veux.length)}</div>
     <h2>Je peux donner <small class="tr-c">${D.donne.length}/${max}</small></h2>
-    <p class="sub petit">Seulement des cartes libres : ni dans ton équipe, ni en échange avec un(e) ami(e). Tu donnes toujours ta moins entraînée.</p>
+    <p class="sub petit">Cartes hors de ton équipe seulement. Tu donnes toujours ta moins entraînée.</p>
     <div class="tr-l">${donne}${ajout('donne', D.donne.length)}</div>
     ${histo ? `<h2>Derniers transferts</h2><div class="tr-hs">${histo}</div>` : ''}`;
 }
@@ -2287,7 +2275,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=50').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=51').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
