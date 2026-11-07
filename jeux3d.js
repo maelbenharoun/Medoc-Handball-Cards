@@ -96,6 +96,8 @@ function poser(perso, nom, w, miroir) {
 
 // ── un joueur : modèle cloné, tenue, animations, poses mélangées ─────────────────────────────────────────────────
 const vt = new THREE.Vector3();
+// vitesse au sol (m/s) des clips de course à vitesse ×1 : les jambes suivent la vitesse réelle
+const FOULEE = {course: 6.5, trot: 3.4};
 class Joueur {
   constructor(R, kit) {
     this.g = new THREE.Group();
@@ -109,35 +111,98 @@ class Joueur {
     });
     this.mixer = new THREE.AnimationMixer(this.o);
     this.actions = Object.fromEntries(R.g.animations.map(c => [c.name, this.mixer.clipAction(c)]));
-    this.os = {mainD: this.o.getObjectByName(B('R_Hand')), mainG: this.o.getObjectByName(B('L_Hand')), piedG: this.o.getObjectByName(B('L_Toe0')), piedD: this.o.getObjectByName(B('R_Toe0')), tete: this.o.getObjectByName(B('Head'))};
+    this.os = {mainD: this.o.getObjectByName(B('R_Hand')), mainG: this.o.getObjectByName(B('L_Hand')), piedG: this.o.getObjectByName(B('L_Toe0')), piedD: this.o.getObjectByName(B('R_Toe0')),
+      tete: this.o.getObjectByName(B('Head')), cou: this.o.getObjectByName(B('Neck')), dos: this.o.getObjectByName(B('Spine1')), bassin: this.o.getObjectByName(B('Spine'))};
     this.poses = {}; this.ancre = false; this.anim = null;
+    // fluidité (demande de Maël : « on dirait un jeu des années 2000 ») : vitesse mesurée, cap qui tourne en douceur, poses qui
+    // se mélangent, corps penché selon la course et les virages, tête qui suit le ballon
+    this.vit = new THREE.Vector3(); this.pp = null; this.capCible = null; this.lacet = 0; this.penche = {av: 0, cote: 0}; this.teteAng = {y: 0, x: 0};
+    this.cibleTete = null; this.frais = true;
     this.jouer('repos', 0); this.mixer.update(Math.random() * 3);
   }
   jouer(nom, fondu = .2, vitesse = 1) {
-    const a = this.actions[nom]; a.timeScale = vitesse;
+    const a = this.actions[nom]; a.timeScale = vitesse; this.vitesseClip = vitesse;
     if (this.anim === a) return;
+    const avant = this.anim;
     a.reset().play();
-    if (this.anim && fondu > 0) a.crossFadeFrom(this.anim, fondu, false); else if (this.anim) this.anim.stop();
+    // de la course au trot (ou l'inverse) : même moment de la foulée, sinon le joueur fait un pas de trop ; fondu jamais trop sec
+    if (avant && FOULEE[nom] && FOULEE[avant.getClip().name]) a.time = (avant.time / avant.getClip().duration) * a.getClip().duration;
+    if (avant && fondu > 0) a.crossFadeFrom(avant, Math.max(fondu, .18), false); else if (avant) avant.stop();
     this.anim = a;
   }
-  pose(nom, w, miroir = false) { if (w <= 0) delete this.poses[nom]; else this.poses[nom] = {w: Math.min(1, w), miroir}; }
-  sansPoses() { this.poses = {}; }
-  mettre(x, y, z, cap) { this.g.position.set(x, y, z); if (cap !== undefined) this.g.rotation.y = cap; }
-  // cap pour regarder vers un point du sol
-  regarder(x, z) { const dx = x - this.g.position.x, dz = z - this.g.position.z; if (Math.hypot(dx, dz) > .05) this.g.rotation.y = Math.atan2(dx, dz); }
+  // une pose (geste de handball) : son poids rejoint la valeur demandée en douceur (pas de saut d'une image à l'autre)
+  pose(nom, w, miroir = false) {
+    const p = this.poses[nom] || (w > 0 ? (this.poses[nom] = {w: this.frais ? Math.min(1, w) : 0, cible: 0, miroir}) : null);
+    if (!p) return;
+    p.cible = Math.max(0, Math.min(1, w)); p.miroir = miroir;
+  }
+  sansPoses() { this.poses = {}; this.frais = true; }
+  mettre(x, y, z, cap) {
+    const p = this.g.position;
+    if (this.pp && Math.hypot(x - p.x, z - p.z) > 2.5) this.pp = null;   // déplacé d'un coup (nouvel essai) : pas une vraie course
+    p.set(x, y, z);
+    if (cap !== undefined) { this.g.rotation.y = cap; this.capCible = null; }
+  }
+  // se tourner vers un point du sol : le cap y va en douceur (un vrai joueur ne pivote pas d'un coup)
+  regarder(x, z) { const dx = x - this.g.position.x, dz = z - this.g.position.z; if (Math.hypot(dx, dz) > .05) this.capCible = Math.atan2(dx, dz); }
   maj(dt) {
+    const k = (tau) => 1 - Math.exp(-dt / tau), p = this.g.position;
+    // vitesse au sol, lissée
+    if (this.pp && dt > 0) { this.vit.x += ((p.x - this.pp.x) / dt - this.vit.x) * k(.12); this.vit.z += ((p.z - this.pp.z) / dt - this.vit.z) * k(.12); }
+    else this.vit.set(0, 0, 0);
+    (this.pp ||= new THREE.Vector3()).copy(p);
+    const v = Math.hypot(this.vit.x, this.vit.z);
+    // cap : rotation douce vers la cible, plus vive en courant ; on garde la vitesse de rotation pour pencher dans les virages
+    let rot = 0;
+    if (this.capCible !== null && !this.frais) {
+      let d = this.capCible - this.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
+      const pas = d * k(v > 2 ? .09 : .14); this.g.rotation.y += pas; rot = dt > 0 ? pas / dt : 0;
+    } else if (this.capCible !== null) { this.g.rotation.y = this.capCible; }
+    // jambes calées sur la vitesse réelle : pas de patinage
+    const nom = this.anim?.getClip().name;
+    if (FOULEE[nom] && v > .4) this.anim.timeScale += (Math.max(.6, Math.min(1.7, v / FOULEE[nom])) - this.anim.timeScale) * k(.15);
     this.mixer.update(dt);
     this.o.position.y = 0;
     this.g.updateMatrixWorld(true);
-    for (const [nom, p] of Object.entries(this.poses)) poser(this.o, nom, p.w, p.miroir);
+    // poses : poids lissés (≈ 60 ms), retirées quand elles sont revenues à zéro
+    for (const [n, q] of Object.entries(this.poses)) {
+      q.w += (q.cible - q.w) * (this.frais ? 1 : k(.06));
+      if (q.cible === 0 && q.w < .004) { delete this.poses[n]; continue; }
+      poser(this.o, n, q.w, q.miroir);
+    }
+    // corps penché : en avant selon la vitesse, vers l'intérieur dans les virages (comme un vrai coureur)
+    const cap0 = this.g.rotation.y, vAvant = this.vit.x * Math.sin(cap0) + this.vit.z * Math.cos(cap0);   // vitesse vers l'avant seulement
+    const av = Math.max(-3, Math.min(9, vAvant * 1.4)), cote = Math.max(-11, Math.min(11, -rot * v * 2.2));
+    this.penche.av += (av - this.penche.av) * k(.2); this.penche.cote += (cote - this.penche.cote) * k(.15);
+    if (this.os.bassin && (Math.abs(this.penche.av) > .2 || Math.abs(this.penche.cote) > .2)) {
+      tourner(this.o, this.os.bassin, 'x', this.penche.av * .5); tourner(this.o, this.os.dos, 'x', this.penche.av * .5);
+      tourner(this.o, this.os.bassin, 'z', this.penche.cote * .6); tourner(this.o, this.os.dos, 'z', this.penche.cote * .4);
+    }
+    // tête : suit le ballon (ou un point), sans se dévisser (±65° de côté, ±30° en hauteur), le cou en prend une part
+    let ty = 0, tx = 0;
+    if (this.cibleTete?.visible !== false && this.cibleTete && this.os.tete) {
+      const c = this.cibleTete.position || this.cibleTete, t = this.os.tete.getWorldPosition(vt);
+      const dx = c.x - t.x, dy = c.y - t.y, dz = c.z - t.z, cap = this.g.rotation.y, porte = Math.hypot(dx, dy, dz) < 1.1;   // ballon en main : il regarde devant
+      const lx = dx * Math.cos(cap) - dz * Math.sin(cap), lz = dx * Math.sin(cap) + dz * Math.cos(cap);
+      if (lz > -.5 && !porte) { ty = Math.max(-65, Math.min(65, Math.atan2(lx, Math.max(.2, lz)) * 180 / Math.PI)); tx = Math.max(-30, Math.min(30, -Math.atan2(dy, Math.hypot(lx, lz)) * 180 / Math.PI)); }
+    }
+    this.teteAng.y += (ty - this.teteAng.y) * k(.12); this.teteAng.x += (tx - this.teteAng.x) * k(.12);
+    if (this.os.tete && (Math.abs(this.teteAng.y) > .3 || Math.abs(this.teteAng.x) > .3)) {
+      tourner(this.o, this.os.cou, 'y', this.teteAng.y * .35); tourner(this.o, this.os.tete, 'y', this.teteAng.y * .65);
+      tourner(this.o, this.os.cou, 'x', this.teteAng.x * .4); tourner(this.o, this.os.tete, 'x', this.teteAng.x * .6);
+    }
+    this.frais = false;
     if (this.ancre) {   // pieds au sol malgré les genoux pliés
       const bas = Math.min(this.os.piedG.getWorldPosition(vt).y, this.os.piedD.getWorldPosition(vt).y) - this.g.position.y;
       this.o.position.y = .035 - bas;
     }
   }
   mainProche(p) { const d = this.main('D'), g = this.main('G'); return d.distanceTo(p) < g.distanceTo(p) ? d : g; }
-  main(cote = 'D') {   // position du ballon dans la main
-    return this.os['main' + cote].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, .02, 0));
+  // position du ballon dans la main : posé dans la paume, devant la main (côté où regarde le joueur), pas au centre de la main
+  // (sinon, vu de derrière, le ballon passe devant les doigts : remarque de Maël)
+  main(cote = 'D') {
+    const c = this.g.rotation.y;
+    return this.os['main' + cote].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(Math.sin(c) * .1, .03, Math.cos(c) * .1));
   }
 }
 
@@ -390,6 +455,7 @@ class Salle {
   joueur(role, kit) {
     const j = this.joueurs[role] ||= (() => { const j = new Joueur(this.R, kit); this.sc.add(j.g); return j; })();
     j.g.visible = true; j.sansPoses(); j.ancre = false; j.enlair = j.sorti = false; j.sauteT = 0; j.g.position.set(0, 0, 0); j.g.rotation.set(0, 0, 0); j.jouer('repos', 0);
+    j.capCible = null; j.pp = null; j.vit.set(0, 0, 0); j.cibleTete = this.ballon;   // nouvel essai : rien d'hérité ; la tête suit le ballon
     return j;
   }
   // compile les matériaux et fait un premier rendu avant de lancer l'horloge du jeu (sinon le premier affichage saute)
