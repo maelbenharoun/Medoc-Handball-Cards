@@ -385,72 +385,109 @@ function compoAuto(regle) {
   return {choix, ok: compoTest(regle, choix).every(t => t.ok)};
 }
 
-// ── choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste montrés, retournés,
-// mélangés ; on en touche un et il est à nous, puis les deux autres se retournent. Le serveur a tiré le mélange en secret
-// (choix_coach_preparer / choix_coach_choisir) : l'animation ne fait que le montrer. Seuls transform et opacity bougent.
-const CC = {poste: 'DC', el: null, data: null, etape: null};
+// ── choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste arrivent face visible,
+// se retournent et échangent leurs places ; on en touche un et il est à nous (éclat à la couleur de son palier), puis les deux
+// autres se retournent. Le serveur a tiré la place de chaque carte en secret (choix_coach_preparer / choix_coach_choisir) :
+// l'animation ne fait que le montrer. Les cartes sont placées par des variables CSS (--x, --y, --r, --s, --o) qui glissent
+// en transition : seuls transform et opacity bougent.
+const CC = {poste: 'DC', el: null, data: null, etape: null, pos: [0, 1, 2]};
+const CC_W = 116;   // écart entre deux places : une carte de 104 px + 12
 function blocCoach() {
   const cc = S().choixCoach;
   if (!cc) return '';
-  const att = cc.attente, reste = Math.max(0, (cc.parJour ?? 3) - (cc.faits || 0)), prix = cc.prix ?? 400;
-  return `<h2>🎴 Choix du coach</h2>
-    <section class="cc-b">
-      <p class="sub petit">3 joueurs d’un poste te sont montrés, puis mélangés face cachée : retournes-en un, il est à toi !</p>
-      ${att ? `<button class="btn gold" data-act="choix-coach">Reprendre ton choix · ${POSTE_NOM[att.poste]}</button>` : `
-      <div class="cc-postes">${POSTES.map(({id}) => `<button class="${CC.poste === id ? 'on' : ''}" data-cc-poste="${id}" aria-pressed="${CC.poste === id}">${id}</button>`).join('')}</div>
-      <button class="btn gold" data-act="choix-coach"${reste && S().pieces >= prix ? '' : ' disabled'}>${POSTE_NOM[CC.poste]} · ${nb(prix)} <i class="coin"></i></button>
-      <small class="js-r">${reste}/${cc.parJour} aujourd’hui</small>`}
+  const att = cc.attente, reste = Math.max(0, (cc.parJour ?? 3) - (cc.faits || 0)), prix = cc.prix ?? 400, poste = att?.poste || CC.poste;
+  return `<h2>Choix du coach</h2>
+    <section class="scene-b petite cc-b">${fondHand()}
+      <div class="cc-eventail" aria-hidden="true">${[-1, 1, 0].map(k => `<span class="cc-ev" style="--k:${k}">${dosHTML(70)}</span>`).join('')}<b class="cc-q">?</b></div>
+      <div class="scene-t"><b>${POSTE_NOM[poste]}</b><small>3 joueurs montrés, puis mélangés face cachée : retournes-en un, il est à toi !</small></div>
+      ${att ? `<button class="btn-penche" data-act="choix-coach">Reprendre ton choix · ${POSTE_NOM[att.poste]}</button>
+      <small class="cc-reste">Les mêmes 3 cartes t’attendent</small>` : `
+      <div class="cc-postes" role="group" aria-label="Poste">${POSTES.map(({id}) => `<button class="${CC.poste === id ? 'on' : ''}" data-cc-poste="${id}" aria-pressed="${CC.poste === id}">${id}</button>`).join('')}</div>
+      <button class="btn-penche" data-act="choix-coach"${reste && S().pieces >= prix ? '' : ' disabled'}>${POSTE_NOM[CC.poste]} · ${nb(prix)} pièces</button>
+      <small class="cc-reste">${reste}/${cc.parJour} aujourd’hui</small>`}
     </section>`;
 }
 function lancerCoach() {
   if (occupe || CC.el) return;
   action(Compte.choixCoachPreparer(S().choixCoach?.attente?.poste || CC.poste), sceneCoach);
 }
-const faceCoach = x => carteHTML(vueExemplaire(PAR_ID[x.carte], {palier: x.palier, note: PALIER[x.palier].min}));
+const faceCoach = x => `<i class="cc-aura"></i>${carteHTML(vueExemplaire(PAR_ID[x.carte], {palier: x.palier, note: PALIER[x.palier].min}))}`;
 const coucheCC = () => fermerCoach(true);
+const placerCC = (c, o) => { for (const [k, v] of Object.entries(o)) c.style.setProperty('--' + k, v); };
 function sceneCoach(r) {
   const el = document.createElement('div');
-  el.className = 'cc'; CC.el = el; CC.data = r; CC.etape = 'montre';
-  el.innerHTML = `${fondHand()}<div class="cc-tete"><b>Choix du coach</b><small>${POSTE_NOM[r.poste]}</small></div>
+  el.className = 'cc'; CC.el = el; CC.data = r; CC.etape = 'montre'; CC.pos = [0, 1, 2];
+  el.innerHTML = `${fondHand()}<div class="cc-tete"><small>Choix du coach</small><b>${POSTE_NOM[r.poste]}</b></div>
     <p class="cc-aide">Ton coach te propose…</p>
-    <div class="cc-l">${r.cartes.map((x, i) => `<button class="cc-c" data-cc="${i}" disabled aria-label="Carte ${i + 1}">
-      <span class="cc-in"><span class="cc-f">${faceCoach(x)}</span><span class="cc-d">${dosHTML(104)}</span></span></button>`).join('')}</div>
+    <div class="cc-l">${r.cartes.map((x, i) => `<button class="cc-c" data-cc="${i}" data-place="${i}" disabled aria-label="Carte ${i + 1}" style="--tc:${TEINTE[x.palier]}">
+      <span class="cc-bob" style="--i:${i}"><span class="cc-in"><span class="cc-f">${faceCoach(x)}</span><span class="cc-d">${dosHTML(104)}</span></span></span></button>`).join('')}</div>
     <button class="btn gold cc-fin" data-act="cc-fin" hidden>Continuer</button>`;
+  const cs = [...el.querySelectorAll('.cc-c')], vite = moinsAnim();
+  cs.forEach(c => placerCC(c, {x: CC_W + 'px', y: '280px', r: '0deg', s: .35, o: 0}));   // au départ : en bas, petites
   document.body.appendChild(el); document.body.classList.add('avec-intro');
   ouvrirCouche(coucheCC); Son.discret(true); Son.jouer('envol');
   const aide = t => { el.querySelector('.cc-aide').textContent = t; };
-  const cs = [...el.querySelectorAll('.cc-c')], vite = moinsAnim();
-  setTimeout(() => { if (CC.el !== el) return;   // 1. retournées
-    CC.etape = 'retourne'; cs.forEach(c => c.classList.add('dos')); Son.jouer('retourne'); aide('On mélange…');
-    setTimeout(() => { if (CC.el !== el) return;   // 2. mélangées : elles se rassemblent au centre et repartent, deux fois
-      const W = cs[1].offsetLeft - cs[0].offsetLeft;
-      cs.forEach((c, i) => c.animate(vite ? [{transform: 'none'}] : [
-        {transform: 'none'}, {transform: `translateX(${(1 - i) * W}px) rotate(${(i - 1) * 6}deg) translateY(-14px)`, offset: .25},
-        {transform: `translateX(${(i - 1) * W * .35}px)`, offset: .5}, {transform: `translateX(${(1 - i) * W}px) rotate(${(1 - i) * 6}deg) translateY(-14px)`, offset: .75},
-        {transform: 'none'}], {duration: vite ? 1 : 1300, easing: 'ease-in-out'}));
-      Son.jouer('souffle');
-      setTimeout(() => { if (CC.el !== el) return;   // 3. au joueur de choisir
-        CC.etape = 'choix'; aide('Touche une carte !'); el.classList.add('a-toi'); cs.forEach(c => { c.disabled = false; });
-      }, vite ? 50 : 1350);
-    }, 600);
-  }, vite ? 600 : 1900);
+  const pause = ms => new Promise(f => setTimeout(f, vite ? Math.min(ms, 20) : ms));
+  const vivant = () => CC.el === el;
+  (async () => {
+    await pause(60);
+    // 1. elles arrivent une à une, face visible, avec l'aura de leur palier
+    for (const [i, c] of cs.entries()) { if (!vivant()) return; placerCC(c, {x: i * CC_W + 'px', y: '0px', r: (i - 1) * 5 + 'deg', s: 1, o: 1}); Son.jouer('tap'); await pause(170); }
+    el.classList.add('vues');
+    await pause(1700); if (!vivant()) return;
+    // 2. elles se retournent l'une après l'autre
+    aide('Retiens-les bien…');
+    for (const c of cs) { if (!vivant()) return; c.classList.add('dos'); placerCC(c, {r: '0deg'}); await pause(150); }
+    el.classList.remove('vues'); Son.jouer('retourne');
+    await pause(500); if (!vivant()) return;
+    // 3. le mélange : six échanges de places, l'une passe par-dessus, l'autre par-dessous
+    aide('On mélange…'); el.classList.add('melange'); Son.jouer('souffle');
+    for (let k = 0; k < 6; k++) {
+      if (!vivant()) return;
+      const pa = Math.floor(Math.random() * 3), pb = (pa + 1 + Math.floor(Math.random() * 2)) % 3;
+      const a = CC.pos.indexOf(pa), b = CC.pos.indexOf(pb);
+      CC.pos[a] = pb; CC.pos[b] = pa;
+      placerCC(cs[a], {x: pb * CC_W + 'px', y: '-38px', s: 1.06, r: (pb > pa ? 6 : -6) + 'deg'});
+      placerCC(cs[b], {x: pa * CC_W + 'px', y: '30px', s: .92, r: (pa > pb ? 6 : -6) + 'deg'});
+      cs[a].style.zIndex = 3; cs[b].style.zIndex = 1; Son.jouer('tap');
+      await pause(250);
+      [cs[a], cs[b]].forEach(c => placerCC(c, {y: '0px', s: 1, r: '0deg'}));
+      await pause(110);
+    }
+    if (!vivant()) return;
+    cs.forEach((c, i) => { c.dataset.place = CC.pos[i]; c.style.zIndex = ''; c.setAttribute('aria-label', `Carte ${CC.pos[i] + 1}`); });
+    el.classList.remove('melange');
+    // 4. au joueur de choisir
+    await pause(250); if (!vivant()) return;
+    CC.etape = 'choix'; aide('Touche une carte !'); el.classList.add('a-toi'); cs.forEach(c => { c.disabled = false; });
+  })();
 }
 function toucherCoach(i) {
   const el = CC.el;
   if (!el || CC.etape !== 'choix' || occupe) return;
-  CC.etape = 'attend'; el.classList.remove('a-toi');
-  const cs = [...el.querySelectorAll('.cc-c')]; cs.forEach(c => { c.disabled = true; });
-  action(Compte.choixCoachChoisir(i), res => {
+  const p = CC.pos[i], cs = [...el.querySelectorAll('.cc-c')];
+  CC.etape = 'attend'; el.classList.remove('a-toi'); cs.forEach(c => { c.disabled = true; });
+  placerCC(cs[i], {y: '-18px', s: 1.1}); cs.forEach((c, j) => { if (j !== i) placerCC(c, {s: .92, o: .8}); });
+  Son.jouer('clic');
+  action(Compte.choixCoachChoisir(p), res => {
     if (CC.el !== el) return;
-    // chaque place reçoit la carte que le mélange y avait mise
-    cs.forEach((c, j) => { c.querySelector('.cc-f').innerHTML = faceCoach(res.cartes[res.places[j]]); });
-    const x = res.cartes[res.places[i]], c = PAR_ID[x.carte];
-    CC.etape = 'revele'; cs[i].classList.add('choisi'); cs[i].classList.remove('dos'); Son.jouer(RARETES.indexOf(x.palier) >= 2 ? 'recompense' : 'retourne');
-    el.querySelector('.cc-aide').innerHTML = `${esc(c?.nom || '')} · <b>${R_LABEL[x.palier]}</b> !`;
-    setTimeout(() => { if (CC.el !== el) return;
-      cs.forEach((b, j) => { if (j !== i) { b.classList.add('rate'); b.classList.remove('dos'); } });
+    // chaque place reçoit la carte que le serveur y avait mise
+    cs.forEach((c, j) => { const x = res.cartes[res.places[CC.pos[j]]]; c.querySelector('.cc-f').innerHTML = faceCoach(x); c.style.setProperty('--tc', TEINTE[x.palier]); });
+    const x = res.cartes[res.places[p]], c = PAR_ID[x.carte], haut = RARETES.indexOf(x.palier) >= 2;
+    CC.etape = 'revele';
+    cs[i].insertAdjacentHTML('afterbegin', `<span class="cc-eclat${haut ? ' fort' : ''}" aria-hidden="true">${Array.from({length: 14}, (_, k) =>
+      `<i style="--a:${k * 360 / 14}deg;--d:${90 + (k % 3) * 28}px"></i>`).join('')}</span>`);
+    cs[i].classList.add('choisi'); placerCC(cs[i], {y: '-4px', s: 1.22, r: '0deg', o: 1});
+    setTimeout(() => {
+      if (CC.el !== el) return;
+      cs[i].classList.remove('dos'); Son.jouer(haut ? 'recompense' : 'retourne'); vibrer(haut ? [30, 40, 70] : 25);
+      el.querySelector('.cc-aide').innerHTML = `${esc(c?.nom || '')} · <b class="t-${x.palier}">${R_LABEL[x.palier]}</b> !`;
+    }, 260);
+    setTimeout(() => {
+      if (CC.el !== el) return;
+      cs.forEach((b, j) => { if (j !== i) { b.classList.add('rate'); b.classList.remove('dos'); placerCC(b, {s: .84, o: .55, y: '22px'}); } });
       el.querySelector('.cc-fin').hidden = false; CC.etape = 'fini';
-    }, 1000);
+    }, 1400);
   }).then(r => { if (r === undefined && CC.el === el && CC.etape === 'attend') fermerCoach(); });
 }
 function fermerCoach(parRetour) {
@@ -2518,7 +2555,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=55').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=56').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
