@@ -378,7 +378,7 @@ function ficheSaisie(t) {
 }
 function ficheClic(t) {
   const f = ed.fiche, d = t.dataset;
-  if (d.fiTout !== undefined) { if (confirm('Effacer tous tes changements de la fiche et reprendre les stats du site ?')) ed.fiche = {}; }
+  if (d.fiTout !== undefined) { if (confirm('Effacer tous tes changements de la fiche et reprendre les stats du site ?')) { ed.fiche = {}; $('#ed-desc').value = ''; $('#desc-n').textContent = '0/160'; } }
   else if (d.fiCache) { const c = new Set(f.caches || []); c.has(d.fiCache) ? c.delete(d.fiCache) : c.add(d.fiCache); f.caches = [...c]; }
   else if (d.fiReset) { if (f.lignes) delete f.lignes[d.fiReset]; }
   else if (d.fiSuppr) { const [sid, ...r] = d.fiSuppr.split('.'); f.ajouts = (f.ajouts || []).filter(x => !(x.s === sid && x.id === r.join('.'))); }
