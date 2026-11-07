@@ -421,7 +421,8 @@ function vueEquipe() {
         2 % pour une équipe moyenne, jusqu’à 10 % si elle est spécialisée, 0 % si elle est à l’opposé.</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
     <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
     <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
-    <p class="sub petit">${T.choisie ? `Tactique : ${att[1]} et ${def[1]}, gardée pour tes matchs (et quand on te défie).` : 'Choisis ton attaque et ton dispositif : ils seront gardés pour tes matchs.'}</p>`;
+    <p class="sub petit">${T.choisie ? `Tactique : ${att[1]} et ${def[1]}, gardée pour tes matchs (et quand on te défie).` : 'Choisis ton attaque et ton dispositif : ils seront gardés pour tes matchs.'}
+      En match, tu peux en changer (le bonus suit la tactique jouée), et prendre le dessus sur la tactique adverse compte plus que ce bonus.</p>`;
 }
 function choisir(poste) {
   // un même joueur ne joue qu'une fois : on écarte ceux déjà alignés à un autre poste
@@ -737,6 +738,7 @@ function htmlFin(r) {
     ${etape ? `<p class="sub petit centre">${esc(etape)}</p>` : ''}
     ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
     ${r.gain != null && r.gain < 1 ? `<p class="sub petit centre">${r.direct ? 'Fin simulée' : 'Match simulé'} : gains −${pcMoins(r.gain)} %</p>` : ''}
+    ${htmlResume(r.resume)}
     ${texteFin(r.fin)}`;
 }
 
@@ -762,6 +764,30 @@ const DEF_POS = {'06': [[38.6, 3.2], [35.8, 5.6], [34.3, 8.6], [34.3, 11.4], [35
 const REPLI = [[22, 4], [24.5, 8], [21, 11.5], [25, 13], [22.5, 16], [27, 9]];
 const TIR_POS = {ailes: s => s === 'AD' ? [37.4, 16.6] : [37.4, 3.4], arrieres: s => [31.2, s === 'ARG' ? 6.6 : s === 'ARD' ? 13.4 : 10],
   pivot: () => [35.2, 10.2], contre: () => [34.8, 9.6], '7m': () => [33, 10]};
+// ce que fait l'entraîneur adverse, selon le niveau (match_ia dans schema.sql)
+const ASTUCE_IA = {'imprévisible': 'il change parfois au hasard, sans lire ton jeu.', 'lent à réagir': 'il finit par réagir quand tu le contres, mais lentement.',
+  'réfléchi': 'il réagit quand tu le contres, et cherche à te contrer s’il est mené.', 'rapide': 'il réagit vite et cherche toujours à te contrer.',
+  'légendaire': 'il s’adapte à chaque tranche de 5 minutes, sans temps mort, et anticipe tes changements.'};
+// résumé tactique de fin (match_resume) : tranche par tranche, qui avait le dessus en attaque et en défense, puis les tactiques révélées
+function htmlResume(R) {
+  if (!R?.blocs?.length) return '';
+  const cases = k => R.blocs.map((x, i) => `<i class="rs-${x[k] > 0 ? 'p' : x[k] < 0 ? 'm' : 'n'}${i === 6 ? ' mt' : ''}" title="${i * 5}-${i * 5 + 5}'"></i>`).join('');
+  const compte = k => ({p: R.blocs.filter(x => x[k] > 0).length, m: R.blocs.filter(x => x[k] < 0).length});
+  const ca = compte('att'), cd = compte('def'), n = R.blocs.length;
+  const plus = (l, k) => { const c = {}; l.forEach(x => { c[x[k]] = (c[x[k]] || 0) + 1; }); return Object.entries(c).sort((p, q) => q[1] - p[1]); };
+  const leursAtt = plus(R.blocs, 'ba').map(([k, v]) => `${NOM_ATT[k] || k} (${v * 5} min)`).join(', ');
+  const leursDef = plus(R.blocs, 'bd').map(([k, v]) => `${NOM_DEF[k] || k} (${v * 5} min)`).join(', ');
+  const bo = R.bonus || {}, mAtt = TACT_ATT.map(x => x[0]).sort((p, q) => (bo[q] || 0) - (bo[p] || 0))[0], mDef = ['06', '15', '33'].sort((p, q) => (bo[q] || 0) - (bo[p] || 0))[0];
+  const conseil = ca.m + cd.m > ca.p + cd.p ? 'Il a eu le dessus : regarde sa défense (elle se voit) et d’où partent ses tirs, et sers-toi de tes temps morts.'
+    : ca.p + cd.p >= n ? 'Bien lu : tu as eu le dessus la plupart du temps.' : 'Match serré tactiquement : chaque changement compte.';
+  return `<div class="md-resume"><h4>Résumé tactique</h4>
+    <div class="rs-l"><small>Ton attaque</small><span>${cases('att')}</span><b>${ca.p}/${n}</b></div>
+    <div class="rs-l"><small>Ta défense</small><span>${cases('def')}</span><b>${cd.p}/${n}</b></div>
+    <p class="rs-leg"><i class="rs-p"></i>tu prenais le dessus <i class="rs-m"></i>contré <i class="rs-n"></i>neutre · par tranche de 5 minutes</p>
+    <p class="sub petit">Leur attaque : ${leursAtt}. Leur défense : ${leursDef}. Entraîneur ${esc(R.entraineur || '')} : ${R.changementsAdv} changement${R.changementsAdv > 1 ? 's' : ''},
+      ${R.tempsMortsAdv} temps mort${R.tempsMortsAdv > 1 ? 's' : ''} ; toi : ${R.tempsMorts} temps mort${R.tempsMorts > 1 ? 's' : ''}.</p>
+    <p class="sub petit">Ton équipe est faite pour <b>${NOM_ATT[mAtt]}</b> (+${Math.round((bo[mAtt] || 0) * 100)} %) et la <b>${NOM_DEF[mDef]}</b> (+${Math.round((bo[mDef] || 0) * 100)} %). ${conseil}</p></div>`;
+}
 const MS_SEC = 40;   // ×1 : une seconde de match = 40 ms (un bloc de 5 minutes en 12 s, le match en 2 min 24)
 const MD = {};
 const rotMD = (c, [x, y]) => c === 'a' ? [x, y] : [40 - x, 20 - y];
@@ -790,7 +816,9 @@ function texteMD(x) {
   return {but: `But de <b>${n}</b>${x.z === 'contre' ? ' en contre-attaque' : x.z === 'pivot' ? ' au pivot' : x.z === 'ailes' ? ' depuis l’aile' : ''}`,
     '7m-but': `<b>${n}</b> transforme le jet de 7 m`, '7m-arret': `<b>${g}</b> arrête le jet de 7 m de ${n}`,
     arret: `Arrêt de <b>${g}</b> devant ${n}`, poteau: `Poteau ! Le tir de ${n} ne rentre pas`, dehors: `${n} tire à côté`,
-    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`, 'temps-mort': `Temps mort pour ${esc(MD.vue?.nous?.nom || '')}`,
+    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`, 'temps-mort': `Temps mort pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}`,
+    attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
+    consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`}[x.ty] || '';
 }
 const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
@@ -905,7 +933,9 @@ function animerMD(x, D) {
   if (!tir && x.ty !== 'perte') {
     fin();
     if (x.ty === 'excl') flashMD(`2 minutes<small>${esc(nomCourt(x.n))}</small>`, 'ex');
-    else if (x.ty === 'temps-mort') flashMD('Temps mort', 'tm');
+    else if (x.ty === 'temps-mort') flashMD(x.c === 'b' ? `Temps mort<small>${esc(MD.vue.eux.nom)}</small>` : 'Temps mort', x.c === 'b' ? 'b' : 'tm');
+    else if (x.ty === 'attaque') flashMD('Nouvelle attaque<small>à deviner</small>', 'b');
+    else if (x.ty === 'consigne') flashMD(x.v === 'pression' ? 'Ils pressent !' : x.v === 'prudent' ? 'Ils gèrent' : 'Jeu normal', 'b');
     else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
     else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
     return;
@@ -986,7 +1016,7 @@ function majMD() {
   sim.disabled = !!MD.fin; sim.innerHTML = `Simuler la fin<small>gains −${pcMoins(g)} %</small>`;
   const sb = statsMD(MD.evs).b, top = ZONES_MD.filter(([k]) => k !== '7m').sort((p, q) => sb.zones[q[0]] - sb.zones[p[0]])[0];
   MD.el.querySelector('.md-info').innerHTML = `Toi : <b>${NOM_ATT[att]}</b> · <b>${NOM_DEF[def]}</b> · ${CONSIGNES.find(c => c[0] === MD.cons)?.[1] || ''}
-    <span>Eux : défense <b>${NOM_DEF[MD.defB] || '?'}</b>${sb.buts >= 3 ? ` · buts surtout : ${top[1].toLowerCase()}` : ''}</span>`;
+    <span>Eux : défense <b>${NOM_DEF[MD.defB] || '?'}</b> · ${MD.vue.tempsMortsAdv?.restants ?? 3} temps mort${(MD.vue.tempsMortsAdv?.restants ?? 3) > 1 ? 's' : ''}${sb.buts >= 3 ? ` · buts surtout : ${top[1].toLowerCase()}` : ''}</span>`;
   if (MD.onglet === 'stats') majStatsMD();
 }
 function majStatsMD() {
@@ -1015,6 +1045,8 @@ function panneauMD(type) {
     tm: `${esc(MD.vue.eux.nom)} défend en <b>${NOM_DEF[MD.defB]}</b>. Le temps mort redonne aussi de l’élan (3 minutes) et un peu de fraîcheur.`,
     pause: 'Pour changer de tactique pendant une période, prends un temps mort.', erreur: 'Le bloc suivant n’a pas pu être joué.'}[type];
   p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3><p class="sub petit">${intro}</p>
+    ${change ? `<p class="md-astuce">Entraîneur adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}
+      Prendre le dessus sur sa tactique compte plus que le bonus de ton équipe.</p>` : ''}
     ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>

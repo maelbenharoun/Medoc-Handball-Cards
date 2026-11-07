@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.03, "match_simule_gain": 0.95,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.07, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95,
   "pve_par_jour": 10, "match_minutes": 120, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -1277,14 +1277,125 @@ $$;
 create or replace function stats_vides() returns jsonb language sql immutable as $$
   select '{"tirs": 0, "buts": 0, "arrets": 0, "pertes": 0, "excl": 0, "sept": 0, "zones": {"ailes": 0, "arrieres": 0, "pivot": 0, "contre": 0, "7m": 0}}'::jsonb
 $$;
+-- tactique d'une équipe en match : le bonus de l'onglet Équipe suit la tactique jouée (recalculé depuis les moyennes
+-- des stats de l'équipe ; l'ordinateur n'en a pas). Changer pour contrer l'adversaire peut donc coûter son bonus.
+create or replace function match_tactique(eq jsonb, p_att text, p_def text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare ba numeric := coalesce((eq #>> '{bonus,attaque}')::numeric, 0); bd numeric := coalesce((eq #>> '{bonus,defense}')::numeric, 0);
+  na numeric := 0; nd numeric := 0;
+begin
+  if jsonb_typeof(eq -> 'moyennes') = 'object' then na := tactique_bonus(eq -> 'moyennes', p_att); nd := tactique_bonus(eq -> 'moyennes', p_def); end if;
+  return eq || jsonb_build_object('attaque', p_att, 'defense', p_def,
+    'att', round((eq ->> 'att')::numeric / (1 + ba) * (1 + na), 2), 'def', round((eq ->> 'def')::numeric / (1 + bd) * (1 + nd), 2),
+    'bonus', jsonb_build_object('attaque', na, 'defense', nd));
+end $$;
+-- Style de l'entraîneur adverse selon le niveau du parcours (demande de Maël) : Départemental imprévisible (il change au hasard,
+-- sans lire le jeu), Régional lent à réagir, National réfléchi, International rapide, Légendes : il s'adapte à chaque tranche de
+-- 5 minutes, sans temps mort, et anticipe nos changements. reac = chance de réagir par tranche, neutre = s'il cherche à prendre
+-- le dessus quand rien ne le gêne (0 jamais, 0,5 seulement s'il est mené, 1 toujours), mi = chances de changer à la mi-temps,
+-- anticipe = chance qu'il prête au joueur de changer pour le contrer (il choisit en conséquence).
+create or replace function match_ia(p_style text) returns jsonb language sql stable security definer set search_path = public as $$
+  select (case p_style
+    when 'hasard' then '{"style": "hasard", "nom": "imprévisible", "reac": 0.15, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0, "hasard": true}'
+    when 'lent' then '{"style": "lent", "nom": "lent à réagir", "reac": 0.2, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0}'
+    when 'rapide' then '{"style": "rapide", "nom": "rapide", "reac": 0.75, "neutre": 1, "mi": [1, 0.9], "anticipe": 0}'
+    when 'legende' then '{"style": "legende", "nom": "légendaire", "reac": 1, "neutre": 1, "mi": [1, 1], "anticipe": 0.7, "continu": true}'
+    else '{"style": "reflechi", "nom": "réfléchi", "reac": 0.4, "neutre": 0.5, "mi": [0.8, 0.7], "anticipe": 0}' end)::jsonb
+    || case when p_style in ('hasard', 'lent', 'rapide', 'legende') then '{}'::jsonb
+      else jsonb_build_object('reac', coalesce((param('match_ordi_reaction') #>> '{}')::numeric, .4)) end
+$$;
+create or replace function match_ia_niveau(pc jsonb) returns text language sql stable security definer set search_path = public as $$
+  select case when pc ->> 'type' = 'legendes' then 'legende'
+    else case param('parcours') -> (coalesce((pc ->> 'niveau')::int, 1) - 1) ->> 'groupe'
+      when 'Départemental' then 'hasard' when 'Régional' then 'lent' when 'National' then 'reflechi' when 'International' then 'rapide' else 'legende' end end
+$$;
+-- l'entraîneur adverse, à la fin de chaque tranche : il prend un temps mort pour s'adapter (3 par match, 2 par période) quand il se
+-- voit contré (notre attaque bat sa défense, notre défense bat son attaque) ou, selon son style, quand il peut prendre le dessus ;
+-- à la mi-temps, il change sans temps mort ; les Légendes changent à chaque tranche. Mené de 4 en fin de match, il presse ; devant
+-- de 5, il gère. Sa défense se voit ; son attaque, non (« change d'attaque »).
+create or replace function match_ordi(e jsonb, p_mi_temps boolean) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare a jsonb := e -> 'a'; b jsonb := e -> 'b'; att text := b ->> 'attaque'; def text := b ->> 'defense'; natt text; ndef text;
+  bl int := (e ->> 'bloc')::int; per text := case when bl < 6 then 'p1' else 'p2' end; t int := (e ->> 't')::int;
+  tmb jsonb := coalesce(e -> 'tmb', '{"restants": 3, "p1": 0, "p2": 0}'); ecart int := (e #>> '{score,1}')::int - (e #>> '{score,0}')::int;
+  cons text := coalesce(b ->> 'consigne', 'normal'); ncons text; tm boolean := false;
+  ia jsonb := coalesce(e -> 'ia', match_ia('reflechi')); p numeric := (ia ->> 'anticipe')::numeric; reac numeric := (ia ->> 'reac')::numeric;
+  aa text := a ->> 'attaque'; ad text := a ->> 'defense'; aa2 text; ad2 text; x text; v numeric; vmax numeric; ud numeric; ua numeric; u numeric;
+begin
+  ncons := case when bl >= 8 and ecart <= -4 then 'pression' when bl >= 9 and ecart >= 5 then 'prudent' when ecart > -2 and cons = 'pression' then 'normal' else cons end;
+  if ia ? 'hasard' then
+    -- imprévisible : il ne lit pas le jeu, il change au hasard de temps en temps
+    select y into ndef from unnest(array['06', '15', '33']) y where y <> def order by random() limit 1;
+    select y into natt from unnest(array['duels', 'enclenchement', 'rapide']) y where y <> att order by random() limit 1;
+    ncons := cons;
+    if p_mi_temps then
+      if random() >= (ia #>> '{mi,0}')::numeric then ndef := def; end if;
+      if random() >= (ia #>> '{mi,1}')::numeric then natt := att; end if;
+    elsif (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2 and random() < reac then
+      tm := true;
+      if random() < .5 then ndef := def; else natt := att; end if;
+    else
+      return e;
+    end if;
+  else
+    -- ce que le joueur ferait ensuite : contrer notre défense actuelle (s'il ne le fait pas déjà) ; l'entraîneur choisit la défense
+    -- (et l'attaque) qui marche le mieux contre notre tactique actuelle et celle d'après, pesées par « anticipe »
+    aa2 := case when contre_tactique(aa, def) = 1 then aa else (select y from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, def) = 1) end;
+    ad2 := case when contre_tactique(att, ad) = -1 then ad else (select y from unnest(array['06', '15', '33']) y where contre_tactique(att, y) = -1) end;
+    ndef := def; vmax := -p * contre_tactique(aa2, def) - (1 - p) * contre_tactique(aa, def);
+    ud := vmax;
+    foreach x in array array['06', '15', '33'] loop
+      v := -p * contre_tactique(aa2, x) - (1 - p) * contre_tactique(aa, x);
+      if v > vmax + .001 then vmax := v; ndef := x; end if;
+    end loop;
+    ud := (vmax - ud) / 2;   -- 1 s'il était contré, ½ si c'était neutre, 0 s'il avait déjà le dessus
+    natt := att; vmax := p * contre_tactique(att, ad2) + (1 - p) * contre_tactique(att, ad);
+    ua := vmax;
+    foreach x in array array['duels', 'enclenchement', 'rapide'] loop
+      v := p * contre_tactique(x, ad2) + (1 - p) * contre_tactique(x, ad);
+      if v > vmax + .001 then vmax := v; natt := x; end if;
+    end loop;
+    ua := (vmax - ua) / 2;
+    if p_mi_temps then
+      if ud <= 0 or random() >= (ia #>> '{mi,0}')::numeric then ndef := def; end if;
+      if ua <= 0 or random() >= (ia #>> '{mi,1}')::numeric then natt := att; end if;
+    else
+      -- urgence : 1 quand il est contré ; quand c'est neutre, selon son style (le réfléchi seulement s'il est mené)
+      u := greatest(ud, ua);
+      if u < 1 then u := u * case when (ia ->> 'neutre')::numeric >= 1 then 1 when (ia ->> 'neutre')::numeric > 0 and ecart < 0 then 1 else 0 end; end if;
+      u := greatest(u, case when ncons <> cons then .8 else 0 end);
+      if ia ? 'continu' then
+        if u <= 0 or random() >= reac then return e; end if;   -- Légendes : à chaque tranche, sans temps mort
+      elsif (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2 and random() < reac * u then
+        tm := true;
+      else
+        return e;
+      end if;
+      if ud <= 0 or (ud < 1 and (ia ->> 'neutre')::numeric = 0) then ndef := def; end if;
+      if ua <= 0 or (ua < 1 and (ia ->> 'neutre')::numeric = 0) then natt := att; end if;
+    end if;
+  end if;
+  if natt = att and ndef = def and ncons = cons then return e; end if;
+  if tm then
+    tmb := tmb || jsonb_build_object('restants', (tmb ->> 'restants')::int - 1, per, (tmb ->> per)::int + 1);
+    b := b || jsonb_build_object('elan', t + 180, 'fatigue', greatest(0, (b ->> 'fatigue')::numeric - .02));
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'temps-mort', 's', e -> 'score'));
+    e := e || jsonb_build_object('tmb', tmb);
+  end if;
+  if ndef <> def then e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'defense', 'v', ndef, 's', e -> 'score')); end if;
+  if natt <> att then e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'attaque', 's', e -> 'score')); end if;
+  if ncons <> cons then e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'consigne', 'v', ncons, 's', e -> 'score')); end if;
+  return e || jsonb_build_object('b', match_tactique(b, natt, ndef) || jsonb_build_object('consigne', ncons));
+end $$;
 -- un match qui commence : les deux équipes (forces, joueurs, tactiques, consignes) ; a = le joueur, b = l'adversaire
 create or replace function match_nouveau(p_type text, p_ctx jsonb, fa jsonb, fb jsonb, p_tactique text, p_consigne text, p_b_attaque text, p_b_defense text)
-returns jsonb language sql volatile as $$
+returns jsonb language sql volatile security definer set search_path = public as $$
   select jsonb_build_object('type', p_type, 'ctx', p_ctx, 'bloc', 0, 't', 0, 'score', '[0, 0]'::jsonb,
     'balle', case when random() < .5 then 'a' else 'b' end, 'ev', '[]'::jsonb, 'tm', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0), 'simules', 0,
     'a', fa || jsonb_build_object('tactique', p_tactique, 'attaque', tac_attaque(p_tactique), 'defense', tac_defense(p_tactique), 'consigne', p_consigne,
       'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
-    'b', fb || jsonb_build_object('attaque', p_b_attaque, 'defense', p_b_defense, 'consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()))
+    'b', match_tactique(fb, p_b_attaque, p_b_defense) || jsonb_build_object('consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
+    'tmb', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0))
 $$;
 -- joue les possessions jusqu'à la seconde p_fin
 create or replace function match_avancer(e jsonb, p_fin int) returns jsonb language plpgsql volatile as $$
@@ -1353,34 +1464,34 @@ begin
   return e || jsonb_build_object('t', t, 'score', sc);
 end $$;
 -- un bloc de 5 minutes ; à la mi-temps, l'adversaire peut s'adapter et l'équipe récupère un peu
-create or replace function match_bloc_jouer(e jsonb) returns jsonb language plpgsql volatile as $$
-declare b int := (e ->> 'bloc')::int; d text;
+create or replace function match_bloc_jouer(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare b int := (e ->> 'bloc')::int;
 begin
   if b >= 12 then return e; end if;
+  e := e || jsonb_build_object('blocs', coalesce(e -> 'blocs', '[]') || jsonb_build_object('aa', e #>> '{a,attaque}', 'ad', e #>> '{a,defense}',
+    'ba', e #>> '{b,attaque}', 'bd', e #>> '{b,defense}'));
   e := match_avancer(e, (b + 1) * 300);
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
     e := jsonb_set(e, '{a,fatigue}', to_jsonb(round((e #>> '{a,fatigue}')::numeric * .5, 4)));
     e := jsonb_set(e, '{b,fatigue}', to_jsonb(round((e #>> '{b,fatigue}')::numeric * .5, 4)));
-    -- l'entraîneur adverse : s'il se fait contrer en défense, une fois sur deux il change pour contrer notre attaque
-    if contre_tactique(e #>> '{a,attaque}', e #>> '{b,defense}') = 1 and random() < .5 then
-      select x into d from unnest(array['06', '15', '33']) x where contre_tactique(e #>> '{a,attaque}', x) = -1;
-      e := jsonb_set(e, '{b,defense}', to_jsonb(d));
-      e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'c', 'b', 'ty', 'defense', 'v', d, 's', e -> 'score'));
-    end if;
-    if random() < .25 then e := jsonb_set(e, '{b,attaque}', to_jsonb((array['duels', 'enclenchement', 'rapide'])[1 + floor(random() * 3)::int])); end if;
+    e := match_ordi(e, true);
     e := jsonb_set(e, '{balle}', to_jsonb(case when random() < .5 then 'a' else 'b' end));
+  elsif b + 1 < 12 then
+    e := match_ordi(e, false);
   end if;
   return e;
 end $$;
 -- ce que le jeu voit d'un match en cours : tout, sauf l'attaque adverse (à deviner) et les forces exactes
-create or replace function match_vue(e jsonb, p_depuis int default 0) returns jsonb language sql stable as $$
+create or replace function match_vue(e jsonb, p_depuis int default 0) returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object('type', e ->> 'type', 'bloc', (e ->> 'bloc')::int, 'minute', (e ->> 't')::int / 60.0, 'score', e -> 'score',
-    'tempsMorts', e -> 'tm', 'fini', (e ->> 'bloc')::int >= 12,
+    'tempsMorts', e -> 'tm', 'tempsMortsAdv', coalesce(e -> 'tmb', '{"restants": 3}'),
+    'fini', (e ->> 'bloc')::int >= 12,
     'nous', jsonb_build_object('nom', e #>> '{a,nom}', 'note', e -> 'a' -> 'note', 'joueurs', e -> 'a' -> 'joueurs', 'tactique', e #>> '{a,tactique}',
       'consigne', e #>> '{a,consigne}', 'stats', e -> 'a' -> 'stats'),
     'eux', jsonb_build_object('nom', e #>> '{b,nom}', 'note', e -> 'b' -> 'note', 'joueurs', e -> 'b' -> 'joueurs', 'defense', e #>> '{b,defense}',
+      'entraineur', coalesce(e #>> '{ia,nom}', 'réfléchi'),
       'stats', e -> 'b' -> 'stats'),
     'evenements', coalesce((select jsonb_agg(x) from jsonb_array_elements(e -> 'ev') with ordinality z(x, i) where i > p_depuis), '[]'))
 $$;
@@ -1393,6 +1504,19 @@ create or replace function match_resultat(e jsonb) returns jsonb language sql st
     'stats', jsonb_build_object('a', e -> 'a' -> 'stats', 'b', e -> 'b' -> 'stats'), 'simules', (e ->> 'simules')::int)
 $$;
 
+-- résumé tactique de fin de match (le jeu le montre avec le résultat) : pour chaque tranche, si notre attaque et notre défense prenaient
+-- le dessus (1), étaient contrées (−1) ou neutres (0), les tactiques des deux équipes (l'attaque adverse est révélée), le bonus de
+-- notre équipe pour chaque choix, le style de l'entraîneur adverse
+create or replace function match_resume(e jsonb) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'blocs', coalesce((select jsonb_agg(jsonb_build_object('att', contre_tactique(x ->> 'aa', x ->> 'bd'), 'def', -contre_tactique(x ->> 'ba', x ->> 'ad'),
+      'aa', x ->> 'aa', 'ad', x ->> 'ad', 'ba', x ->> 'ba', 'bd', x ->> 'bd') order by i) from jsonb_array_elements(coalesce(e -> 'blocs', '[]')) with ordinality z(x, i)), '[]'),
+    'bonus', (select jsonb_object_agg(k, case when jsonb_typeof(e -> 'a' -> 'moyennes') = 'object' then tactique_bonus(e -> 'a' -> 'moyennes', k) else 0 end)
+      from unnest(array['duels', 'enclenchement', 'rapide', '06', '15', '33']) k),
+    'entraineur', coalesce(e #>> '{ia,nom}', 'réfléchi'), 'tempsMorts', 3 - (e #>> '{tm,restants}')::int,
+    'tempsMortsAdv', 3 - coalesce((e #>> '{tmb,restants}')::int, 3),
+    'changementsAdv', (select count(*) from jsonb_array_elements(e -> 'ev') x where x ->> 'c' = 'b' and x ->> 'ty' in ('defense', 'attaque')))
+$$;
 -- l'adversaire du prochain match du parcours (sans rien changer)
 create or replace function championnat_adversaire(pc jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare typ text := pc ->> 'type'; niv int := (pc ->> 'niveau')::int; nv jsonb := param('parcours') -> (niv - 1);
@@ -1427,7 +1551,7 @@ begin
     s := defi_ami_conclure(p_uid, (e #>> '{ctx,ami}')::uuid, e -> 'a', e -> 'b', r, p_gain);
   end if;
   perform noter(p_uid, 'match', jsonb_build_object('type', e ->> 'type', 'score', e -> 'score', 'gain', p_gain, 'simules', e -> 'simules'));
-  return s || jsonb_build_object('direct', (e ->> 'simules')::int < 12, 'gain', p_gain,
+  return s || jsonb_build_object('direct', (e ->> 'simules')::int < 12, 'gain', p_gain, 'resume', match_resume(e),
     'match', (s -> 'match') || jsonb_build_object('stats', r -> 'stats', 'evenements', e -> 'ev'));
 end $$;
 -- joue tous les blocs qui restent, sans adaptation
@@ -1481,20 +1605,17 @@ begin
   end if;
   update profils set tactique = p_tactique where user_id = p.user_id;
   e := match_nouveau(p_type, ctx, fa, fb, p_tactique, coalesce(p_consigne, 'normal'), batt, bdef);
+  e := e || jsonb_build_object('ia', match_ia(case when p_type = 'championnat' then match_ia_niveau(p.parcours) else 'reflechi' end));
   if p_simuler then return match_finir_simule(p.user_id, e); end if;
   insert into matchs_direct (user_id, etat) values (p.user_id, e);
   return jsonb_build_object('direct', true, 'vue', match_vue(e), 'etat', etat_de(p.user_id));
 end $$;
 -- le bloc suivant du match en cours. Tactique et consigne ne changent qu'au coup d'envoi, à la mi-temps ou sur un temps mort
 -- (3 par match, 2 par période au plus) ; le dernier bloc termine le match
-create or replace function match_bloc(p_tactique text, p_consigne text, p_temps_mort boolean) returns jsonb
-language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); cur matchs_direct; e jsonb; b int; per text; n int;
+create or replace function match_regler(e jsonb, p_tactique text, p_consigne text, p_temps_mort boolean) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare b int := (e ->> 'bloc')::int; per text := case when b < 6 then 'p1' else 'p2' end;
 begin
-  select * into cur from matchs_direct where user_id = p.user_id for update;
-  if not found then raise exception 'Pas de match en cours'; end if;
-  e := cur.etat; b := (e ->> 'bloc')::int; n := jsonb_array_length(e -> 'ev');
-  per := case when b < 6 then 'p1' else 'p2' end;
   if p_temps_mort then
     if (e #>> '{tm,restants}')::int < 1 then raise exception 'Plus de temps mort'; end if;
     if (e -> 'tm' ->> per)::int >= 2 then raise exception 'Déjà 2 temps morts dans cette période'; end if;
@@ -1506,9 +1627,19 @@ begin
   if p_temps_mort or b in (0, 6) then
     perform verifier_tactique(p_tactique);
     if coalesce(p_consigne, 'normal') not in ('normal', 'prudent', 'pression') then raise exception 'Consigne inconnue'; end if;
-    e := e || jsonb_build_object('a', (e -> 'a') || jsonb_build_object('tactique', p_tactique, 'attaque', tac_attaque(p_tactique),
-      'defense', tac_defense(p_tactique), 'consigne', coalesce(p_consigne, 'normal')));
+    e := e || jsonb_build_object('a', match_tactique(e -> 'a', tac_attaque(p_tactique), tac_defense(p_tactique))
+      || jsonb_build_object('tactique', p_tactique, 'consigne', coalesce(p_consigne, 'normal')));
   end if;
+  return e;
+end $$;
+create or replace function match_bloc(p_tactique text, p_consigne text, p_temps_mort boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; n int;
+begin
+  select * into cur from matchs_direct where user_id = p.user_id for update;
+  if not found then raise exception 'Pas de match en cours'; end if;
+  e := cur.etat; n := jsonb_array_length(e -> 'ev');
+  e := match_regler(e, p_tactique, p_consigne, p_temps_mort);
   e := match_bloc_jouer(e);
   if (e ->> 'bloc')::int >= 12 then return match_conclure(p.user_id, e, 1) || jsonb_build_object('vue', match_vue(e, n)); end if;
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
