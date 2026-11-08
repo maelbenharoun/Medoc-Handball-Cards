@@ -825,8 +825,12 @@ $$;
 create or replace function ligue_nom(d int) returns text language sql immutable as $$ select case when d <= 1 then 'Élite' else 'Division ' || (d - 1) end $$;
 create or replace function ligue_force(d int) returns numeric language sql immutable as $$ select 52 + (8 - d) * 5 $$;
 -- points d'une équipe de l'ordinateur : ceux pris contre les joueurs, plus ses matchs entre ordinateurs (environ 1 à 2 points par jour selon sa force)
+-- jours de matchs entre ordinateurs : depuis la création du groupe (quelqu'un qui arrive le dimanche n'a pas une semaine de retard)
+create or replace function ligue_jours_bot(g ligue_groupes) returns int language sql stable as $$
+  select least(7, greatest(0, least(aujourdhui(), g.lundi + 6) - greatest(g.lundi, (g.cree_le at time zone 'Europe/Paris')::date) + 1))
+$$;
 create or replace function ligue_points_bot(b jsonb, g ligue_groupes) returns int language sql stable as $$
-  select coalesce((b ->> 'pts')::int, 0) + floor(coalesce((b ->> 'rythme')::numeric, 1.2) * least(7, greatest(0, least(aujourdhui(), g.lundi + 6) - g.lundi + 1)))::int
+  select coalesce((b ->> 'pts')::int, 0) + floor(coalesce((b ->> 'rythme')::numeric, 1.2) * ligue_jours_bot(g))::int
 $$;
 create or replace function ligue_classement(g ligue_groupes, p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_agg(x order by (x ->> 'points')::int desc, (x ->> 'gagnes')::int desc, x ->> 'nom'), '[]') from (
@@ -836,7 +840,7 @@ create or replace function ligue_classement(g ligue_groupes, p_uid uuid) returns
     from ligue_membres m join profils pr on pr.user_id = m.user_id where m.groupe = g.id
     union all
     select jsonb_build_object('id', 'b:' || (b ->> 'id'), 'nom', b ->> 'nom', 'humain', false, 'moi', false, 'points', ligue_points_bot(b, g),
-      'joues', coalesce((b ->> 'joues')::int, 0) + least(7, greatest(0, least(aujourdhui(), g.lundi + 6) - g.lundi + 1)), 'gagnes', coalesce((b ->> 'g')::int, 0),
+      'joues', coalesce((b ->> 'joues')::int, 0) + ligue_jours_bot(g), 'gagnes', coalesce((b ->> 'g')::int, 0),
       'nuls', 0, 'perdus', 0, 'note', round((b ->> 'force')::numeric),
       'contreMoi', (select count(*) from ligue_matchs lm where lm.groupe = g.id and lm.user_id = p_uid and lm.adversaire = 'b:' || (b ->> 'id')))
     from jsonb_array_elements(g.bots) b) t(x)

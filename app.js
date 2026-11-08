@@ -40,7 +40,8 @@ const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
 const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
 const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
-const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id));   // +3 : joueur de la semaine
+const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id))
+  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) : 0) + (slot === 'GB' ? staffNiv('gardiens') : 0);   // capitaine, staff   // +3 : joueur de la semaine
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -76,9 +77,10 @@ function celebrer(niveaux) {
 
 // ── vues ────────────────────────────────────────────────────────────────────────
 const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, pieces: vuePieces, defis: vueDefis,
+  ligue: vueLigue, pronos: vuePronos, clubs: vueClubs, albums: vueAlbums, staff: vueStaff,
   social: vueSocial, classement: vueClassement, marche: vueMarche, paris: vueParis, compte: vueCompte};
 // sous-pages : l'onglet qui reste allumé, et le retour
-const ONGLET = {championnat: 'jouer', pieces: 'jouer', defis: 'jouer', classement: 'social', marche: 'social', paris: 'social'};
+const ONGLET = {championnat: 'jouer', pieces: 'jouer', defis: 'jouer', ligue: 'jouer', pronos: 'social', clubs: 'social', albums: 'club', staff: 'club', classement: 'social', marche: 'social', paris: 'social'};
 const retour = (h, l) => `<a class="retour" href="#${h}">‹ ${l}</a>`;
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
@@ -502,6 +504,127 @@ function fermerCoach(parRetour) {
   document.body.classList.remove('avec-intro'); Son.discret(false);
   route(true);
 }
+
+// ── profil personnalisé (avatar, cadre, fond), vu dans les classements, la ligue et les clubs ─────────────────────────
+const AVATARS = {logo: '<img src="assets/logo.png" alt="">', maillot: '<svg class="av-maillot" viewBox="0 0 40 40"><path d="M14 6l-9 5 3 8 4-2v17h16V17l4 2 3-8-9-5c-1 3-3 4-6 4s-5-1-6-4z" fill="#fff" stroke="#15171b" stroke-width="1.2"/><path d="M14 6l-4 2.2L17 17M26 6l4 2.2L23 17M8.5 15.5l3.5-1.6M31.5 15.5l-3.5-1.6" stroke="#15171b" stroke-width="2.2" fill="none"/><circle cx="17" cy="25" r=".9" fill="#9aa1ab"/><circle cx="23" cy="28" r=".9" fill="#9aa1ab"/><circle cx="20" cy="31" r=".9" fill="#9aa1ab"/></svg>', ballon: '🤾', gardien: '🧤', trophee: '🏆', couronne: '👑'};
+const avatarHTML = (p, cls = '') => `<span class="av cd-${esc((p || {}).cadre || 'simple')}${cls ? ' ' + cls : ''}" aria-hidden="true">${AVATARS[(p || {}).avatar] || AVATARS.logo}</span>`;
+const staffNiv = id => (S().staff?.liste || []).find(x => x.id === id)?.niveau || 0;
+// voisins sur le terrain (liens entre coéquipiers)
+const LIENS = [['AG', 'ARG'], ['ARG', 'DC'], ['DC', 'ARD'], ['ARD', 'AD'], ['ARG', 'PIV'], ['DC', 'PIV'], ['ARD', 'PIV'], ['DC', 'GB']];
+const plur = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+// ── pronostics du week-end (Social) ──────────────────────────────────────────────
+function vuePronos() {
+  chargerSoc('pronos', () => Compte.mesPronostics());
+  const d = SOC.pronos;
+  if (!d) return `${retour('social', 'Social')}<h1>Pronos</h1><p class="sub">Chargement…</p>`;
+  const B = d.bareme || {}, nomC = id => PAR_ID[id]?.nom || '';
+  const joueurs = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  const quand = m => `${new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric', month: 'short'})}${m.heure ? ' · ' + m.heure : ''}`;
+  const aVenir = d.aVenir.map(m => `<div class="pr-m" data-prono-l="${esc(m.rid)}"><div class="pr-t"><b>${esc(m.equipe)}</b><small>${quand(m)}</small>
+      ${m.prono ? '<em class="pr-ok">✓ enregistré</em>' : ''}</div>
+    <div class="pr-score"><span class="${m.medoc === 'dom' ? 'med' : ''}">${esc(m.dom)}</span>
+      <input class="champ" type="number" min="0" max="80" inputmode="numeric" data-pr="dom" value="${m.prono?.dom ?? ''}" aria-label="Buts de ${esc(m.dom)}">
+      <i>–</i><input class="champ" type="number" min="0" max="80" inputmode="numeric" data-pr="ext" value="${m.prono?.ext ?? ''}" aria-label="Buts de ${esc(m.ext)}">
+      <span class="${m.medoc === 'ext' ? 'med' : ''}">${esc(m.ext)}</span></div>
+    <div class="pr-but"><select class="champ" data-pr="buteur" aria-label="Meilleur buteur du club"><option value="">Meilleur buteur du club (facultatif)</option>
+      ${joueurs(m.equipe).map(c => `<option value="${c.id}"${m.prono?.buteur === c.id ? ' selected' : ''}>${esc(c.nom)}</option>`).join('')}</select>
+      <button class="btn gold petit" data-prono="${esc(m.rid)}">${m.prono ? 'Modifier' : 'Valider'}</button></div></div>`).join('');
+  const passes = d.passes.map(m => `<div class="pr-r"><div><b>${esc(m.dom)} ${m.score.join(' – ')} ${esc(m.ext)}</b>
+      <small>Ton prono : ${m.prono.dom} – ${m.prono.ext}${m.prono.buteur ? ' · ' + esc(nomC(m.prono.buteur)) : ''}${m.buteur ? ` · meilleur buteur : ${esc(nomC(m.buteur.carte))} (${m.buteur.buts})` : ''}</small></div>
+    <em class="${m.prono.points ? 'gagne' : ''}">${m.prono.points == null ? '…' : '+' + m.prono.points}</em></div>`).join('');
+  const classe = (l, vide) => l.length ? `<div class="classe av-l">${l.map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}"><span>${i + 1}</span>${avatarHTML(x.perso)}<b>${esc(x.pseudo)}</b><em>${plur(x.points, 'pt')}</em></div>`).join('')}</div>` : `<p class="sub">${vide}</p>`;
+  return `${retour('social', 'Social')}<h1>Pronos</h1>
+    <p class="sub">Devine le score des matchs du club et leur meilleur buteur, avant le coup d’envoi 🔮</p>
+    <p class="pr-bareme">Score exact <b>${B.exact} pts</b> · bon vainqueur <b>${B.issue}</b> (+${B.ecart} avec le bon écart) · buteur <b>${B.buteur}</b> · 1 point = ${d.piecesPoint} <i class="coin"></i></p>
+    <h2>À pronostiquer</h2>${aVenir || '<p class="sub">Pas de match du club dans les 7 prochains jours.</p>'}
+    ${passes ? `<h2>Tes résultats</h2><div class="pr-rs">${passes}</div>` : ''}
+    <h2>Classement${d.semaine ? ` · semaine du ${dateCourte(d.semaine)}` : ''}</h2>${classe(d.classementSemaine, 'Les points arrivent après les matchs.')}
+    <h2>Saison <small class="sub">· toi : ${plur(d.mesPoints, 'point')}</small></h2>${classe(d.classementSaison, 'Personne pour l’instant.')}`;
+}
+function validerProno(rid) {
+  const l = document.querySelector(`[data-prono-l="${CSS.escape(rid)}"]`), v = k => l.querySelector(`[data-pr="${k}"]`).value;
+  if (v('dom') === '' || v('ext') === '') return toast('Mets un score pour les deux équipes');
+  action(Compte.pronostiquer(rid, +v('dom'), +v('ext'), v('buteur')), d => { SOC.pronos = d; Son.jouer('pari'); toast('Prono enregistré 🔮'); route(true); });
+}
+
+// ── ligue de la semaine (Jouer) ──────────────────────────────────────────────────
+function vueLigue() {
+  chargerSoc('ligue', () => Compte.mesLigue());
+  const d = SOC.ligue;
+  if (!d) return `${retour('jouer', 'Jouer')}<h1>Ligue</h1><p class="sub">Chargement…</p>`;
+  const n = d.classement.length, reste = Math.max(0, d.parJour - d.jouesAujourdhui), b = d.bilan, R = d.recompenses || {};
+  const recomp = k => { const r = {...(R[k] || R.autres || {})}; if (r.pieces) r.pieces = Math.round(r.pieces * d.facteur); return RECOMP(r); };
+  const lignes = d.classement.map((x, i) => { const zone = i < d.montee ? 'monte' : i >= n - d.descente ? 'descend' : '';
+    const peut = !x.moi && reste > 0 && x.contreMoi < d.memeAdversaire;
+    return `<div class="lg-l ${zone}${x.moi ? ' moi-l' : ''}"><span>${i + 1}</span>${x.humain ? avatarHTML(x.perso) : '<span class="av bot" aria-hidden="true">🤖</span>'}
+      <b>${esc(x.nom)}${x.note ? ` <small>${x.note}</small>` : ''}</b><small title="matchs joués">${x.joues} J</small><em>${x.points}</em>
+      ${x.moi ? '<i class="lg-moi">toi</i>' : `<button class="btn ${peut ? 'gold' : 'ghost'} petit" data-ligue="${esc(x.id)}"${peut ? '' : ' disabled'}>${x.contreMoi >= d.memeAdversaire ? '✓' : 'Jouer'}</button>`}</div>`; }).join('');
+  return `${retour('jouer', 'Jouer')}<h1>Ligue · ${esc(d.nom)}</h1>
+    ${b ? `<div class="lg-bilan"><b>Semaine passée : ${b.rang}${b.rang === 1 ? 'er' : 'e'} sur ${b.sur}</b>
+      <small>${b.apres < b.avant ? `Montée en ${esc(b.nomApres)} 🎉` : b.apres > b.avant ? `Descente en ${esc(b.nomApres)}` : `Toujours en ${esc(b.nomApres)}`} · ${RECOMP(b.recompense || {})}</small></div>` : ''}
+    <p class="sub">Joue contre les équipes de ton groupe (2 fois chacune au plus). Lundi : les ${d.montee} premiers montent, les ${d.descente} derniers descendent.</p>
+    <p class="lg-info"><b>${reste}/${d.parJour}</b> match${reste > 1 ? 's' : ''} aujourd’hui · jusqu’au ${dateCourte(d.fin)}</p>
+    <div class="lg-tab">${lignes}</div>
+    <h2>Récompenses du lundi</h2>
+    <div class="lg-rec"><div><b>1er</b>${recomp('1')}</div><div><b>2e</b>${recomp('2')}</div><div><b>3e</b>${recomp('3')}</div><div><b>Les autres</b>${recomp('autres')}</div></div>`;
+}
+function jouerLigue(id) {
+  action(Compte.ligueJouer(id), r => {
+    SOC.ligue = r.ligue; Son.jouer(r.match.resultat === 'gagne' ? 'recompense' : 'sifflet');
+    ouvrirOverlay(`<div class="sheet lg-res r-${r.match.resultat}"><h3>${r.match.resultat === 'gagne' ? 'Victoire !' : r.match.resultat === 'nul' ? 'Match nul' : 'Défaite'}</h3>
+      <p class="lg-sc"><span>Toi</span><b>${r.match.a} – ${r.match.b}</b><span>${esc(r.adversaire)}</span></p>
+      <p class="sub centre">+${plur(r.points, 'point')} au classement · +${nb(r.pieces)} <i class="coin"></i></p>
+      <button class="btn gold" data-act="fermer">Continuer</button></div>`);
+  });
+}
+
+// ── clubs de joueurs (Social) ────────────────────────────────────────────────────
+function vueClubs() {
+  chargerSoc('clubs', () => Compte.monClub(SOC.rechClub));
+  const d = SOC.clubs;
+  if (!d) return `${retour('social', 'Social')}<h1>Clubs</h1><p class="sub">Chargement…</p>`;
+  const liste = d.clubs.map((x, i) => `<div class="cl-l"><span>${i + 1}</span><b>${esc(x.nom)}</b><small>${x.membres}/${d.max} · ${plur(x.victoires, 'victoire')}</small>
+    ${d.club ? '' : `<button class="btn ghost petit" data-club-rejoindre="${x.id}"${x.membres >= d.max ? ' disabled' : ''}>Rejoindre</button>`}</div>`).join('');
+  if (!d.club) return `${retour('social', 'Social')}<h1>Clubs</h1>
+    <p class="sub">Un club, c’est jusqu’à ${d.max} joueurs avec un objectif commun chaque semaine : leurs victoires s’additionnent 🛡️</p>
+    <h2>Créer un club</h2><div class="cl-creer"><input class="champ" id="club-nom" maxlength="24" placeholder="Nom du club (ex. Les parents de la SF2)"><button class="btn gold" data-act="club-creer">Créer</button></div>
+    <h2>Rejoindre un club</h2><input class="champ" type="search" placeholder="Chercher un club" value="${esc(SOC.rechClub || '')}" data-club-recherche>
+    <div class="cl-liste">${liste || '<p class="sub">Aucun club pour l’instant : crée le premier !</p>'}</div>`;
+  const c = d.club;
+  return `${retour('social', 'Social')}<h1>${esc(c.nom)}</h1>
+    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, ligue, défis)</p>
+    <div class="cl-pal">${c.paliers.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * c.victoires / p.objectif)}%"></i></span>
+      ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>
+    <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${esc(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
+      <small>niv. ${m.niveau}</small><em>${plur(m.victoires, 'victoire')}</em></div>`).join('')}</div>
+    <h2>Classement des clubs</h2><div class="cl-liste">${liste}</div>
+    <button class="btn ghost danger" data-act="club-quitter" style="width:100%;margin-top:14px">Quitter le club</button>`;
+}
+
+// ── albums (Club) ────────────────────────────────────────────────────────────────
+function vueAlbums() {
+  const A = S().albums || [], eqs = [...new Set(A.map(a => a.equipe))];
+  return `${retour('club', 'Club')}<h1>Albums</h1>
+    <p class="sub">Une équipe complète à un palier (une carte de chaque joueur, à ce palier ou mieux) = une récompense 📒</p>
+    ${eqs.map(eq => `<h2>${esc(NOM_EQUIPE[eq] || eq)} <small class="sub">${eq}</small></h2><div class="alb">${A.filter(a => a.equipe === eq).map(a => {
+      const plein = a.total && a.possede >= a.total;
+      return `<div class="alb-t t-${a.palier}${a.fait ? ' fait' : plein ? ' plein' : ''}"><b>${R_LABEL[a.palier]}</b><small>${a.possede}/${a.total}</small>
+        <span class="bar"><i style="width:${a.total ? 100 * a.possede / a.total : 0}%"></i></span><span class="alb-r">${RECOMP(a.recompense || {})}</span>
+        ${a.fait ? '<em>✓ Fini</em>' : plein ? `<button class="btn gold petit" data-album="${a.equipe}:${a.palier}">Récupérer</button>` : ''}</div>`; }).join('')}</div>`).join('')}`;
+}
+
+// ── staff (Club) ─────────────────────────────────────────────────────────────────
+const STAFF_IC = {prepa: '🏋️', adjoint: '📋', defense: '🛡️', gardiens: '🧤', kine: '💆'};
+function vueStaff() {
+  const st = S().staff || {liste: [], prix: []};
+  return `${retour('club', 'Club')}<h1>Staff</h1>
+    <p class="sub">Ils ne jouent pas, mais ils font progresser ton club. 3 niveaux chacun 🧑‍🏫</p>
+    <div class="stf">${st.liste.map(x => { const prix = st.prix[x.niveau];
+      return `<div class="stf-c${x.niveau ? ' a' : ''}"><span class="stf-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small class="stf-r">${esc(x.role)}</small>
+        <span class="stf-n" aria-label="niveau ${x.niveau} sur 3">${'★'.repeat(x.niveau)}${'☆'.repeat(3 - x.niveau)}</span><p>${esc(x.effet)}</p>
+        ${x.niveau >= 3 ? '<em>Niveau maximum</em>' : `<button class="btn gold petit" data-staff="${x.id}"${S().pieces >= prix ? '' : ' disabled'}>${x.niveau ? `Niveau ${x.niveau + 1}` : 'Recruter'} · ${nb(prix)} <i class="coin"></i></button>`}</div>`; }).join('')}</div>`;
+}
 const COMPO = {id: null, choix: []};
 function vueDefis() {
   const d = S().defis || [];
@@ -563,7 +686,10 @@ function vueClub() {
   const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
   const nf = CARTES.filter(c => fusionsPossibles(c.id).length).length;
   const differentes = new Set(EX().filter(x => !PAR_ID[x.carte]?.legende).map(x => x.carte)).size;
+  const nbAlbums = (S().albums || []).filter(a => !a.fait && a.total && a.possede >= a.total).length;
   return `<h1>Mon club</h1>
+    <div class="portes club-portes"><a class="porte albums" href="#albums"><span class="porte-ic" aria-hidden="true">📒</span><b>Albums</b><small>Complète chaque équipe, palier par palier</small>${nbAlbums ? `<b class="pastille">${nbAlbums}</b>` : ''}</a>
+      <a class="porte staff" href="#staff"><span class="porte-ic" aria-hidden="true">🧑‍🏫</span><b>Staff</b><small>Ils ne jouent pas, mais aident ton club</small></a></div>
     <h2>Ta collection</h2>
     <div class="stats-row"><div class="stat"><b>${differentes}/${enJeu().length}</b><span>joueurs</span></div>
     <div class="stat"><b>${EX().length}</b><span>cartes</span></div>
@@ -729,8 +855,13 @@ function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
   // sur le terrain : une vignette résumée (photo ronde aux couleurs du palier + nom), bien plus lisible qu'une carte en petit
-  const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id);
-    return `${c ? vignetteHTML(c) : '<span class="empty">+</span>'}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
+  const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id), cap = c && c.ex?.id === S().capitaine;
+    return `${c ? vignetteHTML(c) : '<span class="empty">+</span>'}${cap ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
+  // liens : deux voisins de la même équipe du club (leur collectif compte), en doré
+  const posDe = id => { const p = POSTES.find(x => x.id === id), [x, y] = p.gb ? [0, 1.1] : pl[id]; return [px(x), py(y)]; };
+  const liens = LIENS.map(([u, v]) => { const a = aligne(u), b = aligne(v); if (!a || !b) return '';
+    const [x1, y1] = posDe(u), [x2, y2] = posDe(v), meme = a.equipe === b.equipe;
+    return `<line class="${meme ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
   const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
   // notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
@@ -751,7 +882,8 @@ function vueEquipe() {
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
     <p class="pitch-dispo">Placement en défense <b>${def[1]}</b><small>à changer dans Tactique, plus bas</small></p>
-    <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}${slots}</div>
+    <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
+    <p class="sub petit">Liens dorés : des coéquipiers de la même équipe côte à côte (le bonus collectif). <b>C</b> : ton capitaine, +${PARAMS.capitaine_bonus ?? 2} en match.${S().capitaine ? '' : ' Nomme-le en touchant son poste.'}</p>
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
@@ -770,7 +902,8 @@ function choisir(poste) {
   const exA = S().equipe?.[poste] && exParId(S().equipe[poste]), actuel = exA && PAR_ID[exA.carte] ? vue(exA) : null;
   ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
     ${actuel ? `<div class="pick-actuel">${carteHTML(actuel, {note: noteAuPoste(actuel, poste)})}<div><small>Aligné(e)</small><b>${esc(actuel.nom)}</b></div>
-      <button class="btn ghost petit" data-voir-fiche="${actuel.id}" data-poste="${poste}">Voir la fiche</button></div>` : ''}
+      <button class="btn ghost petit" data-voir-fiche="${actuel.id}" data-poste="${poste}">Voir la fiche</button>
+      ${S().capitaine === actuel.ex.id ? '<span class="cap-on">C · capitaine</span>' : `<button class="btn ghost petit" data-capitaine="${actuel.ex.id}">Nommer capitaine</button>`}</div>` : ''}
     <div class="picklist">${ok.length ? ok.map(c => `<div class="pick-l"><button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>
       <button class="pick-f" data-voir-fiche="${c.id}" data-poste="${poste}" aria-label="Fiche de ${esc(c.nom)}"><span aria-hidden="true">⬡</span>Fiche</button></div>`).join('')
       : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des boosters !</p>`}</div>
@@ -828,6 +961,8 @@ function vueJouer() {
       <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>
+    <a class="porte ligue" href="#ligue"><span class="porte-ic" aria-hidden="true">🏟️</span><b>Ligue de la semaine</b>
+      <small>${esc(e.ligue?.nom || 'Division 7')} · groupes de 10, montées et descentes chaque lundi${e.ligue?.bilan ? ' · <em class="md-porte">Bilan de la semaine !</em>' : ''}</small></a>
     <a class="porte defis" href="#defis"><span class="porte-ic" aria-hidden="true">🧩</span><b>Défis</b>
       <small>${(e.defis || []).filter(x => !x.fait).length} à faire · donne tes cartes en trop contre des boosters</small></a>`;
 }
@@ -1675,7 +1810,9 @@ function vueSocial() {
   return `<h1>Social</h1>
     <div class="portes">${porte('classement', '🏅', 'Classement', 'Le niveau de poule de chaque joueur')}
     ${porte('marche', '⇄', 'Transferts', 'Tes listes : 7 joueurs voulus, 7 à donner, et les échanges qui collent').replace('</a>', S().social?.transferts ? `<b class="pastille">${S().social.transferts}</b></a>` : '</a>')}
-    ${porte('paris', '🎟️', 'Paris', 'Les vrais matchs du Médoc')}</div>
+    ${porte('paris', '🎟️', 'Paris', 'Les vrais matchs du Médoc')}
+    ${porte('pronos', '🔮', 'Pronos', 'Devine le score et le buteur des matchs du week-end')}
+    ${porte('clubs', '🛡️', 'Clubs', S().club ? esc(S().club.nom) : 'Rejoins un club : un objectif commun chaque semaine')}</div>
     <p class="sub petit">Tes ami(e)s sont dans la bulle en bas à droite : messages, échanges, défis.</p>`;
 }
 const SOC = {classement: null, amis: null, charge: {}, ajout: '', echange: null, panneau: null, conv: null};
@@ -1820,7 +1957,16 @@ function vueCompte() {
 }
 function fenetreCompte() {
   const e = S();
-  ouvrirOverlay(`<div class="sheet"><h3>${esc(e.pseudo)} <small>niveau ${e.niveau}</small></h3><p class="sub">${esc(Compte.email)}</p>
+  const deb = new Set(e.persoDebloques || []), cat = e.persoCatalogue || [];
+  const choix = type => `<div class="perso-l">${cat.filter(k => k.type === type).map(k => { const ok = deb.has(k.id), on = (e.perso || {})[type] === k.id;
+    const apercu = type === 'avatar' ? avatarHTML({avatar: k.id, cadre: e.perso?.cadre}) : type === 'cadre' ? avatarHTML({avatar: e.perso?.avatar, cadre: k.id}) : `<i class="fond-p fd-${k.id}"></i>`;
+    return `<button class="perso-o${on ? ' on' : ''}${ok ? '' : ' verrou'}" ${ok ? `data-perso="${type}:${k.id}"` : 'disabled'} title="${esc(k.condition || k.nom)}">${apercu}<small>${esc(k.nom)}</small>
+      ${ok ? '' : `<em>🔒 ${esc(k.condition)}</em>`}</button>`; }).join('')}</div>`;
+  ouvrirOverlay(`<div class="sheet compte-s"><div class="profil-t fd-${esc(e.perso?.fond || 'nuit')}">${avatarHTML(e.perso, 'grand')}<div><h3>${esc(e.pseudo)}</h3>
+      <small>niveau ${e.niveau}${e.ligue ? ` · ${esc(e.ligue.nom)}` : ''}${e.club ? ` · ${esc(e.club.nom)}` : ''}</small></div></div><p class="sub">${esc(Compte.email)}</p>
+    <details class="perso"><summary>Personnaliser mon profil</summary>
+      <h4>Avatar</h4>${choix('avatar')}<h4>Cadre</h4>${choix('cadre')}<h4>Fond</h4>${choix('fond')}
+      <p class="sub petit">Les autres les voient dans les classements, la ligue et les clubs. Débloque-en dans le passe, les albums et la ligue.</p></details>
     <div class="sons">${[['musique', '🎵', 'Musique'], ['effets', '🔊', 'Bruitages']].map(([k, ic, l]) =>
       `<button class="son-b${Son.reglages[k] ? ' on' : ''}" data-act="son-${k}" aria-pressed="${Son.reglages[k]}"><span aria-hidden="true">${ic}</span>${l}<b>${Son.reglages[k] ? 'Oui' : 'Non'}</b></button>`).join('')}</div>
     <button class="btn ghost" data-act="deconnexion">Se déconnecter</button>
@@ -2212,7 +2358,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2290,6 +2436,16 @@ document.addEventListener('click', e => {
   if (a === 'choix-coach') return lancerCoach();
   if (d.cc !== undefined) return toucherCoach(+d.cc);
   if (a === 'cc-fin') return fermerCoach();
+  if (d.prono) return validerProno(d.prono);
+  if (d.ligue) return jouerLigue(d.ligue);
+  if (a === 'club-creer') { const nom = $('#club-nom')?.value || ''; return action(Compte.clubCreer(nom), r => { SOC.clubs = r; Son.jouer('recompense'); toast('Club créé 🛡️'); route(true); }); }
+  if (d.clubRejoindre) return action(Compte.clubRejoindre(+d.clubRejoindre), r => { SOC.clubs = r; toast('Bienvenue au club !'); route(true); });
+  if (a === 'club-quitter') { if (!confirm('Quitter ton club ?')) return; return action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }); }
+  if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
+  if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
+  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`Niveau ${r.niveau} 🧑‍🏫`); route(true); });
+  if (d.capitaine) return action(Compte.choisirCapitaine(d.capitaine), () => { Son.jouer('tap'); toast('Nouveau capitaine'); fermerOverlay(); });
+  if (d.perso) { const [type, id] = d.perso.split(':'); return action(Compte.choisirPerso(type, id), () => { fenetreCompte(); const d = document.querySelector('#overlay details.perso'); if (d) d.open = true; }); }
   if (d.queteS) return action(Compte.reclamerQueteSemaine(d.queteS), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (a === 'passe') return fenetrePasse();
   if (a === 'rien') return;
@@ -2351,6 +2507,12 @@ document.addEventListener('submit', e => {
 // annonce : recherche du joueur voulu ; pari : mise et gain possible
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset.clubRecherche !== undefined) {   // recherche d'un club : la liste se recharge, le champ garde le clavier
+    SOC.rechClub = t.value; clearTimeout(SOC.tRech);
+    SOC.tRech = setTimeout(() => Compte.monClub(SOC.rechClub).then(d => { SOC.clubs = d; route(true);
+      const c = $('[data-club-recherche]'); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } }).catch(er => toast(er.message)), 350);
+    return;
+  }
   if (t.dataset.chercheListe !== undefined) { MKT.recherche = t.value; const pris = new Set(MKT.data.veux.map(x => x.carte + ':' + x.palier));
     $('#liste-ajout').innerHTML = listeAjoutVeux(joueursVoulus(), pris); return; }
   if (t.dataset.mise !== undefined) {
@@ -2610,7 +2772,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=59').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=60').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
