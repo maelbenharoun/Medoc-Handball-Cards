@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-07",
+ "maj": "2026-11-08",
  "saison": "2026-2027",
  "semaines": [
   {
@@ -350,5 +350,83 @@
     }
    }
   }
- ]
+ ],
+ "buteurs": {
+  "2635730": {
+   "carte": "clement-joannon",
+   "buts": 9
+  },
+  "2635735": {
+   "carte": "enguerran-chaigneau",
+   "buts": 14
+  },
+  "2635740": {
+   "carte": "enguerran-chaigneau",
+   "buts": 13
+  },
+  "2635745": {
+   "carte": "enguerran-chaigneau",
+   "buts": 9
+  },
+  "2635750": {
+   "carte": "enguerran-chaigneau",
+   "buts": 10
+  },
+  "2636263": {
+   "carte": "elodie-perez",
+   "buts": 11
+  },
+  "2636268": {
+   "carte": "camille-seurin",
+   "buts": 8
+  },
+  "2636273": {
+   "carte": "lea-perez",
+   "buts": 8
+  },
+  "2636283": {
+   "carte": "amandine-pazat",
+   "buts": 7
+  },
+  "2645736": {
+   "carte": "zadig-stora-simonet",
+   "buts": 11
+  },
+  "2645741": {
+   "carte": "theo-durand",
+   "buts": 8
+  },
+  "2645746": {
+   "carte": "wassia-donzow",
+   "buts": 8
+  },
+  "2645751": {
+   "carte": "mathis-durand",
+   "buts": 11
+  },
+  "2645758": {
+   "carte": "maxime-rabut",
+   "buts": 10
+  },
+  "2647793": {
+   "carte": "cecilia-ennelin",
+   "buts": 6
+  },
+  "2647798": {
+   "carte": "julie-valentin",
+   "buts": 14
+  },
+  "2647803": {
+   "carte": "julie-valentin",
+   "buts": 11
+  },
+  "2647808": {
+   "carte": "julie-valentin",
+   "buts": 8
+  },
+  "2647815": {
+   "carte": "julie-valentin",
+   "buts": 9
+  }
+ }
 }

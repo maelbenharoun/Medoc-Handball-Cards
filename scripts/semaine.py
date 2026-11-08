@@ -50,13 +50,18 @@ def lignes_club(k, d, cartes, avant):
         m = {"rid": str(e["rid"]), "date": e["date"], "adv": adv, "score": score, "lieu": "dom" if cote == "h" else "ext"}
         s = semaines.setdefault(lundi(j).isoformat(), {"matchs": [], "joueurs": {}})
         s["matchs"].append(m)
+        meilleur = None   # meilleur buteur du club dans ce match (pour les pronostics du jeu)
         for ligne in e["sheet"].get(cote, []):
             c = carte_de(str(ligne[0]), cartes)
             if not c:
                 continue
             buts, tirs, arrets = int(ligne[2] or 0), int(ligne[3] or 0), int(ligne[5] or 0)
+            if buts and (not meilleur or buts > meilleur["buts"]):
+                meilleur = {"carte": c["id"], "buts": buts}
             x = s["joueurs"].setdefault(c["id"], {"carte": c["id"], "nom": c["nom"], "buts": 0, "tirs": 0, "arrets": 0, "rid": m["rid"]})
             x["buts"] += buts; x["tirs"] += max(tirs, buts); x["arrets"] += arrets
+        if meilleur:
+            s.setdefault("buteurs", {})[m["rid"]] = meilleur
     return semaines
 
 
@@ -86,6 +91,7 @@ def joueurs_semaine(D, cartes, ancien=None, aujourdhui=None):
             continue   # équipe sans cartes (jeunes) : pas de joueur de la semaine
         par_equipe[eq] = lignes_club(k, d, cartes, avant)   # un joueur d'une autre équipe du club peut être élu
     lundis = sorted({l for s in par_equipe.values() for l in s} | set(gardees))
+    buteurs = {rid: b for s in par_equipe.values() for x in s.values() for rid, b in x.get("buteurs", {}).items()}
     deja = {eq: {} for eq in par_equipe}
     semaines = []
     for l in lundis:
@@ -107,7 +113,7 @@ def joueurs_semaine(D, cartes, ancien=None, aujourdhui=None):
             deja.setdefault(eq, {})[x["carte"]] = deja.setdefault(eq, {}).get(x["carte"], 0) + 1
         if equipes:
             semaines.append({"lundi": l, "equipes": dict(sorted(equipes.items()))})
-    return {"maj": aujourdhui.isoformat(), "saison": "2026-2027", "semaines": semaines}
+    return {"maj": aujourdhui.isoformat(), "saison": "2026-2027", "semaines": semaines, "buteurs": dict(sorted(buteurs.items()))}
 
 
 def maj(D, aujourdhui=None):
@@ -116,7 +122,7 @@ def maj(D, aujourdhui=None):
     f = DATA / "semaine.json"
     ancien = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
     nouveau = joueurs_semaine(D, cartes, ancien, aujourdhui)
-    if ancien and ancien.get("semaines") == nouveau["semaines"]:
+    if ancien and ancien.get("semaines") == nouveau["semaines"] and ancien.get("buteurs") == nouveau["buteurs"]:
         return nouveau, False
     f.write_text(json.dumps(nouveau, ensure_ascii=False, indent=1), encoding="utf-8")
     return nouveau, True

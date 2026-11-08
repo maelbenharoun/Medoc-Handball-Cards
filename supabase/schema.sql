@@ -82,7 +82,14 @@ insert into parametres values (1, '{
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
   "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
-  "legende_chance": 0.002, "legende_note": 100
+  "legende_chance": 0.002, "legende_note": 100,
+  "prono_pieces_point": 20, "prono_points": {"exact": 5, "issue": 2, "ecart": 1, "buteur": 3},
+  "ligue_matchs_jour": 5, "ligue_taille": 10, "ligue_divisions": 8, "ligue_montee": 3, "ligue_descente": 3, "ligue_meme_adversaire": 2,
+  "ligue_pieces": {"gagne": 40, "nul": 20, "perdu": 10},
+  "ligue_recompenses": {"1": {"or": 1, "pieces": 1000}, "2": {"bonus": 2, "pieces": 700}, "3": {"bonus": 1, "pieces": 500}, "autres": {"pieces": 200}},
+  "club_membres_max": 20, "club_paliers": [25, 50, 100], "club_recompenses": [{"bonus": 1}, {"bonus": 2}, {"or": 1}],
+  "albums_recompenses": {"bronze": {"pieces": 300}, "argent": {"bonus": 2}, "or": {"or": 1}, "ultime": {"or": 2, "pieces": 2000}},
+  "capitaine_bonus": 2, "staff_prix": [1000, 3000, 8000]
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -403,6 +410,7 @@ create or replace function matchs_a_jour(p_uid uuid) returns void language plpgs
 declare p profils; minutes int := parami('match_minutes'); maxi int := parami('match_stock_max'); n int;
 begin
   select * into p from profils where user_id = p_uid for update;   -- deux appels à la fois : le second attend (pas de double recharge)
+  minutes := round(minutes * (1 - .1 * staff_niveau(p_uid, 'kine')));   -- kiné : 10 % plus vite par niveau
   if p.matchs >= maxi then update profils set matchs_maj = now() where user_id = p_uid; return; end if;
   n := floor(extract(epoch from now() - p.matchs_maj) / (minutes * 60));
   if n <= 0 then return; end if;
@@ -597,6 +605,13 @@ begin
     where e.value ->> 'carte' in (select id from cartes)
   on conflict (lundi, equipe) do update set carte = excluded.carte, stats = excluded.stats;
   get diagnostics n = row_count;
+  -- meilleur buteur du club dans chaque match (pour les pronostics)
+  if jsonb_typeof(p -> 'buteurs') = 'object' then
+    insert into buteurs_match (rid, carte, buts) select b.key, b.value ->> 'carte', coalesce((b.value ->> 'buts')::int, 0) from jsonb_each(p -> 'buteurs') b
+      where b.value ->> 'carte' in (select id from cartes)
+    on conflict (rid) do update set carte = excluded.carte, buts = excluded.buts;
+    perform regler_pronostics();
+  end if;
   return n;
 end $$;
 
@@ -682,6 +697,149 @@ create or replace function compo_vue(p_uid uuid) returns jsonb language sql stab
       'recompense', c.recompense, 'fait', exists (select 1 from defis_faits f where f.user_id = p_uid and f.defi = c.id and f.periode = compo_periode(c.periode)))
     order by c.periode desc, c.id), '[]')
   from compo_catalogue() c where c.id in (select compo_actifs())
+$$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Pronostics du week-end, ligue de la semaine, clubs de joueurs, albums, capitaine, staff, personnalisation (demande de Maël)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Pronostics : le score des vrais matchs du club et leur meilleur buteur, avant le coup d'envoi ; des points, et des pièces
+create table if not exists pronostics (user_id uuid not null references profils on delete cascade, rid text not null references matchs on delete cascade,
+  dom int not null check (dom between 0 and 80), ext int not null check (ext between 0 and 80), buteur text, points int, payes int not null default 0,
+  le timestamptz not null default now(), primary key (user_id, rid));
+alter table pronostics enable row level security;
+revoke all on pronostics from anon, authenticated;
+-- meilleur buteur du club dans chaque match (data/semaine.json, d'après les feuilles du site)
+create table if not exists buteurs_match (rid text primary key, carte text not null, buts int not null default 0);
+alter table buteurs_match enable row level security;
+revoke all on buteurs_match from anon, authenticated;
+
+-- Ligue de la semaine : groupes de 10 (joueurs de même division + équipes de l'ordinateur pour compléter), du lundi au dimanche
+create table if not exists ligue_groupes (id bigserial primary key, lundi date not null, division int not null, bots jsonb not null default '[]',
+  cree_le timestamptz not null default now());
+create table if not exists ligue_membres (groupe bigint not null references ligue_groupes on delete cascade, user_id uuid not null references profils on delete cascade,
+  lundi date not null, points int not null default 0, joues int not null default 0, gagnes int not null default 0, nuls int not null default 0, perdus int not null default 0,
+  primary key (groupe, user_id), unique (user_id, lundi));
+alter table ligue_membres add column if not exists clos boolean not null default false;   -- semaine finie et récompensée
+create table if not exists ligue_matchs (id bigserial primary key, groupe bigint not null references ligue_groupes on delete cascade,
+  user_id uuid not null references profils on delete cascade, adversaire text not null, score int[], resultat text, le timestamptz not null default now());
+create index if not exists ligue_matchs_user on ligue_matchs (user_id, le);
+alter table ligue_groupes enable row level security;
+alter table ligue_membres enable row level security;
+alter table ligue_matchs enable row level security;
+revoke all on ligue_groupes, ligue_membres, ligue_matchs from anon, authenticated;
+alter table profils add column if not exists ligue_div int not null default 8;        -- 8 : la plus basse, 1 : la meilleure
+alter table profils add column if not exists ligue_meilleure int not null default 8;
+alter table profils add column if not exists ligue_bilan jsonb;                         -- résultat de la semaine passée, montré une fois
+alter table rencontres drop constraint if exists rencontres_type_check;
+alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami', 'ligue', 'defense_ligue'));
+
+-- Clubs de joueurs : 20 au plus, un objectif commun chaque semaine (victoires de tous les membres)
+create table if not exists clubs (id bigserial primary key, nom text not null, cree_par uuid references profils on delete set null, cree_le timestamptz not null default now());
+create unique index if not exists clubs_nom on clubs (lower(nom));
+create table if not exists clubs_membres (user_id uuid primary key references profils on delete cascade, club bigint not null references clubs on delete cascade,
+  role text not null default 'membre' check (role in ('president', 'membre')), rejoint_le timestamptz not null default now());
+create table if not exists clubs_recompenses (user_id uuid not null references profils on delete cascade, lundi date not null, palier int not null,
+  primary key (user_id, lundi, palier));
+alter table clubs enable row level security;
+alter table clubs_membres enable row level security;
+alter table clubs_recompenses enable row level security;
+revoke all on clubs, clubs_membres, clubs_recompenses from anon, authenticated;
+
+-- Albums : une équipe complète à un palier (au moins une carte de chaque joueur en jeu, à ce palier ou mieux)
+create table if not exists albums_faits (user_id uuid not null references profils on delete cascade, equipe text not null, palier text not null,
+  le timestamptz not null default now(), primary key (user_id, equipe, palier));
+alter table albums_faits enable row level security;
+revoke all on albums_faits from anon, authenticated;
+
+-- Capitaine (un exemplaire de l'équipe : +2 de note en match), staff (ne joue pas, aide le club), personnalisation du profil
+alter table profils add column if not exists capitaine uuid;
+create table if not exists staff (user_id uuid not null references profils on delete cascade, staff text not null, niveau int not null default 1 check (niveau between 1 and 3),
+  primary key (user_id, staff));
+alter table staff enable row level security;
+revoke all on staff from anon, authenticated;
+alter table profils add column if not exists perso jsonb not null default '{}';   -- {avatar, cadre, fond}
+
+create or replace function lundi_courant() returns date language sql stable as $$ select date_trunc('week', aujourdhui())::date $$;
+create or replace function debut_semaine() returns timestamptz language sql stable as $$ select lundi_courant()::timestamp at time zone 'Europe/Paris' $$;
+
+-- ── staff
+create or replace function staff_catalogue() returns table (id text, nom text, role text, effet text) language sql immutable as $$
+  values ('prepa', 'Préparateur physique', 'Entraînement', '+25 % d’XP par séance d’entraînement et par niveau'),
+         ('adjoint', 'Entraîneur adjoint', 'Attaque', '+1 % d’attaque en match par niveau'),
+         ('defense', 'Coach défensif', 'Défense', '+1 % de défense en match par niveau'),
+         ('gardiens', 'Entraîneur des gardiens', 'Gardien(ne)', '+1 de note pour ta gardienne ou ton gardien en match par niveau'),
+         ('kine', 'Kiné', 'Récupération', 'Matchs de championnat rechargés 10 % plus vite par niveau')
+$$;
+create or replace function staff_niveau(p_uid uuid, p_staff text) returns int language sql stable security definer set search_path = public as $$
+  select coalesce((select niveau from staff where user_id = p_uid and staff = p_staff), 0)
+$$;
+
+-- ── albums
+create or replace function albums_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('equipe', e.equipe, 'palier', pal, 'total', e.n,
+      'possede', (select count(distinct c.id) from cartes c join exemplaires x on x.carte_id = c.id and x.proprietaire = p_uid
+        where c.actif and c.equipe = e.equipe and array_position(array['bronze', 'argent', 'or', 'ultime'], x.palier) >= array_position(array['bronze', 'argent', 'or', 'ultime'], pal)),
+      'fait', exists (select 1 from albums_faits f where f.user_id = p_uid and f.equipe = e.equipe and f.palier = pal),
+      'recompense', param('albums_recompenses') -> pal)
+    order by e.equipe, array_position(array['bronze', 'argent', 'or', 'ultime'], pal)), '[]')
+  from (select equipe, count(*) n from cartes where actif group by equipe) e, unnest(array['bronze', 'argent', 'or', 'ultime']) pal
+$$;
+
+-- ── personnalisation : ce qui est débloqué se calcule (rien à enregistrer)
+create or replace function perso_catalogue() returns table (id text, type text, nom text, condition text) language sql immutable as $$
+  values ('logo', 'avatar', 'Logo du club', ''), ('maillot', 'avatar', 'Maillot de Médoc', ''), ('ballon', 'avatar', 'Ballon', ''),
+         ('gardien', 'avatar', 'Gants', 'Niveau 5'), ('trophee', 'avatar', 'Trophée', 'Atteindre la division 4 de la ligue'),
+         ('couronne', 'avatar', 'Couronne', 'Posséder une légende du club'),
+         ('simple', 'cadre', 'Simple', ''), ('bronze', 'cadre', 'Bronze', 'Finir un album Bronze'), ('argent', 'cadre', 'Argent', 'Finir un album Argent'),
+         ('or', 'cadre', 'Or', 'Finir un album Or'), ('ultime', 'cadre', 'Ultime', 'Palier 30 du passe de saison'), ('legende', 'cadre', 'Légende', 'Posséder une légende du club'),
+         ('nuit', 'fond', 'Nuit', ''), ('parquet', 'fond', 'Parquet', 'Palier 10 du passe de saison'), ('tribune', 'fond', 'Tribune', 'Palier 20 du passe de saison'),
+         ('club', 'fond', 'Couleurs du club', 'Être dans un club'), ('elite', 'fond', 'Élite', 'Atteindre la division 1 de la ligue')
+$$;
+create or replace function perso_debloques(p_uid uuid) returns text[] language sql stable security definer set search_path = public as $$
+  with p as (select * from profils where user_id = p_uid),
+       passe_max as (select coalesce(max(least(parami('passe_paliers'), xp / parami('passe_xp_palier'))), 0) m from passe where user_id = p_uid),
+       leg as (select exists (select 1 from exemplaires e join cartes c on c.id = e.carte_id where e.proprietaire = p_uid and c.legende) v)
+  select array_agg(k.id) from perso_catalogue() k, p, passe_max, leg where case k.id
+    when 'gardien' then p.niveau >= 5
+    when 'trophee' then p.ligue_meilleure <= 4
+    when 'couronne' then leg.v
+    when 'bronze' then exists (select 1 from albums_faits where user_id = p_uid and palier = 'bronze')
+    when 'argent' then exists (select 1 from albums_faits where user_id = p_uid and palier = 'argent')
+    when 'or' then exists (select 1 from albums_faits where user_id = p_uid and palier = 'or')
+    when 'ultime' then passe_max.m >= 30
+    when 'legende' then leg.v
+    when 'parquet' then passe_max.m >= 10
+    when 'tribune' then passe_max.m >= 20
+    when 'club' then exists (select 1 from clubs_membres where user_id = p_uid)
+    when 'elite' then p.ligue_meilleure <= 1
+    else true end
+$$;
+-- ce que les autres voient de mon profil (classements, ligue, club) : seulement des choix débloqués
+create or replace function perso_public(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('avatar', coalesce(p.perso ->> 'avatar', 'logo'), 'cadre', coalesce(p.perso ->> 'cadre', 'simple'), 'fond', coalesce(p.perso ->> 'fond', 'nuit'))
+  from profils p where p.user_id = p_uid
+$$;
+
+-- ── ligue : noms des divisions et équipes de l'ordinateur
+create or replace function ligue_nom(d int) returns text language sql immutable as $$ select case when d <= 1 then 'Élite' else 'Division ' || (d - 1) end $$;
+create or replace function ligue_force(d int) returns numeric language sql immutable as $$ select 52 + (8 - d) * 5 $$;
+-- points d'une équipe de l'ordinateur : ceux pris contre les joueurs, plus ses matchs entre ordinateurs (environ 1 à 2 points par jour selon sa force)
+create or replace function ligue_points_bot(b jsonb, g ligue_groupes) returns int language sql stable as $$
+  select coalesce((b ->> 'pts')::int, 0) + floor(coalesce((b ->> 'rythme')::numeric, 1.2) * least(7, greatest(0, least(aujourdhui(), g.lundi + 6) - g.lundi + 1)))::int
+$$;
+create or replace function ligue_classement(g ligue_groupes, p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by (x ->> 'points')::int desc, (x ->> 'gagnes')::int desc, x ->> 'nom'), '[]') from (
+    select jsonb_build_object('id', 'u:' || m.user_id, 'nom', pr.pseudo, 'humain', true, 'moi', m.user_id = p_uid, 'points', m.points, 'joues', m.joues,
+      'gagnes', m.gagnes, 'nuls', m.nuls, 'perdus', m.perdus, 'perso', perso_public(m.user_id),
+      'contreMoi', (select count(*) from ligue_matchs lm where lm.groupe = g.id and lm.user_id = p_uid and lm.adversaire = 'u:' || m.user_id)) x
+    from ligue_membres m join profils pr on pr.user_id = m.user_id where m.groupe = g.id
+    union all
+    select jsonb_build_object('id', 'b:' || (b ->> 'id'), 'nom', b ->> 'nom', 'humain', false, 'moi', false, 'points', ligue_points_bot(b, g),
+      'joues', coalesce((b ->> 'joues')::int, 0) + least(7, greatest(0, least(aujourdhui(), g.lundi + 6) - g.lundi + 1)), 'gagnes', coalesce((b ->> 'g')::int, 0),
+      'nuls', 0, 'perdus', 0, 'note', round((b ->> 'force')::numeric),
+      'contreMoi', (select count(*) from ligue_matchs lm where lm.groupe = g.id and lm.user_id = p_uid and lm.adversaire = 'b:' || (b ->> 'id')))
+    from jsonb_array_elements(g.bots) b) t(x)
 $$;
 
 -- État complet d'un joueur, dans le format qu'attend le jeu (serveur.js)
@@ -784,6 +942,14 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'semaine', semaine_vue(p.user_id), 'passe', passe_vue(p.user_id), 'defis', compo_vue(p.user_id),
     'legendes', coalesce((select jsonb_agg(to_jsonb(c)) from cartes c where c.legende
       and exists (select 1 from exemplaires e where e.proprietaire = p.user_id and e.carte_id = c.id)), '[]'),
+    'capitaine', p.capitaine, 'albums', albums_vue(p.user_id),
+    'staff', jsonb_build_object('prix', param('staff_prix'),
+      'liste', (select jsonb_agg(jsonb_build_object('id', k.id, 'nom', k.nom, 'role', k.role, 'effet', k.effet, 'niveau', staff_niveau(p.user_id, k.id))) from staff_catalogue() k)),
+    'perso', perso_public(p.user_id), 'persoDebloques', to_jsonb(perso_debloques(p.user_id)),
+    'persoCatalogue', (select jsonb_agg(jsonb_build_object('id', k.id, 'type', k.type, 'nom', k.nom, 'condition', k.condition)) from perso_catalogue() k),
+    'ligue', jsonb_build_object('division', p.ligue_div, 'nom', ligue_nom(p.ligue_div), 'meilleure', p.ligue_meilleure,
+      'bilan', case when p.ligue_bilan is not null and not coalesce((p.ligue_bilan ->> 'vu')::boolean, false) then p.ligue_bilan end),
+    'club', (select jsonb_build_object('id', c.id, 'nom', c.nom) from clubs c join clubs_membres m on m.club = c.id where m.user_id = p.user_id),
     'choixCoach', jsonb_build_object('prix', parami('choix_coach_prix'), 'parJour', parami('choix_coach_par_jour'),
       'faits', (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'choix-coach' and m.le >= debut_du_jour()),
       'attente', (select jsonb_build_object('poste', x.poste, 'cartes', x.cartes) from choix_coach x where x.user_id = p.user_id)))
@@ -978,7 +1144,7 @@ begin
   cout := (param('entrainement_cout') ->> e.palier)::int;
   if p.pieces < cout then raise exception 'Il faut % pièces pour cette séance', cout; end if;
   update profils set pieces = pieces - cout where user_id = p.user_id;
-  perform xp_carte(p_ex, parami('entrainement_xp'));
+  perform xp_carte(p_ex, round(parami('entrainement_xp') * (1 + .25 * staff_niveau(p.user_id, 'prepa')))::int);   -- préparateur physique
   select note into apres from exemplaires where id = p_ex;
   perform progresser(p.user_id, 'entrainement');
   niveaux := gagner_xp(p.user_id, parami('xp_entrainement'));
@@ -1088,12 +1254,21 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
+  proprio uuid; cap uuid; st_att int := 0; st_def int := 0; st_gb int := 0;
 begin
-  for l in select j.key as slot, e.note, c.postes, c.nom, c.equipe, c.ecarts, en_forme(c.id) forme
+  -- l'équipe d'un joueur : son capitaine et son staff comptent
+  select e.proprietaire into proprio from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value limit 1;
+  if proprio is not null then
+    select capitaine into cap from profils where user_id = proprio;
+    st_att := staff_niveau(proprio, 'adjoint'); st_def := staff_niveau(proprio, 'defense'); st_gb := staff_niveau(proprio, 'gardiens');
+  end if;
+  for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.ecarts, en_forme(c.id) forme
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
     -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then 5 else 0 end;
     if l.forme and ne < 99 then ne := least(99, ne + parami('semaine_forme')); end if;
+    if l.eid = cap then ne := ne + parami('capitaine_bonus'); end if;   -- capitaine : +2
+    if l.slot = 'GB' then ne := ne + st_gb; end if;                       -- entraîneur des gardiens : +1 par niveau
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom);
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
@@ -1121,8 +1296,8 @@ begin
   b_att := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 1));
   b_def := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 2));
   return jsonb_build_object(
-    'att', round((note_depuis_stat(att) + coll) * (1 + b_att), 1),
-    'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def), 1),
+    'att', round((note_depuis_stat(att) + coll) * (1 + b_att) * (1 + .01 * st_att), 1),
+    'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def) * (1 + .01 * st_def), 1),
     'note', round(notes / n + coll), 'tireurs', tireurs, 'joueurs', joueurs, 'moyennes', moy, 'bonus', jsonb_build_object('attaque', b_att, 'defense', b_def));
 end $$;
 
@@ -2417,7 +2592,7 @@ begin
         param('parcours') -> (coalesce((pr.parcours ->> 'niveau')::int, 1) - 1) ->> 'nom' nom,
         param('parcours') -> (coalesce((pr.parcours ->> 'niveau')::int, 1) - 1) ->> 'groupe' groupe,
         coalesce((select (x ->> 'pts')::int from jsonb_array_elements(pr.parcours -> 'equipes') x where (x ->> 'moi')::boolean), 0) pts,
-        pr.user_id = p.user_id moi
+        pr.user_id = p.user_id moi, perso_public(pr.user_id) perso
       from profils pr order by 2 desc limit 500) t), '[]'));
 end $$;
 
@@ -2685,6 +2860,7 @@ begin
       score_dom = excluded.score_dom, score_ext = excluded.score_ext, forfait = excluded.forfait, maj = now();
   n := jsonb_array_length(p_matchs);
   regles := regler_paris(p_regler_avant);
+  perform regler_pronostics();
   return jsonb_build_object('matchs', n, 'parisRegles', regles);
 end $$;
 create or replace function admin_publier_matchs(p_matchs jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -2952,6 +3128,329 @@ update parametres set valeurs = valeurs || '{"legende_note": 100}' where (valeur
 update exemplaires e set note = least(100, parami('legende_note')) from cartes c
   where c.id = e.carte_id and c.legende and e.note < least(100, parami('legende_note'));
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- Pronostics, ligue, clubs, albums, capitaine, staff, personnalisation : les actions du jeu
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- une récompense {pieces, bonus, or} versée au joueur
+create or replace function donner_recompense(p_uid uuid, r jsonb) returns void language sql security definer set search_path = public as $$
+  update profils set pieces = pieces + coalesce((r ->> 'pieces')::int, 0), bonus = bonus + coalesce((r ->> 'bonus')::int, 0),
+    bonus_or = bonus_or + coalesce((r ->> 'or')::int, 0) where user_id = p_uid
+$$;
+
+-- ── pronostics du week-end
+-- points d'un pronostic : score exact 5 ; sinon bon vainqueur (ou nul) 2, +1 avec le bon écart ; meilleur buteur 3
+create or replace function prono_calcul(d int, e int, b text, sd int, se int, vrai text) returns int language sql stable security definer set search_path = public as $$
+  select case when sd is null then null else
+    (case when d = sd and e = se then (param('prono_points') ->> 'exact')::int
+          when sign(d - e) = sign(sd - se) then (param('prono_points') ->> 'issue')::int + case when d - e = sd - se then (param('prono_points') ->> 'ecart')::int else 0 end
+          else 0 end)
+    + case when b is not null and b = vrai then (param('prono_points') ->> 'buteur')::int else 0 end end
+$$;
+-- relu après chaque synchro des matchs et des buteurs : points calculés, pièces versées pour les points pas encore payés
+create or replace function regler_pronostics() returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  update pronostics p set points = prono_calcul(p.dom, p.ext, p.buteur, m.score_dom, m.score_ext, (select b.carte from buteurs_match b where b.rid = m.rid))
+    from matchs m where m.rid = p.rid and m.score_dom is not null;
+  with a as (select user_id, sum(points - payes) d from pronostics where points > payes group by user_id)
+  update profils pr set pieces = pr.pieces + a.d * parami('prono_pieces_point') from a where a.user_id = pr.user_id;
+  update pronostics set payes = points where points > payes;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+create or replace function prono_match_json(m matchs, p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('rid', m.rid, 'equipe', m.equipe, 'date', m.date, 'heure', m.heure, 'dom', m.dom, 'ext', m.ext, 'medoc', m.medoc,
+    'score', case when m.score_dom is null then null else jsonb_build_array(m.score_dom, m.score_ext) end,
+    'ouvert', m.score_dom is null and coup_envoi(m) > now(),
+    'buteur', (select jsonb_build_object('carte', b.carte, 'buts', b.buts) from buteurs_match b where b.rid = m.rid),
+    'prono', (select jsonb_build_object('dom', x.dom, 'ext', x.ext, 'buteur', x.buteur, 'points', x.points) from pronostics x where x.user_id = p_uid and x.rid = m.rid))
+$$;
+create or replace function mes_pronostics() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); dern date;
+begin
+  perform regler_pronostics();
+  select date_trunc('week', max(m.date))::date into dern from pronostics x join matchs m on m.rid = x.rid where x.points is not null;
+  return jsonb_build_object(
+    'aVenir', coalesce((select jsonb_agg(prono_match_json(m, p.user_id) order by coup_envoi(m), m.equipe) from matchs m
+      where m.medoc is not null and m.score_dom is null and coup_envoi(m) > now() and m.date <= aujourdhui() + 7), '[]'),
+    'passes', coalesce((select jsonb_agg(prono_match_json(m, p.user_id) order by m.date desc, m.equipe) from matchs m
+      where m.medoc is not null and m.score_dom is not null and m.date >= aujourdhui() - 21
+        and exists (select 1 from pronostics x where x.user_id = p.user_id and x.rid = m.rid)), '[]'),
+    'semaine', dern, 'piecesPoint', parami('prono_pieces_point'), 'bareme', param('prono_points'),
+    'classementSemaine', coalesce((select jsonb_agg(t order by t.points desc, t.pseudo) from (
+      select pr.pseudo, sum(x.points)::int points, pr.user_id = p.user_id moi, perso_public(pr.user_id) perso
+      from pronostics x join matchs m on m.rid = x.rid join profils pr on pr.user_id = x.user_id
+      where x.points is not null and m.date between dern and dern + 6 group by pr.user_id, pr.pseudo order by 2 desc limit 20) t), '[]'),
+    'classementSaison', coalesce((select jsonb_agg(t order by t.points desc, t.pseudo) from (
+      select pr.pseudo, sum(x.points)::int points, pr.user_id = p.user_id moi, perso_public(pr.user_id) perso
+      from pronostics x join profils pr on pr.user_id = x.user_id where x.points is not null group by pr.user_id, pr.pseudo order by 2 desc limit 20) t), '[]'),
+    'mesPoints', (select coalesce(sum(points), 0) from pronostics where user_id = p.user_id));
+end $$;
+create or replace function pronostiquer(p_rid text, p_dom int, p_ext int, p_buteur text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m matchs;
+begin
+  select * into m from matchs where rid = p_rid;
+  if not found or m.medoc is null then raise exception 'Match inconnu'; end if;
+  if m.score_dom is not null or coup_envoi(m) <= now() then raise exception 'Trop tard : le match a commencé'; end if;
+  if m.date > aujourdhui() + 7 then raise exception 'Pronostics ouverts une semaine avant le match'; end if;
+  if p_dom is null or p_ext is null or p_dom not between 0 and 80 or p_ext not between 0 and 80 then raise exception 'Score invalide'; end if;
+  if p_buteur is not null and not exists (select 1 from cartes where id = p_buteur and actif and equipe = m.equipe) then raise exception 'Buteur inconnu'; end if;
+  insert into pronostics (user_id, rid, dom, ext, buteur) values (p.user_id, p_rid, p_dom, p_ext, p_buteur)
+    on conflict (user_id, rid) do update set dom = excluded.dom, ext = excluded.ext, buteur = excluded.buteur, le = now();
+  perform noter(p.user_id, 'prono', jsonb_build_object('rid', p_rid, 'dom', p_dom, 'ext', p_ext, 'buteur', p_buteur));
+  return mes_pronostics();
+end $$;
+
+-- ── ligue de la semaine
+-- fin de semaine (au premier passage du lundi suivant) : rang dans le groupe, montée ou descente, récompense
+create or replace function ligue_cloturer(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
+declare m ligue_membres; g ligue_groupes; cl jsonb; rang int; n int; d int; r jsonb; f numeric;
+begin
+  select * into m from ligue_membres where user_id = p_uid and lundi < lundi_courant() and not clos order by lundi desc limit 1 for update;
+  if not found then return; end if;
+  select * into g from ligue_groupes where id = m.groupe;
+  cl := ligue_classement(g, p_uid);
+  select i into rang from jsonb_array_elements(cl) with ordinality t(x, i) where (x ->> 'moi')::boolean;
+  n := jsonb_array_length(cl);
+  select ligue_div into d from profils where user_id = p_uid;
+  f := 1 + .25 * (8 - g.division);   -- plus haut, plus gros
+  r := coalesce(param('ligue_recompenses') -> rang::text, param('ligue_recompenses') -> 'autres');
+  r := r || jsonb_build_object('pieces', round(coalesce((r ->> 'pieces')::int, 0) * f));
+  perform donner_recompense(p_uid, r);
+  d := case when rang <= parami('ligue_montee') then greatest(1, g.division - 1)
+            when rang > n - parami('ligue_descente') then least(parami('ligue_divisions'), g.division + 1) else g.division end;
+  update profils set ligue_div = d, ligue_meilleure = least(ligue_meilleure, d),
+    ligue_bilan = jsonb_build_object('rang', rang, 'sur', n, 'avant', g.division, 'apres', d, 'nomAvant', ligue_nom(g.division), 'nomApres', ligue_nom(d), 'recompense', r, 'vu', false)
+    where user_id = p_uid;
+  update ligue_membres set clos = true where groupe = m.groupe and user_id = p_uid;   -- la semaine est close pour ce joueur
+  perform noter(p_uid, 'ligue-fin', jsonb_build_object('rang', rang, 'division', d, 'recompense', r));
+end $$;
+-- le groupe de la semaine du joueur (créé ou rejoint à la première visite)
+create or replace function ligue_groupe(p_uid uuid) returns ligue_groupes language plpgsql security definer set search_path = public as $$
+declare p profils; g ligue_groupes; v_bots jsonb := '[]'; v_nom text; i int := 0; f numeric; b jsonb;
+begin
+  perform ligue_cloturer(p_uid);
+  select * into p from profils where user_id = p_uid;
+  select g2.* into g from ligue_groupes g2 join ligue_membres m on m.groupe = g2.id where m.user_id = p_uid and m.lundi = lundi_courant();
+  if found then return g; end if;
+  -- un groupe de sa division avec une place (une équipe de l'ordinateur la lui laisse), sinon un nouveau groupe
+  select g2.* into g from ligue_groupes g2 where g2.lundi = lundi_courant() and g2.division = p.ligue_div and jsonb_array_length(g2.bots) > 0
+    order by g2.id limit 1 for update;
+  if found then
+    -- l'équipe de l'ordinateur la moins jouée cède sa place
+    select x into b from jsonb_array_elements(g.bots) x order by coalesce((x ->> 'joues')::int, 0), x ->> 'id' limit 1;
+    update ligue_groupes lg set bots = (select coalesce(jsonb_agg(x), '[]') from jsonb_array_elements(lg.bots) x where x ->> 'id' <> b ->> 'id') where id = g.id returning * into g;
+  else
+    f := ligue_force(p.ligue_div);
+    for v_nom in select e.nom from equipes_reelles e order by random() limit parami('ligue_taille') - 1 loop
+      i := i + 1; v_bots := v_bots || jsonb_build_object('id', i, 'nom', v_nom, 'force', round((f + random() * 6 - 3)::numeric, 1), 'rythme', round((.6 + random() * 1.5)::numeric, 2), 'pts', 0, 'joues', 0, 'g', 0);
+    end loop;
+    while i < parami('ligue_taille') - 1 loop
+      i := i + 1; v_bots := v_bots || jsonb_build_object('id', i, 'nom', 'Équipe ' || i, 'force', round((f + random() * 6 - 3)::numeric, 1), 'rythme', round((.6 + random() * 1.5)::numeric, 2), 'pts', 0, 'joues', 0, 'g', 0);
+    end loop;
+    insert into ligue_groupes (lundi, division, bots) values (lundi_courant(), p.ligue_div, v_bots) returning * into g;
+  end if;
+  insert into ligue_membres (groupe, user_id, lundi) values (g.id, p_uid, lundi_courant());
+  return g;
+end $$;
+create or replace function ligue_vue(p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare g ligue_groupes := ligue_groupe(p_uid); p profils;
+begin
+  select * into p from profils where user_id = p_uid;
+  return jsonb_build_object('division', g.division, 'nom', ligue_nom(g.division), 'lundi', g.lundi, 'fin', g.lundi + 6,
+    'classement', ligue_classement(g, p_uid), 'montee', parami('ligue_montee'), 'descente', parami('ligue_descente'),
+    'divisions', parami('ligue_divisions'), 'recompenses', param('ligue_recompenses'), 'facteur', 1 + .25 * (8 - g.division),
+    'jouesAujourdhui', (select count(*) from ligue_matchs where user_id = p_uid and le >= debut_du_jour()),
+    'parJour', parami('ligue_matchs_jour'), 'memeAdversaire', parami('ligue_meme_adversaire'), 'bilan', p.ligue_bilan);
+end $$;
+create or replace function mes_ligue() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); v jsonb;
+begin
+  v := ligue_vue(p.user_id);
+  if p.ligue_bilan is not null and not coalesce((p.ligue_bilan ->> 'vu')::boolean, false) then
+    update profils set ligue_bilan = ligue_bilan || '{"vu": true}' where user_id = p.user_id;
+  end if;
+  return v || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function ligue_jouer(p_adv text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); g ligue_groupes; fa jsonb; fb jsonb; r jsonb; res text; o profils; b jsonb; v_nom text; pts int; gain int; niveaux jsonb;
+begin
+  g := ligue_groupe(p.user_id);
+  if (select count(*) from ligue_matchs where user_id = p.user_id and le >= debut_du_jour()) >= parami('ligue_matchs_jour') then
+    raise exception 'Tu as joué tes % matchs de ligue du jour : reviens demain', parami('ligue_matchs_jour');
+  end if;
+  if (select count(*) from ligue_matchs where groupe = g.id and user_id = p.user_id and adversaire = p_adv) >= parami('ligue_meme_adversaire') then
+    raise exception 'Tu as déjà joué % fois contre cette équipe cette semaine', parami('ligue_meme_adversaire');
+  end if;
+  fa := force_equipe(p.equipe, p.tactique);
+  if p_adv like 'u:%' then
+    select pr.* into o from profils pr join ligue_membres m on m.user_id = pr.user_id where m.groupe = g.id and 'u:' || pr.user_id = p_adv and pr.user_id <> p.user_id;
+    if not found then raise exception 'Adversaire inconnu'; end if;
+    begin fb := force_equipe(o.equipe, o.tactique);
+    exception when others then raise exception 'L’équipe de % n’est pas complète : choisis un autre adversaire', o.pseudo; end;
+    v_nom := o.pseudo;
+  elsif p_adv like 'b:%' then
+    select x into b from jsonb_array_elements(g.bots) x where 'b:' || (x ->> 'id') = p_adv;
+    if b is null then raise exception 'Adversaire inconnu'; end if;
+    fb := equipe_ordi((b ->> 'force')::numeric); v_nom := b ->> 'nom';
+  else raise exception 'Adversaire inconnu'; end if;
+  r := simuler(fa, fb); res := r ->> 'resultat';
+  pts := case res when 'gagne' then 3 when 'nul' then 1 else 0 end;
+  gain := ((param('ligue_pieces') ->> res))::int;
+  update ligue_membres set points = points + pts, joues = joues + 1, gagnes = gagnes + (res = 'gagne')::int, nuls = nuls + (res = 'nul')::int,
+    perdus = perdus + (res = 'perdu')::int where groupe = g.id and user_id = p.user_id;
+  if o.user_id is not null then   -- l'autre joueur défend : il prend aussi ses points
+    update ligue_membres set points = points + case res when 'perdu' then 3 when 'nul' then 1 else 0 end, joues = joues + 1,
+      gagnes = gagnes + (res = 'perdu')::int, nuls = nuls + (res = 'nul')::int, perdus = perdus + (res = 'gagne')::int
+      where groupe = g.id and user_id = o.user_id;
+    insert into rencontres (user_id, type, adversaire, score, resultat, detail) values (o.user_id, 'defense_ligue', p.pseudo, array[(r ->> 'b')::int, (r ->> 'a')::int],
+      case res when 'gagne' then 'perdu' when 'perdu' then 'gagne' else 'nul' end, '{}');
+  else
+    update ligue_groupes lg set bots = (select jsonb_agg(case when x ->> 'id' = b ->> 'id' then x || jsonb_build_object(
+        'pts', coalesce((x ->> 'pts')::int, 0) + case res when 'perdu' then 3 when 'nul' then 1 else 0 end,
+        'joues', coalesce((x ->> 'joues')::int, 0) + 1, 'g', coalesce((x ->> 'g')::int, 0) + (res = 'perdu')::int) else x end) from jsonb_array_elements(lg.bots) x)
+      where id = g.id;
+  end if;
+  insert into ligue_matchs (groupe, user_id, adversaire, score, resultat) values (g.id, p.user_id, p_adv, array[(r ->> 'a')::int, (r ->> 'b')::int], res);
+  insert into rencontres (user_id, type, adversaire, score, resultat, detail) values (p.user_id, 'ligue', v_nom, array[(r ->> 'a')::int, (r ->> 'b')::int], res,
+    jsonb_build_object('pieces', gain));
+  update profils set pieces = pieces + gain where user_id = p.user_id;
+  if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;
+  niveaux := gagner_xp(p.user_id, (param('pve_xp') ->> res)::int);
+  perform noter(p.user_id, 'ligue', jsonb_build_object('contre', v_nom, 'resultat', res, 'score', jsonb_build_array(r -> 'a', r -> 'b')));
+  return jsonb_build_object('match', r, 'adversaire', v_nom, 'note', fa -> 'note', 'noteAdversaire', fb -> 'note', 'points', pts, 'pieces', gain,
+    'niveaux', niveaux, 'ligue', ligue_vue(p.user_id), 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── clubs de joueurs
+create or replace function club_victoires(p_club bigint) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from rencontres r join clubs_membres m on m.user_id = r.user_id
+  where m.club = p_club and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'ligue') and r.le >= greatest(debut_semaine(), m.rejoint_le)
+$$;
+create or replace function club_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('id', c.id, 'nom', c.nom, 'victoires', club_victoires(c.id), 'max', parami('club_membres_max'),
+    'membres', (select jsonb_agg(jsonb_build_object('pseudo', pr.pseudo, 'niveau', pr.niveau, 'role', m.role, 'moi', pr.user_id = p_uid, 'perso', perso_public(pr.user_id),
+        'victoires', (select count(*) from rencontres r where r.user_id = m.user_id and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'ligue')
+          and r.le >= greatest(debut_semaine(), m.rejoint_le))) order by m.role desc, m.rejoint_le)
+      from clubs_membres m join profils pr on pr.user_id = m.user_id where m.club = c.id),
+    'paliers', (select jsonb_agg(jsonb_build_object('palier', i, 'objectif', (o #>> '{}')::int, 'recompense', param('club_recompenses') -> (i - 1)::int,
+        'atteint', club_victoires(c.id) >= (o #>> '{}')::int,
+        'reclame', exists (select 1 from clubs_recompenses x where x.user_id = p_uid and x.lundi = lundi_courant() and x.palier = i)) order by i)
+      from jsonb_array_elements(param('club_paliers')) with ordinality t(o, i)))
+  from clubs c join clubs_membres mm on mm.club = c.id where mm.user_id = p_uid
+$$;
+create or replace function clubs_liste(p_texte text) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(t order by t.victoires desc, t.membres desc, t.nom), '[]') from (
+    select c.id, c.nom, (select count(*) from clubs_membres m where m.club = c.id)::int membres, club_victoires(c.id) victoires from clubs c
+    where p_texte is null or position(lower(btrim(p_texte)) in lower(c.nom)) > 0 order by 4 desc, 3 desc limit 20) t
+$$;
+create or replace function mon_club(p_texte text default null) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return jsonb_build_object('club', club_vue(p.user_id), 'clubs', clubs_liste(nullif(btrim(coalesce(p_texte, '')), '')), 'max', parami('club_membres_max'));
+end $$;
+create or replace function club_creer(p_nom text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); v_nom text := regexp_replace(btrim(coalesce(p_nom, '')), '\s+', ' ', 'g'); v_id bigint;
+begin
+  if exists (select 1 from clubs_membres where user_id = p.user_id) then raise exception 'Tu es déjà dans un club'; end if;
+  if v_nom !~ '^[A-Za-z0-9À-ÖØ-öø-ÿ _.''-]{3,24}$' then raise exception 'Nom de club : 3 à 24 lettres ou chiffres'; end if;
+  if exists (select 1 from clubs c where lower(c.nom) = lower(v_nom)) then raise exception 'Ce nom de club est déjà pris'; end if;
+  insert into clubs (nom, cree_par) values (v_nom, p.user_id) returning clubs.id into v_id;
+  insert into clubs_membres (user_id, club, role) values (p.user_id, v_id, 'president');
+  perform noter(p.user_id, 'club-creer', jsonb_build_object('club', v_nom));
+  return mon_club() || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function club_rejoindre(p_club bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  if exists (select 1 from clubs_membres where user_id = p.user_id) then raise exception 'Quitte d’abord ton club'; end if;
+  perform 1 from clubs where id = p_club for update;
+  if not found then raise exception 'Club inconnu'; end if;
+  if (select count(*) from clubs_membres where club = p_club) >= parami('club_membres_max') then raise exception 'Ce club est complet'; end if;
+  insert into clubs_membres (user_id, club) values (p.user_id, p_club);
+  perform noter(p.user_id, 'club-rejoindre', jsonb_build_object('club', p_club));
+  return mon_club() || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function club_quitter() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m clubs_membres;
+begin
+  select * into m from clubs_membres where user_id = p.user_id;
+  if not found then raise exception 'Tu n’es dans aucun club'; end if;
+  delete from clubs_membres where user_id = p.user_id;
+  if not exists (select 1 from clubs_membres where club = m.club) then delete from clubs where id = m.club;
+  elsif m.role = 'president' then   -- le plus ancien membre devient président(e)
+    update clubs_membres set role = 'president' where user_id = (select user_id from clubs_membres where club = m.club order by rejoint_le limit 1);
+  end if;
+  perform noter(p.user_id, 'club-quitter', jsonb_build_object('club', m.club));
+  return mon_club() || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function club_reclamer(p_palier int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m clubs_membres; obj int; r jsonb;
+begin
+  select * into m from clubs_membres where user_id = p.user_id;
+  if not found then raise exception 'Tu n’es dans aucun club'; end if;
+  obj := (param('club_paliers') ->> (p_palier - 1))::int; r := param('club_recompenses') -> (p_palier - 1);
+  if obj is null or r is null then raise exception 'Palier inconnu'; end if;
+  if club_victoires(m.club) < obj then raise exception 'Objectif pas encore atteint'; end if;
+  insert into clubs_recompenses (user_id, lundi, palier) values (p.user_id, lundi_courant(), p_palier) on conflict do nothing;
+  if not found then raise exception 'Récompense déjà récupérée'; end if;
+  perform donner_recompense(p.user_id, r);
+  perform noter(p.user_id, 'club-recompense', jsonb_build_object('palier', p_palier, 'recompense', r));
+  return mon_club() || jsonb_build_object('recompense', r, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── albums
+create or replace function reclamer_album(p_equipe text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a jsonb; r jsonb;
+begin
+  select x into a from jsonb_array_elements(albums_vue(p.user_id)) x where x ->> 'equipe' = p_equipe and x ->> 'palier' = p_palier;
+  if a is null then raise exception 'Album inconnu'; end if;
+  if (a ->> 'fait')::boolean then raise exception 'Album déjà récompensé'; end if;
+  if (a ->> 'possede')::int < (a ->> 'total')::int then raise exception 'Album pas encore complet'; end if;
+  r := param('albums_recompenses') -> p_palier;
+  insert into albums_faits (user_id, equipe, palier) values (p.user_id, p_equipe, p_palier);
+  perform donner_recompense(p.user_id, r);
+  perform noter(p.user_id, 'album', jsonb_build_object('equipe', p_equipe, 'palier', p_palier, 'recompense', r));
+  return jsonb_build_object('recompense', r, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── capitaine
+create or replace function choisir_capitaine(p_ex uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  if p_ex is not null and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
+    raise exception 'Le capitaine doit jouer dans ton équipe';
+  end if;
+  update profils set capitaine = p_ex where user_id = p.user_id;
+  return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+
+-- ── staff
+create or replace function acheter_staff(p_staff text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); n int; prix int;
+begin
+  if not exists (select 1 from staff_catalogue() where id = p_staff) then raise exception 'Membre du staff inconnu'; end if;
+  n := staff_niveau(p.user_id, p_staff);
+  if n >= 3 then raise exception 'Déjà au niveau maximum'; end if;
+  prix := (param('staff_prix') ->> n)::int;
+  if p.pieces < prix then raise exception 'Il faut % pièces', prix; end if;
+  update profils set pieces = pieces - prix where user_id = p.user_id;
+  insert into staff (user_id, staff, niveau) values (p.user_id, p_staff, 1) on conflict (user_id, staff) do update set niveau = staff.niveau + 1;
+  perform noter(p.user_id, 'staff', jsonb_build_object('staff', p_staff, 'niveau', n + 1, 'prix', prix));
+  return jsonb_build_object('niveau', n + 1, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── personnalisation
+create or replace function choisir_perso(p_type text, p_id text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  if not exists (select 1 from perso_catalogue() k where k.id = p_id and k.type = p_type) then raise exception 'Choix inconnu'; end if;
+  if not (p_id = any(perso_debloques(p.user_id))) then raise exception 'Pas encore débloqué'; end if;
+  update profils set perso = perso || jsonb_build_object(p_type, p_id) where user_id = p.user_id;
+  return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+
 -- Catalogue : les légendes ne se lisent pas (l'admin, si) ; celles qu'on possède arrivent par etat_de
 drop policy if exists lecture on cartes;
 create policy lecture on cartes for select using (not legende
@@ -2974,6 +3473,9 @@ grant execute on function
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), choix_coach_preparer(text), choix_coach_choisir(int),
+  mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
+  mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
+  reclamer_album(text, text), choisir_capitaine(uuid), acheter_staff(text), choisir_perso(text, text),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
 
