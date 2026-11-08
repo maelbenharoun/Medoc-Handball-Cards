@@ -1774,8 +1774,14 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .stc-ic { width: 56px; height: 56px; margin: 4px 0 2px; border-radius: 50%; display: grid; place-items: center; font-size: 1.9rem; background: rgba(0, 0, 0, .3); box-shadow: 0 0 0 2px var(--pc); }
 .stc b { font-size: .86rem; line-height: 1.15; } .stc small { color: var(--pc); font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; }
 .stc p { margin: auto 0 0; font-size: .7rem; line-height: 1.25; color: #dfe5ee; }
+/* photo de la personne (réglée dans l'outil) */
+.stc-ph { width: 74%; aspect-ratio: 420 / 480; margin: 2px 0; border-radius: 10px; overflow: hidden; background: rgba(0, 0, 0, .3); box-shadow: 0 0 0 2px var(--pc); }
+.stc-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.stc.a-photo { gap: 1px; } .stc.a-photo b { font-size: .8rem; } .stc.a-photo p { font-size: .66rem; }
+.stc.mini .stc-ph { width: 100%; margin: 0; border-radius: 6px; }
+.stf-i { margin: 0; font-size: .72rem; font-style: italic; color: var(--muted); line-height: 1.3; }
 .stc.mini { width: 46px; flex: none; padding: 4px; border-radius: 8px; gap: 0; justify-content: center; }
-.stc.mini > :not(.stc-ic) { display: none; } .stc.mini .stc-ic { width: 32px; height: 32px; margin: 0; font-size: 1.1rem; }
+.stc.mini > :not(.stc-ic):not(.stc-ph) { display: none; } .stc.mini .stc-ic { width: 32px; height: 32px; margin: 0; font-size: 1.1rem; }
 /* place staff de l'onglet Équipe */
 .staff-place { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 10px 12px; border-radius: 16px; text-align: left; color: inherit; font: inherit;
   background: linear-gradient(170deg, #1f2a3d, #10151f 70%); border: 1px solid #2c3a52; }

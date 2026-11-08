@@ -9,8 +9,6 @@
 // ailiers et demi-centre devant, vers 10 m. x, y en mètres : x de −10 (touche gauche) à 10, y depuis notre ligne de but.
 const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien (2 avec la carte staff « Coach polyvalent »)
 const staffActif = () => S().staff?.actif || null;
-const STAFF_RANG = {bronze: 0, argent: 1, or: 2, ultime: 3};
-const staffValeur = (x, palier) => x?.valeurs?.[STAFF_RANG[palier || x.meilleur || 'bronze']] ?? 0;
 const staffVal = id => { const x = staffActif() === id && (S().staff?.liste || []).find(y => y.id === id); return x && x.meilleur ? staffValeur(x) : 0; };
 const malusHors = () => staffActif() === 'polyvalent' ? staffVal('polyvalent') : MALUS_HORS_POSTE;
 const POSTES = [{id: 'AG'}, {id: 'ARG'}, {id: 'DC'}, {id: 'ARD'}, {id: 'AD'}, {id: 'PIV'}, {id: 'GB', gb: true}];
@@ -621,13 +619,8 @@ function vueAlbums() {
 }
 
 // ── staff (Club) ─────────────────────────────────────────────────────────────────
-const STAFF_IC = {prepa: '🏋️', kine: '💆', ailiers: '🏃', manager: '💼', gardiens: '🥅', base: '🎯', polyvalent: '🔄', mental: '🧠', adjoint: '📋', defense: '🛡️'};
 const staffListe = () => S().staff?.liste || [];
 const staffDe = id => staffListe().find(x => x.id === id);
-const staffEffet = (x, palier) => esc(x.effet).replace('{v}', staffValeur(x, palier));
-// une carte staff : cadre à la couleur de son palier (comme les joueurs), icône, nom, rôle et passif à ce palier
-const staffCarteHTML = (x, cls = '', palier = x.meilleur || 'bronze') => `<div class="stc p-${esc(palier)}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${R_LABEL[palier] || ''}</i></span>
-  <span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small>${esc(x.role)}</small><p>${staffEffet(x, palier)}</p></div>`;
 function vueStaff() {
   const actif = staffActif(), prix = S().staff?.prix ?? 500, n = PARAMS.fusion_nombre ?? 3;
   const bloc = x => {
@@ -637,6 +630,7 @@ function vueStaff() {
     const copies = RARETES.filter(r => ex[r]).map(r => `<i class="p-${r}${ex[r] >= n && palierSuivant(r) ? ' fus' : ''}">${R_LABEL[r][0]}×${ex[r]}</i>`).join('');
     const fusion = RARETES.filter(r => palierSuivant(r) && ex[r] >= n)[0];
     return `<div class="stf-c${possede ? ' a' : ''}${x.id === actif ? ' on' : ''}">${staffCarteHTML(x)}
+      ${x.intro ? `<p class="stf-i">${esc(x.intro)}</p>` : ''}
       <span class="stf-p" aria-label="passif à chaque palier">${pal}</span>
       ${copies ? `<span class="stf-x">${copies}</span>` : ''}
       ${fusion ? `<button class="btn gold petit" data-staff-fusion="${x.id}:${fusion}">Fusionner ${n} ${R_LABEL[fusion]} → ${R_LABEL[palierSuivant(fusion)]} · ${nb(PARAMS.fusion_cout?.[fusion] ?? 0)} <i class="coin"></i></button>` : ''}
@@ -918,7 +912,7 @@ function vueEquipe() {
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
     ${(() => { const x = staffDe(staffActif());
       return `<button class="staff-place${x ? '' : ' vide'}" data-act="staff-place"><span class="sp-t">Staff</span>${x ? staffCarteHTML(x, 'mini') : '<span class="sp-plus" aria-hidden="true">+</span>'}
-        <span class="sp-d"><b>${x ? esc(x.nom) : 'Aucune carte staff'}</b><small>${x ? `${R_LABEL[x.meilleur] || ''} · ${staffEffet(x)}` : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
+        <span class="sp-d"><b>${x ? esc(x.personne || x.nom) : 'Aucune carte staff'}</b><small>${x ? `${R_LABEL[x.meilleur] || ''} · ${staffEffet(x)}` : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
@@ -2477,9 +2471,9 @@ document.addEventListener('click', e => {
   if (a === 'club-quitter') { if (!confirm('Quitter ton club ?')) return; return action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }); }
   if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
-  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.nom || 'Staff'} recruté 🧑‍🏫`); route(true); });
+  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.personne || staffDe(r.staff)?.nom || 'Staff'} recruté 🧑‍🏫`); route(true); });
   if (d.staffFusion) { const [id, pal] = d.staffFusion.split(':');
-    return action(Compte.fusionnerStaff(id, pal), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.nom || 'Staff'} passe ${R_LABEL[r.palier]} ✨`); route(true); }); }
+    return action(Compte.fusionnerStaff(id, pal), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.personne || staffDe(r.staff)?.nom || 'Staff'} passe ${R_LABEL[r.palier]} ✨`); route(true); }); }
   if (d.staffMettre !== undefined) return action(Compte.choisirStaff(d.staffMettre), () => { Son.jouer('clic'); toast(d.staffMettre ? 'Carte staff placée 🧑‍🏫' : 'Place staff libre');
     if (!$('#overlay').hidden) cacherOverlay(); route(true); });
   if (d.capitaine) return action(Compte.choisirCapitaine(d.capitaine), () => { Son.jouer('tap'); toast('Nouveau capitaine'); fermerOverlay(); });
@@ -2812,7 +2806,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=62').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=63').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

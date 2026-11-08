@@ -5,7 +5,9 @@
    puis « Publier » les enregistre :
    - mode serveur (config.js rempli) : dans la base Supabase (table cartes) et son stockage de photos,
      avec le compte administrateur ;
-   - sinon : dans le dépôt GitHub en un seul commit (data/perso.json + assets/photos/), avec un jeton. */
+   - sinon : dans le dépôt GitHub en un seul commit (data/perso.json + assets/photos/), avec un jeton.
+   Cartes staff (mode serveur) : une vraie personne par carte (nom, description, une photo par palier), publiées tout de suite
+   (admin_publier_staff) ; leur passif est une règle du serveur et ne se règle pas ici. */
 
 // photos recadrées en portrait 420×480 (format de la photo sur la carte), fond transparent gardé
 // (photos détourées) en WebP, ou PNG si le navigateur ne sait pas faire de WebP ; les métadonnées, GPS compris, disparaissent
@@ -224,7 +226,7 @@ function vue() {
   const parPoste = p => toutes.filter(c => c.postes.includes(p)).length;
   $('#view').innerHTML = `<h1>Gestion des cartes</h1>
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
-    ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn gold petit" data-act="creer">＋ Créer une carte</button> <button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs, paris et équipes du parcours</button></p>' : ''}
+    ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn gold petit" data-act="creer">＋ Créer une carte</button> <button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs, paris et équipes du parcours</button> <button class="btn ghost petit" data-act="staff">Cartes staff</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
     <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['legendes', `Légendes (${toutes.filter(c => c.legende).length})`]]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
@@ -404,6 +406,7 @@ function carteEd() {
 const posteEd = () => ed.postes[0] || (PAR_ID[ed.id].poste === 'GB' ? 'GB' : null);   // poste principal
 
 function majEditeur() {
+  if (ed?.staff) return majEditeurStaff();
   const c = carteEd(), poste = posteEd();
   if (!ed.vals) initVals();
   $('#paliers').innerHTML = PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${ed.legende ? 'Légende' : p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
@@ -440,6 +443,7 @@ function majEditeur() {
   majApercu();
 }
 function majApercu() {
+  if (ed?.staff) return majEditeurStaff();
   const c = carteEd(), p = PALIER[ed.palier];
   $('#apercu').innerHTML = carteHTML(c);
   $('#note').textContent = noteEd(ed.palier);
@@ -496,6 +500,7 @@ function convertirVals(nAvant, nApres) {
   ed.vals = plein ? ajusterTotal(s, tot(nApres)) : s;
 }
 function changerPalier(p) {
+  if (ed.staff) { ed.palier = p; chargerPhoto(); return majEditeurStaff(); }
   if (ed.stats) convertirVals(noteEd(ed.palier), noteEd(p));
   ed.palier = p;
   if (ed.stats) valsVersStats(); else ed.vals = null;
@@ -566,7 +571,79 @@ function enregistrer() {
   if (!sauverBrouillon()) return;
   fermer(); toast('Enregistré dans le brouillon');
 }
-function fermer() { const o = $('#overlay'); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; ed = null; vue(); }
+function fermer() { const o = $('#overlay'), staff = ed?.staff; o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; ed = null; if (staff) vueStaffAdmin(); else vue(); }
+
+// ── cartes staff : une vraie personne par carte ─────────────────────────────────
+let STAFF_ADMIN = [];
+async function chargerStaffAdmin() {
+  if (!SERVEUR || !adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur pour régler les cartes staff.');
+  const {data, error} = await sbA.rpc('catalogue_staff');
+  if (error) return alert('Cartes staff : ' + texteErreur(error));
+  STAFF_ADMIN = data || []; vueStaffAdmin();
+}
+function vueStaffAdmin() {
+  $('#publier').hidden = true;
+  $('#view').innerHTML = `<p><button class="lien" data-act="retour-cartes">‹ Cartes des joueurs</button></p><h1>Cartes staff</h1>
+    <p class="sub">Mets une vraie personne sur chaque carte : son nom, une petite phrase et une photo par palier (comme les joueurs).
+      Le passif de la carte (son effet dans le jeu) ne change pas. Seulement avec l’accord de la personne : le jeu est public.</p>
+    <div class="stf">${STAFF_ADMIN.map(x => `<button class="stf-c a" data-sed="${esc(x.id)}">${staffCarteHTML(x, '', 'bronze')}
+      <em>${x.personne ? esc(x.personne) : 'Personne à choisir'} · photos ${RARETES.filter(r => x.photos?.[r]).length}/4</em></button>`).join('')}</div>`;
+}
+function ouvrirStaff(id) {
+  const x = STAFF_ADMIN.find(y => y.id === id); if (!x) return;
+  ed = {staff: true, id, x, palier: 'bronze', photos: {...(x.photos || {})}, photo: null, img: null, cadre: null, nom: x.personne || '', intro: x.intro || ''};
+  const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
+  o.innerHTML = `<div class="sheet editeur editeur-staff">
+    <div class="ed-haut"><div id="apercu" class="apercu-staff"></div><div class="ed-note"><small>Passif</small><b id="note"></b><small>${esc(x.nom)}</small></div></div>
+    <div class="filters postes" id="paliers"></div>
+    <h3>${esc(x.nom)} <small>${esc(x.role)}</small></h3>
+    <label class="lab">Nom de la personne<input class="champ" id="st-nom" maxlength="40" value="${esc(ed.nom)}" placeholder="Ex. Prénom Nom (vide = « ${esc(x.nom)} »)"></label>
+    <h4>Description <small id="st-desc-n"></small></h4>
+    <textarea class="champ" id="st-desc" rows="2" maxlength="160" placeholder="Ex. Kiné du club depuis 10 ans, il remet tout le monde sur pied.">${esc(ed.intro)}</textarea>
+    <p class="sub petit">Une petite phrase, montrée sous la carte dans le jeu. Rien de personnel (pas d’adresse, d’école, de date de naissance…).</p>
+    <h4 id="titre-photo">Photo</h4>
+    <div class="photo"><canvas id="cadre" width="${PHOTO_L}" height="${PHOTO_H}"></canvas>
+      <div class="photo-ctl"><label class="btn ghost petit">Choisir une photo<input type="file" accept="image/*" id="fichier" hidden></label>
+      <button class="btn ghost petit" data-act="sansphoto">Retirer</button>
+      <div id="reglages-photo"></div></div></div>
+    <p class="note-photo">Une photo par palier (sinon celle du palier en dessous). Seulement avec l’accord de la personne : le jeu est public.</p>
+    <div class="ed-btns"><button class="btn ghost" data-act="fermer">Annuler</button><button class="btn gold" data-act="staff-publier">Publier</button></div>
+  </div>`;
+  chargerPhoto(); majEditeurStaff();
+}
+function majEditeurStaff() {
+  const x = ed.x, photos = Object.fromEntries(Object.entries(ed.photos).map(([k, v]) => [k, local(v)]));
+  $('#paliers').innerHTML = PALIERS.map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
+  $('#apercu').innerHTML = staffCarteHTML({...x, personne: ed.nom.trim() || null, photos}, '', ed.palier);
+  $('#note').textContent = staffValeur(x, ed.palier);
+  $('#st-desc-n').textContent = `${ed.intro.length}/160`;
+  $('#titre-photo').textContent = `Photo ${R_LABEL[ed.palier]}`;
+}
+async function publierStaff() {
+  if (!adminOk) return connexionAdmin('Connecte-toi avec le compte administrateur pour publier.');
+  const b = $('[data-act=staff-publier]'); if (b) { b.disabled = true; b.textContent = 'Publication…'; }
+  try {
+    const photos = {};
+    for (const [k, v] of Object.entries(ed.photos)) {
+      if (!v.startsWith('data:')) { photos[k] = v; continue; }
+      const chemin = `staff-${ed.id}-${k}-${unique()}.${extension(v)}`, blob = await (await fetch(v)).blob();
+      const {error} = await sbA.storage.from('photos').upload(chemin, blob, {contentType: blob.type || 'image/jpeg', cacheControl: '31536000'});
+      if (error) throw error;
+      photos[k] = sbA.storage.from('photos').getPublicUrl(chemin).data.publicUrl;
+      PHOTOS_LOCALES[photos[k]] = v;
+    }
+    const {data, error} = await sbA.rpc('admin_publier_staff', {p_staff: [{id: ed.id, nom: ed.nom.trim() || null, intro: ed.intro.trim() || null, photos}]});
+    if (error) throw error;
+    // anciennes photos remplacées ou retirées : supprimées du stockage
+    const vieilles = Object.values(ed.x.photos || {}).filter(v => !Object.values(photos).includes(v) && v.includes(DOSSIER_PHOTOS)).map(v => v.split(DOSSIER_PHOTOS)[1]);
+    if (vieilles.length) await sbA.storage.from('photos').remove(vieilles);
+    STAFF_ADMIN = data.catalogue || STAFF_ADMIN;
+    fermer(); toast('Carte staff publiée : le jeu est à jour.');
+  } catch (e) {
+    console.error(e); alert('La publication a échoué : ' + texteErreur(e));
+    if (b) { b.disabled = false; b.textContent = 'Publier'; }
+  }
+}
 
 // ── créer une carte (pas sur le site : un ancien, une légende du club…) ────────────
 function fenetreCreer() {
@@ -639,10 +716,11 @@ async function validerReglages() {
 
 // ── événements ──────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-ed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier],[data-equipe],[data-pm],[data-fi-tout],[data-fi-cache],[data-fi-reset],[data-fi-suppr],[data-fi-suppr-sec],[data-fi-ajout],[data-fi-sec]');
+  const t = e.target.closest('[data-act],[data-ed],[data-sed],[data-filtre],[data-fposte],[data-tri],[data-poste],[data-palier],[data-equipe],[data-pm],[data-fi-tout],[data-fi-cache],[data-fi-reset],[data-fi-suppr],[data-fi-suppr-sec],[data-fi-ajout],[data-fi-sec]');
   if (!t) { if (e.target.id === 'overlay' && !ed) fermer(); return; }   // l'éditeur ne se ferme pas par erreur
   const a = t.dataset.act;
   if (t.dataset.ed) return ouvrir(t.dataset.ed);
+  if (t.dataset.sed) return ouvrirStaff(t.dataset.sed);
   if (ed && Object.keys(t.dataset).some(k => /^fi[A-Z]/.test(k))) return ficheClic(t);
   if (t.dataset.filtre) { filtre = t.dataset.filtre; return vue(); }
   if (t.dataset.fposte) { filtrePoste = t.dataset.fposte; return vue(); }
@@ -659,6 +737,9 @@ document.addEventListener('click', e => {
   if (a === 'sansphoto') return retirerPhoto();
   if (a === 'publier') return SERVEUR ? publierServeur() : publier();
   if (a === 'synchro') return synchroniser();
+  if (a === 'staff') return chargerStaffAdmin();
+  if (a === 'staff-publier') return publierStaff();
+  if (a === 'retour-cartes') return vue();
   if (a === 'matchs') return adminOk ? envoyerMatchs() : connexionAdmin('Connecte-toi avec le compte administrateur.');
   if (a === 'a-google') return sbA.auth.signInWithOAuth({provider: 'google', options: {redirectTo: urlRetour()}}).then(({error}) => error && alert(texteErreur(error)));
   if (a === 'a-deco') return sbA.auth.signOut().finally(() => { fermer(); charger(); });
@@ -671,6 +752,8 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.recherche !== undefined) { recherche = t.value; return majListe(); }
   if (!ed) return;
+  if (t.id === 'st-nom') { ed.nom = t.value; return majEditeurStaff(); }
+  if (t.id === 'st-desc') { ed.intro = t.value; $('#st-desc-n').textContent = `${t.value.length}/160`; return; }
   if (t.dataset.stat) return changerStat(t.dataset.stat, t.value, t);
   if (t.id === 'ed-desc') { ed.fiche.intro = t.value; $('#desc-n').textContent = `${t.value.length}/160`; return; }
   if (t.id === 'ed-nom') { ed.nom = t.value; return majApercu(); }

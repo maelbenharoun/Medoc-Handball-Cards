@@ -759,6 +759,9 @@ create table if not exists staff_cartes (id bigserial primary key, user_id uuid 
 create index if not exists staff_cartes_user on staff_cartes (user_id, staff);
 alter table staff_cartes enable row level security;
 revoke all on staff_cartes from anon, authenticated;
+create table if not exists staff_reglages (id text primary key, nom text, intro text, photos jsonb not null default '{}', maj timestamptz not null default now());
+alter table staff_reglages enable row level security;
+revoke all on staff_reglages from anon, authenticated;   -- lu par etat_de et catalogue_staff, écrit par admin_publier_staff
 alter table profils add column if not exists staff text;   -- la carte staff placée dans l'équipe (une seule place)
 alter table profils add column if not exists perso jsonb not null default '{}';   -- {avatar, cadre, fond}
 
@@ -789,6 +792,16 @@ $$;
 -- la carte staff active d'un joueur (placée dans son équipe et possédée), sinon null
 create or replace function staff_actif(p_uid uuid) returns text language sql stable security definer set search_path = public as $$
   select p.staff from profils p where p.user_id = p_uid and exists (select 1 from staff_cartes s where s.user_id = p_uid and s.staff = p.staff)
+$$;
+-- une carte staff telle que le jeu et l'outil la montrent : passif, valeurs par palier, et la personne réglée dans l'outil
+create or replace function staff_vue(p_id text) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('id', k.id, 'nom', k.nom, 'role', k.role, 'effet', k.effet, 'valeurs', to_jsonb(k.valeurs),
+    'personne', r.nom, 'intro', r.intro, 'photos', coalesce(r.photos, '{}'))
+  from staff_catalogue() k left join staff_reglages r on r.id = k.id where k.id = p_id
+$$;
+-- les 10 cartes staff (lisibles par tous : c'est ce que montre la page Staff ; l'outil en part)
+create or replace function catalogue_staff() returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(staff_vue(k.id) order by k.ord), '[]') from (select id, row_number() over () ord from staff_catalogue()) k
 $$;
 -- la valeur du passif d'une carte si elle est placée (selon son meilleur palier), sinon 0
 create or replace function staff_val(p_uid uuid, p_staff text) returns int language sql stable security definer set search_path = public as $$
@@ -968,10 +981,9 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       and exists (select 1 from exemplaires e where e.proprietaire = p.user_id and e.carte_id = c.id)), '[]'),
     'capitaine', p.capitaine, 'albums', albums_vue(p.user_id),
     'staff', jsonb_build_object('actif', staff_actif(p.user_id), 'prix', parami('staff_prix'),
-      'liste', (select jsonb_agg(jsonb_build_object('id', k.id, 'nom', k.nom, 'role', k.role, 'effet', k.effet, 'valeurs', to_jsonb(k.valeurs),
-        'meilleur', staff_meilleur(p.user_id, k.id),
+      'liste', (select jsonb_agg(staff_vue(k.id) || jsonb_build_object('meilleur', staff_meilleur(p.user_id, k.id),
         'exemplaires', (select coalesce(jsonb_object_agg(s.palier, s.n), '{}') from (select palier, count(*) n from staff_cartes where user_id = p.user_id and staff = k.id group by palier) s)))
-        from staff_catalogue() k)),
+        from (select id, row_number() over () ord from staff_catalogue()) k)),
     'perso', perso_public(p.user_id), 'persoDebloques', to_jsonb(perso_debloques(p.user_id)),
     'persoCatalogue', (select jsonb_agg(jsonb_build_object('id', k.id, 'type', k.type, 'nom', k.nom, 'condition', k.condition)) from perso_catalogue() k),
     'ligue', jsonb_build_object('division', p.ligue_div, 'nom', ligue_nom(p.ligue_div), 'meilleure', p.ligue_meilleure,
@@ -2840,6 +2852,29 @@ end $$;
 
 -- Ajoute ou met à jour des cartes du catalogue. p_complet = true : toute carte absente de la liste
 -- n'est plus tirée dans les boosters (elle reste dans les clubs de ceux qui l'ont).
+-- Cartes staff : la vraie personne de chaque carte (nom, description, une photo par palier), réglée dans l'outil.
+-- Le passif ne change pas (règle du jeu). nom vide = la carte reprend son nom de poste.
+create or replace function admin_publier_staff(p_staff jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare x jsonb; n int := 0; v_nom text; v_intro text; v_photos jsonb;
+begin
+  if not est_admin() then raise exception 'Réservé à l’administrateur'; end if;
+  if jsonb_typeof(p_staff) <> 'array' then raise exception 'Liste de cartes staff attendue'; end if;
+  for x in select * from jsonb_array_elements(p_staff) loop
+    if not exists (select 1 from staff_catalogue() k where k.id = x ->> 'id') then raise exception 'Carte staff inconnue : %', x ->> 'id'; end if;
+    v_nom := nullif(btrim(coalesce(x ->> 'nom', '')), ''); v_intro := nullif(btrim(coalesce(x ->> 'intro', '')), '');
+    if length(v_nom) > 40 or length(v_intro) > 160 then raise exception 'Nom (40 caractères) ou description (160) trop longs'; end if;
+    v_photos := coalesce(x -> 'photos', '{}');
+    if jsonb_typeof(v_photos) <> 'object' or exists (select 1 from jsonb_each(v_photos) e
+        where e.key not in ('bronze', 'argent', 'or', 'ultime') or jsonb_typeof(e.value) <> 'string' or e.value #>> '{}' !~ '^https://' or length(e.value #>> '{}') > 500) then
+      raise exception 'Photos invalides';
+    end if;
+    insert into staff_reglages (id, nom, intro, photos, maj) values (x ->> 'id', v_nom, v_intro, v_photos, now())
+      on conflict (id) do update set nom = excluded.nom, intro = excluded.intro, photos = excluded.photos, maj = now();
+    n := n + 1;
+  end loop;
+  return jsonb_build_object('staff', n, 'catalogue', catalogue_staff());
+end $$;
+
 create or replace function admin_publier_cartes(p_cartes jsonb, p_complet boolean default false) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare n int := 0;
@@ -3531,7 +3566,7 @@ grant execute on function
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), acheter_staff(text), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),
-  admin_publier_cartes(jsonb, boolean), est_admin()
+  admin_publier_cartes(jsonb, boolean), admin_publier_staff(jsonb), catalogue_staff(), est_admin()
 to authenticated;
 
 -- Écarts des cartes déjà publiées : remis à la nouvelle règle (sans effet s'ils le sont déjà)

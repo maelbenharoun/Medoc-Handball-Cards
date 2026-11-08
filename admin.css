@@ -100,3 +100,6 @@
 .pt-t { background: var(--bg2); color: var(--muted); font-size: .72rem; }
 .pt-l.on { background: rgba(255, 210, 87, .1); font-weight: 800; }
 .pt-l.t-bronze > span { color: #f0b384; } .pt-l.t-argent > span { color: #e4ebf2; } .pt-l.t-or > span { color: #ffd257; } .pt-l.t-ultime > span { color: #9ef06a; }
+/* cartes staff */
+.apercu-staff { width: 150px; }
+.editeur-staff .lab { display: block; margin: 8px 0; }

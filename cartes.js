@@ -235,3 +235,19 @@ function carteHTML(c, o = {}) {
     ${o.nouveau ? '<span class="c-new">NOUVEAU</span>' : ''}${o.qty > 1 ? `<span class="qty">×${o.qty}</span>` : ''}
     ${o.doublon ? `<span class="c-dup">Doublon · ${o.doublon} pièces</span>` : ''}</div>`;
 }
+
+// ── cartes staff (partagé entre le jeu et l'outil) ───────────────────────────────
+// Une carte staff ne joue pas : un passif (règle du serveur, staff_catalogue) dont la valeur grandit à chaque palier.
+// L'outil y met une vraie personne : nom, description, une photo par palier (sinon celle du palier en dessous).
+const STAFF_IC = {prepa: '🏋️', kine: '💆', ailiers: '🏃', manager: '💼', gardiens: '🥅', base: '🎯', polyvalent: '🔄', mental: '🧠', adjoint: '📋', defense: '🛡️'};
+const STAFF_RANG = {bronze: 0, argent: 1, or: 2, ultime: 3};
+const staffValeur = (x, palier) => x?.valeurs?.[STAFF_RANG[palier || x.meilleur || 'bronze']] ?? 0;
+const staffEffet = (x, palier) => esc(x.effet).replace('{v}', staffValeur(x, palier));
+const staffPhoto = (x, palier) => { for (let i = STAFF_RANG[palier] ?? 0; i >= 0; i--) { const v = x?.photos?.[RARETES[i]]; if (v) return v; } return null; };
+// cadre à la couleur du palier (comme les joueurs), photo de la personne (ou icône du poste), nom, poste et passif à ce palier
+function staffCarteHTML(x, cls = '', palier = x.meilleur || 'bronze') {
+  const ph = staffPhoto(x, palier);
+  return `<div class="stc p-${esc(palier)}${ph ? ' a-photo' : ''}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${R_LABEL[palier] || ''}</i></span>
+  ${ph ? `<span class="stc-ph"><img src="${esc(ph)}" alt="" loading="lazy"></span>` : `<span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span>`}
+  <b>${esc(x.personne || x.nom)}</b><small>${esc(x.personne ? x.nom : x.role)}</small><p>${staffEffet(x, palier)}</p></div>`;
+}
