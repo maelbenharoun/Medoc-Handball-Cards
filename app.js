@@ -189,7 +189,13 @@ function minuteur() {
 // Boosters par poste : un joueur sur chaque sachet (choix de Maël : [poste, carte, palier de la photo])
 // boosters par équipe (demande de Maël : 5 à 9 joueurs par poste, trop peu) : [équipe, carte de la photo, palier de la photo]
 const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
+// carrousel « Acheter un booster » (demande de Maël) : les 4 équipes, puis le booster mystère (« ? » : une carte parmi toutes)
+const BOOSTERS_CAR = [...BOOSTERS_EQUIPE, ['?', null, null]];
 const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2'};
+const carTitre = eq => eq === '?' ? 'Booster mystère' : NOM_EQUIPE[eq] || eq;
+const carSous = eq => eq === '?' ? 'Une carte au hasard parmi toutes, joueurs et staff · mêmes chances' : `${uneEquipe(eq)} · mêmes chances · ${joueursEquipe(eq)}`;
+const carPrix = eq => eq === '?' ? PARAMS.booster_hasard_prix ?? 300 : PARAMS.booster_equipe_prix ?? 500;
+const carPossible = eq => S().pieces >= carPrix(eq) && (eq === '?' || nbEquipe(eq) > 0);
 const nbEquipe = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).length;
 const uneEquipe = eq => eq.startsWith('SF') ? 'Une joueuse de l’équipe' : 'Un joueur de l’équipe';
 const joueursEquipe = eq => { const n = nbEquipe(eq), f = eq.startsWith('SF'); return `${n} ${f ? 'joueuse' : 'joueur'}${n > 1 ? 's' : ''}`; };
@@ -204,26 +210,29 @@ const fondHand = () => `<div class="fond-hand" aria-hidden="true"><i class="fh-r
 // Les scènes animées de l'accueil (fond, sachets) s'arrêtent quand elles sortent de l'écran : moins de travail en défilant
 const VUE_SCENES = 'IntersectionObserver' in window ? new IntersectionObserver(l => l.forEach(x => x.target.classList.toggle('hors-vue', !x.isIntersecting))) : null;
 const observerScenes = () => VUE_SCENES && document.querySelectorAll('.scene-b:not([data-vue])').forEach(s => { s.dataset.vue = 1; VUE_SCENES.observe(s); });
-function sachetHTML({theme, nom, sous, photo, poste, pw}) {
-  return `<span class="sachet ${theme}${photo ? ' avec-photo' : ''}"${poste ? ` data-p="${poste}"` : ''} style="--pw:${pw}px">${sachetInterieur({nom, sous, photo, poste})}</span>`;
+function sachetHTML({theme, nom, sous, photo, poste, pw, hasard}) {
+  return `<span class="sachet ${theme}${photo ? ' avec-photo' : ''}${hasard ? ' hasard' : ''}"${poste ? ` data-p="${poste}"` : ''} style="--pw:${pw}px">${sachetInterieur({nom, sous, photo, poste, hasard})}</span>`;
 }
-function sachetInterieur({nom, sous, photo, poste}) {
-  return `<span class="ob-corps"><span class="sa-plis"></span>${photo ? `<img class="sa-photo" src="${esc(photo)}" alt="" loading="lazy">` : ''}
+// booster mystère : trois points d'interrogation holographiques à la place de la photo
+const SA_HASARD = '<span class="sa-hasard" aria-hidden="true"><i class="q1">?</i><i class="q2">?</i><i class="q3">?</i></span>';
+function sachetInterieur({nom, sous, photo, poste, hasard}) {
+  return `<span class="ob-corps"><span class="sa-plis"></span>${photo ? `<img class="sa-photo" src="${esc(photo)}" alt="" loading="lazy">` : ''}${hasard ? SA_HASARD : ''}
       <span class="sa-logo"><img src="assets/logo.png" alt=""></span>${poste ? `<span class="sa-poste">${poste}</span>` : ''}
       <span class="sa-bas"><span class="ob-nom">${esc(nom)}</span><span class="ob-n">${esc(sous)}</span></span>
       <span class="sa-holo"></span><span class="ob-brille"></span></span>
     <span class="ob-bande"><span class="sa-marque">Médoc Hand Cards</span><span class="sa-holo"></span><span class="ob-brille"></span></span>`;
 }
 function vueAccueil() {
-  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {}, prixEq = PARAMS.booster_equipe_prix || 300;
+  const e = S(), s = secondesAvantBooster(), chances = PARAMS.booster_chances || {};
   const pct = Math.round(100 * e.xp / (e.xpNiveau || 1));
-  const i = CARROUSEL.i, n = BOOSTERS_EQUIPE.length;
+  const i = CARROUSEL.i % BOOSTERS_CAR.length, n = BOOSTERS_CAR.length;
   // les sachets sont tous là, placés en cercle par transform (seuls le choisi et ses deux voisins se voient) : en changeant
   // d'équipe, ils tournent avec une animation, et suivent le doigt pendant qu'on glisse (placerCarrousel)
-  const carrousel = BOOSTERS_EQUIPE.map(([eq, carte, palier], k) =>
-    `<button class="car-it${k === i ? ' centre' : ''}" data-car="${k}" style="${styleCar(ecartCar(k, i))}" aria-label="Booster ${NOM_EQUIPE[eq] || eq}"${k === i ? ' aria-current="true"' : ''}>
-      ${sachetHTML({theme: 'pk-poste', nom: eq, sous: joueursEquipe(eq), photo: photoSachet(carte, palier), poste: eq, pw: 168})}</button>`).join('');
-  const [eqSel] = BOOSTERS_EQUIPE[i], nSel = nbEquipe(eqSel);
+  const carrousel = BOOSTERS_CAR.map(([eq, carte, palier], k) =>
+    `<button class="car-it${k === i ? ' centre' : ''}" data-car="${k}" style="${styleCar(ecartCar(k, i))}" aria-label="${carTitre(eq)}"${k === i ? ' aria-current="true"' : ''}>
+      ${eq === '?' ? sachetHTML({theme: 'pk-hasard', nom: 'Mystère', sous: 'Toutes les cartes', hasard: true, pw: 168})
+        : sachetHTML({theme: 'pk-poste', nom: eq, sous: joueursEquipe(eq), photo: photoSachet(carte, palier), poste: eq, pw: 168})}</button>`).join('');
+  const [eqSel] = BOOSTERS_CAR[i];
   return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
     <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     ${blocPasse()}
@@ -238,19 +247,19 @@ function vueAccueil() {
         ${e.bonusOr ? `<button class="mini-sachet" data-booster="or">${sachetHTML({theme: 'pk-or', nom: 'Or', sous: 'Or ou Ultime', pw: 64})}<span>Or ×${e.bonusOr}</span></button>` : ''}</div>` : ''}
     </section>
     <p class="sub petit centre">Un joueur par booster : ${RARETES.map(r => `${chances[r] ?? 0} % ${R_LABEL[r]}`).join(' · ')}.</p>
-    ${blocSemaine()}
-    <h2>Boosters par équipe</h2>
+    <h2>Acheter un booster</h2>
     <section class="scene-b petite">${fondHand()}
-      <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Équipe précédente">‹</button>${carrousel}
-        <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Équipe suivante">›</button></div>
-      <div class="scene-t"><b>${NOM_EQUIPE[eqSel] || eqSel}</b><small>${uneEquipe(eqSel)} · mêmes chances · ${joueursEquipe(eqSel)}</small></div>
-      <button class="btn-penche" data-bequipe="${eqSel}"${nSel && e.pieces >= prixEq ? '' : ' disabled'}>Acheter · ${nb(prixEq)} pièces</button>
-      <div class="car-points">${BOOSTERS_EQUIPE.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
+      <div class="carrousel" data-carrousel><button class="car-fl g" data-car="${(i - 1 + n) % n}" aria-label="Booster précédent">‹</button>${carrousel}
+        <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Booster suivant">›</button></div>
+      <div class="scene-t"><b>${carTitre(eqSel)}</b><small>${carSous(eqSel)}</small></div>
+      <button class="btn-penche" data-bequipe="${eqSel}"${carPossible(eqSel) ? '' : ' disabled'}>Acheter · ${nb(carPrix(eqSel))} pièces</button>
+      <div class="car-points">${BOOSTERS_CAR.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
     </section>
+    ${blocSemaine()}
     ${blocCoach()}`;
 }
 // ── carrousel des boosters par poste : place de chaque sachet selon son écart au choisi (d, fractionnaire pendant un glissé)
-const ecartCar = (k, i) => { const n = BOOSTERS_EQUIPE.length; let d = ((k - i) % n + n) % n; if (d > n / 2) d -= n; return d; };
+const ecartCar = (k, i) => { const n = BOOSTERS_CAR.length; let d = ((k - i) % n + n) % n; if (d > n / 2) d -= n; return d; };
 function styleCar(d) {
   const a = Math.min(Math.abs(d), 2), sg = Math.sign(d);
   const x = sg * (a <= 1 ? a * 79 : 79 + (a - 1) * 70), echelle = 1 - .3 * Math.min(a, 1), r = sg * 8 * Math.min(a, 1);
@@ -267,15 +276,15 @@ function placerCarrousel(decalage = 0) {
 }
 // un autre poste choisi : les sachets tournent jusqu'à leur place ; le titre, le bouton d'achat et les points suivent
 function choisirCarrousel(k, auto) {
-  const n = BOOSTERS_EQUIPE.length, sc = $('.carrousel');
+  const n = BOOSTERS_CAR.length, sc = $('.carrousel');
   CARROUSEL.i = ((k % n) + n) % n;
   if (!sc) return route(true);
   placerCarrousel();
-  const [eq] = BOOSTERS_EQUIPE[CARROUSEL.i], nSel = nbEquipe(eq), prix = PARAMS.booster_equipe_prix || 300;
+  const [eq] = BOOSTERS_CAR[CARROUSEL.i];
   const scene = sc.closest('.scene-b');
-  scene.querySelector('.scene-t b').textContent = NOM_EQUIPE[eq] || eq;
-  scene.querySelector('.scene-t small').textContent = `${uneEquipe(eq)} · mêmes chances · ${joueursEquipe(eq)}`;
-  const achat = scene.querySelector('[data-bequipe]'); achat.dataset.bequipe = eq; achat.disabled = !(nSel && S().pieces >= prix);
+  scene.querySelector('.scene-t b').textContent = carTitre(eq);
+  scene.querySelector('.scene-t small').textContent = carSous(eq);
+  const achat = scene.querySelector('[data-bequipe]'); achat.dataset.bequipe = eq; achat.disabled = !carPossible(eq); achat.textContent = `Acheter · ${nb(carPrix(eq))} pièces`;
   scene.querySelectorAll('.car-points i').forEach((x, j) => x.classList.toggle('on', j === CARROUSEL.i));
   sc.querySelector('.car-fl.g').dataset.car = (CARROUSEL.i - 1 + n) % n; sc.querySelector('.car-fl.d').dataset.car = (CARROUSEL.i + 1) % n;
   if (!auto) { Son.jouer('envol'); CARROUSEL.touche = Date.now(); }
@@ -622,7 +631,7 @@ function vueAlbums() {
 const staffListe = () => S().staff?.liste || [];
 const staffDe = id => staffListe().find(x => x.id === id);
 function vueStaff() {
-  const actif = staffActif(), prix = S().staff?.prix ?? 500, n = PARAMS.fusion_nombre ?? 3;
+  const actif = staffActif(), n = PARAMS.fusion_nombre ?? 3;
   const bloc = x => {
     const ex = x.exemplaires || {}, possede = !!x.meilleur;
     // progression : la valeur du passif à chaque palier, le palier atteint en couleur
@@ -634,11 +643,10 @@ function vueStaff() {
       <span class="stf-p" aria-label="passif à chaque palier">${pal}</span>
       ${copies ? `<span class="stf-x">${copies}</span>` : ''}
       ${fusion ? `<button class="btn gold petit" data-staff-fusion="${x.id}:${fusion}">Fusionner ${n} ${R_LABEL[fusion]} → ${R_LABEL[palierSuivant(fusion)]} · ${nb(PARAMS.fusion_cout?.[fusion] ?? 0)} <i class="coin"></i></button>` : ''}
-      ${x.id === actif ? '<em>Dans ton équipe</em>' : possede ? `<button class="btn ghost petit" data-staff-mettre="${x.id}">Placer dans l’équipe</button>` : ''}
-      <button class="btn ${possede ? 'ghost' : 'gold'} petit" data-staff="${x.id}"${S().pieces >= prix ? '' : ' disabled'}>${possede ? '+1 Bronze' : 'Recruter'} · ${nb(prix)} <i class="coin"></i></button></div>`;
+      ${x.id === actif ? '<em>Dans ton équipe</em>' : possede ? `<button class="btn ghost petit" data-staff-mettre="${x.id}">Placer dans l’équipe</button>` : '<em class="stf-b">🎁 Dans les boosters</em>'}</div>`;
   };
   return `${retour('club', 'Club')}<h1>Staff</h1>
-    <p class="sub">Des cartes qui ne jouent pas : place-en une dans ton équipe (onglet Équipe), son passif compte tant qu’elle y est. Comme les joueurs, ${n} cartes identiques du même palier fusionnent vers le palier suivant, et le passif grandit 🧑‍🏫</p>
+    <p class="sub">Des cartes qui ne jouent pas, à trouver dans les boosters (gratuit et mystère) : place-en une dans ton équipe (onglet Équipe), son passif compte tant qu’elle y est. Comme les joueurs, ${n} cartes identiques du même palier fusionnent vers le palier suivant, et le passif grandit 🧑‍🏫</p>
     <div class="stf">${staffListe().map(bloc).join('')}</div>`;
 }
 // la place staff de l'onglet Équipe : choisir parmi ses cartes
@@ -646,8 +654,8 @@ function fenetreStaffEquipe() {
   const actif = staffActif(), miennes = staffListe().filter(x => x.meilleur);
   ouvrirOverlay(`<div class="sheet"><h3>Carte staff de l’équipe</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces. C’est ton meilleur exemplaire de la carte qui compte.</p>
     ${miennes.length ? `<div class="stf">${miennes.map(x => `<button class="stf-c a${x.id === actif ? ' on' : ''}" data-staff-mettre="${x.id === actif ? '' : x.id}">${staffCarteHTML(x)}
-      <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff.</p>'}
-    <button class="btn gold" data-act="staff-boutique">${miennes.length ? 'Recruter ou améliorer des cartes staff' : 'Recruter une carte staff'}</button>
+      <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff : elles sortent des boosters (gratuit et mystère).</p>'}
+    <button class="btn gold" data-act="staff-boutique">Voir toutes les cartes staff</button>
     <button class="btn ghost" data-act="fermer">Fermer</button></div>`);
 }
 const COMPO = {id: null, choix: []};
@@ -2039,11 +2047,13 @@ const OB = {};
 const moinsAnim = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function ouvrirBooster(promesse, nom, cls, deco) {
   if (occupe) return;
-  const avant = new Set(EX().map(e => e.carte));
-  action(promesse, ({ids}) => {
+  const avant = new Set(EX().map(e => e.carte)), avantStaff = new Set(staffListe().filter(x => x.meilleur).map(x => x.id));
+  action(promesse, ({ids, staff}) => {
     integrerLegendes();
-    const res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
+    const res = (ids || []).map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte)}))
       .sort((a, b) => rangEx(a.c.ex, b.c.ex));
+    const x = staff && staffDe(staff.id);   // carte staff : même scène, sa carte à elle
+    if (x) res.push({c: {id: x.id, nom: x.personne || x.nom, rarete: staff.palier, equipe: 'Staff', staff: true}, staff: x, nouveau: !avantStaff.has(x.id)});
     if (res.length) sceneBooster(res, nom, cls, deco);
   });
 }
@@ -2067,6 +2077,9 @@ function demoBooster(type) {
     for (const r of RARETES) { x -= ch[r] || 0; if (x < 0) return r; } return 'bronze'; };
   if (type === 'legende') { const c = hasard(tous);
     sceneBooster([{c: vueExemplaire({...c, legende: true}, {palier: 'ultime', note: NOTE_LEGENDE}), nouveau: true}], 'Booster', 'pk-gratuit'); OB.demo = type; return; }
+  if (type === 'staff') { const l = staffListe(); if (!l.length) return; const x = hasard(l), palier = tirer();   // ?demo=staff : une carte staff
+    sceneBooster([{c: {id: x.id, nom: x.personne || x.nom, rarete: palier, equipe: 'Staff', staff: true}, staff: x, nouveau: true}], 'Mystère', 'pk-hasard', {hasard: true});
+    OB.demo = type; return; }
   const n = type === 'depart' ? 7 : 1, pris = new Set(), res = [];
   while (res.length < Math.min(n, tous.length)) {
     const c = hasard(tous); if (pris.has(c.id)) continue; pris.add(c.id);
@@ -2075,6 +2088,7 @@ function demoBooster(type) {
   }
   res.sort((a, b) => RARETES.indexOf(b.c.rarete) - RARETES.indexOf(a.c.rarete) || b.c.ovr - a.c.ovr);
   const bp = type === 'poste' || type === 'equipe' ? BOOSTERS_EQUIPE[Math.floor(Math.random() * BOOSTERS_EQUIPE.length)] : null;
+  if (type === 'hasard') { sceneBooster(res, 'Mystère', 'pk-hasard', {hasard: true}); OB.demo = type; return; }   // ?demo=hasard : booster mystère
   sceneBooster(res, type === 'depart' ? 'Départ' : bp ? bp[0] : 'Booster', type === 'depart' ? 'pk-depart' : bp ? 'pk-poste' : type === 'or' || type === 'ultime' ? 'pk-or' : 'pk-gratuit',
     bp ? {poste: bp[0], photo: photoSachet(bp[1], bp[2])} : {});
   OB.demo = type || 'hasard';
@@ -2098,9 +2112,9 @@ function sceneBooster(res, nom, cls, deco = {}) {
   el.innerHTML = `${fondHand()}<div class="ob-lueur"></div><div class="ob-rayons"></div>
     <div class="ob-cartes">${res.map((r, i) => `<div class="ob-c" data-i="${i}" style="width:${finales[i].w}px;height:${finales[i].w / .69}px">
       <div class="ob-flip"><div class="ob-dos">${dosHTML(finales[i].w)}</div>
-      <div class="ob-face">${carteHTML(r.c, {nouveau: r.nouveau}).replace('class="card', `style="--w:${finales[i].w}px" class="card`)}</div></div></div>`).join('')}</div>
-    <button class="ob-pack sachet ${cls}${deco.photo ? ' avec-photo' : ''}"${deco.poste ? ` data-p="${deco.poste}"` : ''} aria-label="Ouvrir le booster ${esc(nom)}">
-      ${sachetInterieur({nom, sous: n > 1 ? n + ' joueurs' : '1 joueur', photo: deco.photo, poste: deco.poste})}
+      <div class="ob-face">${(r.staff ? staffCarteHTML(r.staff, '', r.c.rarete, {nouveau: r.nouveau}) : carteHTML(r.c, {nouveau: r.nouveau})).replace('class="card', `style="--w:${finales[i].w}px" class="card`)}</div></div></div>`).join('')}</div>
+    <button class="ob-pack sachet ${cls}${deco.photo ? ' avec-photo' : ''}${deco.hasard ? ' hasard' : ''}"${deco.poste ? ` data-p="${deco.poste}"` : ''} aria-label="Ouvrir le booster ${esc(nom)}">
+      ${sachetInterieur({nom, sous: n > 1 ? n + ' joueurs' : deco.hasard ? '1 carte' : '1 joueur', photo: deco.photo, poste: deco.poste, hasard: deco.hasard})}
       <span class="ob-coupe"><i class="ob-trace"></i><i class="ob-etoile"></i></span>
     </button>
     <div class="ob-souffle"></div>
@@ -2250,7 +2264,8 @@ function attendreRetournement() {
 // Or et Ultime : équipe → poste → palier, au-dessus de la carte encore cachée
 function indiceSuivant() {
   const c = OB.res[0].c, box = OB.el.querySelector('.ob-indice');
-  const etapes = [['Équipe', c.equipe], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
+  const etapes = c.staff ? [['Carte', 'Staff'], ['Poste', OB.res[0].staff.nom], ['Palier', R_LABEL[c.rarete]]]
+    : [['Équipe', c.equipe], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
   if (OB.indice >= etapes.length) { box.hidden = true; return attendreRetournement(); }
   const [l, v] = etapes[OB.indice++];
   box.hidden = false;
@@ -2284,10 +2299,10 @@ function toucherHeros() {
 function finBooster() {
   OB.el.querySelector('.ob-passer').hidden = true;
   const {res} = OB, n = PARAMS.fusion_nombre || 3, h = res[0];
-  const memes = EX().filter(e => e.carte === h.c.id && e.palier === h.c.rarete).length;
+  const memes = h.staff ? staffDe(h.c.id)?.exemplaires?.[h.c.rarete] || 0 : EX().filter(e => e.carte === h.c.id && e.palier === h.c.rarete).length;
   const nv = res.filter(r => r.nouveau).length;
   const info = res.length > 1 ? (nv ? `${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}` : 'Déjà dans ton club')
-    : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton club` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
+    : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton ${h.staff ? 'staff' : 'club'}` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
   OB.el.querySelector('.ob-bas').innerHTML = OB.demo ? `<p class="ob-info">Démo : rien n’est ajouté à ton club</p><button class="btn gold large ob-fin">Rejouer</button>`
     : `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
   OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { quitterCouche(coucheOB); OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
@@ -2386,7 +2401,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2458,6 +2473,7 @@ document.addEventListener('click', e => {
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
+  if (d.bequipe === '?') return ouvrirBooster(Compte.ouvrirBoosterHasard(), 'Mystère', 'pk-hasard', {hasard: true});
   if (d.bequipe) { const bp = BOOSTERS_EQUIPE.find(x => x[0] === d.bequipe);
     return ouvrirBooster(Compte.ouvrirBoosterEquipe(d.bequipe), d.bequipe, 'pk-poste', {poste: d.bequipe, photo: bp && photoSachet(bp[1], bp[2])}); }
   if (d.ccPoste) { CC.poste = d.ccPoste; return route(true); }
@@ -2471,7 +2487,6 @@ document.addEventListener('click', e => {
   if (a === 'club-quitter') { if (!confirm('Quitter ton club ?')) return; return action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }); }
   if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
-  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.personne || staffDe(r.staff)?.nom || 'Staff'} recruté 🧑‍🏫`); route(true); });
   if (d.staffFusion) { const [id, pal] = d.staffFusion.split(':');
     return action(Compte.fusionnerStaff(id, pal), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.personne || staffDe(r.staff)?.nom || 'Staff'} passe ${R_LABEL[r.palier]} ✨`); route(true); }); }
   if (d.staffMettre !== undefined) return action(Compte.choisirStaff(d.staffMettre), () => { Son.jouer('clic'); toast(d.staffMettre ? 'Carte staff placée 🧑‍🏫' : 'Place staff libre');
@@ -2806,7 +2821,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=63').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=64').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

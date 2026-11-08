@@ -244,10 +244,16 @@ const STAFF_RANG = {bronze: 0, argent: 1, or: 2, ultime: 3};
 const staffValeur = (x, palier) => x?.valeurs?.[STAFF_RANG[palier || x.meilleur || 'bronze']] ?? 0;
 const staffEffet = (x, palier) => esc(x.effet).replace('{v}', staffValeur(x, palier));
 const staffPhoto = (x, palier) => { for (let i = STAFF_RANG[palier] ?? 0; i >= 0; i--) { const v = x?.photos?.[RARETES[i]]; if (v) return v; } return null; };
-// cadre à la couleur du palier (comme les joueurs), photo de la personne (ou icône du poste), nom, poste et passif à ce palier
-function staffCarteHTML(x, cls = '', palier = x.meilleur || 'bronze') {
-  const ph = staffPhoto(x, palier);
-  return `<div class="stc p-${esc(palier)}${ph ? ' a-photo' : ''}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${R_LABEL[palier] || ''}</i></span>
-  ${ph ? `<span class="stc-ph"><img src="${esc(ph)}" alt="" loading="lazy"></span>` : `<span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span>`}
-  <b>${esc(x.personne || x.nom)}</b><small>${esc(x.personne ? x.nom : x.role)}</small><p>${staffEffet(x, palier)}</p></div>`;
+// même carte que les joueurs (demande de Maël), sans stats : palier, « Staff », photo de la personne (ou silhouette et icône
+// du poste), nom, puis le poste et le passif à ce palier à la place des 6 stats
+function staffCarteHTML(x, cls = '', palier = x.meilleur || 'bronze', o = {}) {
+  const ph = staffPhoto(x, palier), ic = STAFF_IC[x.id] || '⭐', nom = x.personne || x.nom;
+  const visage = ph ? `<img class="c-photo" src="${esc(ph)}" alt="" loading="lazy">`
+    : `<div class="c-face">${silhouette(palier)}</div><span class="c-staff-ic" aria-hidden="true">${ic}</span>`;
+  return `<div class="card staff r-${esc(palier)}${cls ? ' ' + cls : ''}" data-staff-id="${esc(x.id)}" role="img" aria-label="${esc(nom)}, staff, ${R_LABEL[palier] || ''}">
+    <i class="c-eclat"></i>${visage}
+    <div class="c-top"><b class="c-ovr c-st" aria-hidden="true">${ic}</b><span class="c-pal">${R_LABEL[palier] || ''}</span><i class="c-sep"></i><span class="c-pos">Staff</span></div>
+    <div class="c-name">${esc(nom)}</div>
+    <div class="c-passif"><small>${esc(x.personne ? x.nom : x.role)}</small><span>${staffEffet(x, palier)}</span></div>
+    <div class="c-bas"><span class="c-num"></span><img class="c-logo" src="assets/logo.png" alt=""><span class="c-eq">Staff</span></div>${o.nouveau ? '<span class="c-new">NOUVEAU</span>' : ''}</div>`;
 }

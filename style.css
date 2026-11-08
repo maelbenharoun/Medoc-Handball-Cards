@@ -1754,34 +1754,29 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 /* staff : des cartes à part (ils ne jouent pas) */
 .stf { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 12px; }
 .stf-c { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: center; }
-.stf-c:not(.a) .stc { opacity: .62; }
-.stf-c.on .stc { box-shadow: 0 0 0 3px #5bd68a, 0 8px 18px rgba(0, 0, 0, .5); }
+.stf-c .card { --w: min(160px, 40vw); align-self: center; }
+.stf-c:not(.a) .card { opacity: .5; }
+.stf-c.on .card { filter: drop-shadow(0 0 7px rgba(91, 214, 138, .9)); }
 .stf-c em { font-style: normal; color: #5bd68a; font-weight: 800; font-size: .8rem; } .stf-c .btn .coin { width: 14px; height: 14px; }
-/* carte staff : même format qu'une carte joueur, cadre à la couleur de sa rareté */
-.stc { --pc: #d48c58; --pf: #3a2416; position: relative; aspect-ratio: 5 / 7; border-radius: 14px; padding: 8px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  background: linear-gradient(165deg, color-mix(in srgb, var(--pc) 40%, #1a2130), var(--pf) 70%); box-shadow: inset 0 0 0 2px var(--pc), 0 8px 18px rgba(0, 0, 0, .45); overflow: hidden; }
-.stc.p-argent { --pc: #dfe7ef; --pf: #232c38; } .stc.p-or { --pc: #ffd257; --pf: #3b2e0c; } .stc.p-ultime { --pc: #7fd34e; --pf: #18310f; }
+/* carte staff = carte joueur sans stats (cartes.js, staffCarteHTML) */
+.card.staff .c-st { font-size: calc(var(--u) * 2.6); line-height: 1; -webkit-text-fill-color: initial; background: none; filter: drop-shadow(0 .05em .2em rgba(0, 0, 0, .5)); }
+.card.staff .c-staff-ic { position: absolute; top: calc(var(--u) * 5.2); right: calc(var(--u) * 3.6); z-index: 1; font-size: calc(var(--u) * 3.6); line-height: 1; opacity: .9; }
+.card.staff .c-passif { position: absolute; left: calc(var(--u) * 1.2); right: calc(var(--u) * 1.2); top: calc(var(--u) * 14.6); z-index: 2; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .2); font-family: var(--f); }
+.card.staff .c-passif small { font-size: calc(var(--u) * .78); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
+.card.staff .c-passif span { font-size: calc(var(--u) * .92); font-weight: 600; line-height: 1.2; color: #e9edf2;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card.staff .c-name { font-size: calc(var(--u) * 1.28); letter-spacing: 0; }
+.card.staff.mini .c-passif, .card.staff.mini .c-bas { display: none; }
 /* progression du passif à chaque palier, et exemplaires possédés */
 .stf-p, .stf-x { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .stf-p i, .stf-x i { font-style: normal; font-size: .68rem; font-weight: 800; padding: 2px 6px; border-radius: 999px; background: #1a212d; color: #6c7686; }
 .stf-p i.ok { color: #0d1117; background: var(--pc, #d48c58); }
+.staff-place .card { --w: 46px; }
 .stf-p i.on { box-shadow: 0 0 0 2px #fff; }
 .stf-x i { color: var(--pc, #d48c58); box-shadow: inset 0 0 0 1px currentColor; background: none; } .stf-x i.fus { color: #ffd257; background: rgba(255, 210, 87, .15); }
 .p-bronze { --pc: #d48c58; } .p-argent { --pc: #dfe7ef; } .p-or { --pc: #ffd257; } .p-ultime { --pc: #7fd34e; }
-.stc::before { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .14) 50%, transparent 60%); pointer-events: none; }
-.stc-h { align-self: stretch; display: flex; justify-content: space-between; font-size: .58rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: var(--pc); }
-.stc-h i { font-style: normal; }
-.stc-ic { width: 56px; height: 56px; margin: 4px 0 2px; border-radius: 50%; display: grid; place-items: center; font-size: 1.9rem; background: rgba(0, 0, 0, .3); box-shadow: 0 0 0 2px var(--pc); }
-.stc b { font-size: .86rem; line-height: 1.15; } .stc small { color: var(--pc); font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; }
-.stc p { margin: auto 0 0; font-size: .7rem; line-height: 1.25; color: #dfe5ee; }
-/* photo de la personne (réglée dans l'outil) */
-.stc-ph { width: 74%; aspect-ratio: 420 / 480; margin: 2px 0; border-radius: 10px; overflow: hidden; background: rgba(0, 0, 0, .3); box-shadow: 0 0 0 2px var(--pc); }
-.stc-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.stc.a-photo { gap: 1px; } .stc.a-photo b { font-size: .8rem; } .stc.a-photo p { font-size: .66rem; }
-.stc.mini .stc-ph { width: 100%; margin: 0; border-radius: 6px; }
 .stf-i { margin: 0; font-size: .72rem; font-style: italic; color: var(--muted); line-height: 1.3; }
-.stc.mini { width: 46px; flex: none; padding: 4px; border-radius: 8px; gap: 0; justify-content: center; }
-.stc.mini > :not(.stc-ic):not(.stc-ph) { display: none; } .stc.mini .stc-ic { width: 32px; height: 32px; margin: 0; font-size: 1.1rem; }
 /* place staff de l'onglet Équipe */
 .staff-place { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 10px 12px; border-radius: 16px; text-align: left; color: inherit; font: inherit;
   background: linear-gradient(170deg, #1f2a3d, #10151f 70%); border: 1px solid #2c3a52; }
@@ -1796,3 +1791,16 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .slot .cap { position: absolute; top: -4px; left: calc(50% + min(14px, 4cqw)); z-index: 3; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
   font-style: normal; font-size: .66rem; font-weight: 900; background: #ffd257; color: #2a1d02; box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
 .cap-on { font-size: .75rem; font-weight: 900; color: #2a1d02; background: #ffd257; padding: 4px 8px; border-radius: 999px; }
+/* booster mystère : sachet violet, trois « ? » holographiques qui flottent (transform seulement) */
+.sachet.pk-hasard { --f1: #b06bff; --f2: #5321b0; --f3: #1a0840; --ft: #fff; --fa: #ffd257; }
+.sa-hasard { position: absolute; inset: 14% 0 22%; z-index: 1; pointer-events: none; }
+.sa-hasard i { position: absolute; font-style: normal; font-family: "Barlow Condensed", var(--f); font-weight: 700; line-height: 1;
+  background: linear-gradient(160deg, #fff6c8 10%, #ffd257 35%, #ff8de1 62%, #7fe9ff 88%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 .12em rgba(255, 210, 87, .25); animation: sa-q 3.2s ease-in-out infinite alternate; }
+.sa-hasard .q1 { left: 50%; top: 4%; font-size: calc(var(--pw) * .62); translate: -50% 0; }
+.sa-hasard .q2 { left: 8%; top: 38%; font-size: calc(var(--pw) * .3); rotate: -18deg; animation-delay: -1.1s; opacity: .85; }
+.sa-hasard .q3 { right: 9%; top: 26%; font-size: calc(var(--pw) * .34); rotate: 16deg; animation-delay: -2.2s; opacity: .85; }
+@keyframes sa-q { from { transform: translateY(0) scale(1); } to { transform: translateY(-6%) scale(1.06); } }
+.sachet.hasard .sa-logo { position: absolute; left: 7%; top: 5%; width: 22%; margin: 0; }
+.stf-c em.stf-b { font-style: normal; font-weight: 800; font-size: .78rem; color: var(--muted); }
+

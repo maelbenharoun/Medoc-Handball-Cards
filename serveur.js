@@ -216,6 +216,7 @@ const CompteServeur = (() => {
     ouvrirBoosterSemaine: () => rpc('ouvrir_booster_semaine'),                 // un joueur de la semaine → {ids}
     ouvrirBoosterEquipe: eq => rpc('ouvrir_booster_equipe', {p_equipe: eq}),   // une équipe du club, acheté en pièces → {ids}
     choixCoachPreparer: poste => rpc('choix_coach_preparer', {p_poste: poste}), // 3 joueurs du poste montrés → {poste, cartes}
+    ouvrirBoosterHasard: () => rpc('ouvrir_booster_hasard'),                  // booster mystère : une carte parmi toutes → {ids, staff}
     choixCoachChoisir: i => rpc('choix_coach_choisir', {p_i: i}),               // place touchée après le mélange → {id, places, cartes}
     mesPronostics: () => rpc('mes_pronostics'),                                 // matchs à pronostiquer, résultats, classements
     pronostiquer: (rid, dom, ext, buteur) => rpc('pronostiquer', {p_rid: rid, p_dom: dom, p_ext: ext, p_buteur: buteur || null}),
@@ -228,7 +229,6 @@ const CompteServeur = (() => {
     clubReclamer: palier => rpc('club_reclamer', {p_palier: palier}),
     reclamerAlbum: (equipe, palier) => rpc('reclamer_album', {p_equipe: equipe, p_palier: palier}),
     choisirCapitaine: ex => rpc('choisir_capitaine', {p_ex: ex || null}),
-    acheterStaff: id => rpc('acheter_staff', {p_staff: id}),
     fusionnerStaff: (id, palier) => rpc('fusionner_staff', {p_staff: id, p_palier: palier}),   // 3 identiques → palier suivant
     choisirStaff: id => rpc('choisir_staff', {p_staff: id || null}),         // la carte staff placée dans l'équipe (null : aucune)
     choisirPerso: (type, id) => rpc('choisir_perso', {p_type: type, p_id: id}),

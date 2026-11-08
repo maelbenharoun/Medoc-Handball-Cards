@@ -81,7 +81,7 @@ insert into parametres values (1, '{
   "booster_semaine_chances": {"bronze": 45, "argent": 35, "or": 17, "ultime": 3},
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
-  "booster_equipe_prix": 300, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
+  "booster_equipe_prix": 500, "booster_hasard_prix": 300, "staff_chance": 0.1, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
   "legende_chance": 0.002, "legende_note": 100,
   "prono_pieces_point": 20, "prono_points": {"exact": 5, "issue": 2, "ecart": 1, "buteur": 3},
   "ligue_matchs_jour": 5, "ligue_taille": 10, "ligue_divisions": 8, "ligue_montee": 3, "ligue_descente": 3, "ligue_meme_adversaire": 2,
@@ -1096,9 +1096,19 @@ begin
 end $$;
 
 -- Booster d'un joueur : p_type 'gratuit' (stock qui se recharge), 'bonus' (gagné) ou 'or' (Or ou mieux)
+-- Une carte staff au hasard (palier tiré comme celui d'un joueur) ; la première va dans l'équipe. Renvoie {id, palier}.
+create or replace function donner_staff_hasard(p_uid uuid, p_chances jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_id text; v_palier text := tirer_palier(p_chances);
+begin
+  select id into v_id from staff_catalogue() order by random() limit 1;
+  insert into staff_cartes (user_id, staff, palier) values (p_uid, v_id, v_palier);
+  update profils set staff = coalesce(staff_actif(p_uid), v_id) where user_id = p_uid;
+  return jsonb_build_object('id', v_id, 'palier', v_palier);
+end $$;
+
 create or replace function ouvrir_booster(p_type text default 'gratuit') returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare p profils; c text; ex uuid; niveaux jsonb;
+declare p profils; c text; ex uuid; niveaux jsonb; st jsonb;
 begin
   p := moi();
   perform boosters_a_jour(p.user_id);
@@ -1114,6 +1124,8 @@ begin
   if c is not null then
     ex := creer_exemplaire(p.user_id, c, 'ultime', 'booster:legende');
     update exemplaires set note = greatest(palier_min('ultime'), least(100, parami('legende_note'))) where id = ex;
+  elsif p_type = 'gratuit' and random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
+    st := donner_staff_hasard(p.user_id, param('booster_chances'));   -- une carte staff (demande de Maël)
   else
     c := tirer_carte();
     if c is null then raise exception 'Le catalogue est vide'; end if;
@@ -1128,8 +1140,8 @@ begin
     boosters_ouverts = boosters_ouverts + 1
   where user_id = p.user_id;
   perform progresser(p.user_id, 'booster');
-  perform noter(p.user_id, 'booster', jsonb_build_object('type', p_type, 'exemplaire', ex, 'carte', c));
-  return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', p_type, 'exemplaire', ex, 'carte', c, 'staff', st));
+  return jsonb_build_object('ids', case when ex is null then '[]'::jsonb else jsonb_build_array(ex) end, 'staff', st, 'etat', etat_de(p.user_id));
 end $$;
 
 -- Booster d'un poste, acheté en pièces : un joueur de ce poste (mêmes chances que le booster gratuit).
@@ -3146,6 +3158,27 @@ begin
   return jsonb_build_object('ids', jsonb_build_array(ex), 'etat', etat_de(p.user_id));
 end $$;
 
+-- Booster mystère (demande de Maël) : une carte au hasard parmi toutes (joueurs de toutes les équipes, et cartes staff
+-- 1 fois sur 10), mêmes chances de palier que le booster gratuit ; jamais de légende
+create or replace function ouvrir_booster_hasard() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; prix int := parami('booster_hasard_prix'); c text; ex uuid; st jsonb;
+begin
+  select * into p from profils where user_id = auth.uid() for update;
+  if not found then raise exception 'Crée ton profil d''abord'; end if;
+  if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
+  if random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
+    st := donner_staff_hasard(p.user_id, param('booster_chances'));
+  else
+    c := tirer_carte();
+    if c is null then raise exception 'Le catalogue est vide'; end if;
+    ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:hasard');
+  end if;
+  update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster');
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'hasard', 'prix', prix, 'exemplaire', ex, 'carte', c, 'staff', st));
+  return jsonb_build_object('ids', case when ex is null then '[]'::jsonb else jsonb_build_array(ex) end, 'staff', st, 'etat', etat_de(p.user_id));
+end $$;
+
 -- Choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste (poste principal) sont
 -- montrés, puis mélangés face cachée ; on en retourne un et on le garde. Le mélange est tiré ici et gardé secret (table illisible
 -- par le jeu) : le jeu ne peut pas savoir où est la meilleure carte. Payé à la préparation ; un choix commencé reste en attente
@@ -3188,6 +3221,8 @@ end $$;
 
 -- Légendes : 100 de note générale (demande de Maël ; avant, 95) ; les exemplaires déjà tirés suivent
 update parametres set valeurs = valeurs || '{"legende_note": 100}' where (valeurs ->> 'legende_note')::int = 95;
+-- booster d'équipe : 300 → 500 pièces (demande de Maël ; une valeur réglée autrement depuis n'est pas touchée)
+update parametres set valeurs = valeurs || '{"booster_equipe_prix": 500}' where (valeurs ->> 'booster_equipe_prix')::int = 300;
 update exemplaires e set note = least(100, parami('legende_note')) from cartes c
   where c.id = e.carte_id and c.legende and e.note < least(100, parami('legende_note'));
 
@@ -3490,17 +3525,11 @@ begin
 end $$;
 
 -- ── staff
+-- Les cartes staff ne s'achètent plus (demande de Maël) : elles sortent seulement des boosters (gratuit et mystère, donner_staff_hasard).
+-- L'ancien appel reste défini pour répondre clairement à une vieille version du jeu, mais n'est plus accordé.
 create or replace function acheter_staff(p_staff text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils; prix int := parami('staff_prix');
 begin
-  select * into p from profils where user_id = auth.uid() for update;   -- deux achats à la fois : le second attend
-  if not found then raise exception 'Crée ton profil d''abord'; end if;
-  if not exists (select 1 from staff_catalogue() c where c.id = p_staff) then raise exception 'Carte staff inconnue'; end if;
-  if p.pieces < prix then raise exception 'Il faut % pièces', prix; end if;
-  update profils set pieces = pieces - prix, staff = coalesce(staff_actif(p.user_id), p_staff) where user_id = p.user_id;   -- la première va dans l'équipe
-  insert into staff_cartes (user_id, staff) values (p.user_id, p_staff);
-  perform noter(p.user_id, 'staff', jsonb_build_object('staff', p_staff, 'prix', prix));
-  return jsonb_build_object('staff', p_staff, 'etat', etat_de(p.user_id));
+  raise exception 'Les cartes staff se trouvent seulement dans les boosters';
 end $$;
 -- fusion, comme les joueurs : 3 exemplaires d'un palier → 1 du palier suivant, mêmes coûts (fusion_nombre, fusion_cout)
 create or replace function fusionner_staff(p_staff text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -3562,10 +3591,10 @@ grant execute on function
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
-  reclamer_album(text, text), choisir_capitaine(uuid), acheter_staff(text), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),
+  reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),
   admin_publier_cartes(jsonb, boolean), admin_publier_staff(jsonb), catalogue_staff(), est_admin()
 to authenticated;
 
