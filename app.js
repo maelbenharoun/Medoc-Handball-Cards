@@ -7,7 +7,9 @@
 // Équipe : les joueurs placés en défense devant leur but (en bas), selon le dispositif choisi (demande de Maël) :
 // 0-6 : les six sur les 6 m ; 1-5 : cinq sur les 6 m et le demi-centre avancé ; 3-3 : arrières et pivot sur les 6 m,
 // ailiers et demi-centre devant, vers 10 m. x, y en mètres : x de −10 (touche gauche) à 10, y depuis notre ligne de but.
-const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien
+const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien (2 avec la carte staff « Coach polyvalent »)
+const staffActif = () => S().staff?.actif || null;
+const malusHors = () => staffActif() === 'polyvalent' ? 2 : MALUS_HORS_POSTE;
 const POSTES = [{id: 'AG'}, {id: 'ARG'}, {id: 'DC'}, {id: 'ARD'}, {id: 'AD'}, {id: 'PIV'}, {id: 'GB', gb: true}];
 // Une carte sur le terrain fait 3 m de large (15 % de la largeur) : les places sont écartées d'au moins 3 m en largeur
 // ou 4,7 m en profondeur, pour que les cartes ne se chevauchent pas.
@@ -40,8 +42,10 @@ const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
 const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
 const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
-const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? MALUS_HORS_POSTE : 0) + bonusForme(c.id))
-  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) : 0) + (slot === 'GB' ? staffNiv('gardiens') : 0);   // capitaine, staff   // +3 : joueur de la semaine
+// comme force_equipe (schema.sql) : capitaine +2 (+5 avec le préparateur mental) ; cartes staff des gardiens, des ailiers, de la base arrière
+const bonusStaff = slot => ({gardiens: slot === 'GB' ? 4 : 0, ailiers: ['AG', 'AD'].includes(slot) ? 3 : 0, base: ['ARG', 'DC', 'ARD'].includes(slot) ? 2 : 0})[staffActif()] || 0;
+const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? malusHors() : 0) + bonusForme(c.id))   // +3 : joueur de la semaine
+  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) + (staffActif() === 'mental' ? 3 : 0) : 0) + bonusStaff(slot);
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -506,9 +510,8 @@ function fermerCoach(parRetour) {
 }
 
 // ── profil personnalisé (avatar, cadre, fond), vu dans les classements, la ligue et les clubs ─────────────────────────
-const AVATARS = {logo: '<img src="assets/logo.png" alt="">', maillot: '<svg class="av-maillot" viewBox="0 0 40 40"><path d="M14 6l-9 5 3 8 4-2v17h16V17l4 2 3-8-9-5c-1 3-3 4-6 4s-5-1-6-4z" fill="#fff" stroke="#15171b" stroke-width="1.2"/><path d="M14 6l-4 2.2L17 17M26 6l4 2.2L23 17M8.5 15.5l3.5-1.6M31.5 15.5l-3.5-1.6" stroke="#15171b" stroke-width="2.2" fill="none"/><circle cx="17" cy="25" r=".9" fill="#9aa1ab"/><circle cx="23" cy="28" r=".9" fill="#9aa1ab"/><circle cx="20" cy="31" r=".9" fill="#9aa1ab"/></svg>', ballon: '🤾', gardien: '🧤', trophee: '🏆', couronne: '👑'};
+const AVATARS = {logo: '<img src="assets/logo.png" alt="">', maillot: '<svg class="av-maillot" viewBox="0 0 40 40"><path d="M14 6l-9 5 3 8 4-2v17h16V17l4 2 3-8-9-5c-1 3-3 4-6 4s-5-1-6-4z" fill="#fff" stroke="#15171b" stroke-width="1.2"/><path d="M14 6l-4 2.2L17 17M26 6l4 2.2L23 17M8.5 15.5l3.5-1.6M31.5 15.5l-3.5-1.6" stroke="#15171b" stroke-width="2.2" fill="none"/><circle cx="17" cy="25" r=".9" fill="#9aa1ab"/><circle cx="23" cy="28" r=".9" fill="#9aa1ab"/><circle cx="20" cy="31" r=".9" fill="#9aa1ab"/></svg>', ballon: '🤾', gardien: '🥅', trophee: '🏆', couronne: '👑'};
 const avatarHTML = (p, cls = '') => `<span class="av cd-${esc((p || {}).cadre || 'simple')}${cls ? ' ' + cls : ''}" aria-hidden="true">${AVATARS[(p || {}).avatar] || AVATARS.logo}</span>`;
-const staffNiv = id => (S().staff?.liste || []).find(x => x.id === id)?.niveau || 0;
 // voisins sur le terrain (liens entre coéquipiers)
 const LIENS = [['AG', 'ARG'], ['ARG', 'DC'], ['DC', 'ARD'], ['ARD', 'AD'], ['ARG', 'PIV'], ['DC', 'PIV'], ['ARD', 'PIV'], ['DC', 'GB']];
 const plur = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
@@ -615,15 +618,29 @@ function vueAlbums() {
 }
 
 // ── staff (Club) ─────────────────────────────────────────────────────────────────
-const STAFF_IC = {prepa: '🏋️', adjoint: '📋', defense: '🛡️', gardiens: '🧤', kine: '💆'};
+const STAFF_IC = {prepa: '🏋️', kine: '💆', ailiers: '🏃', manager: '💼', gardiens: '🥅', base: '🎯', polyvalent: '🔄', mental: '🧠', adjoint: '📋', defense: '🛡️'};
+const STAFF_PAL = {bronze: 'Bronze', argent: 'Argent', or: 'Or'};
+const staffListe = () => S().staff?.liste || [];
+const staffDe = id => staffListe().find(x => x.id === id);
+// une carte staff : cadre à la couleur de sa rareté, icône, nom, rôle et passif
+const staffCarteHTML = (x, cls = '') => `<div class="stc p-${esc(x.palier)}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${STAFF_PAL[x.palier] || ''}</i></span>
+  <span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small>${esc(x.role)}</small><p>${esc(x.effet)}</p></div>`;
 function vueStaff() {
-  const st = S().staff || {liste: [], prix: []};
+  const actif = staffActif();
   return `${retour('club', 'Club')}<h1>Staff</h1>
-    <p class="sub">Ils ne jouent pas, mais ils font progresser ton club. 3 niveaux chacun 🧑‍🏫</p>
-    <div class="stf">${st.liste.map(x => { const prix = st.prix[x.niveau];
-      return `<div class="stf-c${x.niveau ? ' a' : ''}"><span class="stf-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small class="stf-r">${esc(x.role)}</small>
-        <span class="stf-n" aria-label="niveau ${x.niveau} sur 3">${'★'.repeat(x.niveau)}${'☆'.repeat(3 - x.niveau)}</span><p>${esc(x.effet)}</p>
-        ${x.niveau >= 3 ? '<em>Niveau maximum</em>' : `<button class="btn gold petit" data-staff="${x.id}"${S().pieces >= prix ? '' : ' disabled'}>${x.niveau ? `Niveau ${x.niveau + 1}` : 'Recruter'} · ${nb(prix)} <i class="coin"></i></button>`}</div>`; }).join('')}</div>`;
+    <p class="sub">Des cartes qui ne jouent pas : place-en une dans ton équipe (onglet Équipe), son passif compte tant qu’elle y est 🧑‍🏫</p>
+    <div class="stf">${staffListe().map(x => `<div class="stf-c${x.possede ? ' a' : ''}${x.id === actif ? ' on' : ''}">${staffCarteHTML(x)}
+      ${x.id === actif ? '<em>Dans ton équipe</em>' : x.possede ? `<button class="btn ghost petit" data-staff-mettre="${x.id}">Placer dans l’équipe</button>`
+        : `<button class="btn gold petit" data-staff="${x.id}"${S().pieces >= x.prix ? '' : ' disabled'}>Recruter · ${nb(x.prix)} <i class="coin"></i></button>`}</div>`).join('')}</div>`;
+}
+// la place staff de l'onglet Équipe : choisir parmi ses cartes
+function fenetreStaffEquipe() {
+  const actif = staffActif(), miennes = staffListe().filter(x => x.possede);
+  ouvrirOverlay(`<div class="sheet"><h3>Carte staff de l’équipe</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces.</p>
+    ${miennes.length ? `<div class="stf">${miennes.map(x => `<button class="stf-c a${x.id === actif ? ' on' : ''}" data-staff-mettre="${x.id === actif ? '' : x.id}">${staffCarteHTML(x)}
+      <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff.</p>'}
+    <button class="btn gold" data-act="staff-boutique">${miennes.length ? 'Recruter d’autres cartes staff' : 'Recruter une carte staff'}</button>
+    <button class="btn ghost" data-act="fermer">Fermer</button></div>`);
 }
 const COMPO = {id: null, choix: []};
 function vueDefis() {
@@ -856,7 +873,7 @@ function vueEquipe() {
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
   // sur le terrain : une vignette résumée (photo ronde aux couleurs du palier + nom), bien plus lisible qu'une carte en petit
   const carte = p => { const c = aligne(p.id), hors = c && horsPoste(c, p.id), cap = c && c.ex?.id === S().capitaine;
-    return `${c ? vignetteHTML(c) : '<span class="empty">+</span>'}${cap ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${MALUS_HORS_POSTE}` : ''}</em>`; };
+    return `${c ? vignetteHTML(c) : '<span class="empty">+</span>'}${cap ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${hors ? ' class="hors"' : ''}>${p.id}${hors ? ` −${malusHors()}` : ''}</em>`; };
   // liens : deux voisins de la même équipe du club (leur collectif compte), en doré
   const posDe = id => { const p = POSTES.find(x => x.id === id), [x, y] = p.gb ? [0, 1.1] : pl[id]; return [px(x), py(y)]; };
   const liens = LIENS.map(([u, v]) => { const a = aligne(u), b = aligne(v); if (!a || !b) return '';
@@ -878,13 +895,16 @@ function vueEquipe() {
     return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${b >= .06 ? 'fort' : b <= .005 ? 'nul' : ''}">+${pc100(b)}</em></button>`; }).join('');
   const att = TACT_ATT.find(x => x[0] === T.att), def = TACT_DEF.find(x => x[0] === T.def);
   return `<h1>Équipe</h1>
-    <p class="sub">Touche un poste pour aligner un joueur. Hors de son poste : −${MALUS_HORS_POSTE}. Des coéquipiers ensemble : bonus 🤝</p>
+    <p class="sub">Touche un poste pour aligner un joueur. Hors de son poste : −${malusHors()}. Des coéquipiers ensemble : bonus 🤝</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
     <p class="pitch-dispo">Placement en défense <b>${def[1]}</b><small>à changer dans Tactique, plus bas</small></p>
     <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
     <p class="sub petit">Liens dorés : des coéquipiers de la même équipe côte à côte (le bonus collectif). <b>C</b> : ton capitaine, +${PARAMS.capitaine_bonus ?? 2} en match.${S().capitaine ? '' : ' Nomme-le en touchant son poste.'}</p>
-    ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${MALUS_HORS_POSTE} chacun)</p>` : ''}
+    ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
+    ${(() => { const x = staffDe(staffActif());
+      return `<button class="staff-place${x ? '' : ' vide'}" data-act="staff-place"><span class="sp-t">Staff</span>${x ? staffCarteHTML(x, 'mini') : '<span class="sp-plus" aria-hidden="true">+</span>'}
+        <span class="sp-d"><b>${x ? esc(x.nom) : 'Aucune carte staff'}</b><small>${x ? esc(x.effet) : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
@@ -1035,7 +1055,7 @@ const SCENES = {
     + fond('<path class="s-cadre" d="M14,112 V60 H146 V112"/><path class="s-cadre r" d="M14,112 V60 H146 V112"/>')
     + `<svg class="st-fond mv a-traj" viewBox="0 0 160 110"><path class="s-traj" d="M85.6,8.7 Q112,26 124,74"/></svg>`
     + mv('a-tireur', PERSO('#3b6fd8', '#1b2f66', BRAS.tir)) + mv('a-bg', BALLE) + mv('a-tapg', TAP, 124, 74)
-    + mv('a-gant', '<b class="gant">🧤</b>') + mv('a-burst', '<i class="burst"></i>', 122, 78) + mv('a-cri', cri('ARRÊT !'), 44, 100),
+    + mv('a-gant', '<b class="gant">✋</b>') + mv('a-burst', '<i class="burst"></i>', 122, 78) + mv('a-cri', cri('ARRÊT !'), 44, 100),
   // vue du dessus, 2 contre 1 : le défenseur sort sur le porteur, le doigt dessine la passe, le partenaire marque
   contre: () => fond('<path class="s-l" d="M30,0 Q30,34 62,36 H98 Q130,34 130,0"/><path class="s-l p" d="M8,0 Q10,54 62,56 H98 Q150,54 152,0"/><path class="s-but" d="M66,0 H94 V4 H66Z"/><path class="s-l" d="M0,108 H160"/>')
     + `<span class="mvs mv a-fondu">${`<svg class="st-fond mv a-trace" viewBox="0 0 160 110"><path class="s-trace" d="M55,59 Q84,24 105,48"/></svg>`
@@ -1053,7 +1073,7 @@ window.addEventListener('resize', () => echelleScenes());
 // ── tuto rapide : à la première partie de chaque jeu (localStorage « mhc-tuto »), ou avec le « ? » de sa tuile ──
 const TUTOS = {
   '7m': ['<b>Touche</b> pour viser 🎯', '<b>Touche encore</b> pour la puissance 💥', 'Vise les coins, loin du gardien !'],
-  gardien: ['Le tireur arrive… 👀', 'La trajectoire s’allume ✨', '<b>Touche vite</b> la bonne zone 🧤'],
+  gardien: ['Le tireur arrive… 👀', 'La trajectoire s’allume ✨', '<b>Touche vite</b> la bonne zone ✋'],
   contre: ['Tu fonces, ton coéquipier aussi 🏃', '<b>Glisse le doigt</b> pour faire la passe ➜', 'Défenseur sur lui ? <b>Garde la balle</b> et marque !'],
   suspension: ['<b>Tape vite</b> pour prendre de l’élan ⚡', 'Le saut part tout seul 🚀', '<b>Touche au sommet</b> : but assuré ! 🔥'],
 };
@@ -2358,7 +2378,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-staff-mettre],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2443,7 +2463,9 @@ document.addEventListener('click', e => {
   if (a === 'club-quitter') { if (!confirm('Quitter ton club ?')) return; return action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }); }
   if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
-  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`Niveau ${r.niveau} 🧑‍🏫`); route(true); });
+  if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.nom || 'Staff'} recruté 🧑‍🏫`); route(true); });
+  if (d.staffMettre !== undefined) return action(Compte.choisirStaff(d.staffMettre), () => { Son.jouer('clic'); toast(d.staffMettre ? 'Carte staff placée 🧑‍🏫' : 'Place staff libre');
+    if (!$('#overlay').hidden) cacherOverlay(); route(true); });
   if (d.capitaine) return action(Compte.choisirCapitaine(d.capitaine), () => { Son.jouer('tap'); toast('Nouveau capitaine'); fermerOverlay(); });
   if (d.perso) { const [type, id] = d.perso.split(':'); return action(Compte.choisirPerso(type, id), () => { fenetreCompte(); const d = document.querySelector('#overlay details.perso'); if (d) d.open = true; }); }
   if (d.queteS) return action(Compte.reclamerQueteSemaine(d.queteS), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
@@ -2458,6 +2480,8 @@ document.addEventListener('click', e => {
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
+  if (a === 'staff-place') return fenetreStaffEquipe();
+  if (a === 'staff-boutique') { cacherOverlay(); location.hash = '#staff'; return; }
   if (d.entrainer) {
     const carte = exParId(d.entrainer).carte;
     return action(Compte.entrainer(d.entrainer), r => { toast(r.apres > r.avant ? `+1 ! Note ${r.apres}` : '+XP : encore un peu d’entraînement'); fiche(carte); });
@@ -2683,7 +2707,7 @@ function animerTir(r) {
 // 5 essais par jour pour chacun, 10 pièces par réussite, 20 de plus pour un 5 sur 5. Démo : ?demo=gardien, contre, suspension.
 const MJ = {};
 const MINI = {
-  gardien: {nom: 'L’arrêt réflexe', icone: '🧤', succes: 'arret',
+  gardien: {nom: 'L’arrêt réflexe', icone: '🥅', succes: 'arret',
     texte: 'Tu es dans les buts : dès que le ballon part, sa trajectoire s’affiche ; touche la zone où il va avant qu’il arrive. 5 tirs enchaînés par série.',
     res: {arret: 'Arrêt !', but: 'But encaissé', tard: 'Trop tard !'}},
   contre: {nom: 'La passe en contre', icone: '🏃', succes: 'but',
@@ -2772,7 +2796,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=60').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=61').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
