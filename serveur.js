@@ -229,6 +229,7 @@ const CompteServeur = (() => {
     reclamerAlbum: (equipe, palier) => rpc('reclamer_album', {p_equipe: equipe, p_palier: palier}),
     choisirCapitaine: ex => rpc('choisir_capitaine', {p_ex: ex || null}),
     acheterStaff: id => rpc('acheter_staff', {p_staff: id}),
+    fusionnerStaff: (id, palier) => rpc('fusionner_staff', {p_staff: id, p_palier: palier}),   // 3 identiques → palier suivant
     choisirStaff: id => rpc('choisir_staff', {p_staff: id || null}),         // la carte staff placée dans l'équipe (null : aucune)
     choisirPerso: (type, id) => rpc('choisir_perso', {p_type: type, p_id: id}),
     reclamerPasse: () => rpc('reclamer_passe'),                                // tous les paliers atteints → {de, a, gains}

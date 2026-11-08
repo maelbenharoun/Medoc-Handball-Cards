@@ -1760,7 +1760,14 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 /* carte staff : même format qu'une carte joueur, cadre à la couleur de sa rareté */
 .stc { --pc: #d48c58; --pf: #3a2416; position: relative; aspect-ratio: 5 / 7; border-radius: 14px; padding: 8px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
   background: linear-gradient(165deg, color-mix(in srgb, var(--pc) 40%, #1a2130), var(--pf) 70%); box-shadow: inset 0 0 0 2px var(--pc), 0 8px 18px rgba(0, 0, 0, .45); overflow: hidden; }
-.stc.p-argent { --pc: #dfe7ef; --pf: #232c38; } .stc.p-or { --pc: #ffd257; --pf: #3b2e0c; }
+.stc.p-argent { --pc: #dfe7ef; --pf: #232c38; } .stc.p-or { --pc: #ffd257; --pf: #3b2e0c; } .stc.p-ultime { --pc: #7fd34e; --pf: #18310f; }
+/* progression du passif à chaque palier, et exemplaires possédés */
+.stf-p, .stf-x { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.stf-p i, .stf-x i { font-style: normal; font-size: .68rem; font-weight: 800; padding: 2px 6px; border-radius: 999px; background: #1a212d; color: #6c7686; }
+.stf-p i.ok { color: #0d1117; background: var(--pc, #d48c58); }
+.stf-p i.on { box-shadow: 0 0 0 2px #fff; }
+.stf-x i { color: var(--pc, #d48c58); box-shadow: inset 0 0 0 1px currentColor; background: none; } .stf-x i.fus { color: #ffd257; background: rgba(255, 210, 87, .15); }
+.p-bronze { --pc: #d48c58; } .p-argent { --pc: #dfe7ef; } .p-or { --pc: #ffd257; } .p-ultime { --pc: #7fd34e; }
 .stc::before { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .14) 50%, transparent 60%); pointer-events: none; }
 .stc-h { align-self: stretch; display: flex; justify-content: space-between; font-size: .58rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: var(--pc); }
 .stc-h i { font-style: normal; }

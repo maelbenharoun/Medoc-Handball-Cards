@@ -9,7 +9,10 @@
 // ailiers et demi-centre devant, vers 10 m. x, y en mètres : x de −10 (touche gauche) à 10, y depuis notre ligne de but.
 const MALUS_HORS_POSTE = 5;   // points perdus par un joueur aligné à un autre poste que le sien (2 avec la carte staff « Coach polyvalent »)
 const staffActif = () => S().staff?.actif || null;
-const malusHors = () => staffActif() === 'polyvalent' ? 2 : MALUS_HORS_POSTE;
+const STAFF_RANG = {bronze: 0, argent: 1, or: 2, ultime: 3};
+const staffValeur = (x, palier) => x?.valeurs?.[STAFF_RANG[palier || x.meilleur || 'bronze']] ?? 0;
+const staffVal = id => { const x = staffActif() === id && (S().staff?.liste || []).find(y => y.id === id); return x && x.meilleur ? staffValeur(x) : 0; };
+const malusHors = () => staffActif() === 'polyvalent' ? staffVal('polyvalent') : MALUS_HORS_POSTE;
 const POSTES = [{id: 'AG'}, {id: 'ARG'}, {id: 'DC'}, {id: 'ARD'}, {id: 'AD'}, {id: 'PIV'}, {id: 'GB', gb: true}];
 // Une carte sur le terrain fait 3 m de large (15 % de la largeur) : les places sont écartées d'au moins 3 m en largeur
 // ou 4,7 m en profondeur, pour que les cartes ne se chevauchent pas.
@@ -43,9 +46,9 @@ const joueChamp = c => !c.postes?.length || c.postes.some(p => p !== 'GB');
 const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joueChamp(c);
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
 // comme force_equipe (schema.sql) : capitaine +2 (+5 avec le préparateur mental) ; cartes staff des gardiens, des ailiers, de la base arrière
-const bonusStaff = slot => ({gardiens: slot === 'GB' ? 4 : 0, ailiers: ['AG', 'AD'].includes(slot) ? 3 : 0, base: ['ARG', 'DC', 'ARD'].includes(slot) ? 2 : 0})[staffActif()] || 0;
+const bonusStaff = slot => ({gardiens: slot === 'GB', ailiers: ['AG', 'AD'].includes(slot), base: ['ARG', 'DC', 'ARD'].includes(slot)})[staffActif()] ? staffVal(staffActif()) : 0;
 const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? malusHors() : 0) + bonusForme(c.id))   // +3 : joueur de la semaine
-  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) + (staffActif() === 'mental' ? 3 : 0) : 0) + bonusStaff(slot);
+  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) + staffVal('mental') : 0) + bonusStaff(slot);
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -619,27 +622,38 @@ function vueAlbums() {
 
 // ── staff (Club) ─────────────────────────────────────────────────────────────────
 const STAFF_IC = {prepa: '🏋️', kine: '💆', ailiers: '🏃', manager: '💼', gardiens: '🥅', base: '🎯', polyvalent: '🔄', mental: '🧠', adjoint: '📋', defense: '🛡️'};
-const STAFF_PAL = {bronze: 'Bronze', argent: 'Argent', or: 'Or'};
 const staffListe = () => S().staff?.liste || [];
 const staffDe = id => staffListe().find(x => x.id === id);
-// une carte staff : cadre à la couleur de sa rareté, icône, nom, rôle et passif
-const staffCarteHTML = (x, cls = '') => `<div class="stc p-${esc(x.palier)}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${STAFF_PAL[x.palier] || ''}</i></span>
-  <span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small>${esc(x.role)}</small><p>${esc(x.effet)}</p></div>`;
+const staffEffet = (x, palier) => esc(x.effet).replace('{v}', staffValeur(x, palier));
+// une carte staff : cadre à la couleur de son palier (comme les joueurs), icône, nom, rôle et passif à ce palier
+const staffCarteHTML = (x, cls = '', palier = x.meilleur || 'bronze') => `<div class="stc p-${esc(palier)}${cls ? ' ' + cls : ''}"><span class="stc-h"><i>Staff</i><i>${R_LABEL[palier] || ''}</i></span>
+  <span class="stc-ic" aria-hidden="true">${STAFF_IC[x.id] || '⭐'}</span><b>${esc(x.nom)}</b><small>${esc(x.role)}</small><p>${staffEffet(x, palier)}</p></div>`;
 function vueStaff() {
-  const actif = staffActif();
+  const actif = staffActif(), prix = S().staff?.prix ?? 500, n = PARAMS.fusion_nombre ?? 3;
+  const bloc = x => {
+    const ex = x.exemplaires || {}, possede = !!x.meilleur;
+    // progression : la valeur du passif à chaque palier, le palier atteint en couleur
+    const pal = RARETES.map(r => `<i class="p-${r}${x.meilleur === r ? ' on' : ''}${STAFF_RANG[r] <= STAFF_RANG[x.meilleur] ? ' ok' : ''}">${R_LABEL[r][0]} ${staffValeur(x, r)}</i>`).join('');
+    const copies = RARETES.filter(r => ex[r]).map(r => `<i class="p-${r}${ex[r] >= n && palierSuivant(r) ? ' fus' : ''}">${R_LABEL[r][0]}×${ex[r]}</i>`).join('');
+    const fusion = RARETES.filter(r => palierSuivant(r) && ex[r] >= n)[0];
+    return `<div class="stf-c${possede ? ' a' : ''}${x.id === actif ? ' on' : ''}">${staffCarteHTML(x)}
+      <span class="stf-p" aria-label="passif à chaque palier">${pal}</span>
+      ${copies ? `<span class="stf-x">${copies}</span>` : ''}
+      ${fusion ? `<button class="btn gold petit" data-staff-fusion="${x.id}:${fusion}">Fusionner ${n} ${R_LABEL[fusion]} → ${R_LABEL[palierSuivant(fusion)]} · ${nb(PARAMS.fusion_cout?.[fusion] ?? 0)} <i class="coin"></i></button>` : ''}
+      ${x.id === actif ? '<em>Dans ton équipe</em>' : possede ? `<button class="btn ghost petit" data-staff-mettre="${x.id}">Placer dans l’équipe</button>` : ''}
+      <button class="btn ${possede ? 'ghost' : 'gold'} petit" data-staff="${x.id}"${S().pieces >= prix ? '' : ' disabled'}>${possede ? '+1 Bronze' : 'Recruter'} · ${nb(prix)} <i class="coin"></i></button></div>`;
+  };
   return `${retour('club', 'Club')}<h1>Staff</h1>
-    <p class="sub">Des cartes qui ne jouent pas : place-en une dans ton équipe (onglet Équipe), son passif compte tant qu’elle y est 🧑‍🏫</p>
-    <div class="stf">${staffListe().map(x => `<div class="stf-c${x.possede ? ' a' : ''}${x.id === actif ? ' on' : ''}">${staffCarteHTML(x)}
-      ${x.id === actif ? '<em>Dans ton équipe</em>' : x.possede ? `<button class="btn ghost petit" data-staff-mettre="${x.id}">Placer dans l’équipe</button>`
-        : `<button class="btn gold petit" data-staff="${x.id}"${S().pieces >= x.prix ? '' : ' disabled'}>Recruter · ${nb(x.prix)} <i class="coin"></i></button>`}</div>`).join('')}</div>`;
+    <p class="sub">Des cartes qui ne jouent pas : place-en une dans ton équipe (onglet Équipe), son passif compte tant qu’elle y est. Comme les joueurs, ${n} cartes identiques du même palier fusionnent vers le palier suivant, et le passif grandit 🧑‍🏫</p>
+    <div class="stf">${staffListe().map(bloc).join('')}</div>`;
 }
 // la place staff de l'onglet Équipe : choisir parmi ses cartes
 function fenetreStaffEquipe() {
-  const actif = staffActif(), miennes = staffListe().filter(x => x.possede);
-  ouvrirOverlay(`<div class="sheet"><h3>Carte staff de l’équipe</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces.</p>
+  const actif = staffActif(), miennes = staffListe().filter(x => x.meilleur);
+  ouvrirOverlay(`<div class="sheet"><h3>Carte staff de l’équipe</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces. C’est ton meilleur exemplaire de la carte qui compte.</p>
     ${miennes.length ? `<div class="stf">${miennes.map(x => `<button class="stf-c a${x.id === actif ? ' on' : ''}" data-staff-mettre="${x.id === actif ? '' : x.id}">${staffCarteHTML(x)}
       <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff.</p>'}
-    <button class="btn gold" data-act="staff-boutique">${miennes.length ? 'Recruter d’autres cartes staff' : 'Recruter une carte staff'}</button>
+    <button class="btn gold" data-act="staff-boutique">${miennes.length ? 'Recruter ou améliorer des cartes staff' : 'Recruter une carte staff'}</button>
     <button class="btn ghost" data-act="fermer">Fermer</button></div>`);
 }
 const COMPO = {id: null, choix: []};
@@ -904,7 +918,7 @@ function vueEquipe() {
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
     ${(() => { const x = staffDe(staffActif());
       return `<button class="staff-place${x ? '' : ' vide'}" data-act="staff-place"><span class="sp-t">Staff</span>${x ? staffCarteHTML(x, 'mini') : '<span class="sp-plus" aria-hidden="true">+</span>'}
-        <span class="sp-d"><b>${x ? esc(x.nom) : 'Aucune carte staff'}</b><small>${x ? esc(x.effet) : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
+        <span class="sp-d"><b>${x ? esc(x.nom) : 'Aucune carte staff'}</b><small>${x ? `${R_LABEL[x.meilleur] || ''} · ${staffEffet(x)}` : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
@@ -2378,7 +2392,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-staff-mettre],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2464,6 +2478,8 @@ document.addEventListener('click', e => {
   if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
   if (d.staff) return action(Compte.acheterStaff(d.staff), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.nom || 'Staff'} recruté 🧑‍🏫`); route(true); });
+  if (d.staffFusion) { const [id, pal] = d.staffFusion.split(':');
+    return action(Compte.fusionnerStaff(id, pal), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.nom || 'Staff'} passe ${R_LABEL[r.palier]} ✨`); route(true); }); }
   if (d.staffMettre !== undefined) return action(Compte.choisirStaff(d.staffMettre), () => { Son.jouer('clic'); toast(d.staffMettre ? 'Carte staff placée 🧑‍🏫' : 'Place staff libre');
     if (!$('#overlay').hidden) cacherOverlay(); route(true); });
   if (d.capitaine) return action(Compte.choisirCapitaine(d.capitaine), () => { Son.jouer('tap'); toast('Nouveau capitaine'); fermerOverlay(); });
@@ -2796,7 +2812,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=61').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=62').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

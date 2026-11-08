@@ -89,7 +89,7 @@ insert into parametres values (1, '{
   "ligue_recompenses": {"1": {"or": 1, "pieces": 1000}, "2": {"bonus": 2, "pieces": 700}, "3": {"bonus": 1, "pieces": 500}, "autres": {"pieces": 200}},
   "club_membres_max": 20, "club_paliers": [25, 50, 100], "club_recompenses": [{"bonus": 1}, {"bonus": 2}, {"or": 1}],
   "albums_recompenses": {"bronze": {"pieces": 300}, "argent": {"bonus": 2}, "or": {"or": 1}, "ultime": {"or": 2, "pieces": 2000}},
-  "capitaine_bonus": 2, "staff_prix": {"bronze": 1500, "argent": 3000, "or": 6000}
+  "capitaine_bonus": 2, "staff_prix": 500
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -410,7 +410,7 @@ create or replace function matchs_a_jour(p_uid uuid) returns void language plpgs
 declare p profils; minutes int := parami('match_minutes'); maxi int := parami('match_stock_max'); n int;
 begin
   select * into p from profils where user_id = p_uid for update;   -- deux appels à la fois : le second attend (pas de double recharge)
-  if staff_actif(p_uid) = 'kine' then minutes := round(minutes * .7); end if;   -- kiné : 30 % plus vite
+  minutes := round(minutes * (1 - staff_val(p_uid, 'kine') / 100.0));   -- kiné
   if p.matchs >= maxi then update profils set matchs_maj = now() where user_id = p_uid; return; end if;
   n := floor(extract(epoch from now() - p.matchs_maj) / (minutes * 60));
   if n <= 0 then return; end if;
@@ -754,8 +754,9 @@ revoke all on albums_faits from anon, authenticated;
 
 -- Capitaine (un exemplaire de l'équipe : +2 de note en match), staff (ne joue pas, aide le club), personnalisation du profil
 alter table profils add column if not exists capitaine uuid;
-create table if not exists staff_cartes (user_id uuid not null references profils on delete cascade, staff text not null, le timestamptz not null default now(),
-  primary key (user_id, staff));
+create table if not exists staff_cartes (id bigserial primary key, user_id uuid not null references profils on delete cascade, staff text not null,
+  palier text not null default 'bronze' check (palier in ('bronze', 'argent', 'or', 'ultime')), le timestamptz not null default now());
+create index if not exists staff_cartes_user on staff_cartes (user_id, staff);
 alter table staff_cartes enable row level security;
 revoke all on staff_cartes from anon, authenticated;
 alter table profils add column if not exists staff text;   -- la carte staff placée dans l'équipe (une seule place)
@@ -765,21 +766,33 @@ create or replace function lundi_courant() returns date language sql stable as $
 create or replace function debut_semaine() returns timestamptz language sql stable as $$ select lundi_courant()::timestamp at time zone 'Europe/Paris' $$;
 
 -- ── staff
-create or replace function staff_catalogue() returns table (id text, nom text, role text, effet text, palier text) language sql immutable as $$
-  values ('prepa', 'Préparateur physique', 'Entraînement', '+50 % d’XP à chaque entraînement d’un joueur', 'bronze'),
-         ('kine', 'Kiné', 'Récupération', 'Matchs de championnat rechargés 30 % plus vite', 'bronze'),
-         ('ailiers', 'Coach des ailiers', 'Ailes', '+3 de note à tes ailiers (AG, AD) en match', 'bronze'),
-         ('manager', 'Manager', 'Finances', '+20 % de pièces gagnées en championnat et en ligue', 'argent'),
-         ('gardiens', 'Entraîneur des gardiens', 'But', '+4 de note à ta gardienne ou ton gardien en match', 'argent'),
-         ('base', 'Coach de la base arrière', 'Base arrière', '+2 de note aux arrières et au demi-centre en match', 'argent'),
-         ('polyvalent', 'Coach polyvalent', 'Postes', 'Hors de son poste, un joueur perd 2 au lieu de 5', 'argent'),
-         ('mental', 'Préparateur mental', 'Capitaine', 'Ton capitaine gagne 3 de plus en match (+5 en tout)', 'or'),
-         ('adjoint', 'Entraîneur adjoint', 'Attaque', '+3 % d’attaque en match', 'or'),
-         ('defense', 'Coach défensif', 'Défense', '+3 % de défense en match', 'or')
+create or replace function staff_catalogue() returns table (id text, nom text, role text, effet text, valeurs int[]) language sql immutable as $$
+  -- effet : {v} = la valeur du palier (Bronze, Argent, Or, Ultime)
+  values ('prepa', 'Préparateur physique', 'Entraînement', '+{v} % d’XP à chaque entraînement d’un joueur', array[25, 50, 75, 100]),
+         ('kine', 'Kiné', 'Récupération', 'Matchs de championnat rechargés {v} % plus vite', array[10, 20, 30, 40]),
+         ('ailiers', 'Coach des ailiers', 'Ailes', '+{v} de note à tes ailiers (AG, AD) en match', array[1, 2, 3, 4]),
+         ('manager', 'Manager', 'Finances', '+{v} % de pièces gagnées en championnat et en ligue', array[5, 10, 15, 20]),
+         ('gardiens', 'Entraîneur des gardiens', 'But', '+{v} de note à ta gardienne ou ton gardien en match', array[1, 2, 3, 4]),
+         ('base', 'Coach de la base arrière', 'Base arrière', '+{v} de note aux arrières et au demi-centre en match', array[1, 2, 2, 3]),
+         ('polyvalent', 'Coach polyvalent', 'Postes', 'Hors de son poste, un joueur perd {v} au lieu de 5', array[4, 3, 2, 1]),
+         ('mental', 'Préparateur mental', 'Capitaine', 'Ton capitaine gagne {v} de plus en match', array[1, 2, 3, 4]),
+         ('adjoint', 'Entraîneur adjoint', 'Attaque', '+{v} % d’attaque en match', array[1, 2, 3, 4]),
+         ('defense', 'Coach défensif', 'Défense', '+{v} % de défense en match', array[1, 2, 3, 4])
+$$;
+create or replace function staff_rang(p_palier text) returns int language sql immutable as $$
+  select array_position(array['bronze', 'argent', 'or', 'ultime'], p_palier)
+$$;
+-- le meilleur exemplaire d'une carte staff (c'est lui qui compte quand la carte est placée)
+create or replace function staff_meilleur(p_uid uuid, p_staff text) returns text language sql stable security definer set search_path = public as $$
+  select palier from staff_cartes where user_id = p_uid and staff = p_staff order by staff_rang(palier) desc limit 1
 $$;
 -- la carte staff active d'un joueur (placée dans son équipe et possédée), sinon null
 create or replace function staff_actif(p_uid uuid) returns text language sql stable security definer set search_path = public as $$
   select p.staff from profils p where p.user_id = p_uid and exists (select 1 from staff_cartes s where s.user_id = p_uid and s.staff = p.staff)
+$$;
+-- la valeur du passif d'une carte si elle est placée (selon son meilleur palier), sinon 0
+create or replace function staff_val(p_uid uuid, p_staff text) returns int language sql stable security definer set search_path = public as $$
+  select coalesce((select k.valeurs[staff_rang(staff_meilleur(p_uid, k.id))] from staff_catalogue() k where k.id = p_staff and staff_actif(p_uid) = p_staff), 0)
 $$;
 
 -- ── albums
@@ -954,9 +967,10 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'legendes', coalesce((select jsonb_agg(to_jsonb(c)) from cartes c where c.legende
       and exists (select 1 from exemplaires e where e.proprietaire = p.user_id and e.carte_id = c.id)), '[]'),
     'capitaine', p.capitaine, 'albums', albums_vue(p.user_id),
-    'staff', jsonb_build_object('actif', staff_actif(p.user_id),
-      'liste', (select jsonb_agg(jsonb_build_object('id', k.id, 'nom', k.nom, 'role', k.role, 'effet', k.effet, 'palier', k.palier,
-        'prix', (param('staff_prix') ->> k.palier)::int, 'possede', exists (select 1 from staff_cartes s where s.user_id = p.user_id and s.staff = k.id)))
+    'staff', jsonb_build_object('actif', staff_actif(p.user_id), 'prix', parami('staff_prix'),
+      'liste', (select jsonb_agg(jsonb_build_object('id', k.id, 'nom', k.nom, 'role', k.role, 'effet', k.effet, 'valeurs', to_jsonb(k.valeurs),
+        'meilleur', staff_meilleur(p.user_id, k.id),
+        'exemplaires', (select coalesce(jsonb_object_agg(s.palier, s.n), '{}') from (select palier, count(*) n from staff_cartes where user_id = p.user_id and staff = k.id group by palier) s)))
         from staff_catalogue() k)),
     'perso', perso_public(p.user_id), 'persoDebloques', to_jsonb(perso_debloques(p.user_id)),
     'persoCatalogue', (select jsonb_agg(jsonb_build_object('id', k.id, 'type', k.type, 'nom', k.nom, 'condition', k.condition)) from perso_catalogue() k),
@@ -1157,7 +1171,7 @@ begin
   cout := (param('entrainement_cout') ->> e.palier)::int;
   if p.pieces < cout then raise exception 'Il faut % pièces pour cette séance', cout; end if;
   update profils set pieces = pieces - cout where user_id = p.user_id;
-  perform xp_carte(p_ex, round(parami('entrainement_xp') * case when staff_actif(p.user_id) = 'prepa' then 1.5 else 1 end)::int);   -- préparateur physique
+  perform xp_carte(p_ex, round(parami('entrainement_xp') * (1 + staff_val(p.user_id, 'prepa') / 100.0))::int);   -- préparateur physique
   select note into apres from exemplaires where id = p_ex;
   perform progresser(p.user_id, 'entrainement');
   niveaux := gagner_xp(p.user_id, parami('xp_entrainement'));
@@ -1267,23 +1281,22 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
-  proprio uuid; cap uuid; st text;
+  proprio uuid; cap uuid; st text; sv int := 0;
 begin
   -- l'équipe d'un joueur : son capitaine et son staff comptent
   select e.proprietaire into proprio from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value limit 1;
   if proprio is not null then
     select capitaine into cap from profils where user_id = proprio;
-    st := staff_actif(proprio);
+    st := staff_actif(proprio); sv := staff_val(proprio, st);
   end if;
   for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.ecarts, en_forme(c.id) forme
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
     -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
-    ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then case when st = 'polyvalent' then 2 else 5 end else 0 end;
+    ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then case when st = 'polyvalent' then sv else 5 end else 0 end;
     if l.forme and ne < 99 then ne := least(99, ne + parami('semaine_forme')); end if;
-    if l.eid = cap then ne := ne + parami('capitaine_bonus') + case when st = 'mental' then 3 else 0 end; end if;   -- capitaine : +2 (+5 avec le préparateur mental)
+    if l.eid = cap then ne := ne + parami('capitaine_bonus') + case when st = 'mental' then sv else 0 end; end if;   -- capitaine : +2 (plus le préparateur mental)
     -- carte staff : entraîneur des gardiens, coach des ailiers, coach de la base arrière
-    ne := ne + case when st = 'gardiens' and l.slot = 'GB' then 4 when st = 'ailiers' and l.slot in ('AG', 'AD') then 3
-                    when st = 'base' and l.slot in ('ARG', 'DC', 'ARD') then 2 else 0 end;
+    ne := ne + case when st = 'gardiens' and l.slot = 'GB' or st = 'ailiers' and l.slot in ('AG', 'AD') or st = 'base' and l.slot in ('ARG', 'DC', 'ARD') then sv else 0 end;
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom);
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
@@ -1311,8 +1324,8 @@ begin
   b_att := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 1));
   b_def := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 2));
   return jsonb_build_object(
-    'att', round((note_depuis_stat(att) + coll) * (1 + b_att) * case when st = 'adjoint' then 1.03 else 1 end, 1),
-    'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def) * case when st = 'defense' then 1.03 else 1 end, 1),
+    'att', round((note_depuis_stat(att) + coll) * (1 + b_att) * case when st = 'adjoint' then 1 + .01 * sv else 1 end, 1),
+    'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def) * case when st = 'defense' then 1 + .01 * sv else 1 end, 1),
     'note', round(notes / n + coll), 'tireurs', tireurs, 'joueurs', joueurs, 'moyennes', moy, 'bonus', jsonb_build_object('attaque', b_att, 'defense', b_def));
 end $$;
 
@@ -1611,7 +1624,7 @@ begin
 
   -- un match simulé rapporte un peu moins (p_gain) que le même match joué en direct
   xp := round((param('pve_xp') ->> res)::int * p_gain); xpc := round((param('pve_xp_carte') ->> res)::int * p_gain);
-  v_pieces := round((param('pve_pieces') ->> res)::int * mult * p_gain * case when staff_actif(p_uid) = 'manager' then 1.2 else 1 end);   -- manager : +20 %
+  v_pieces := round((param('pve_pieces') ->> res)::int * mult * p_gain * (1 + staff_val(p_uid, 'manager') / 100.0));   -- manager
   update profils set tactique = p_tactique, parcours = pc, pieces = pieces + v_pieces + recompense,
     bonus = bonus + bonus_b, bonus_or = bonus_or + bonus_o where user_id = p.user_id;
   progres := xp_equipe(p.equipe, xpc);
@@ -3312,7 +3325,7 @@ begin
   else raise exception 'Adversaire inconnu'; end if;
   r := simuler(fa, fb); res := r ->> 'resultat';
   pts := case res when 'gagne' then 3 when 'nul' then 1 else 0 end;
-  gain := round(((param('ligue_pieces') ->> res))::int * case when staff_actif(p.user_id) = 'manager' then 1.2 else 1 end);   -- manager : +20 %
+  gain := round(((param('ligue_pieces') ->> res))::int * (1 + staff_val(p.user_id, 'manager') / 100.0));   -- manager
   update ligue_membres set points = points + pts, joues = joues + 1, gagnes = gagnes + (res = 'gagne')::int, nuls = nuls + (res = 'nul')::int,
     perdus = perdus + (res = 'perdu')::int where groupe = g.id and user_id = p.user_id;
   if o.user_id is not null then   -- l'autre joueur défend : il prend aussi ses points
@@ -3443,19 +3456,35 @@ end $$;
 
 -- ── staff
 create or replace function acheter_staff(p_staff text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils; k record; prix int;
+declare p profils; prix int := parami('staff_prix');
 begin
   select * into p from profils where user_id = auth.uid() for update;   -- deux achats à la fois : le second attend
   if not found then raise exception 'Crée ton profil d''abord'; end if;
-  select * into k from staff_catalogue() c where c.id = p_staff;
-  if not found then raise exception 'Carte staff inconnue'; end if;
-  if exists (select 1 from staff_cartes where user_id = p.user_id and staff = p_staff) then raise exception 'Tu as déjà cette carte'; end if;
-  prix := (param('staff_prix') ->> k.palier)::int;
+  if not exists (select 1 from staff_catalogue() c where c.id = p_staff) then raise exception 'Carte staff inconnue'; end if;
   if p.pieces < prix then raise exception 'Il faut % pièces', prix; end if;
   update profils set pieces = pieces - prix, staff = coalesce(staff_actif(p.user_id), p_staff) where user_id = p.user_id;   -- la première va dans l'équipe
   insert into staff_cartes (user_id, staff) values (p.user_id, p_staff);
   perform noter(p.user_id, 'staff', jsonb_build_object('staff', p_staff, 'prix', prix));
   return jsonb_build_object('staff', p_staff, 'etat', etat_de(p.user_id));
+end $$;
+-- fusion, comme les joueurs : 3 exemplaires d'un palier → 1 du palier suivant, mêmes coûts (fusion_nombre, fusion_cout)
+create or replace function fusionner_staff(p_staff text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; suivant text := palier_suivant(p_palier); n int := parami('fusion_nombre'); cout int;
+begin
+  select * into p from profils where user_id = auth.uid() for update;
+  if not found then raise exception 'Crée ton profil d''abord'; end if;
+  if suivant is null then raise exception 'Une carte staff Ultime ne peut plus fusionner'; end if;
+  if (select count(*) from staff_cartes where user_id = p.user_id and staff = p_staff and palier = p_palier) < n then
+    raise exception 'Il faut % cartes staff % identiques', n, p_palier;
+  end if;
+  cout := (param('fusion_cout') ->> p_palier)::int;
+  if p.pieces < cout then raise exception 'Il faut % pièces pour cette fusion', cout; end if;
+  update profils set pieces = pieces - cout where user_id = p.user_id;
+  delete from staff_cartes where id in (select id from staff_cartes where user_id = p.user_id and staff = p_staff and palier = p_palier order by id limit n);
+  insert into staff_cartes (user_id, staff, palier) values (p.user_id, p_staff, suivant);
+  perform progresser(p.user_id, 'fusion');
+  perform noter(p.user_id, 'fusion-staff', jsonb_build_object('staff', p_staff, 'de', p_palier, 'vers', suivant, 'cout', cout));
+  return jsonb_build_object('staff', p_staff, 'palier', suivant, 'etat', etat_de(p.user_id));
 end $$;
 create or replace function choisir_staff(p_staff text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi();
@@ -3501,7 +3530,7 @@ grant execute on function
   ouvrir_booster_equipe(text), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
-  reclamer_album(text, text), choisir_capitaine(uuid), acheter_staff(text), choisir_staff(text), choisir_perso(text, text),
+  reclamer_album(text, text), choisir_capitaine(uuid), acheter_staff(text), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),
   admin_publier_cartes(jsonb, boolean), est_admin()
 to authenticated;
 
