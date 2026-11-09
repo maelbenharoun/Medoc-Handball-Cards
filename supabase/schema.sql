@@ -232,7 +232,8 @@ revoke all on matchs_direct from anon, authenticated;
 
 -- défis entre ami(e)s (30 pièces au gagnant, 5 par jour) : deux types de plus
 alter table rencontres drop constraint if exists rencontres_type_check;
-alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami'));
+-- tous les types en une fois (la ligue comprise) : le fichier doit se relancer même quand des matchs de ligue existent déjà
+alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami', 'ligue', 'defense_ligue'));
 
 -- Vrais matchs des poules SG1, SG2, SF1, SF2 (data/matchs.json, envoyé par l'outil) et les paris dessus
 create table if not exists matchs (
@@ -731,8 +732,7 @@ revoke all on ligue_groupes, ligue_membres, ligue_matchs from anon, authenticate
 alter table profils add column if not exists ligue_div int not null default 8;        -- 8 : la plus basse, 1 : la meilleure
 alter table profils add column if not exists ligue_meilleure int not null default 8;
 alter table profils add column if not exists ligue_bilan jsonb;                         -- résultat de la semaine passée, montré une fois
-alter table rencontres drop constraint if exists rencontres_type_check;
-alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami', 'ligue', 'defense_ligue'));
+-- (les types de la ligue sont dans rencontres_type_check, plus haut)
 
 -- Clubs de joueurs : 20 au plus, un objectif commun chaque semaine (victoires de tous les membres)
 create table if not exists clubs (id bigserial primary key, nom text not null, cree_par uuid references profils on delete set null, cree_le timestamptz not null default now());
