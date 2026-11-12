@@ -92,7 +92,7 @@ const CompteServeur = (() => {
   }
   // une ligne de la table cartes → carte du jeu ; le serveur fait foi : poste, équipe, forme du joueur et photos tels que publiés
   function carteDepuisLigne(r) {
-    const base = {...fusionnerCarte(r.site, r.reglages || {}), poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
+    const base = {...fusionnerCarte(r.site, r.reglages || {}), id: r.id, poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
       estGB: r.poste === 'GB', ecarts: r.ecarts || {}, equipe: r.equipe || r.site?.equipe, legende: !!r.legende,
       photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
     return vueExemplaire(base, r.legende ? {palier: 'ultime', note: NOTE_LEGENDE} : {palier: 'bronze', note: PALIER.bronze.min});
@@ -205,7 +205,6 @@ const CompteServeur = (() => {
     rafraichir: () => rpc('mon_etat').then(majEtat),
     ouvrirDepart: () => rpc('ouvrir_depart'),                                  // → {ids}
     ouvrirBooster: type => rpc('ouvrir_booster', {p_type: type}),               // 'gratuit' | 'bonus' | 'or' → {ids}
-    ouvrirBoosterPoste: poste => rpc('ouvrir_booster_poste', {p_poste: poste}),  // acheté en pièces → {ids}
     fusionner: (carte, palier) => rpc('fusionner', {p_carte: carte, p_palier: palier}),   // → {id, niveaux}
     entrainer: ex => rpc('entrainer', {p_ex: ex}),                              // → {avant, apres, niveaux}
     vendre: ex => rpc('vendre', {p_ex: ex}),                                    // → {gain}
@@ -234,24 +233,17 @@ const CompteServeur = (() => {
     choisirPerso: (type, id) => rpc('choisir_perso', {p_type: type, p_id: id}),
     reclamerPasse: () => rpc('reclamer_passe'),                                // tous les paliers atteints → {de, a, gains}
     faireDefi: (defi, ids) => rpc('faire_defi', {p_defi: defi, p_ex: ids}),     // défi de composition → {recompense}
-    chercherJoueurs: texte => rpc('chercher_joueurs', {p_texte: texte}),
 
     // ── matchs ── (→ {match: {a, b, buts, resultat}, adversaire, gains, progres, finSaison, niveaux})
-    matchChampionnat: tactique => rpc('match_championnat', {p_tactique: tactique}),
     // ── match en direct : par blocs de 5 minutes (type 'championnat' | 'defi_ami', cible = pseudo de l'ami(e)) ──
     // → {direct, vue: {bloc, minute, score, tempsMorts, nous, eux, evenements}} ; simuler = tout de suite (→ comme un match fini)
     matchCommencer: (type, cible, tactique, consigne, simuler) => rpc('match_commencer', {p_type: type, p_cible: cible, p_tactique: tactique, p_consigne: consigne, p_simuler: !!simuler}),
     matchBloc: (tactique, consigne, tempsMort) => rpc('match_bloc', {p_tactique: tactique, p_consigne: consigne, p_temps_mort: !!tempsMort}),   // fin : + match, gains…
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
-    seance: () => rpc('seance_equipe'),                                         // → {xpCarte, progres, niveaux}
-    seancePayante: () => rpc('seance_payante'),                                 // en pièces, sans limite par jour
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
     miniJouer: (jeu, entrees) => rpc('mini_jouer', {p_jeu: jeu, p_entrees: entrees}),   // → {resultat, reussi, reponse, pieces, bonus, essais, restants}
     tirer7m: (x, y, puissance) => rpc('tirer_7m', {p_x: x, p_y: y, p_puissance: puissance}),   // mini-jeu → {resultat, x, y, vitesse, gardien, pieces, bonus, tirs, restants}
-    defier: (pseudo, tactique) => rpc('defier', {p_pseudo: pseudo, p_tactique: tactique}),
-    adversaires: () => rpc('adversaires'),
-    classement: () => rpc('classement'),
     rencontres: () => rpc('mes_rencontres'),
 
     // ── paris sur les vrais matchs ── (→ {aVenir, resultats, mesParis, min, max})
@@ -259,10 +251,6 @@ const CompteServeur = (() => {
     parier: (rid, choix, mise) => rpc('parier', {p_rid: rid, p_choix: choix, p_mise: mise}),   // → {cote, gainPossible}
 
     // ── marché des transferts ── (filtre : 'tout' | 'pour_moi' | 'mes')
-    marche: filtre => rpc('marche', {p_filtre: filtre}),
-    publierAnnonce: (ex, carte, palier) => rpc('publier_annonce', {p_ex: ex, p_carte: carte, p_palier: palier}),
-    retirerAnnonce: id => rpc('retirer_annonce', {p_id: id}),
-    accepterAnnonce: id => rpc('accepter_annonce', {p_id: id}),                   // → {recu, donne}
     // transferts par listes : {max, veux, donne, possibles, cherchent, donnent, historique}
     mesTransferts: () => rpc('mes_transferts'),
     majListesTransfert: (veux, donne) => rpc('maj_listes_transfert', {p_veux: veux, p_donne: donne}),
@@ -283,7 +271,6 @@ const CompteServeur = (() => {
     annulerEchange: id => rpc('annuler_echange', {p_id: id}),
     conversation: pseudo => rpc('conversation', {p_pseudo: pseudo}),            // → {pseudo, messages: [{moi, texte, le}]} (marque comme lus)
     envoyerMessage: (pseudo, texte) => rpc('envoyer_message', {p_pseudo: pseudo, p_texte: texte}),
-    defierAmi: pseudo => rpc('defier_ami', {p_pseudo: pseudo}),                  // → comme defier ; 30 pièces au gagnant, 5 par jour
   };
 })();
 

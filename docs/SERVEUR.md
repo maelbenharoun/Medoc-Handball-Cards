@@ -140,8 +140,30 @@ Le jeton GitHub ne sert plus : supprime-le sur <https://github.com/settings/pers
 
 **Aucune table n'est modifiable depuis le jeu.** Le jeu lit ce qui le concerne (ses cartes, ses quêtes, ses paris…) et passe
 par des fonctions du serveur pour tout le reste : `ouvrir_depart`, `ouvrir_booster`, `fusionner`, `entrainer`, `vendre`, `aligner`,
-`reclamer_quete`, `match_championnat`, `seance_equipe`, `defier`, `parier`, `publier_annonce`, `accepter_annonce`…
+`reclamer_quete`, `match_commencer`, `parier`, `transferer`… (64 fonctions, la liste `grant execute` en bas de `schema.sql`).
 Chacune vérifie tout et fait l'action d'un seul bloc. Les fonctions internes (tirage, XP, moteur de match) ne sont pas appelables.
+
+### Audit du 12 novembre 2026
+
+- **Droits** : la liste accordée = exactement ce que `serveur.js` et `admin.js` appellent. 13 fonctions que le jeu n'appelait plus ont
+  été retirées (`ouvrir_booster_poste`, `seance_equipe`, `seance_payante`, `defier`, `adversaires`, `classement`, `match_championnat`,
+  `defier_ami`, `marche`, `publier_annonce`, `retirer_annonce`, `accepter_annonce`, `chercher_joueurs`) : elles donnaient encore, à qui
+  appelait le serveur sans passer par le jeu, ce que Maël avait retiré. Elles restent définies (tests du moteur), sans droit.
+- **Corrigé** : `club_reclamer` acceptait un palier 0 ou négatif (un index négatif relit un tableau jsonb depuis la fin : chaque
+  récompense de club s'encaissait deux fois) ; une légende apparaissait dans le club montré à un(e) ami(e) et pouvait s'échanger ;
+  supprimer son compte laissait son club sans président(e), ou vide dans le classement (`club_partir`).
+- **Accès simultanés** : chaque action commence par `moi()`, qui verrouille le profil du joueur ; les échanges verrouillent les
+  deux profils. Vérifié sur un vrai Postgres (12 appels au même instant : jamais de carte, de pièce ou de récompense en double).
+- **Restent, par choix de conception** (à décider par Maël) : les comptes se créent sans confirmation d'e-mail ni captcha (réglage
+  Supabase), donc plusieurs comptes peuvent nourrir un compte principal par les échanges entre ami(e)s (3 propositions par jour et
+  par compte, tous paliers) ; les mini-jeux font confiance au jeu (un script y gagne le maximum du jour, environ 1 400 pièces contre
+  700 à 1 000 pour un bon joueur) ; rejoindre un club le dimanche donne ses récompenses sans y avoir contribué.
+
+### Tests dans le dépôt (`tests/`, voir `tests/LISEZMOI.md`)
+
+`node tests/test_droits.js` (droits et corrections de l'audit) · `node tests/test_parite.js` (règles écrites deux fois, dans le jeu
+et sur le serveur : mêmes résultats sur des centaines d'équipes au hasard) · `node tests/test_concurrence.js` (accès simultanés et
+relance du schéma, sur un vrai Postgres) · `node tests/economie.js` (simulation de l'économie d'après les réglages).
 
 ### Ce qui a été vérifié
 

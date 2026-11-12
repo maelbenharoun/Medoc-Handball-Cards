@@ -1,0 +1,13 @@
+{
+  "name": "medoc-hand-cards-tests",
+  "private": true,
+  "description": "Tests du serveur (schema.sql sur une base locale) et du jeu. Rien d'ici n'est chargé par le jeu.",
+  "scripts": {
+    "test": "node test_droits.js && node test_parite.js && node test_concurrence.js"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.2.17",
+    "@supabase/supabase-js": "2.118.0",
+    "pg": "8.13.1"
+  }
+}

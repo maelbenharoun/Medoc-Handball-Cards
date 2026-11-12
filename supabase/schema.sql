@@ -1069,6 +1069,7 @@ create or replace function supprimer_mon_compte() returns void language plpgsql 
 declare u uuid := auth.uid();
 begin
   if u is null then raise exception 'Connecte-toi d’abord'; end if;
+  perform club_partir(u);   -- son club ne reste ni sans président(e), ni vide dans le classement
   delete from mouvements where user_id = u;
   delete from auth.users where id = u;   -- efface aussi le profil, les cartes et les quêtes (en cascade)
 end $$;
@@ -1305,7 +1306,7 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
-  proprio uuid; cap uuid; st text; sv int := 0;
+  proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}';
 begin
   -- l'équipe d'un joueur : son capitaine et son staff comptent
   select e.proprietaire into proprio from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value limit 1;
@@ -1321,7 +1322,7 @@ begin
     if l.eid = cap then ne := ne + parami('capitaine_bonus') + case when st = 'mental' then sv else 0 end; end if;   -- capitaine : +2 (plus le préparateur mental)
     -- carte staff : entraîneur des gardiens, coach des ailiers, coach de la base arrière
     ne := ne + case when st = 'gardiens' and l.slot = 'GB' or st = 'ailiers' and l.slot in ('AG', 'AD') or st = 'base' and l.slot in ('ARG', 'DC', 'ARD') then sv else 0 end;
-    n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom);
+    n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom); nts := nts || jsonb_build_object(l.slot, ne);
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
     s_phy := stat_note(ne, (l.ecarts ->> 'phy')::numeric);
@@ -1350,7 +1351,10 @@ begin
   return jsonb_build_object(
     'att', round((note_depuis_stat(att) + coll) * (1 + b_att) * case when st = 'adjoint' then 1 + .01 * sv else 1 end, 1),
     'def', round((note_depuis_stat(.6 * def + .4 * arr) + coll) * (1 + b_def) * case when st = 'defense' then 1 + .01 * sv else 1 end, 1),
-    'note', round(notes / n + coll), 'tireurs', tireurs, 'joueurs', joueurs, 'moyennes', moy, 'bonus', jsonb_build_object('attaque', b_att, 'defense', b_def));
+    'note', least(99, round(notes / n + coll)), 'tireurs', tireurs, 'joueurs', joueurs, 'moyennes', moy, 'bonus', jsonb_build_object('attaque', b_att, 'defense', b_def),
+    -- note de chaque joueur à son poste et collectif : ce que le jeu recalcule de son côté (noteAuPoste, noteEquipe dans app.js) ;
+    -- tests/test_parite.js compare les deux sur des centaines d'équipes au hasard
+    'notes', nts, 'collectif', coll);
 end $$;
 
 -- Équipe de l'ordinateur d'un niveau donné
@@ -2579,7 +2583,9 @@ declare p profils := moi(); o profils; e1 uuid; e2 uuid;
 begin
   select * into o from profils where lower(pseudo) = lower(trim(p_pseudo));
   if not found or o.user_id = p.user_id then raise exception 'Joueur inconnu'; end if;
-  perform 1 from profils where user_id in (p.user_id, o.user_id) order by user_id for update;   -- toujours dans le même ordre
+  -- l'autre profil est verrouillé à son tour (le mien l'est déjà par moi()) : ses propres actions attendent la fin de l'échange.
+  -- Deux échanges croisés au même instant : Postgres en annule un (interblocage), sans rien abîmer.
+  perform 1 from profils where user_id in (p.user_id, o.user_id) order by user_id for update;
   if p_donne = p_recoit then raise exception 'Échange impossible'; end if;
   if not (exists (select 1 from listes_transfert where user_id = p.user_id and sens = 'donne' and carte = p_donne and palier = p_palier)
       and exists (select 1 from listes_transfert where user_id = p.user_id and sens = 'veux' and carte = p_recoit and palier = p_palier)
@@ -2780,7 +2786,7 @@ declare p profils := moi(); a profils := ami_de(p_pseudo);
 begin
   if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note) order by e.note desc)
-    from exemplaires e where e.proprietaire = a.user_id and carte_libre(a.user_id, e.id)), '[]');
+    from exemplaires e join cartes c on c.id = e.carte_id where e.proprietaire = a.user_id and not c.legende and carte_libre(a.user_id, e.id)), '[]');
 end $$;
 -- Proposer un échange à un(e) ami(e) : ma carte contre la sienne, quels que soient les paliers ; 3 propositions par jour
 create or replace function proposer_echange(p_pseudo text, p_donne uuid, p_demande uuid) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -2792,6 +2798,9 @@ begin
   end if;
   if not carte_libre(p.user_id, p_donne) then raise exception 'Ta carte doit être à toi, hors de ton équipe et des transferts'; end if;
   if not carte_libre(a.user_id, p_demande) then raise exception 'Cette carte n’est plus disponible'; end if;
+  if exists (select 1 from exemplaires e join cartes c on c.id = e.carte_id where e.id in (p_donne, p_demande) and c.legende) then
+    raise exception 'Cette carte ne s’échange pas';
+  end if;
   if exists (select 1 from echanges where statut = 'ouvert' and (donne = p_donne or demande = p_demande)) then raise exception 'Un échange est déjà proposé avec cette carte'; end if;
   -- une seule proposition à la fois entre deux ami(e)s (demande de Maël)
   if exists (select 1 from echanges where statut = 'ouvert' and ((de = p.user_id and pour = a.user_id) or (de = a.user_id and pour = p.user_id))) then
@@ -3470,16 +3479,25 @@ begin
   perform noter(p.user_id, 'club-rejoindre', jsonb_build_object('club', p_club));
   return mon_club() || jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
+-- sortie d'un club (fonction interne) : le club vide disparaît, sinon le plus ancien membre devient président(e). Renvoie le club quitté.
+create or replace function club_partir(p_uid uuid) returns bigint language plpgsql security definer set search_path = public as $$
+declare m clubs_membres;
+begin
+  select * into m from clubs_membres where user_id = p_uid;
+  if not found then return null; end if;
+  perform 1 from clubs where id = m.club for update;
+  delete from clubs_membres where user_id = p_uid;
+  if not exists (select 1 from clubs_membres where club = m.club) then delete from clubs where id = m.club;
+  elsif m.role = 'president' then
+    update clubs_membres set role = 'president' where user_id = (select user_id from clubs_membres where club = m.club order by rejoint_le limit 1);
+  end if;
+  return m.club;
+end $$;
 create or replace function club_quitter() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); m clubs_membres;
 begin
-  select * into m from clubs_membres where user_id = p.user_id;
-  if not found then raise exception 'Tu n’es dans aucun club'; end if;
-  delete from clubs_membres where user_id = p.user_id;
-  if not exists (select 1 from clubs_membres where club = m.club) then delete from clubs where id = m.club;
-  elsif m.role = 'president' then   -- le plus ancien membre devient président(e)
-    update clubs_membres set role = 'president' where user_id = (select user_id from clubs_membres where club = m.club order by rejoint_le limit 1);
-  end if;
+  m.club := club_partir(p.user_id);
+  if m.club is null then raise exception 'Tu n’es dans aucun club'; end if;
   perform noter(p.user_id, 'club-quitter', jsonb_build_object('club', m.club));
   return mon_club() || jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
@@ -3488,6 +3506,8 @@ declare p profils := moi(); m clubs_membres; obj int; r jsonb;
 begin
   select * into m from clubs_membres where user_id = p.user_id;
   if not found then raise exception 'Tu n’es dans aucun club'; end if;
+  -- un index négatif relit un tableau jsonb depuis la fin : palier 0 = la dernière récompense une seconde fois (audit du 12 nov. 2026)
+  if p_palier is null or p_palier < 1 or p_palier > jsonb_array_length(param('club_paliers')) then raise exception 'Palier inconnu'; end if;
   obj := (param('club_paliers') ->> (p_palier - 1))::int; r := param('club_recompenses') -> (p_palier - 1);
   if obj is null or r is null then raise exception 'Palier inconnu'; end if;
   if club_victoires(m.club) < obj then raise exception 'Objectif pas encore atteint'; end if;
@@ -3579,16 +3599,20 @@ create policy lecture on cartes for select using (not legende
 -- Droits : le jeu ne peut appeler QUE ces fonctions-là, et seulement une fois connecté
 -- ════════════════════════════════════════════════════════════════════════════
 revoke execute on all functions in schema public from public, anon, authenticated;
+-- Audit du 12 nov. 2026 : 13 fonctions que le jeu n'appelle plus ne sont plus accordées (elles restent définies pour les tests du
+-- moteur) : ouvrir_booster_poste, seance_equipe, seance_payante, defier, adversaires, classement, match_championnat, defier_ami,
+-- marche, publier_annonce, retirer_annonce, accepter_annonce, chercher_joueurs. Elles donnaient encore, à qui appelait le serveur
+-- sans passer par le jeu, des choses retirées par Maël (boosters par poste, séances, défis contre n'importe qui).
+-- tests/test_droits.js compare cette liste aux appels de serveur.js et d'admin.js : l'une ne change pas sans l'autre.
 grant execute on function
   mon_etat(), creer_profil(text, boolean), supprimer_mon_compte(),
-  ouvrir_depart(), ouvrir_booster(text), ouvrir_booster_poste(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
-  aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), chercher_joueurs(text),
-  match_championnat(text), seance_equipe(), seance_payante(), defier(text, text), adversaires(), classement(), mes_rencontres(),
+  ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
+  aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
-  marche(text), publier_annonce(uuid, text, text), retirer_annonce(uuid), accepter_annonce(uuid),
   mes_transferts(), maj_listes_transfert(jsonb, jsonb), transferer(text, text, text, text),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
-  proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text), defier_ami(text), admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
+  proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
+  admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), ouvrir_booster_hasard(), choix_coach_preparer(text), choix_coach_choisir(int),

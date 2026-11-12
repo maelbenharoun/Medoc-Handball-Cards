@@ -45,8 +45,15 @@ const peutJouer = (c, slot) => slot === 'GB' ? !!c.postes?.includes('GB') : joue
 const horsPoste = (c, slot) => slot !== 'GB' && !!c.postes?.length && !c.postes.includes(slot);
 // comme force_equipe (schema.sql) : capitaine +2 (+5 avec le préparateur mental) ; cartes staff des gardiens, des ailiers, de la base arrière
 const bonusStaff = slot => ({gardiens: slot === 'GB', ailiers: ['AG', 'AD'].includes(slot), base: ['ARG', 'DC', 'ARD'].includes(slot)})[staffActif()] ? staffVal(staffActif()) : 0;
-const noteAuPoste = (c, slot) => Math.min(c.legende ? NOTE_LEGENDE : 99, c.ovr - (horsPoste(c, slot) ? malusHors() : 0) + bonusForme(c.id))   // +3 : joueur de la semaine
-  + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) + staffVal('mental') : 0) + bonusStaff(slot);
+// Même calcul, dans le même ordre, que force_equipe : hors poste, puis joueur de la semaine (+3, sans dépasser 99), puis capitaine
+// et carte staff (qui peuvent dépasser 99). tests/test_parite.js compare les deux sur des centaines d'équipes : le lancer après
+// tout changement ici ou dans force_equipe.
+function noteAuPoste(c, slot) {
+  let n = c.ovr - (horsPoste(c, slot) ? malusHors() : 0);
+  const forme = bonusForme(c.id);
+  if (forme && n < 99) n = Math.min(99, n + forme);
+  return n + (c.ex?.id && c.ex.id === S().capitaine ? (PARAMS.capitaine_bonus ?? 2) + staffVal('mental') : 0) + bonusStaff(slot);
+}
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
@@ -872,9 +879,11 @@ function moyennesEquipe() {
 }
 function bonusTactique(m, stats) {
   if (!m) return 0;
-  const tout = Object.values(m).reduce((a, b) => a + b, 0) / 6, spe = (m[stats[0]] + m[stats[1]]) / 2 / tout - 1;
+  // comme le serveur : moyennes arrondies au dixième, bonus arrondi au millième (sinon « 2 % » ici et « 3 % » en match)
+  const r = k => Math.round(m[k] * 10) / 10;
+  const tout = Object.keys(m).reduce((a, k) => a + r(k), 0) / 6, spe = (r(stats[0]) + r(stats[1])) / 2 / tout - 1;
   const base = PARAMS.tactique_bonus_base ?? .02, max = PARAMS.tactique_bonus_max ?? .1, pente = PARAMS.tactique_pente ?? .4;
-  return Math.max(0, Math.min(max, base + pente * spe));
+  return Math.round(Math.max(0, Math.min(max, base + pente * spe)) * 1000) / 1000;
 }
 const pc100 = x => Math.round(x * 100) + ' %';
 // vignette d'un joueur aligné : sa photo (ou ses initiales) dans un rond aux couleurs du palier, et son nom
@@ -2821,7 +2830,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=64').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=65').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
