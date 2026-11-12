@@ -55,11 +55,15 @@ def lignes_club(k, d, cartes, avant):
             c = carte_de(str(ligne[0]), cartes)
             if not c:
                 continue
-            buts, tirs, arrets = int(ligne[2] or 0), int(ligne[3] or 0), int(ligne[5] or 0)
+            # ligne courte [nom, numéro, buts] : le site a les buts (FFHB) mais pas encore la feuille PDF, donc ni tirs ni arrêts.
+            # On compte les buts ; les tirs de la semaine sont alors inconnus (0 : le jeu n'écrit pas « sur N tirs »).
+            complete = len(ligne) > 5
+            buts, tirs, arrets = int(ligne[2] or 0), int(ligne[3] or 0) if complete else 0, int(ligne[5] or 0) if complete else 0
             if buts and (not meilleur or buts > meilleur["buts"]):
                 meilleur = {"carte": c["id"], "buts": buts}
             x = s["joueurs"].setdefault(c["id"], {"carte": c["id"], "nom": c["nom"], "buts": 0, "tirs": 0, "arrets": 0, "rid": m["rid"]})
             x["buts"] += buts; x["tirs"] += max(tirs, buts); x["arrets"] += arrets
+            x["sans_tirs"] = x.get("sans_tirs", False) or not complete
         if meilleur:
             s.setdefault("buteurs", {})[m["rid"]] = meilleur
     return semaines
@@ -106,7 +110,7 @@ def joueurs_semaine(D, cartes, ancien=None, aujourdhui=None):
             if not x:
                 continue
             m = next(m for m in s["matchs"] if m["rid"] == x["rid"])
-            equipes[eq] = {"carte": x["carte"], "nom": x["nom"], "buts": x["buts"], "tirs": x["tirs"], "arrets": x["arrets"],
+            equipes[eq] = {"carte": x["carte"], "nom": x["nom"], "buts": x["buts"], "tirs": 0 if x.get("sans_tirs") else x["tirs"], "arrets": x["arrets"],
                            "matchs": len(s["matchs"]), "match": {k: m[k] for k in ("date", "adv", "score", "lieu")}}
             pris.add(x["carte"])
         for eq, x in equipes.items():
