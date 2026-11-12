@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-08",
+ "maj": "2026-11-12",
  "saison": "2026-2027",
  "semaines": [
   {
@@ -349,6 +349,79 @@
      }
     }
    }
+  },
+  {
+   "lundi": "2026-11-02",
+   "equipes": {
+    "SF1": {
+     "carte": "norah-de-wilde",
+     "nom": "Norah De Wilde",
+     "buts": 13,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-08",
+      "adv": "Coulounieix-Chamiers",
+      "score": [
+       35,
+       24
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SF2": {
+     "carte": "tiphaine-lemaitre",
+     "nom": "Tiphaine Lemaitre",
+     "buts": 1,
+     "tirs": 1,
+     "arrets": 21,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-08",
+      "adv": "Pe2M 2",
+      "score": [
+       34,
+       20
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG1": {
+     "carte": "maximilien-viau",
+     "nom": "Maximilien Viau",
+     "buts": 6,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-07",
+      "adv": "Territoire Charente 3",
+      "score": [
+       34,
+       23
+      ],
+      "lieu": "dom"
+     }
+    },
+    "SG2": {
+     "carte": "jorian-hautie",
+     "nom": "Jorian Hautie",
+     "buts": 3,
+     "tirs": 5,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-07",
+      "adv": "Eysines 2",
+      "score": [
+       22,
+       35
+      ],
+      "lieu": "dom"
+     }
+    }
+   }
   }
  ],
  "buteurs": {
@@ -372,6 +445,10 @@
    "carte": "enguerran-chaigneau",
    "buts": 10
   },
+  "2635755": {
+   "carte": "enguerran-chaigneau",
+   "buts": 10
+  },
   "2636263": {
    "carte": "elodie-perez",
    "buts": 11
@@ -386,6 +463,10 @@
   },
   "2636283": {
    "carte": "amandine-pazat",
+   "buts": 7
+  },
+  "2636288": {
+   "carte": "camille-seurin",
    "buts": 7
   },
   "2645736": {
@@ -408,6 +489,10 @@
    "carte": "maxime-rabut",
    "buts": 10
   },
+  "2645765": {
+   "carte": "maxime-rabut",
+   "buts": 12
+  },
   "2647793": {
    "carte": "cecilia-ennelin",
    "buts": 6
@@ -427,6 +512,10 @@
   "2647815": {
    "carte": "julie-valentin",
    "buts": 9
+  },
+  "2647822": {
+   "carte": "norah-de-wilde",
+   "buts": 13
   }
  }
 }

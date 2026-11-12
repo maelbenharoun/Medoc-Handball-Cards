@@ -1728,15 +1728,12 @@
    "dom": "Avenir Pailleton 2",
    "ext": "Haillan",
    "medoc": null,
-   "p": [
-    0.169,
-    0.036,
-    0.794
-   ],
+   "p": null,
    "score": [
     14,
     20
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -1884,15 +1881,12 @@
    "dom": "Objat Correze 2",
    "ext": "Capo Limoges 2",
    "medoc": null,
-   "p": [
-    0.596,
-    0.055,
-    0.349
-   ],
+   "p": null,
    "score": [
     42,
     27
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF1",
@@ -1904,15 +1898,12 @@
    "dom": "Agen",
    "ext": "Brive",
    "medoc": null,
-   "p": [
-    0.516,
-    0.054,
-    0.43
-   ],
+   "p": null,
    "score": [
     30,
     27
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF1",
@@ -1924,15 +1915,12 @@
    "dom": "Blanquefort 2",
    "ext": "Sarlat",
    "medoc": null,
-   "p": [
-    0.393,
-    0.053,
-    0.554
-   ],
+   "p": null,
    "score": [
     27,
     20
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -1944,15 +1932,12 @@
    "dom": "Haillan",
    "ext": "Bazadais",
    "medoc": null,
-   "p": [
-    0.639,
-    0.05,
-    0.311
-   ],
+   "p": null,
    "score": [
     22,
     24
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -1964,15 +1949,12 @@
    "dom": "Léognan",
    "ext": "Gond Pontouvre",
    "medoc": null,
-   "p": [
-    0.48,
-    0.058,
-    0.462
-   ],
+   "p": null,
    "score": [
     31,
     35
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -1984,15 +1966,12 @@
    "dom": "Médoc Handball",
    "ext": "Eysines 2",
    "medoc": "dom",
-   "p": [
-    0.356,
-    0.055,
-    0.589
-   ],
+   "p": null,
    "score": [
     22,
     35
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -2004,15 +1983,12 @@
    "dom": "Saint Médard d'Eyrans",
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
-   "p": [
-    0.116,
-    0.029,
-    0.856
-   ],
+   "p": null,
    "score": [
     20,
     28
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -2024,15 +2000,12 @@
    "dom": "Fronsadais",
    "ext": "Arcachon la Teste",
    "medoc": null,
-   "p": [
-    0.637,
-    0.05,
-    0.313
-   ],
+   "p": null,
    "score": [
     22,
     31
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -2044,15 +2017,12 @@
    "dom": "Pays Castillonnais",
    "ext": "Avenir Pailleton 2",
    "medoc": null,
-   "p": [
-    0.827,
-    0.033,
-    0.141
-   ],
+   "p": null,
    "score": [
     22,
     9
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -2064,15 +2034,12 @@
    "dom": "Arsac",
    "ext": "Cubzaguais",
    "medoc": null,
-   "p": [
-    0.363,
-    0.056,
-    0.581
-   ],
+   "p": null,
    "score": [
     25,
     18
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF1",
@@ -2084,15 +2051,12 @@
    "dom": "Marmande 2",
    "ext": "Créon",
    "medoc": null,
-   "p": [
-    0.628,
-    0.05,
-    0.322
-   ],
+   "p": null,
    "score": [
     22,
     24
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -2104,15 +2068,12 @@
    "dom": "Béglais",
    "ext": "Pana Loisirs",
    "medoc": null,
-   "p": [
-    0.79,
-    0.039,
-    0.171
-   ],
+   "p": null,
    "score": [
     46,
     26
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF1",
@@ -2124,15 +2085,12 @@
    "dom": "Montpon-Ménestérol",
    "ext": "Libourne",
    "medoc": null,
-   "p": [
-    0.737,
-    0.042,
-    0.22
-   ],
+   "p": null,
    "score": [
     26,
     24
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -2144,15 +2102,12 @@
    "dom": "Médoc Handball",
    "ext": "Territoire Charente 3",
    "medoc": "dom",
-   "p": [
-    0.618,
-    0.054,
-    0.328
-   ],
+   "p": null,
    "score": [
     34,
     23
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -2164,15 +2119,12 @@
    "dom": "Grand Périgueux Erm",
    "ext": "Pessacais 2",
    "medoc": null,
-   "p": [
-    0.889,
-    0.025,
-    0.086
-   ],
+   "p": null,
    "score": [
     46,
     30
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -2184,15 +2136,12 @@
    "dom": "Andernos Nord Bassin 3",
    "ext": "Langonnais 2",
    "medoc": null,
-   "p": [
-    0.851,
-    0.031,
-    0.118
-   ],
+   "p": null,
    "score": [
     39,
     20
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -2204,15 +2153,12 @@
    "dom": "Béglais 2",
    "ext": "Belin-Beliet 2",
    "medoc": null,
-   "p": [
-    0.475,
-    0.058,
-    0.467
-   ],
+   "p": null,
    "score": [
     22,
     26
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF1",
@@ -2224,15 +2170,12 @@
    "dom": "Médoc Handball",
    "ext": "Coulounieix-Chamiers",
    "medoc": "dom",
-   "p": [
-    0.995,
-    0.002,
-    0.003
-   ],
+   "p": null,
    "score": [
     35,
     24
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -2244,15 +2187,12 @@
    "dom": "Gazinet Cestas 2",
    "ext": "Cubzaguais",
    "medoc": null,
-   "p": [
-    0.472,
-    0.054,
-    0.474
-   ],
+   "p": null,
    "score": [
     33,
     30
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -2264,15 +2204,12 @@
    "dom": "Isle 2",
    "ext": "Palais s/ Vienne",
    "medoc": null,
-   "p": [
-    0.937,
-    0.016,
-    0.047
-   ],
+   "p": null,
    "score": [
     28,
     22
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -2284,15 +2221,12 @@
    "dom": "Canejan 3",
    "ext": "Cadillac Cérons",
    "medoc": null,
-   "p": [
-    0.683,
-    0.05,
-    0.267
-   ],
+   "p": null,
    "score": [
     19,
     31
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SF2",
@@ -2304,15 +2238,12 @@
    "dom": "Médoc Handball",
    "ext": "Pe2M 2",
    "medoc": "dom",
-   "p": [
-    0.825,
-    0.033,
-    0.143
-   ],
+   "p": null,
    "score": [
     34,
     20
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG2",
@@ -2324,15 +2255,12 @@
    "dom": "Bruges 33",
    "ext": "Talence",
    "medoc": null,
-   "p": [
-    0.171,
-    0.039,
-    0.789
-   ],
+   "p": null,
    "score": [
     34,
     39
-   ]
+   ],
+   "forfait": null
   },
   {
    "equipe": "SG1",
@@ -2345,9 +2273,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.297,
-    0.052,
-    0.651
+    0.177,
+    0.04,
+    0.783
    ],
    "score": null
   },
@@ -2362,9 +2290,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.089,
-    0.024,
-    0.888
+    0.128,
+    0.031,
+    0.841
    ],
    "score": null
   },
@@ -2379,9 +2307,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.807,
-    0.035,
-    0.158
+    0.654,
+    0.049,
+    0.297
    ],
    "score": null
   },
@@ -2396,9 +2324,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.168,
-    0.036,
-    0.796
+    0.275,
+    0.047,
+    0.678
    ],
    "score": null
   },
@@ -2413,9 +2341,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.135,
-    0.034,
-    0.831
+    0.116,
+    0.031,
+    0.853
    ],
    "score": null
   },
@@ -2430,9 +2358,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.265,
-    0.05,
-    0.685
+    0.304,
+    0.052,
+    0.644
    ],
    "score": null
   },
@@ -2447,9 +2375,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.546,
-    0.057,
-    0.397
+    0.651,
+    0.052,
+    0.297
    ],
    "score": null
   },
@@ -2464,9 +2392,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.365,
-    0.056,
-    0.579
+    0.336,
+    0.054,
+    0.61
    ],
    "score": null
   },
@@ -2481,9 +2409,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.332,
-    0.054,
-    0.614
+    0.258,
+    0.049,
+    0.693
    ],
    "score": null
   },
@@ -2498,9 +2426,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.489,
-    0.054,
-    0.457
+    0.567,
+    0.053,
+    0.381
    ],
    "score": null
   },
@@ -2515,9 +2443,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.625,
-    0.053,
-    0.321
+    0.731,
+    0.046,
+    0.224
    ],
    "score": null
   },
@@ -2532,9 +2460,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.525,
-    0.054,
-    0.422
+    0.569,
+    0.053,
+    0.378
    ],
    "score": null
   },
@@ -2549,9 +2477,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.829,
-    0.034,
-    0.137
+    0.931,
+    0.017,
+    0.052
    ],
    "score": null
   },
@@ -2566,9 +2494,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.041,
-    0.014,
-    0.945
+    0.07,
+    0.02,
+    0.909
    ],
    "score": null
   },
@@ -2583,9 +2511,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.41,
-    0.053,
-    0.537
+    0.369,
+    0.052,
+    0.579
    ],
    "score": null
   },
@@ -2600,9 +2528,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.58,
-    0.052,
-    0.367
+    0.469,
+    0.054,
+    0.477
    ],
    "score": null
   },
@@ -2617,9 +2545,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.287,
-    0.048,
-    0.665
+    0.25,
+    0.045,
+    0.705
    ],
    "score": null
   },
@@ -2634,9 +2562,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.78,
-    0.04,
-    0.18
+    0.632,
+    0.053,
+    0.315
    ],
    "score": null
   },
@@ -2651,9 +2579,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.72,
-    0.047,
-    0.234
+    0.622,
+    0.054,
+    0.325
    ],
    "score": null
   },
@@ -2668,9 +2596,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.608,
-    0.051,
-    0.341
+    0.675,
+    0.047,
+    0.278
    ],
    "score": null
   },
@@ -2685,9 +2613,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.483,
+    0.462,
     0.058,
-    0.459
+    0.481
    ],
    "score": null
   },
@@ -2702,9 +2630,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.669,
+    0.663,
     0.048,
-    0.284
+    0.289
    ],
    "score": null
   },
@@ -2719,9 +2647,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.395,
-    0.057,
-    0.548
+    0.3,
+    0.052,
+    0.648
    ],
    "score": null
   },
@@ -2736,9 +2664,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.86,
-    0.028,
-    0.112
+    0.76,
+    0.04,
+    0.199
    ],
    "score": null
   },
@@ -2753,9 +2681,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": "dom",
    "p": [
-    0.933,
-    0.016,
-    0.051
+    0.955,
+    0.012,
+    0.034
    ],
    "score": null
   },
@@ -2770,9 +2698,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.91,
-    0.021,
-    0.069
+    0.918,
+    0.02,
+    0.062
    ],
    "score": null
   },
@@ -2787,9 +2715,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.797,
-    0.036,
-    0.167
+    0.757,
+    0.04,
+    0.203
    ],
    "score": null
   },
@@ -2804,9 +2732,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.191,
-    0.039,
-    0.77
+    0.101,
+    0.026,
+    0.873
    ],
    "score": null
   },
@@ -2821,9 +2749,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.852,
+    0.854,
     0.031,
-    0.117
+    0.116
    ],
    "score": null
   },
@@ -2838,9 +2766,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.561,
-    0.056,
-    0.383
+    0.7,
+    0.048,
+    0.252
    ],
    "score": null
   },
@@ -2855,9 +2783,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.272,
-    0.047,
-    0.681
+    0.215,
+    0.042,
+    0.743
    ],
    "score": null
   },
@@ -2872,9 +2800,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.505,
+    0.527,
     0.054,
-    0.441
+    0.419
    ],
    "score": null
   },
@@ -2889,9 +2817,9 @@
    "ext": "Libourne",
    "medoc": null,
    "p": [
-    0.376,
-    0.053,
-    0.572
+    0.267,
+    0.046,
+    0.686
    ],
    "score": null
   },
@@ -2906,9 +2834,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.271,
-    0.047,
-    0.683
+    0.455,
+    0.054,
+    0.491
    ],
    "score": null
   },
@@ -2923,9 +2851,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.427,
-    0.057,
-    0.516
+    0.44,
+    0.058,
+    0.503
    ],
    "score": null
   },
@@ -2940,9 +2868,9 @@
    "ext": "Capo Limoges 2",
    "medoc": "dom",
    "p": [
-    0.704,
-    0.048,
-    0.248
+    0.825,
+    0.035,
+    0.14
    ],
    "score": null
   },
@@ -2957,9 +2885,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.748,
-    0.044,
-    0.208
+    0.795,
+    0.039,
+    0.167
    ],
    "score": null
   },
@@ -2974,9 +2902,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.81,
-    0.037,
-    0.153
+    0.654,
+    0.052,
+    0.294
    ],
    "score": null
   },
@@ -2991,9 +2919,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.029,
-    0.01,
-    0.96
+    0.068,
+    0.02,
+    0.912
    ],
    "score": null
   },
@@ -3008,9 +2936,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.819,
-    0.034,
-    0.148
+    0.779,
+    0.038,
+    0.183
    ],
    "score": null
   },
@@ -3025,9 +2953,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.134,
-    0.034,
-    0.832
+    0.104,
+    0.029,
+    0.867
    ],
    "score": null
   },
@@ -3042,9 +2970,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.257,
-    0.049,
-    0.694
+    0.13,
+    0.033,
+    0.837
    ],
    "score": null
   },
@@ -3059,9 +2987,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.621,
-    0.05,
-    0.328
+    0.684,
+    0.047,
+    0.269
    ],
    "score": null
   },
@@ -3076,9 +3004,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.854,
-    0.031,
-    0.115
+    0.904,
+    0.022,
+    0.073
    ],
    "score": null
   },
@@ -3093,9 +3021,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.551,
-    0.057,
-    0.392
+    0.677,
+    0.05,
+    0.273
    ],
    "score": null
   },
@@ -3110,9 +3038,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": "dom",
    "p": [
-    0.62,
-    0.054,
-    0.326
+    0.508,
+    0.058,
+    0.435
    ],
    "score": null
   },
@@ -3127,9 +3055,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.919,
-    0.018,
-    0.062
+    0.908,
+    0.02,
+    0.071
    ],
    "score": null
   },
@@ -3144,9 +3072,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.492,
+    0.453,
     0.054,
-    0.454
+    0.492
    ],
    "score": null
   },
@@ -3161,9 +3089,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.436,
-    0.058,
-    0.507
+    0.389,
+    0.057,
+    0.555
    ],
    "score": null
   },
@@ -3178,9 +3106,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.92,
-    0.018,
-    0.062
+    0.901,
+    0.022,
+    0.077
    ],
    "score": null
   },
@@ -3195,9 +3123,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.451,
+    0.463,
     0.054,
-    0.495
+    0.483
    ],
    "score": null
   },
@@ -3212,9 +3140,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.763,
-    0.042,
-    0.195
+    0.625,
+    0.054,
+    0.322
    ],
    "score": null
   },
@@ -3229,9 +3157,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.676,
-    0.05,
-    0.274
+    0.787,
+    0.04,
+    0.173
    ],
    "score": null
   },
@@ -3246,9 +3174,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.765,
-    0.04,
-    0.195
+    0.772,
+    0.039,
+    0.189
    ],
    "score": null
   },
@@ -3263,9 +3191,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.375,
-    0.052,
-    0.573
+    0.516,
+    0.054,
+    0.43
    ],
    "score": null
   },
@@ -3280,9 +3208,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.333,
-    0.051,
-    0.617
+    0.281,
+    0.048,
+    0.672
    ],
    "score": null
   },
@@ -3297,9 +3225,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.249,
-    0.048,
-    0.703
+    0.211,
+    0.044,
+    0.745
    ],
    "score": null
   },
@@ -3314,9 +3242,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.418,
-    0.057,
-    0.524
+    0.444,
+    0.058,
+    0.498
    ],
    "score": null
   },
@@ -3331,9 +3259,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.089,
-    0.026,
-    0.885
+    0.069,
+    0.022,
+    0.909
    ],
    "score": null
   },
@@ -3348,9 +3276,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.614,
-    0.054,
-    0.332
+    0.552,
+    0.057,
+    0.391
    ],
    "score": null
   },
@@ -3365,9 +3293,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.856,
-    0.03,
-    0.114
+    0.897,
+    0.024,
+    0.079
    ],
    "score": null
   },
@@ -3382,9 +3310,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.607,
-    0.054,
-    0.338
+    0.756,
+    0.043,
+    0.201
    ],
    "score": null
   },
@@ -3399,9 +3327,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.758,
-    0.043,
-    0.199
+    0.71,
+    0.048,
+    0.243
    ],
    "score": null
   },
@@ -3416,9 +3344,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.667,
-    0.048,
-    0.286
+    0.509,
+    0.054,
+    0.437
    ],
    "score": null
   },
@@ -3433,9 +3361,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.48,
-    0.058,
-    0.462
+    0.623,
+    0.054,
+    0.323
    ],
    "score": null
   },
@@ -3450,9 +3378,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.35,
-    0.052,
-    0.598
+    0.47,
+    0.054,
+    0.476
    ],
    "score": null
   },
@@ -3467,9 +3395,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.346,
-    0.051,
-    0.603
+    0.424,
+    0.054,
+    0.523
    ],
    "score": null
   },
@@ -3484,9 +3412,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.704,
-    0.048,
-    0.248
+    0.511,
+    0.057,
+    0.432
    ],
    "score": null
   },
@@ -3501,9 +3429,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.886,
-    0.024,
-    0.09
+    0.941,
+    0.014,
+    0.045
    ],
    "score": null
   },
@@ -3518,9 +3446,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.354,
-    0.052,
-    0.594
+    0.388,
+    0.053,
+    0.559
    ],
    "score": null
   },
@@ -3535,9 +3463,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": "dom",
    "p": [
-    0.716,
+    0.719,
     0.044,
-    0.239
+    0.237
    ],
    "score": null
   },
@@ -3552,9 +3480,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.814,
-    0.036,
-    0.15
+    0.844,
+    0.032,
+    0.124
    ],
    "score": null
   },
@@ -3569,9 +3497,9 @@
    "ext": "Talence",
    "medoc": "dom",
    "p": [
-    0.231,
-    0.046,
-    0.723
+    0.169,
+    0.039,
+    0.792
    ],
    "score": null
   },
@@ -3586,9 +3514,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.574,
-    0.056,
-    0.37
+    0.71,
+    0.047,
+    0.242
    ],
    "score": null
   },
@@ -3603,9 +3531,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.151,
-    0.034,
-    0.815
+    0.199,
+    0.04,
+    0.761
    ],
    "score": null
   },
@@ -3620,9 +3548,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.345,
-    0.055,
-    0.601
+    0.448,
+    0.058,
+    0.495
    ],
    "score": null
   },
@@ -3637,9 +3565,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.455,
+    0.48,
     0.054,
-    0.491
+    0.466
    ],
    "score": null
   },
@@ -3654,9 +3582,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": "dom",
    "p": [
-    0.911,
-    0.021,
-    0.068
+    0.931,
+    0.017,
+    0.051
    ],
    "score": null
   },
@@ -3671,9 +3599,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.033,
-    0.011,
-    0.956
+    0.014,
+    0.006,
+    0.98
    ],
    "score": null
   },
@@ -3688,9 +3616,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.649,
-    0.049,
-    0.302
+    0.666,
+    0.048,
+    0.286
    ],
    "score": null
   },
@@ -3705,9 +3633,9 @@
    "ext": "Libourne",
    "medoc": null,
    "p": [
-    0.605,
-    0.051,
-    0.344
+    0.552,
+    0.053,
+    0.395
    ],
    "score": null
   },
@@ -3722,9 +3650,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.489,
-    0.058,
-    0.454
+    0.561,
+    0.056,
+    0.383
    ],
    "score": null
   },
@@ -3739,9 +3667,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.249,
-    0.045,
-    0.706
+    0.346,
+    0.051,
+    0.603
    ],
    "score": null
   },
@@ -3756,9 +3684,9 @@
    "ext": "Sarlat",
    "medoc": "dom",
    "p": [
-    0.755,
-    0.041,
-    0.204
+    0.73,
+    0.043,
+    0.227
    ],
    "score": null
   },
@@ -3773,9 +3701,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.683,
-    0.05,
-    0.267
+    0.709,
+    0.048,
+    0.244
    ],
    "score": null
   },
@@ -3790,9 +3718,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.703,
-    0.048,
-    0.249
+    0.792,
+    0.039,
+    0.169
    ],
    "score": null
   },
@@ -3807,9 +3735,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.331,
-    0.054,
-    0.614
+    0.285,
+    0.051,
+    0.664
    ],
    "score": null
   },
@@ -3824,9 +3752,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.597,
-    0.055,
-    0.348
+    0.432,
+    0.057,
+    0.51
    ],
    "score": null
   },
@@ -3841,9 +3769,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.551,
-    0.053,
-    0.395
+    0.355,
+    0.052,
+    0.593
    ],
    "score": null
   },
@@ -3858,9 +3786,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.56,
-    0.053,
-    0.387
+    0.532,
+    0.054,
+    0.415
    ],
    "score": null
   },
@@ -3875,9 +3803,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.863,
-    0.029,
-    0.108
+    0.835,
+    0.033,
+    0.132
    ],
    "score": null
   },
@@ -3892,9 +3820,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.392,
-    0.057,
-    0.551
+    0.475,
+    0.058,
+    0.468
    ],
    "score": null
   },
@@ -3909,9 +3837,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.614,
-    0.051,
-    0.336
+    0.55,
+    0.053,
+    0.396
    ],
    "score": null
   },
@@ -3926,9 +3854,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.874,
-    0.026,
-    0.1
+    0.898,
+    0.022,
+    0.079
    ],
    "score": null
   },
@@ -3943,9 +3871,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.222,
-    0.042,
-    0.736
+    0.417,
+    0.054,
+    0.529
    ],
    "score": null
   },
@@ -3960,9 +3888,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.556,
-    0.053,
-    0.391
+    0.497,
+    0.054,
+    0.449
    ],
    "score": null
   },
@@ -3977,9 +3905,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.349,
-    0.051,
-    0.6
+    0.321,
+    0.05,
+    0.629
    ],
    "score": null
   },
@@ -3994,9 +3922,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.882,
-    0.025,
-    0.093
+    0.92,
+    0.018,
+    0.062
    ],
    "score": null
   },
@@ -4011,9 +3939,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.74,
-    0.042,
-    0.218
+    0.678,
+    0.047,
+    0.275
    ],
    "score": null
   },
@@ -4028,9 +3956,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.798,
-    0.036,
-    0.166
+    0.886,
+    0.024,
+    0.09
    ],
    "score": null
   },
@@ -4045,9 +3973,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.266,
-    0.05,
-    0.684
+    0.132,
+    0.034,
+    0.834
    ],
    "score": null
   },
@@ -4062,9 +3990,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.673,
-    0.05,
-    0.276
+    0.622,
+    0.054,
+    0.324
    ],
    "score": null
   },
@@ -4079,9 +4007,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.316,
-    0.053,
-    0.631
+    0.234,
+    0.047,
+    0.72
    ],
    "score": null
   },
@@ -4096,9 +4024,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.636,
-    0.053,
-    0.311
+    0.697,
+    0.049,
+    0.255
    ],
    "score": null
   },
@@ -4113,9 +4041,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.664,
-    0.051,
-    0.285
+    0.555,
+    0.056,
+    0.388
    ],
    "score": null
   },
@@ -4130,9 +4058,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.708,
-    0.048,
-    0.244
+    0.832,
+    0.034,
+    0.134
    ],
    "score": null
   },
@@ -4147,9 +4075,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.507,
-    0.058,
-    0.436
+    0.537,
+    0.057,
+    0.406
    ],
    "score": null
   },
@@ -4164,9 +4092,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.654,
-    0.052,
-    0.294
+    0.708,
+    0.048,
+    0.245
    ],
    "score": null
   },
@@ -4181,9 +4109,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.933,
-    0.017,
-    0.05
+    0.962,
+    0.011,
+    0.027
    ],
    "score": null
   },
@@ -4198,9 +4126,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.353,
-    0.055,
-    0.592
+    0.195,
+    0.042,
+    0.762
    ],
    "score": null
   },
@@ -4215,9 +4143,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.461,
-    0.058,
-    0.481
+    0.653,
+    0.052,
+    0.295
    ],
    "score": null
   },
@@ -4232,9 +4160,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.799,
-    0.036,
-    0.165
+    0.793,
+    0.037,
+    0.17
    ],
    "score": null
   },
@@ -4249,9 +4177,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.391,
-    0.057,
-    0.553
+    0.3,
+    0.052,
+    0.648
    ],
    "score": null
   },
@@ -4266,9 +4194,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.98,
-    0.006,
-    0.014
+    0.973,
+    0.007,
+    0.02
    ],
    "score": null
   },
@@ -4283,9 +4211,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.913,
-    0.02,
-    0.067
+    0.872,
+    0.026,
+    0.102
    ],
    "score": null
   },
@@ -4300,9 +4228,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.357,
+    0.375,
     0.052,
-    0.591
+    0.573
    ],
    "score": null
   },
@@ -4317,9 +4245,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.799,
-    0.036,
-    0.165
+    0.848,
+    0.03,
+    0.122
    ],
    "score": null
   },
@@ -4334,9 +4262,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.548,
-    0.053,
-    0.398
+    0.62,
+    0.051,
+    0.33
    ],
    "score": null
   },
@@ -4351,9 +4279,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.981,
-    0.006,
-    0.014
+    0.952,
+    0.012,
+    0.036
    ],
    "score": null
   },
@@ -4368,9 +4296,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.373,
-    0.052,
-    0.575
+    0.503,
+    0.054,
+    0.443
    ],
    "score": null
   },
@@ -4385,9 +4313,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.41,
-    0.053,
-    0.536
+    0.295,
+    0.048,
+    0.657
    ],
    "score": null
   },
@@ -4402,9 +4330,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.725,
-    0.043,
-    0.231
+    0.636,
+    0.05,
+    0.315
    ],
    "score": null
   },
@@ -4419,9 +4347,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.869,
-    0.027,
-    0.104
+    0.904,
+    0.021,
+    0.075
    ],
    "score": null
   },
@@ -4436,9 +4364,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.929,
-    0.017,
-    0.054
+    0.956,
+    0.011,
+    0.033
    ],
    "score": null
   },
@@ -4453,9 +4381,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.991,
-    0.003,
-    0.006
+    0.984,
+    0.005,
+    0.011
    ],
    "score": null
   },
@@ -4487,9 +4415,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.267,
+    0.274,
     0.05,
-    0.683
+    0.676
    ],
    "score": null
   },
@@ -4504,9 +4432,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.298,
-    0.052,
-    0.65
+    0.34,
+    0.055,
+    0.605
    ],
    "score": null
   },
@@ -4521,9 +4449,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.786,
-    0.04,
-    0.174
+    0.815,
+    0.036,
+    0.149
    ],
    "score": null
   },
@@ -4538,9 +4466,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.499,
-    0.058,
-    0.443
+    0.4,
+    0.057,
+    0.543
    ],
    "score": null
   },
@@ -4555,9 +4483,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.845,
-    0.032,
-    0.123
+    0.732,
+    0.045,
+    0.222
    ],
    "score": null
   },
@@ -4572,9 +4500,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.872,
-    0.028,
-    0.1
+    0.884,
+    0.026,
+    0.09
    ],
    "score": null
   },
@@ -4589,9 +4517,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.818,
-    0.036,
-    0.146
+    0.802,
+    0.038,
+    0.16
    ],
    "score": null
   },
@@ -4606,9 +4534,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.9,
-    0.023,
-    0.077
+    0.888,
+    0.025,
+    0.087
    ],
    "score": null
   },
@@ -4623,9 +4551,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.312,
-    0.053,
-    0.635
+    0.261,
+    0.049,
+    0.69
    ],
    "score": null
   },
@@ -4640,9 +4568,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.574,
-    0.056,
-    0.37
+    0.767,
+    0.042,
+    0.191
    ],
    "score": null
   },
@@ -4657,9 +4585,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.555,
-    0.056,
-    0.388
+    0.511,
+    0.057,
+    0.432
    ],
    "score": null
   },
@@ -4674,9 +4602,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.209,
-    0.044,
-    0.747
+    0.267,
+    0.05,
+    0.683
    ],
    "score": null
   },
@@ -4691,9 +4619,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.799,
+    0.798,
     0.036,
-    0.165
+    0.166
    ],
    "score": null
   },
@@ -4708,9 +4636,9 @@
    "ext": "Léognan",
    "medoc": "dom",
    "p": [
-    0.717,
-    0.044,
-    0.238
+    0.629,
+    0.05,
+    0.321
    ],
    "score": null
   },
@@ -4725,9 +4653,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.32,
-    0.05,
-    0.63
+    0.429,
+    0.054,
+    0.517
    ],
    "score": null
   },
@@ -4742,9 +4670,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.431,
+    0.447,
     0.054,
-    0.515
+    0.499
    ],
    "score": null
   },
@@ -4759,9 +4687,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.112,
-    0.028,
-    0.86
+    0.099,
+    0.026,
+    0.875
    ],
    "score": null
   },
@@ -4776,9 +4704,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.506,
-    0.054,
-    0.44
+    0.377,
+    0.053,
+    0.57
    ],
    "score": null
   },
@@ -4793,9 +4721,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.6,
+    0.615,
     0.051,
-    0.348
+    0.334
    ],
    "score": null
   },
@@ -4810,9 +4738,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.15,
-    0.034,
-    0.816
+    0.115,
+    0.028,
+    0.857
    ],
    "score": null
   },
@@ -4827,9 +4755,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.039,
-    0.013,
-    0.948
+    0.027,
+    0.01,
+    0.963
    ],
    "score": null
   },
@@ -4844,9 +4772,9 @@
    "ext": "Cubzaguais",
    "medoc": "dom",
    "p": [
-    0.62,
-    0.05,
-    0.329
+    0.67,
+    0.048,
+    0.282
    ],
    "score": null
   },
@@ -4861,9 +4789,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.274,
-    0.047,
-    0.68
+    0.35,
+    0.051,
+    0.599
    ],
    "score": null
   },
@@ -4878,9 +4806,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.97,
-    0.009,
-    0.022
+    0.988,
+    0.004,
+    0.008
    ],
    "score": null
   },
@@ -4895,9 +4823,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.458,
-    0.058,
-    0.484
+    0.365,
+    0.056,
+    0.579
    ],
    "score": null
   },
@@ -4912,9 +4840,9 @@
    "ext": "Objat Correze 2",
    "medoc": "dom",
    "p": [
-    0.703,
-    0.048,
-    0.249
+    0.662,
+    0.051,
+    0.287
    ],
    "score": null
   },
@@ -4929,9 +4857,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.801,
-    0.038,
-    0.161
+    0.764,
+    0.042,
+    0.193
    ],
    "score": null
   },
@@ -4946,9 +4874,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.456,
-    0.058,
-    0.486
+    0.6,
+    0.055,
+    0.346
    ],
    "score": null
   },
@@ -4963,9 +4891,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.499,
+    0.483,
     0.058,
-    0.443
+    0.46
    ],
    "score": null
   },
@@ -4980,9 +4908,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.23,
-    0.046,
-    0.724
+    0.138,
+    0.034,
+    0.828
    ],
    "score": null
   },
@@ -4997,9 +4925,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.153,
-    0.037,
-    0.811
+    0.188,
+    0.042,
+    0.77
    ],
    "score": null
   },
@@ -5014,9 +4942,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.676,
-    0.05,
-    0.274
+    0.793,
+    0.039,
+    0.168
    ],
    "score": null
   },
@@ -5031,9 +4959,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.695,
-    0.049,
-    0.256
+    0.621,
+    0.054,
+    0.325
    ],
    "score": null
   },
@@ -5048,9 +4976,9 @@
    "ext": "Bruges 33",
    "medoc": "dom",
    "p": [
-    0.674,
-    0.05,
-    0.275
+    0.592,
+    0.055,
+    0.352
    ],
    "score": null
   },
@@ -5065,9 +4993,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.523,
+    0.546,
     0.057,
-    0.42
+    0.397
    ],
    "score": null
   },
@@ -5082,9 +5010,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.293,
+    0.283,
     0.048,
-    0.659
+    0.669
    ],
    "score": null
   },
@@ -5099,9 +5027,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.487,
-    0.054,
-    0.459
+    0.596,
+    0.052,
+    0.353
    ],
    "score": null
   },
@@ -5116,9 +5044,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.203,
-    0.04,
-    0.757
+    0.219,
+    0.042,
+    0.738
    ],
    "score": null
   },
@@ -5133,9 +5061,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.6,
+    0.609,
     0.051,
-    0.348
+    0.34
    ],
    "score": null
   },
@@ -5150,9 +5078,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.652,
-    0.049,
-    0.299
+    0.72,
+    0.044,
+    0.236
    ],
    "score": null
   },
@@ -5167,9 +5095,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.994,
-    0.002,
-    0.004
+    0.986,
+    0.004,
+    0.01
    ],
    "score": null
   },
@@ -5184,9 +5112,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.711,
-    0.045,
-    0.245
+    0.796,
+    0.036,
+    0.167
    ],
    "score": null
   },
@@ -5201,9 +5129,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.846,
-    0.03,
-    0.124
+    0.925,
+    0.017,
+    0.058
    ],
    "score": null
   },
@@ -5218,9 +5146,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.876,
-    0.026,
-    0.098
+    0.865,
+    0.027,
+    0.108
    ],
    "score": null
   },
@@ -5235,9 +5163,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.515,
+    0.434,
     0.054,
-    0.431
+    0.512
    ],
    "score": null
   },
@@ -5252,9 +5180,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.775,
-    0.039,
-    0.187
+    0.828,
+    0.032,
+    0.14
    ],
    "score": null
   },
@@ -5269,9 +5197,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.948,
-    0.013,
-    0.039
+    0.899,
+    0.022,
+    0.079
    ],
    "score": null
   },
@@ -5286,9 +5214,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.926,
-    0.018,
-    0.056
+    0.952,
+    0.013,
+    0.035
    ],
    "score": null
   },
@@ -5303,9 +5231,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.763,
+    0.762,
     0.042,
-    0.194
+    0.195
    ],
    "score": null
   },
@@ -5320,9 +5248,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.283,
-    0.051,
-    0.666
+    0.378,
+    0.056,
+    0.566
    ],
    "score": null
   },
@@ -5337,9 +5265,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.705,
+    0.706,
     0.048,
-    0.248
+    0.246
    ],
    "score": null
   },
@@ -5354,9 +5282,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.823,
-    0.035,
-    0.142
+    0.817,
+    0.036,
+    0.147
    ],
    "score": null
   },
@@ -5371,9 +5299,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.523,
+    0.552,
     0.057,
-    0.42
+    0.391
    ],
    "score": null
   },
@@ -5388,9 +5316,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.728,
-    0.046,
-    0.226
+    0.658,
+    0.051,
+    0.29
    ],
    "score": null
   },
@@ -5405,9 +5333,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.87,
-    0.028,
-    0.102
+    0.923,
+    0.019,
+    0.058
    ],
    "score": null
   },
@@ -5422,9 +5350,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.576,
-    0.056,
-    0.368
+    0.625,
+    0.054,
+    0.321
    ],
    "score": null
   },
@@ -5439,9 +5367,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.706,
+    0.709,
     0.048,
-    0.246
+    0.244
    ],
    "score": null
   },
@@ -5456,9 +5384,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.581,
-    0.056,
-    0.363
+    0.423,
+    0.057,
+    0.52
    ],
    "score": null
   },
@@ -5473,9 +5401,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.622,
-    0.054,
-    0.324
+    0.72,
+    0.047,
+    0.233
    ],
    "score": null
   },
@@ -5490,9 +5418,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.117,
-    0.029,
-    0.854
+    0.074,
+    0.021,
+    0.905
    ],
    "score": null
   },
@@ -5507,9 +5435,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.463,
+    0.497,
     0.054,
-    0.483
+    0.449
    ],
    "score": null
   },
@@ -5524,9 +5452,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.57,
-    0.053,
-    0.377
+    0.677,
+    0.047,
+    0.276
    ],
    "score": null
   },
@@ -5541,9 +5469,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.782,
-    0.038,
-    0.18
+    0.828,
+    0.032,
+    0.14
    ],
    "score": null
   },
@@ -5558,9 +5486,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.036,
-    0.012,
-    0.951
+    0.06,
+    0.018,
+    0.922
    ],
    "score": null
   },
@@ -5575,9 +5503,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.187,
-    0.039,
-    0.775
+    0.24,
+    0.044,
+    0.716
    ],
    "score": null
   },
@@ -5592,9 +5520,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.8,
-    0.036,
-    0.164
+    0.824,
+    0.033,
+    0.143
    ],
    "score": null
   },
@@ -5609,9 +5537,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.204,
+    0.208,
     0.041,
-    0.756
+    0.751
    ],
    "score": null
   },
@@ -5626,9 +5554,9 @@
    "ext": "Pays Castillonnais",
    "medoc": "dom",
    "p": [
-    0.775,
-    0.039,
-    0.187
+    0.76,
+    0.04,
+    0.2
    ],
    "score": null
   },
@@ -5643,9 +5571,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.734,
-    0.043,
-    0.224
+    0.743,
+    0.042,
+    0.215
    ],
    "score": null
   },
@@ -5660,9 +5588,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.116,
-    0.029,
-    0.855
+    0.22,
+    0.042,
+    0.738
    ],
    "score": null
   },
@@ -5677,9 +5605,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.158,
-    0.035,
-    0.806
+    0.145,
+    0.033,
+    0.822
    ],
    "score": null
   },
@@ -5694,9 +5622,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.179,
-    0.04,
-    0.78
+    0.098,
+    0.027,
+    0.875
    ],
    "score": null
   },
@@ -5711,9 +5639,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.919,
+    0.916,
     0.02,
-    0.062
+    0.064
    ],
    "score": null
   },
@@ -5728,9 +5656,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.204,
-    0.043,
-    0.753
+    0.238,
+    0.047,
+    0.715
    ],
    "score": null
   },
@@ -5745,9 +5673,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.764,
-    0.042,
-    0.194
+    0.798,
+    0.038,
+    0.164
    ],
    "score": null
   },
@@ -5762,9 +5690,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.502,
-    0.058,
-    0.44
+    0.672,
+    0.051,
+    0.277
    ],
    "score": null
   },
@@ -5779,9 +5707,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.49,
+    0.487,
     0.058,
-    0.452
+    0.455
    ],
    "score": null
   },
@@ -5796,9 +5724,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.63,
-    0.053,
-    0.317
+    0.65,
+    0.052,
+    0.298
    ],
    "score": null
   },
@@ -5813,9 +5741,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.94,
-    0.015,
-    0.045
+    0.901,
+    0.023,
+    0.076
    ],
    "score": null
   },
@@ -5830,9 +5758,9 @@
    "ext": "Béglais 2",
    "medoc": "dom",
    "p": [
-    0.729,
-    0.046,
-    0.226
+    0.706,
+    0.048,
+    0.247
    ],
    "score": null
   },
@@ -5847,9 +5775,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.521,
-    0.057,
-    0.422
+    0.701,
+    0.048,
+    0.251
    ],
    "score": null
   },
@@ -5864,9 +5792,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.365,
-    0.056,
-    0.579
+    0.342,
+    0.055,
+    0.603
    ],
    "score": null
   },
@@ -5881,9 +5809,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.65,
-    0.052,
-    0.298
+    0.675,
+    0.05,
+    0.274
    ],
    "score": null
   },
@@ -5898,9 +5826,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.494,
+    0.491,
     0.054,
-    0.452
+    0.455
    ],
    "score": null
   },
@@ -5915,9 +5843,9 @@
    "ext": "Agen",
    "medoc": "dom",
    "p": [
-    0.737,
-    0.042,
-    0.22
+    0.66,
+    0.048,
+    0.292
    ],
    "score": null
   },
@@ -5932,9 +5860,9 @@
    "ext": "Libourne",
    "medoc": null,
    "p": [
-    0.4,
-    0.053,
-    0.546
+    0.478,
+    0.054,
+    0.468
    ],
    "score": null
   },
@@ -5949,9 +5877,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.834,
-    0.032,
-    0.134
+    0.803,
+    0.035,
+    0.162
    ],
    "score": null
   },
@@ -5966,9 +5894,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.943,
-    0.014,
-    0.043
+    0.967,
+    0.009,
+    0.024
    ],
    "score": null
   },
@@ -5983,9 +5911,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.117,
-    0.029,
-    0.855
+    0.059,
+    0.018,
+    0.923
    ],
    "score": null
   },
@@ -6000,9 +5928,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.431,
+    0.434,
     0.054,
-    0.516
+    0.512
    ],
    "score": null
   },
@@ -6017,9 +5945,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.881,
-    0.025,
-    0.094
+    0.844,
+    0.03,
+    0.126
    ],
    "score": null
   },
@@ -6034,9 +5962,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.655,
-    0.049,
-    0.296
+    0.593,
+    0.052,
+    0.355
    ],
    "score": null
   },
@@ -6051,9 +5979,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.911,
+    0.909,
     0.02,
-    0.069
+    0.071
    ],
    "score": null
   },
@@ -6068,9 +5996,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.575,
-    0.056,
-    0.369
+    0.48,
+    0.058,
+    0.462
    ],
    "score": null
   },
@@ -6085,9 +6013,9 @@
    "ext": "Béglais",
    "medoc": "dom",
    "p": [
-    0.797,
-    0.038,
-    0.165
+    0.764,
+    0.042,
+    0.193
    ],
    "score": null
   },
@@ -6102,9 +6030,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.646,
-    0.052,
-    0.302
+    0.598,
+    0.055,
+    0.347
    ],
    "score": null
   },
@@ -6119,9 +6047,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.781,
-    0.04,
-    0.178
+    0.864,
+    0.029,
+    0.107
    ],
    "score": null
   },
@@ -6136,9 +6064,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.616,
-    0.054,
-    0.33
+    0.671,
+    0.051,
+    0.279
    ],
    "score": null
   },
@@ -6153,9 +6081,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.674,
-    0.05,
-    0.276
+    0.796,
+    0.039,
+    0.166
    ],
    "score": null
   },
@@ -6170,9 +6098,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.24,
-    0.047,
-    0.713
+    0.262,
+    0.049,
+    0.689
    ],
    "score": null
   },
@@ -6187,9 +6115,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.776,
-    0.041,
-    0.184
+    0.87,
+    0.028,
+    0.102
    ],
    "score": null
   },
@@ -6204,9 +6132,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.201,
-    0.043,
-    0.756
+    0.121,
+    0.032,
+    0.848
    ],
    "score": null
   },
@@ -6221,9 +6149,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.561,
-    0.056,
-    0.383
+    0.609,
+    0.054,
+    0.337
    ],
    "score": null
   },
@@ -6238,9 +6166,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.565,
-    0.056,
-    0.379
+    0.621,
+    0.054,
+    0.325
    ],
    "score": null
   },
@@ -6255,9 +6183,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.728,
-    0.046,
-    0.226
+    0.629,
+    0.053,
+    0.318
    ],
    "score": null
   },
@@ -6272,9 +6200,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.938,
-    0.015,
-    0.047
+    0.866,
+    0.027,
+    0.106
    ],
    "score": null
   },
@@ -6289,9 +6217,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.636,
-    0.05,
-    0.314
+    0.583,
+    0.052,
+    0.365
    ],
    "score": null
   },
@@ -6306,9 +6234,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.745,
-    0.042,
-    0.213
+    0.571,
+    0.053,
+    0.376
    ],
    "score": null
   },
@@ -6323,9 +6251,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
+    0.046,
     0.015,
-    0.006,
-    0.979
+    0.94
    ],
    "score": null
   },
@@ -6340,9 +6268,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.403,
-    0.053,
-    0.544
+    0.473,
+    0.054,
+    0.473
    ],
    "score": null
   },
@@ -6357,9 +6285,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.525,
-    0.054,
-    0.422
+    0.645,
+    0.049,
+    0.306
    ],
    "score": null
   },
@@ -6374,9 +6302,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.293,
-    0.048,
-    0.659
+    0.204,
+    0.041,
+    0.755
    ],
    "score": null
   },
@@ -6391,9 +6319,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.944,
+    0.941,
     0.014,
-    0.043
+    0.045
    ],
    "score": null
   },
@@ -6408,9 +6336,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.515,
-    0.054,
-    0.431
+    0.733,
+    0.043,
+    0.224
    ],
    "score": null
   },
@@ -6425,9 +6353,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.677,
-    0.047,
-    0.276
+    0.631,
+    0.05,
+    0.319
    ],
    "score": null
   },
@@ -6442,9 +6370,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.29,
-    0.048,
-    0.662
+    0.214,
+    0.042,
+    0.744
    ],
    "score": null
   },
@@ -6459,9 +6387,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.513,
-    0.054,
-    0.433
+    0.605,
+    0.051,
+    0.343
    ],
    "score": null
   },
@@ -6476,9 +6404,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.372,
-    0.056,
-    0.572
+    0.208,
+    0.044,
+    0.748
    ],
    "score": null
   },
@@ -6493,9 +6421,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.146,
-    0.036,
-    0.818
+    0.183,
+    0.041,
+    0.776
    ],
    "score": null
   },
@@ -6510,9 +6438,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.572,
-    0.056,
-    0.372
+    0.443,
+    0.058,
+    0.5
    ],
    "score": null
   },
@@ -6527,9 +6455,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.702,
-    0.048,
-    0.25
+    0.734,
+    0.045,
+    0.221
    ],
    "score": null
   },
@@ -6544,9 +6472,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.229,
-    0.046,
-    0.725
+    0.159,
+    0.038,
+    0.803
    ],
    "score": null
   },
@@ -6561,9 +6489,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.594,
-    0.055,
-    0.351
+    0.391,
+    0.057,
+    0.552
    ],
    "score": null
   },
@@ -6578,9 +6506,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.802,
-    0.038,
-    0.16
+    0.898,
+    0.023,
+    0.078
    ],
    "score": null
   },
@@ -6595,9 +6523,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.502,
-    0.058,
-    0.441
+    0.728,
+    0.046,
+    0.226
    ],
    "score": null
   },
@@ -6612,9 +6540,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.288,
-    0.051,
-    0.661
+    0.163,
+    0.038,
+    0.799
    ],
    "score": null
   },
@@ -6629,9 +6557,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.923,
+    0.924,
     0.019,
-    0.058
+    0.057
    ],
    "score": null
   },
@@ -6646,9 +6574,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.706,
-    0.048,
-    0.246
+    0.777,
+    0.041,
+    0.182
    ],
    "score": null
   },
@@ -6663,9 +6591,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.797,
-    0.038,
-    0.165
+    0.683,
+    0.05,
+    0.267
    ],
    "score": null
   },
@@ -6680,9 +6608,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.316,
-    0.05,
-    0.634
+    0.497,
+    0.054,
+    0.449
    ],
    "score": null
   },
@@ -6697,9 +6625,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.983,
-    0.005,
-    0.012
+    0.969,
+    0.008,
+    0.023
    ],
    "score": null
   },
@@ -6714,9 +6642,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.732,
-    0.043,
-    0.226
+    0.765,
+    0.04,
+    0.195
    ],
    "score": null
   },
@@ -6731,9 +6659,9 @@
    "ext": "Créon",
    "medoc": "dom",
    "p": [
-    0.912,
-    0.02,
-    0.068
+    0.838,
+    0.031,
+    0.131
    ],
    "score": null
   },
@@ -6748,9 +6676,9 @@
    "ext": "Libourne",
    "medoc": null,
    "p": [
-    0.628,
-    0.05,
-    0.322
+    0.585,
+    0.052,
+    0.363
    ],
    "score": null
   },
@@ -6765,9 +6693,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.574,
-    0.052,
-    0.374
+    0.68,
+    0.047,
+    0.273
    ],
    "score": null
   },
@@ -6782,9 +6710,9 @@
    "ext": "Arcachon la Teste",
    "medoc": "dom",
    "p": [
-    0.959,
-    0.011,
-    0.03
+    0.936,
+    0.015,
+    0.049
    ],
    "score": null
   },
@@ -6799,9 +6727,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.829,
-    0.032,
-    0.138
+    0.856,
+    0.029,
+    0.115
    ],
    "score": null
   },
@@ -6816,9 +6744,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.546,
-    0.053,
-    0.401
+    0.475,
+    0.054,
+    0.471
    ],
    "score": null
   },
@@ -6833,9 +6761,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.662,
-    0.048,
-    0.29
+    0.587,
+    0.052,
+    0.361
    ],
    "score": null
   },
@@ -6850,9 +6778,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.481,
+    0.487,
     0.054,
-    0.465
+    0.458
    ],
    "score": null
   },
@@ -6867,9 +6795,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.943,
-    0.015,
-    0.042
+    0.953,
+    0.013,
+    0.034
    ],
    "score": null
   },
@@ -6884,9 +6812,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.385,
+    0.557,
     0.056,
-    0.558
+    0.386
    ],
    "score": null
   },
@@ -6901,9 +6829,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.866,
-    0.029,
-    0.105
+    0.84,
+    0.033,
+    0.128
    ],
    "score": null
   },
@@ -6918,9 +6846,9 @@
    "ext": "Pessacais 2",
    "medoc": "dom",
    "p": [
-    0.772,
-    0.041,
-    0.187
+    0.843,
+    0.032,
+    0.125
    ],
    "score": null
   },
@@ -6935,9 +6863,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.459,
-    0.058,
-    0.483
+    0.568,
+    0.056,
+    0.376
    ],
    "score": null
   },
@@ -6952,9 +6880,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.845,
-    0.032,
-    0.123
+    0.92,
+    0.019,
+    0.06
    ],
    "score": null
   },
@@ -6969,9 +6897,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.319,
-    0.053,
-    0.628
+    0.158,
+    0.037,
+    0.805
    ],
    "score": null
   },
@@ -6986,9 +6914,9 @@
    "ext": "Langonnais 2",
    "medoc": "dom",
    "p": [
-    0.699,
-    0.048,
-    0.252
+    0.718,
+    0.047,
+    0.235
    ],
    "score": null
   },
@@ -7003,9 +6931,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.642,
-    0.053,
-    0.305
+    0.537,
+    0.057,
+    0.406
    ],
    "score": null
   },
@@ -7020,9 +6948,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.795,
-    0.039,
-    0.166
+    0.817,
+    0.036,
+    0.147
    ],
    "score": null
   },
@@ -7037,9 +6965,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.82,
-    0.035,
-    0.145
+    0.87,
+    0.028,
+    0.101
    ],
    "score": null
   },
@@ -7054,9 +6982,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.563,
-    0.056,
-    0.38
+    0.447,
+    0.058,
+    0.496
    ],
    "score": null
   },
@@ -7071,9 +6999,9 @@
    "ext": "Coulounieix-Chamiers",
    "medoc": null,
    "p": [
-    0.989,
-    0.003,
-    0.008
+    0.97,
+    0.008,
+    0.022
    ],
    "score": null
   },
@@ -7088,9 +7016,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.244,
-    0.045,
-    0.711
+    0.375,
+    0.052,
+    0.573
    ],
    "score": null
   },
@@ -7105,9 +7033,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.301,
-    0.049,
-    0.65
+    0.352,
+    0.052,
+    0.597
    ],
    "score": null
   },
@@ -7122,9 +7050,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.532,
+    0.464,
     0.054,
-    0.415
+    0.482
    ],
    "score": null
   },
@@ -7139,9 +7067,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.76,
-    0.04,
-    0.2
+    0.844,
+    0.03,
+    0.126
    ],
    "score": null
   },
@@ -7156,9 +7084,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.841,
-    0.031,
-    0.128
+    0.692,
+    0.046,
+    0.262
    ],
    "score": null
   },
@@ -7173,9 +7101,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.33,
-    0.051,
-    0.62
+    0.379,
+    0.053,
+    0.568
    ],
    "score": null
   },
@@ -7190,9 +7118,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.133,
-    0.031,
-    0.836
+    0.096,
+    0.025,
+    0.879
    ],
    "score": null
   },
@@ -7207,9 +7135,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.84,
-    0.031,
-    0.129
+    0.88,
+    0.025,
+    0.095
    ],
    "score": null
   },
@@ -7224,9 +7152,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.897,
-    0.022,
-    0.081
+    0.952,
+    0.012,
+    0.036
    ],
    "score": null
   },
@@ -7241,9 +7169,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.647,
-    0.049,
-    0.304
+    0.626,
+    0.05,
+    0.324
    ],
    "score": null
   },
@@ -7258,9 +7186,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.195,
-    0.042,
-    0.762
+    0.181,
+    0.041,
+    0.778
    ],
    "score": null
   },
@@ -7275,9 +7203,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.747,
-    0.044,
-    0.209
+    0.736,
+    0.045,
+    0.219
    ],
    "score": null
   },
@@ -7292,9 +7220,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.628,
-    0.053,
-    0.319
+    0.482,
+    0.058,
+    0.46
    ],
    "score": null
   },
@@ -7309,9 +7237,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.283,
-    0.051,
-    0.667
+    0.204,
+    0.043,
+    0.752
    ],
    "score": null
   },
@@ -7326,9 +7254,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.477,
-    0.058,
-    0.465
+    0.325,
+    0.054,
+    0.621
    ],
    "score": null
   },
@@ -7343,9 +7271,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.425,
-    0.057,
-    0.517
+    0.366,
+    0.056,
+    0.578
    ],
    "score": null
   },
@@ -7360,9 +7288,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.871,
-    0.028,
-    0.101
+    0.946,
+    0.014,
+    0.04
    ],
    "score": null
   },
@@ -7377,9 +7305,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.637,
-    0.053,
-    0.31
+    0.508,
+    0.058,
+    0.434
    ],
    "score": null
   },
@@ -7394,9 +7322,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.569,
-    0.056,
-    0.375
+    0.678,
+    0.05,
+    0.272
    ],
    "score": null
   },
@@ -7411,9 +7339,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.345,
-    0.055,
-    0.6
+    0.533,
+    0.057,
+    0.41
    ],
    "score": null
   },
@@ -7428,9 +7356,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.286,
+    0.284,
     0.051,
-    0.663
+    0.665
    ],
    "score": null
   },
@@ -7445,9 +7373,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.944,
-    0.015,
-    0.042
+    0.959,
+    0.011,
+    0.03
    ],
    "score": null
   },
@@ -7462,9 +7390,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.659,
-    0.048,
-    0.293
+    0.693,
+    0.046,
+    0.261
    ],
    "score": null
   },
@@ -7479,9 +7407,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.155,
-    0.035,
-    0.811
+    0.185,
+    0.038,
+    0.777
    ],
    "score": null
   },
@@ -7496,9 +7424,9 @@
    "ext": "Blanquefort 2",
    "medoc": null,
    "p": [
-    0.78,
-    0.038,
-    0.181
+    0.679,
+    0.047,
+    0.274
    ],
    "score": null
   },
@@ -7513,9 +7441,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.369,
+    0.361,
     0.052,
-    0.579
+    0.587
    ],
    "score": null
   },
@@ -7530,9 +7458,9 @@
    "ext": "Libourne",
    "medoc": "dom",
    "p": [
-    0.761,
-    0.04,
-    0.199
+    0.636,
+    0.05,
+    0.315
    ],
    "score": null
   },
@@ -7547,9 +7475,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.794,
-    0.037,
-    0.169
+    0.834,
+    0.032,
+    0.135
    ],
    "score": null
   },
@@ -7564,9 +7492,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.483,
-    0.054,
-    0.463
+    0.642,
+    0.049,
+    0.308
    ],
    "score": null
   },
@@ -7581,9 +7509,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.784,
-    0.038,
-    0.178
+    0.719,
+    0.044,
+    0.237
    ],
    "score": null
   },
@@ -7598,9 +7526,9 @@
    "ext": "Bazadais",
    "medoc": "dom",
    "p": [
-    0.696,
-    0.046,
-    0.258
+    0.685,
+    0.047,
+    0.269
    ],
    "score": null
   },
@@ -7615,9 +7543,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": null,
    "p": [
-    0.156,
-    0.035,
-    0.809
+    0.173,
+    0.037,
+    0.79
    ],
    "score": null
   },
@@ -7632,9 +7560,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.208,
-    0.041,
-    0.751
+    0.12,
+    0.029,
+    0.851
    ],
    "score": null
   },
@@ -7649,9 +7577,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.876,
-    0.027,
-    0.096
+    0.9,
+    0.023,
+    0.077
    ],
    "score": null
   },
@@ -7666,9 +7594,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.753,
-    0.043,
-    0.203
+    0.733,
+    0.045,
+    0.222
    ],
    "score": null
   },
@@ -7683,9 +7611,9 @@
    "ext": "Isle 2",
    "medoc": null,
    "p": [
-    0.406,
-    0.057,
-    0.537
+    0.564,
+    0.056,
+    0.379
    ],
    "score": null
   },
@@ -7700,9 +7628,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.478,
-    0.058,
-    0.464
+    0.675,
+    0.05,
+    0.275
    ],
    "score": null
   },
@@ -7717,9 +7645,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.966,
-    0.01,
-    0.024
+    0.975,
+    0.007,
+    0.018
    ],
    "score": null
   },
@@ -7734,9 +7662,9 @@
    "ext": "Gond Pontouvre",
    "medoc": "dom",
    "p": [
-    0.576,
-    0.056,
-    0.368
+    0.636,
+    0.053,
+    0.311
    ],
    "score": null
   },
@@ -7751,9 +7679,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.28,
-    0.051,
-    0.669
+    0.216,
+    0.045,
+    0.739
    ],
    "score": null
   },
@@ -7768,9 +7696,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.509,
-    0.058,
-    0.433
+    0.375,
+    0.056,
+    0.569
    ],
    "score": null
   },
@@ -7785,9 +7713,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.739,
-    0.045,
-    0.216
+    0.777,
+    0.041,
+    0.182
    ],
    "score": null
   },
@@ -7802,9 +7730,9 @@
    "ext": "Arsac",
    "medoc": "dom",
    "p": [
-    0.701,
-    0.048,
-    0.25
+    0.566,
+    0.056,
+    0.378
    ],
    "score": null
   },
@@ -7819,9 +7747,9 @@
    "ext": "Cadillac Cérons",
    "medoc": null,
    "p": [
-    0.582,
-    0.056,
-    0.362
+    0.415,
+    0.057,
+    0.527
    ],
    "score": null
   },
@@ -7836,9 +7764,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.413,
-    0.057,
-    0.53
+    0.471,
+    0.058,
+    0.471
    ],
    "score": null
   },
@@ -7853,9 +7781,9 @@
    "ext": "Créon",
    "medoc": null,
    "p": [
-    0.857,
-    0.029,
-    0.115
+    0.784,
+    0.038,
+    0.179
    ],
    "score": null
   },
@@ -7870,9 +7798,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.692,
-    0.046,
-    0.262
+    0.669,
+    0.048,
+    0.283
    ],
    "score": null
   },
@@ -7887,9 +7815,9 @@
    "ext": "Marmande 2",
    "medoc": null,
    "p": [
-    0.602,
-    0.051,
-    0.346
+    0.776,
+    0.038,
+    0.185
    ],
    "score": null
   },
@@ -7904,9 +7832,9 @@
    "ext": "Agen",
    "medoc": null,
    "p": [
-    0.548,
-    0.053,
-    0.398
+    0.602,
+    0.051,
+    0.347
    ],
    "score": null
   },
@@ -7921,9 +7849,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.382,
-    0.053,
-    0.566
+    0.411,
+    0.054,
+    0.535
    ],
    "score": null
   },
@@ -7938,9 +7866,9 @@
    "ext": "Pessacais 2",
    "medoc": null,
    "p": [
-    0.34,
-    0.055,
-    0.606
+    0.298,
+    0.052,
+    0.65
    ],
    "score": null
   },
@@ -7955,9 +7883,9 @@
    "ext": "Objat Correze 2",
    "medoc": null,
    "p": [
-    0.615,
-    0.054,
-    0.331
+    0.471,
+    0.058,
+    0.472
    ],
    "score": null
   },
@@ -7972,9 +7900,9 @@
    "ext": "Territoire Charente 3",
    "medoc": null,
    "p": [
-    0.501,
+    0.472,
     0.058,
-    0.441
+    0.47
    ],
    "score": null
   },
@@ -7989,9 +7917,9 @@
    "ext": "Grand Périgueux Erm",
    "medoc": null,
    "p": [
-    0.478,
-    0.058,
-    0.464
+    0.369,
+    0.056,
+    0.575
    ],
    "score": null
   },
@@ -8006,9 +7934,9 @@
    "ext": "Béglais",
    "medoc": null,
    "p": [
-    0.81,
-    0.037,
-    0.153
+    0.73,
+    0.046,
+    0.225
    ],
    "score": null
   },
@@ -8023,9 +7951,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.192,
-    0.042,
-    0.765
+    0.157,
+    0.037,
+    0.805
    ],
    "score": null
   },
@@ -8040,9 +7968,9 @@
    "ext": "Avenir Pailleton 2",
    "medoc": null,
    "p": [
-    0.777,
-    0.038,
-    0.184
+    0.749,
+    0.041,
+    0.209
    ],
    "score": null
   },
@@ -8057,9 +7985,9 @@
    "ext": "Haillan",
    "medoc": null,
    "p": [
-    0.594,
-    0.052,
-    0.354
+    0.621,
+    0.05,
+    0.328
    ],
    "score": null
   },
@@ -8074,9 +8002,9 @@
    "ext": "Arcachon la Teste",
    "medoc": null,
    "p": [
-    0.922,
-    0.018,
-    0.06
+    0.892,
+    0.023,
+    0.085
    ],
    "score": null
   },
@@ -8091,9 +8019,9 @@
    "ext": "Pays Castillonnais",
    "medoc": null,
    "p": [
-    0.503,
+    0.484,
     0.054,
-    0.443
+    0.462
    ],
    "score": null
   },
@@ -8108,9 +8036,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.427,
+    0.424,
     0.054,
-    0.519
+    0.522
    ],
    "score": null
   },
@@ -8125,9 +8053,9 @@
    "ext": "Fronsadais",
    "medoc": null,
    "p": [
-    0.987,
-    0.004,
-    0.009
+    0.995,
+    0.002,
+    0.003
    ],
    "score": null
   },
@@ -8142,9 +8070,9 @@
    "ext": "Belin-Beliet 2",
    "medoc": null,
    "p": [
-    0.82,
-    0.035,
-    0.144
+    0.853,
+    0.031,
+    0.116
    ],
    "score": null
   },
@@ -8159,9 +8087,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.774,
-    0.041,
-    0.185
+    0.707,
+    0.048,
+    0.246
    ],
    "score": null
   },
@@ -8176,9 +8104,9 @@
    "ext": "Langonnais 2",
    "medoc": null,
    "p": [
-    0.592,
-    0.055,
-    0.352
+    0.742,
+    0.044,
+    0.213
    ],
    "score": null
   },
@@ -8193,9 +8121,9 @@
    "ext": "Béglais 2",
    "medoc": null,
    "p": [
-    0.694,
-    0.049,
-    0.257
+    0.628,
+    0.053,
+    0.318
    ],
    "score": null
   },
@@ -8210,9 +8138,9 @@
    "ext": "Médoc Handball",
    "medoc": "ext",
    "p": [
-    0.888,
-    0.025,
-    0.087
+    0.925,
+    0.018,
+    0.057
    ],
    "score": null
   },
@@ -8227,9 +8155,9 @@
    "ext": "Andernos Nord Bassin 3",
    "medoc": null,
    "p": [
-    0.269,
-    0.05,
-    0.681
+    0.311,
+    0.053,
+    0.636
    ],
    "score": null
   },
@@ -8244,9 +8172,9 @@
    "ext": "Brive",
    "medoc": null,
    "p": [
-    0.54,
-    0.053,
-    0.407
+    0.603,
+    0.051,
+    0.345
    ],
    "score": null
   },
@@ -8261,9 +8189,9 @@
    "ext": "Libourne",
    "medoc": null,
    "p": [
-    0.048,
-    0.015,
-    0.936
+    0.062,
+    0.018,
+    0.919
    ],
    "score": null
   },
@@ -8278,9 +8206,9 @@
    "ext": "Blanquefort 2",
    "medoc": "dom",
    "p": [
-    0.876,
-    0.026,
-    0.098
+    0.725,
+    0.043,
+    0.232
    ],
    "score": null
   },
@@ -8295,9 +8223,9 @@
    "ext": "Sarlat",
    "medoc": null,
    "p": [
-    0.598,
-    0.052,
-    0.35
+    0.654,
+    0.049,
+    0.297
    ],
    "score": null
   },
@@ -8312,9 +8240,9 @@
    "ext": "Pe2M 2",
    "medoc": null,
    "p": [
-    0.782,
-    0.038,
-    0.18
+    0.804,
+    0.035,
+    0.161
    ],
    "score": null
   },
@@ -8329,9 +8257,9 @@
    "ext": "Bazadais",
    "medoc": null,
    "p": [
-    0.213,
-    0.042,
-    0.745
+    0.155,
+    0.035,
+    0.811
    ],
    "score": null
   },
@@ -8346,9 +8274,9 @@
    "ext": "Cubzaguais",
    "medoc": null,
    "p": [
-    0.4,
-    0.053,
-    0.547
+    0.471,
+    0.054,
+    0.475
    ],
    "score": null
   },
@@ -8363,9 +8291,9 @@
    "ext": "Gazinet Cestas 2",
    "medoc": null,
    "p": [
-    0.166,
-    0.036,
-    0.798
+    0.227,
+    0.043,
+    0.73
    ],
    "score": null
   },
@@ -8380,9 +8308,9 @@
    "ext": "Saint Médard d'Eyrans",
    "medoc": null,
    "p": [
-    0.328,
-    0.05,
-    0.622
+    0.207,
+    0.041,
+    0.752
    ],
    "score": null
   },
@@ -8397,9 +8325,9 @@
    "ext": "Lormont Hauts de Garonne",
    "medoc": "dom",
    "p": [
-    0.326,
-    0.05,
-    0.623
+    0.334,
+    0.051,
+    0.615
    ],
    "score": null
   },
@@ -8414,9 +8342,9 @@
    "ext": "Pana Loisirs",
    "medoc": null,
    "p": [
-    0.865,
-    0.029,
-    0.106
+    0.945,
+    0.014,
+    0.041
    ],
    "score": null
   },
@@ -8431,9 +8359,9 @@
    "ext": "Capo Limoges 2",
    "medoc": null,
    "p": [
-    0.512,
-    0.057,
-    0.43
+    0.567,
+    0.056,
+    0.377
    ],
    "score": null
   },
@@ -8448,9 +8376,9 @@
    "ext": "Léognan",
    "medoc": null,
    "p": [
-    0.831,
-    0.034,
-    0.135
+    0.886,
+    0.026,
+    0.088
    ],
    "score": null
   },
@@ -8465,9 +8393,9 @@
    "ext": "Gond Pontouvre",
    "medoc": null,
    "p": [
-    0.552,
-    0.057,
-    0.391
+    0.486,
+    0.058,
+    0.456
    ],
    "score": null
   },
@@ -8482,9 +8410,9 @@
    "ext": "Isle 2",
    "medoc": "dom",
    "p": [
-    0.523,
-    0.057,
-    0.42
+    0.633,
+    0.053,
+    0.314
    ],
    "score": null
   },
@@ -8499,9 +8427,9 @@
    "ext": "Palais s/ Vienne",
    "medoc": null,
    "p": [
-    0.776,
-    0.041,
-    0.183
+    0.843,
+    0.032,
+    0.125
    ],
    "score": null
   },
@@ -8516,9 +8444,9 @@
    "ext": "Eysines 2",
    "medoc": null,
    "p": [
-    0.473,
-    0.058,
-    0.47
+    0.315,
+    0.053,
+    0.632
    ],
    "score": null
   },
@@ -8533,9 +8461,9 @@
    "ext": "Arsac",
    "medoc": null,
    "p": [
-    0.678,
-    0.05,
-    0.272
+    0.651,
+    0.052,
+    0.297
    ],
    "score": null
   },
@@ -8550,9 +8478,9 @@
    "ext": "Bruges 33",
    "medoc": null,
    "p": [
-    0.533,
-    0.057,
-    0.41
+    0.474,
+    0.058,
+    0.469
    ],
    "score": null
   },
@@ -8567,9 +8495,9 @@
    "ext": "Talence",
    "medoc": null,
    "p": [
-    0.154,
-    0.037,
-    0.809
+    0.098,
+    0.027,
+    0.875
    ],
    "score": null
   },
@@ -8584,9 +8512,9 @@
    "ext": "Canejan 3",
    "medoc": null,
    "p": [
-    0.805,
-    0.037,
-    0.158
+    0.91,
+    0.021,
+    0.069
    ],
    "score": null
   },
@@ -8601,9 +8529,9 @@
    "ext": "Cadillac Cérons",
    "medoc": "dom",
    "p": [
-    0.718,
-    0.047,
-    0.235
+    0.535,
+    0.057,
+    0.408
    ],
    "score": null
   },
@@ -8618,9 +8546,9 @@
    "ext": "Montpon-Ménestérol",
    "medoc": null,
    "p": [
-    0.224,
-    0.043,
-    0.733
+    0.188,
+    0.039,
+    0.773
    ],
    "score": null
   }
