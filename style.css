@@ -1806,3 +1806,49 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .sachet.hasard .sa-logo { position: absolute; left: 7%; top: 5%; width: 22%; margin: 0; }
 .stf-c em.stf-b { font-style: normal; font-weight: 800; font-size: .78rem; color: var(--muted); }
 
+
+/* ── 10 boosters d'un coup (demande de Maël) : bouton de l'accueil et scène d'ouverture. Seuls transform et opacity bougent. ── */
+.btn-lot { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 6px 18px 6px 6px; border-radius: 99px; border: 1.5px solid rgba(255, 210, 87, .6);
+  background: rgba(11, 13, 16, .6); color: #fff; font: inherit; font-weight: 800; font-size: .92rem; box-shadow: 0 4px 0 rgba(0, 0, 0, .4); }
+.btn-lot b { display: grid; place-items: center; min-width: 46px; height: 32px; padding: 0 8px; border-radius: 99px; background: linear-gradient(180deg, #ffe08a, #ffc93a); color: #1b1405;
+  font-family: "Barlow Condensed", var(--f); font-size: 1.25rem; font-weight: 700; }
+.btn-lot:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, .4); }
+.btn-lot[disabled] { opacity: .5; }
+.ob-lot .ob-cartes { opacity: 0; }
+.ob-lot.range .ob-cartes { opacity: 1; }
+.lot-packs { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.lot-p { position: absolute; left: 0; top: 0; width: var(--pw); height: calc(var(--pw) * 1.45); transform-origin: 50% 50%; will-change: transform; }
+.lot-p .sachet { animation: lot-flotte 2.6s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.37s); }
+.lot-p .sachet .ob-brille { animation-delay: calc(var(--i) * -.3s); }
+.ob-lot.part .lot-p .sachet { animation: none; }
+@keyframes lot-flotte { from { transform: translateY(-6px) rotate(-.8deg); } to { transform: translateY(6px) rotate(.8deg); } }
+.lot-titre { position: absolute; left: 0; right: 0; top: calc(8% + env(safe-area-inset-top)); z-index: 7; text-align: center; pointer-events: none; transition: opacity .3s, transform .3s; }
+.lot-titre b { display: block; font-family: "Barlow Condensed", var(--f); font-size: 4.6rem; line-height: .9; font-weight: 700; color: #ffd257; transform: skewX(-8deg);
+  text-shadow: 4px 4px 0 #1d5b8f, 0 10px 30px rgba(255, 201, 58, .5); animation: lot-titre 1.6s ease-in-out infinite alternate; }
+@keyframes lot-titre { from { transform: skewX(-8deg) scale(1); } to { transform: skewX(-8deg) scale(1.06); } }
+.lot-titre span { display: block; margin-top: 6px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; font-size: .85rem; color: rgba(255, 255, 255, .85); text-shadow: 0 2px 10px #000; }
+.ob-lot.part .lot-titre { opacity: 0; transform: translateY(-14px); }
+.lot-flash { position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 46%, #fff, rgb(var(--tc) / .75) 38%, transparent 78%); }
+.lot-c { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lot-f { width: 100%; height: 100%; }
+/* en attente : les cartes de dos flottent chacune à son rythme (pas de filter animé sur 10 cartes à la fois) */
+.lot-c.attente .ob-dos .card { animation: none; }
+.lot-c.attente .lot-f { animation: lot-attente 1.5s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.23s); }
+@keyframes lot-attente { from { transform: translateY(-3%) rotate(-1.2deg); } to { transform: translateY(3%) rotate(1.2deg); } }
+.lot-aura { position: absolute; inset: -24%; z-index: -1; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .5s .3s;
+  background: radial-gradient(closest-side, rgb(var(--tc) / .85), rgb(var(--tc) / .28) 55%, transparent 76%); }
+.lot-c.vu .lot-aura { opacity: .3; }
+.lot-c.vu.t-argent .lot-aura { opacity: .55; }
+.lot-c.vu.t-or .lot-aura, .lot-c.vu.t-ultime .lot-aura { opacity: 1; animation: lot-aura 1.3s ease-in-out .9s infinite alternate; }
+.lot-c.vu.t-ultime .lot-aura { inset: -34%; }
+@keyframes lot-aura { from { opacity: 1; transform: scale(1); } to { opacity: .55; transform: scale(1.14); } }
+.lot-voile { position: absolute; inset: 0; z-index: 2; background: rgba(4, 6, 12, .84); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.ob-lot.zoom .lot-voile { opacity: 1; }
+.lot-c.grand { z-index: 3; }
+.lot-onde { position: absolute; left: 0; top: 0; z-index: 7; width: var(--d); aspect-ratio: 1; border-radius: 50%; border: 3px solid rgb(var(--tc)); pointer-events: none; opacity: 0;
+  box-shadow: 0 0 18px rgb(var(--tc) / .7), inset 0 0 18px rgb(var(--tc) / .4); }
+.lot-etin { position: absolute; left: 0; top: 0; z-index: 7; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px rgb(var(--tc)); pointer-events: none; opacity: 0; }
+.lot-compte { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px; z-index: 8; padding: 7px 14px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(11, 13, 16, .6); font-weight: 900; font-size: .85rem; color: #fff; }
+.lot-astuce { display: block; text-align: center; color: rgba(255, 255, 255, .7); font-size: .76rem; }
+@media (prefers-reduced-motion: reduce) { .lot-p .sachet, .lot-titre b, .lot-c.attente .lot-f, .lot-c.vu .lot-aura { animation: none !important; } }

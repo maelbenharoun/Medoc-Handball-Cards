@@ -260,6 +260,7 @@ function vueAccueil() {
         <button class="car-fl d" data-car="${(i + 1) % n}" aria-label="Booster suivant">›</button></div>
       <div class="scene-t"><b>${carTitre(eqSel)}</b><small>${carSous(eqSel)}</small></div>
       <button class="btn-penche" data-bequipe="${eqSel}"${carPossible(eqSel) ? '' : ' disabled'}>Acheter · ${nb(carPrix(eqSel))} pièces</button>
+      <button class="btn-lot" data-blot="${eqSel}"${lotPossible(eqSel) ? '' : ' disabled'}><b>×${lotN()}</b><span>${lotTexte(eqSel)}</span></button>
       <div class="car-points">${BOOSTERS_CAR.map(([p], k) => `<i class="${k === i ? 'on' : ''}" data-car="${k}"></i>`).join('')}</div>
     </section>
     ${blocSemaine()}
@@ -292,6 +293,7 @@ function choisirCarrousel(k, auto) {
   scene.querySelector('.scene-t b').textContent = carTitre(eq);
   scene.querySelector('.scene-t small').textContent = carSous(eq);
   const achat = scene.querySelector('[data-bequipe]'); achat.dataset.bequipe = eq; achat.disabled = !carPossible(eq); achat.textContent = `Acheter · ${nb(carPrix(eq))} pièces`;
+  const lot = scene.querySelector('[data-blot]'); lot.dataset.blot = eq; lot.disabled = !lotPossible(eq); lot.querySelector('span').textContent = lotTexte(eq);
   scene.querySelectorAll('.car-points i').forEach((x, j) => x.classList.toggle('on', j === CARROUSEL.i));
   sc.querySelector('.car-fl.g').dataset.car = (CARROUSEL.i - 1 + n) % n; sc.querySelector('.car-fl.d').dataset.car = (CARROUSEL.i + 1) % n;
   if (!auto) { Son.jouer('envol'); CARROUSEL.touche = Date.now(); }
@@ -2089,6 +2091,11 @@ function demoBooster(type) {
   if (type === 'staff') { const l = staffListe(); if (!l.length) return; const x = hasard(l), palier = tirer();   // ?demo=staff : une carte staff
     sceneBooster([{c: {id: x.id, nom: x.personne || x.nom, rarete: palier, equipe: 'Staff', staff: true}, staff: x, nouveau: true}], 'Mystère', 'pk-hasard', {hasard: true});
     OB.demo = type; return; }
+  if (type === 'lot') {   // ?demo=lot : 10 boosters mystère (doublons possibles, une carte staff de temps en temps)
+    const res = Array.from({length: lotN()}, () => { const l = staffListe(), palier = tirer(), P = PALIER[palier];
+      if (l.length && Math.random() < .1) { const x = hasard(l); return {c: {id: x.id, nom: x.personne || x.nom, rarete: palier, equipe: 'Staff', staff: true}, staff: x, nouveau: true}; }
+      return {c: vueExemplaire(hasard(tous), {palier, note: P.min + Math.floor(Math.random() * (P.max - P.min + 1))}), nouveau: Math.random() < .5}; });
+    sceneLot(res, ...lotDeco('?')); OB.demo = type; return; }
   const n = type === 'depart' ? 7 : 1, pris = new Set(), res = [];
   while (res.length < Math.min(n, tous.length)) {
     const c = hasard(tous); if (pris.has(c.id)) continue; pris.add(c.id);
@@ -2133,7 +2140,7 @@ function sceneBooster(res, nom, cls, deco = {}) {
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheOB);
-  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false});
+  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false, lot: false, zoom: null});
   // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
   const packY = cy, s0 = pw * .8;
   el.querySelectorAll('.ob-c').forEach((c, i) => { c.style.transform = place(W / 2 + (i - (n - 1) / 2) * 2, packY + ph * .07, s0 / finales[i].w); });
@@ -2321,11 +2328,13 @@ function toutReveler() {
   OB.vite = true;
   OB.anims.forEach(a => { try { a.finish(); } catch (e) {} });
   OB.attentes.forEach(([t, r]) => { clearTimeout(t); r(); });
+  if (OB.lot) { OB.tout = true; return lotTout(); }   // 10 boosters : tout s'ouvre et se retourne
   if (['indices', 'retourner'].includes(OB.etape)) toucherHeros();
 }
 // retour pendant l'ouverture d'un booster : d'abord tout révéler, puis (une fois tout montré) envoyer au club
 function coucheOB() {
   if (!OB.el) return;
+  if (OB.lot && OB.zoom) { lotZoom(null); return ouvrirCouche(coucheOB); }   // d'abord la carte vue en grand
   if (OB.el.querySelector('.ob-fin')) { OB.parRetour = true; return envoyerAuClub(); }
   toutReveler(); ouvrirCouche(coucheOB);
 }
@@ -2344,6 +2353,208 @@ function envoyerAuClub() {
   el.animate([{opacity: 1}, {opacity: 1, offset: .55}, {opacity: 0}],
     {duration: 620 + cartes.length * 45, fill: 'forwards'}).onfinish = fin;
   vibrer(20);
+}
+// ── 10 boosters d'un coup (demande de Maël) ─────────────────────────────────────────
+// Une scène à elle : les 10 sachets en éventail ; au toucher ils filent chacun à leur place, frissonnent, sont découpés et
+// arrachés tous ensemble dans un éclair, et laissent 10 cartes de dos. On retourne chaque carte en la touchant (onde et
+// étincelles à la couleur du palier, éclair et rayons pour Or et Ultime), une carte retournée se regarde en grand.
+// Les cartes sont dessinées en grand et rapetissées (nettes quand on les agrandit) ; seuls transform et opacity bougent.
+const lotN = () => PARAMS.booster_lot ?? 10;
+const lotPrix = eq => carPrix(eq) * lotN();
+const lotPossible = eq => S().pieces >= lotPrix(eq) && (eq === '?' || nbEquipe(eq) > 0);
+const lotTexte = eq => `${lotN()} boosters · ${nb(lotPrix(eq))} pièces`;
+const lotDeco = eq => { const bp = BOOSTERS_EQUIPE.find(x => x[0] === eq);
+  return eq === '?' ? ['Mystère', 'pk-hasard', {hasard: true}] : [eq, 'pk-poste', {poste: eq, photo: bp && photoSachet(bp[1], bp[2])}]; };
+const melanger = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function acheterLot(eq) {
+  if (occupe || !lotPossible(eq)) return;
+  const n = lotN();
+  if (!confirm(`Acheter ${n} ${eq === '?' ? 'boosters mystère' : 'boosters ' + (NOM_EQUIPE[eq] || eq)} pour ${nb(lotPrix(eq))} pièces ?`)) return;
+  const avant = new Set(EX().map(e => e.carte)), avantStaff = new Set(staffListe().filter(x => x.meilleur).map(x => x.id));
+  action(Compte.ouvrirBoostersLot(eq), ({ids, staffs}) => {
+    // « nouveau » seulement sur le premier exemplaire d'un joueur qu'on n'avait pas
+    const res = (ids || []).map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte) && !!avant.add(e.carte)}));
+    for (const st of staffs || []) { const x = staffDe(st.id);
+      if (x) res.push({c: {id: x.id, nom: x.personne || x.nom, rarete: st.palier, equipe: 'Staff', staff: true}, staff: x, nouveau: !avantStaff.has(x.id) && !!avantStaff.add(x.id)}); }
+    if (res.length) sceneLot(melanger(res), ...lotDeco(eq));
+  });
+}
+// répartition des cartes en r rangs, les plus fournis au milieu (10 cartes en 4 rangs : 2, 3, 3, 2)
+function rangsLot(n, r) {
+  const base = Math.floor(n / r), t = Array(r).fill(base);
+  const ordre = [...t.keys()].sort((a, b) => Math.abs(a - (r - 1) / 2) - Math.abs(b - (r - 1) / 2));
+  for (let k = 0; k < n - base * r; k++) t[ordre[k]]++;
+  return t;
+}
+function sceneLot(res, nom, cls, deco = {}) {
+  const W = innerWidth, H = innerHeight, n = res.length, large = W > H * 1.1;
+  // la grille qui donne les plus grandes cartes (téléphone : 2, 3, 3, 2 ; écran large : 5 et 5)
+  const g = 10, haut = 62, bas = H - 150;
+  const largeur = r => { const cols = Math.ceil(n / r); return Math.min((W - 24 - (cols - 1) * g) / cols, ((bas - haut) - (r - 1) * g) / r * .69, 170); };
+  const nr = Array.from({length: n}, (_, k) => k + 1).reduce((m, r) => largeur(r) > largeur(m) + .5 ? r : m, 1);
+  const rangs = rangsLot(n, nr), w = Math.floor(largeur(nr)), h = w / .69;
+  const hw = Math.round(Math.min(W * .64, H * .42, 260)), s = w / hw;   // taille dessinée (celle de la carte vue en grand), et son échelle dans la grille
+  const y0 = haut + ((bas - haut) - (rangs.length * h + (rangs.length - 1) * g)) / 2 + h / 2, finales = [];
+  rangs.forEach((m, k) => { for (let j = 0; j < m; j++) finales.push({x: W / 2 + (j - (m - 1) / 2) * (w + g), y: y0 + k * (h + g), w: hw, s, r: 0}); });
+  // l'éventail du départ : les sachets en arc, comme une main de cartes
+  // (rayon = 2 sachets : chacun montre une bande de son voisin ; la taille est choisie pour que l'éventail tienne dans l'écran)
+  const pw = Math.round(w * .98), amax = (large ? 28 : 32) * Math.PI / 180, kR = 2;
+  const S0 = Math.min(pw * 1.5, (W - 20) / (2 * Math.sin(amax) * kR + Math.cos(amax) + 1.45 * Math.sin(amax)), H * .2), es = S0 / pw, R = S0 * kR;
+  const ey = H * .47;
+  const eventail = i => { const a = (n > 1 ? i / (n - 1) - .5 : 0) * 2 * amax; return place(W / 2 + Math.sin(a) * R, ey + (1 - Math.cos(a)) * R, es, a * 180 / Math.PI); };
+  const el = document.createElement('div');
+  el.className = 'ob ob-lot';
+  el.style.setProperty('--pw', pw + 'px');
+  el.innerHTML = `${fondHand()}<div class="ob-lueur"></div><div class="ob-rayons"></div>
+    <div class="lot-titre"><b>×${n}</b><span>${deco.hasard ? 'Boosters mystère' : 'Boosters ' + esc(nom)}</span></div>
+    <div class="ob-cartes"><i class="lot-voile"></i>${res.map((r, i) => `<div class="ob-c lot-c" data-i="${i}" style="width:${hw}px;height:${hw / .69}px;--tc:${TEINTE[r.c.rarete]};--i:${i}">
+      <i class="lot-aura"></i><div class="lot-f"><div class="ob-flip"><div class="ob-dos">${dosHTML(hw)}</div>
+      <div class="ob-face">${(r.staff ? staffCarteHTML(r.staff, '', r.c.rarete, {nouveau: r.nouveau}) : carteHTML(r.c, {nouveau: r.nouveau})).replace('class="card', `style="--w:${hw}px" class="card`)}</div></div></div></div>`).join('')}</div>
+    <div class="lot-packs">${res.map((r, i) => `<div class="lot-p" style="--i:${i}">${sachetHTML({theme: cls, nom, sous: deco.hasard ? '1 carte' : '1 joueur', photo: deco.photo, poste: deco.poste, pw, hasard: deco.hasard})}
+      <span class="ob-coupe"><i class="ob-trace"></i><i class="ob-etoile"></i></span></div>`).join('')}</div>
+    <i class="lot-flash"></i>
+    <p class="ob-aide">Touche pour ouvrir les ${n} boosters</p>
+    <span class="lot-compte" hidden></span>
+    <button class="ob-passer" hidden>Tout retourner</button>
+    <div class="ob-bas"></div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheOB);
+  Object.assign(OB, {el, res, nom, finales, pw, ph: pw * 1.45, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false,
+    lot: true, tout: false, zoom: null, meilleur: -1, enVague: false});
+  el.querySelectorAll('.lot-p').forEach((p, i) => { p.style.transform = eventail(i); });
+  el.querySelectorAll('.ob-c').forEach((c, i) => { const f = finales[i]; c.style.transform = place(f.x, f.y, f.s * .8); });   // cachée derrière son sachet
+  el.querySelector('.ob-passer').addEventListener('click', e => { e.stopPropagation(); lotTout(); });
+  el.addEventListener('click', e => {
+    if (OB.etape === 'pack') return ouvrirLot();
+    if (OB.zoom) return lotZoom(null);
+    const c = e.target.closest('.ob-c');
+    if (!c || !['retourner', 'fini'].includes(OB.etape)) return;
+    if (c.classList.contains('vu')) lotZoom(c); else lotRetourner(c);
+  });
+}
+// déplace une carte : sa place est écrite tout de suite, l'animation ne fait que l'y amener
+function lotVers(c, t, o = {}) {
+  const de = c.style.transform; c.style.transform = t;
+  if (OB.vite && !o.toujours) return Promise.resolve();
+  const a = c.animate([{transform: de}, ...(o.via ? [{transform: o.via, offset: o.a ?? .6}] : []), {transform: t}],
+    {duration: o.duree || 400, delay: o.delai || 0, easing: o.courbe || 'cubic-bezier(.3, .7, .3, 1)', fill: 'backwards'});
+  OB.anims.push(a);
+  return a.finished.catch(() => {});
+}
+async function ouvrirLot() {
+  if (OB.etape !== 'pack') return;
+  OB.etape = 'ouverture';
+  const {el, finales, pw, ph} = OB, packs = [...el.querySelectorAll('.lot-p')], cartes = [...el.querySelectorAll('.ob-c')], n = packs.length;
+  if (moinsAnim()) OB.vite = true;
+  el.querySelector('.ob-aide').classList.add('cache');
+  el.classList.add('part');
+  vibrer(15); Son.jouer('envol');
+  // 1. l'éventail s'ouvre : chaque sachet file à sa place
+  await Promise.all(packs.map((p, i) => { const f = finales[i];
+    return lotVers(p, place(f.x, f.y), {via: place(f.x, f.y - 16, 1.08, (i % 2 ? 3 : -3)), a: .78, duree: 560, delai: i * 38}); }));
+  el.classList.add('range');   // les cartes attendent derrière les sachets
+  // 2. tous frissonnent, puis une étoile découpe le haut de chacun
+  packs.forEach((p, i) => obAnim(p.querySelector('.sachet'), [{transform: 'none'}, {transform: 'rotate(-2.5deg) scale(1.05)', offset: .3}, {transform: 'rotate(2deg) scale(1.05)', offset: .55},
+    {transform: 'rotate(-1.2deg) scale(1.05)', offset: .8}, {transform: 'scale(1.04)'}], {duration: 460, delay: i * 14, easing: 'cubic-bezier(.2, .9, .3, 1)'}));
+  await obPause(430);
+  vibrer(25); Son.jouer('dechire');
+  const lw = packs[0].querySelector('.ob-coupe').offsetWidth;
+  packs.forEach(p => {
+    obAnim(p.querySelector('.ob-etoile'), [{transform: 'translate(-50%, -50%) scale(.6)', opacity: 1}, {transform: `translate(${lw}px, 0) translate(-50%, -50%) scale(1.2)`, opacity: 1, offset: .8},
+      {transform: `translate(${lw}px, 0) translate(-50%, -50%) scale(2) rotate(45deg)`, opacity: 0}], {duration: 360, easing: 'cubic-bezier(.6, 0, .25, 1)'});
+    obAnim(p.querySelector('.ob-trace'), [{transform: 'scaleX(0)', opacity: 1}, {transform: 'scaleX(1)', opacity: 1, offset: .75}, {transform: 'scaleX(1)', opacity: 0}], {duration: 420, easing: 'cubic-bezier(.6, 0, .25, 1)'});
+  });
+  await obPause(300);
+  // 3. les rabats sont arrachés tous ensemble, dans un éclair
+  vibrer([20, 30, 60]); Son.jouer('souffle');
+  packs.forEach((p, i) => { const dx = (Math.random() - .5) * pw * 1.6;
+    obAnim(p.querySelector('.ob-bande'), [{transform: 'none', opacity: 1}, {transform: `translate(${dx * .7}px, ${-ph * .5}px) rotate(${dx > 0 ? 30 : -30}deg) scale(.95)`, opacity: .9, offset: .7},
+      {transform: `translate(${dx}px, ${-ph * .68}px) rotate(${dx > 0 ? 44 : -44}deg) scale(.9)`, opacity: 0}], {duration: 600, delay: i * 12, easing: 'cubic-bezier(.3, .6, .4, 1)'});
+    if (!OB.vite) lotOnde(finales[i].x, finales[i].y - ph * .37, pw, TEINTE.or, 1.5, 520, i * 12); });
+  el.classList.add('ouvert');
+  obAnim(el.querySelector('.lot-flash'), [{opacity: 0}, {opacity: .9, offset: .18}, {opacity: 0}], {duration: 700, easing: 'ease-out'});
+  await obPause(200);
+  // 4. les sachets tombent, les cartes surgissent
+  el.classList.add('sorti');
+  packs.forEach((p, i) => { const f = finales[i];
+    obAnim(p, [{transform: place(f.x, f.y), opacity: 1}, {transform: place(f.x, f.y + ph * .5, .88, i % 2 ? 9 : -9), opacity: 0}], {duration: 460, delay: i * 22, easing: 'cubic-bezier(.5, 0, .75, .2)'}); });
+  await Promise.all(cartes.map((c, i) => { const f = finales[i];
+    return lotVers(c, place(f.x, f.y, f.s), {via: place(f.x, f.y - 6, f.s * 1.1), a: .6, duree: 520, delai: i * 22, courbe: 'cubic-bezier(.25, .9, .35, 1)'}); }));
+  el.querySelector('.lot-packs').remove();
+  // 5. à toi : chaque carte se retourne quand on la touche
+  OB.etape = 'retourner';
+  cartes.forEach(c => c.classList.add('attente'));
+  const aide = el.querySelector('.ob-aide'); aide.textContent = 'Touche les cartes pour les retourner'; aide.classList.remove('cache'); aide.classList.add('bas');
+  el.querySelector('.ob-passer').hidden = false;
+  lotCompte();
+  if (OB.tout) lotTout();
+}
+function lotOnde(x, y, d, teinte, taille, duree, delai = 0) {
+  const o = document.createElement('i'); o.className = 'lot-onde'; o.style.cssText = `--tc:${teinte};--d:${Math.round(d)}px`; OB.el.appendChild(o);
+  o.animate([{transform: place(x, y, .4), opacity: .95}, {transform: place(x, y, taille), opacity: 0}], {duration: duree, delay: delai, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'both'}).finished
+    .then(() => o.remove(), () => o.remove());
+}
+function lotCompte() {
+  const {el, res} = OB, vus = el.querySelectorAll('.ob-c.vu').length, c = el.querySelector('.lot-compte');
+  c.hidden = false; c.textContent = `${vus} / ${res.length}`;
+  return vus;
+}
+function lotRetourner(c, enMasse) {
+  if (c.classList.contains('vu') || OB.etape !== 'retourner') return;
+  const {el, res, finales} = OB, i = +c.dataset.i, f = finales[i], r = res[i].c.rarete, k = Math.max(0, RARETES.indexOf(r)), d = f.w * f.s;
+  c.classList.remove('attente'); c.classList.add('vu', 't-' + r);
+  Son.jouer('retourne');
+  if (!enMasse) { Son.jouer('revele-' + r); vibrer(k >= 2 ? [40, 60, 80] : 20); }
+  if (k > OB.meilleur) { OB.meilleur = k; el.style.setProperty('--tc', TEINTE[r]); }   // le fond prend la couleur de la meilleure carte vue
+  if (!OB.vite) {
+    lotVers(c, place(f.x, f.y, f.s), {via: place(f.x, f.y - 8, f.s * (1.1 + k * .03)), a: .45, duree: 620});
+    lotOnde(f.x, f.y, d, TEINTE[r], 1.7 + k * .5, 600 + k * 100, 240);
+    for (let j = 0; j < [0, 8, 16, 26][k]; j++) {   // étincelles : plus le palier est haut, plus il y en a
+      const p = document.createElement('i'); p.className = 'lot-etin'; p.style.setProperty('--tc', TEINTE[r]); el.appendChild(p);
+      const a = Math.random() * 6.283, l = d * (.55 + Math.random() * (.7 + k * .25));
+      p.animate([{transform: `translate(${f.x}px, ${f.y}px) scale(1)`, opacity: 0}, {opacity: 1, offset: .15},
+        {transform: `translate(${f.x + Math.cos(a) * l}px, ${f.y + Math.sin(a) * l}px) scale(.2)`, opacity: 0}],
+        {duration: 600 + Math.random() * 400, delay: 260 + Math.random() * 120, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'both'}).finished.then(() => p.remove(), () => p.remove());
+    }
+    if (k >= 2) {   // Or et Ultime : éclair à leur couleur, rayons, et l'écran tremble pour un Ultime
+      el.classList.add('t-haut');
+      el.querySelector('.lot-flash').animate([{opacity: 0}, {opacity: k > 2 ? .75 : .45, offset: .2}, {opacity: 0}], {duration: 800, delay: 230, easing: 'ease-out'});
+      if (k > 2 && !enMasse) el.animate([{transform: 'none'}, {transform: 'translate(-6px, 3px)'}, {transform: 'translate(5px, -4px)'}, {transform: 'translate(-3px, 2px)'}, {transform: 'none'}],
+        {duration: 380, delay: 260, easing: 'linear'});
+    }
+  } else if (k >= 2) el.classList.add('t-haut');
+  if (lotCompte() === res.length) finLot();
+}
+// « Tout retourner » : les cartes qui restent se retournent en vague, la meilleure donne le son de la fin
+async function lotTout() {
+  if (OB.etape !== 'retourner' || OB.enVague) return;
+  OB.enVague = true;
+  const {el, res} = OB, reste = [...el.querySelectorAll('.ob-c:not(.vu)')];
+  const mieux = Math.max(-1, ...reste.map(c => RARETES.indexOf(res[+c.dataset.i].c.rarete)));
+  el.querySelector('.ob-passer').hidden = true;
+  for (const c of reste) { lotRetourner(c, true); await obPause(75); }
+  OB.enVague = false;
+  if (mieux >= 0) { Son.jouer('revele-' + RARETES[mieux]); vibrer(mieux >= 2 ? [40, 60, 80] : 20); }
+}
+// une carte retournée se regarde en grand ; un toucher la renvoie à sa place
+function lotZoom(c) {
+  const {el, finales} = OB, z = OB.zoom;
+  if (z) { const f = finales[+z.dataset.i]; OB.zoom = null; el.classList.remove('zoom');
+    lotVers(z, place(f.x, f.y, f.s), {duree: 260, toujours: !moinsAnim()}).then(() => { if (OB.zoom !== z) z.classList.remove('grand'); }); }
+  if (!c || c === z) return;
+  OB.zoom = c; c.classList.add('grand'); el.classList.add('zoom'); Son.jouer('retourne');
+  lotVers(c, place(innerWidth / 2, innerHeight * .45, 1), {duree: 320, courbe: 'cubic-bezier(.25, .9, .35, 1)', toujours: !moinsAnim()});
+}
+function finLot() {
+  OB.etape = 'fini';
+  const {el, res} = OB, nv = res.filter(r => r.nouveau).length;
+  el.querySelector('.ob-passer').hidden = true; el.querySelector('.lot-compte').hidden = true; el.querySelector('.ob-aide').classList.add('cache');
+  const beaux = ['ultime', 'or', 'argent'].map(r => [res.filter(x => x.c.rarete === r).length, R_LABEL[r]]).filter(x => x[0]).map(x => x.join(' '));
+  const info = [nv ? `${nv} nouveau${nv > 1 ? 'x' : ''}` : 'Rien de nouveau', ...beaux].join(' · ');
+  el.querySelector('.ob-bas').innerHTML = `<p class="ob-info">${info}</p><small class="lot-astuce">Touche une carte pour la voir en grand</small>
+    <button class="btn gold large ob-fin">${OB.demo ? 'Rejouer' : 'Envoyer au club'}</button>`;
+  el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { quitterCouche(coucheOB); OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
+  el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 700, fill: 'both'});
 }
 // Démo de la montée de palier (?demo=montee) : un joueur du catalogue au hasard, d'un palier au suivant ; rien au serveur
 function demoMontee() {
@@ -2410,7 +2621,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2482,6 +2693,7 @@ document.addEventListener('click', e => {
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
+  if (d.blot) return acheterLot(d.blot);
   if (d.bequipe === '?') return ouvrirBooster(Compte.ouvrirBoosterHasard(), 'Mystère', 'pk-hasard', {hasard: true});
   if (d.bequipe) { const bp = BOOSTERS_EQUIPE.find(x => x[0] === d.bequipe);
     return ouvrirBooster(Compte.ouvrirBoosterEquipe(d.bequipe), d.bequipe, 'pk-poste', {poste: d.bequipe, photo: bp && photoSachet(bp[1], bp[2])}); }
@@ -2830,7 +3042,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=66').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=67').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

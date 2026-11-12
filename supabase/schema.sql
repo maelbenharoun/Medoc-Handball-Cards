@@ -81,7 +81,7 @@ insert into parametres values (1, '{
   "booster_semaine_chances": {"bronze": 45, "argent": 35, "or": 17, "ultime": 3},
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
-  "booster_equipe_prix": 500, "booster_hasard_prix": 300, "staff_chance": 0.1, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
+  "booster_equipe_prix": 500, "booster_hasard_prix": 300, "staff_chance": 0.1, "booster_lot": 10, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
   "legende_chance": 0.002, "legende_note": 100,
   "prono_pieces_point": 20, "prono_points": {"exact": 5, "issue": 2, "ecart": 1, "buteur": 3},
   "ligue_matchs_jour": 5, "ligue_taille": 10, "ligue_divisions": 8, "ligue_montee": 3, "ligue_descente": 3, "ligue_meme_adversaire": 2,
@@ -3188,6 +3188,32 @@ begin
   return jsonb_build_object('ids', case when ex is null then '[]'::jsonb else jsonb_build_array(ex) end, 'staff', st, 'etat', etat_de(p.user_id));
 end $$;
 
+-- Boosters par 10 (demande de Maël) : 10 boosters d'une équipe, ou 10 boosters mystère (p_equipe = '?'), payés et ouverts d'un
+-- coup (`booster_lot` boosters au prix de `booster_lot` fois un seul). Chaque carte est tirée exactement comme dans le booster
+-- seul : mêmes chances de palier, carte staff 1 fois sur 10 dans le mystère, jamais de légende. Renvoie {ids, staffs}.
+create or replace function ouvrir_boosters_lot(p_equipe text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); n int := greatest(2, least(20, parami('booster_lot'))); mystere boolean := p_equipe = '?';
+  prix int; c text; ex uuid; ids uuid[] := '{}'; staffs jsonb := '[]'::jsonb;
+begin
+  if p_equipe is null or (not mystere and not exists (select 1 from cartes where actif and equipe = p_equipe)) then raise exception 'Équipe inconnue'; end if;
+  prix := n * parami(case when mystere then 'booster_hasard_prix' else 'booster_equipe_prix' end);
+  if p.pieces < prix then raise exception 'Il faut % pièces pour ces % boosters', prix, n; end if;
+  for i in 1 .. n loop
+    if mystere and random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
+      staffs := staffs || donner_staff_hasard(p.user_id, param('booster_chances'));
+    else
+      if mystere then c := tirer_carte(); else select id into c from cartes where actif and equipe = p_equipe order by random() limit 1; end if;
+      if c is null then raise exception 'Le catalogue est vide'; end if;
+      ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:' || case when mystere then 'hasard' else p_equipe end);
+      ids := ids || ex;
+    end if;
+  end loop;
+  update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + n where user_id = p.user_id;
+  perform progresser(p.user_id, 'booster', n);
+  perform noter(p.user_id, 'booster', jsonb_build_object('type', 'lot', 'equipe', p_equipe, 'nombre', n, 'prix', prix, 'exemplaires', ids, 'staffs', staffs));
+  return jsonb_build_object('ids', to_jsonb(ids), 'staffs', staffs, 'etat', etat_de(p.user_id));
+end $$;
+
 -- Choix du coach (dans l'esprit du « choix miracle » de Pokémon TCG Pocket) : 3 joueurs d'un poste (poste principal) sont
 -- montrés, puis mélangés face cachée ; on en retourne un et on le garde. Le mélange est tiré ici et gardé secret (table illisible
 -- par le jeu) : le jeu ne peut pas savoir où est la meilleure carte. Payé à la préparation ; un choix commencé reste en attente
@@ -3615,7 +3641,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

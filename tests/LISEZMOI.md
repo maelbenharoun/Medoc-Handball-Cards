@@ -17,6 +17,7 @@ Playwright (le navigateur des tests) doit être installé à part ; dans les ses
 | `node tests/test_droits.js` | Le jeu ne peut appeler que les fonctions dont il se sert : la liste `grant execute` de `schema.sql` est exactement celle des appels de `serveur.js` et d'`admin.js` ; rien pour un visiteur ; aucune table modifiable ; corrections de l'audit (récompenses de club, légendes, suppression de compte) | 20 s |
 | `node tests/test_parite.js` | Les règles écrites deux fois (dans le jeu pour l'affichage, sur le serveur pour le vrai calcul) donnent les mêmes résultats : paliers, stats à chaque note, note au poste, collectif, note d'équipe, moyennes, bonus des tactiques, défis de composition. 300 équipes au hasard (`PARITE_N=1000` pour plus, `PARITE_GRAINE=…` pour rejouer un échec) | 1 min |
 | `node tests/test_concurrence.js` | 12 appels au même instant ne créent jamais une carte, des pièces ou une récompense en double ; le schéma se relance sur un vrai Postgres qui contient déjà des données | 15 s |
+| `node tests/test_boosters_lot.js` | Boosters par 10 : la règle du serveur (prix, 10 cartes de la bonne équipe, staff, jamais de légende, réglage borné) et la scène dans le navigateur à 390 et 320 px (éventail, 10 cartes à retourner, vue en grand, bouton retour, mode « moins d'animations ») | 1 min |
 | `node tests/economie.js` | Pas un test : la simulation de l'économie (pièces par jour, jours pour les grands objectifs, selon le rythme de jeu) | 1 min |
 
 `test_concurrence.js` a besoin d'un vrai Postgres (PGlite n'a qu'une connexion) :

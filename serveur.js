@@ -216,6 +216,7 @@ const CompteServeur = (() => {
     ouvrirBoosterEquipe: eq => rpc('ouvrir_booster_equipe', {p_equipe: eq}),   // une équipe du club, acheté en pièces → {ids}
     choixCoachPreparer: poste => rpc('choix_coach_preparer', {p_poste: poste}), // 3 joueurs du poste montrés → {poste, cartes}
     ouvrirBoosterHasard: () => rpc('ouvrir_booster_hasard'),                  // booster mystère : une carte parmi toutes → {ids, staff}
+    ouvrirBoostersLot: eq => rpc('ouvrir_boosters_lot', {p_equipe: eq}),      // 10 boosters d'un coup (équipe, ou '?' = mystère) → {ids, staffs}
     choixCoachChoisir: i => rpc('choix_coach_choisir', {p_i: i}),               // place touchée après le mélange → {id, places, cartes}
     mesPronostics: () => rpc('mes_pronostics'),                                 // matchs à pronostiquer, résultats, classements
     pronostiquer: (rid, dom, ext, buteur) => rpc('pronostiquer', {p_rid: rid, p_dom: dom, p_ext: ext, p_buteur: buteur || null}),
