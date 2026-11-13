@@ -118,14 +118,23 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
     await p.mouse.click(10, H * .2); await p.waitForTimeout(500);
     verif(L + 'un toucher la renvoie à sa place, sans retourner d’autre carte', Math.abs((await (await p.$('.ob-c[data-i="3"]')).boundingBox()).width - petit) < 1
       && (await p.$$('.ob-c.vu')).length === 2);
-    // « Tout retourner »
-    await p.click('.ob-passer'); await p.waitForSelector('.ob-fin'); await p.waitForTimeout(1300);
+    // « Tout retourner » ; pendant la vague, la mémoire graphique (bug vu sur Android : écran troué, l'accueil visible au travers ;
+    // c'était ~40 écrans de couches, un booster seul en fait ~26)
+    await p.click('.ob-passer'); await p.waitForTimeout(400);
+    const cdp = await ctx.newCDPSession(p); await cdp.send('LayerTree.enable');
+    const couches = await new Promise(r => { cdp.once('LayerTree.layerTreeDidChange', e => r(e.layers || [])); p.evaluate(() => document.body.offsetHeight); });
+    await cdp.send('LayerTree.disable');
+    const ecrans = couches.filter(x => x.drawsContent).reduce((t, x) => t + x.width * x.height, 0) / (W * H);
+    verif(L + `« Tout retourner » : ${ecrans.toFixed(1)} écrans de couches graphiques (moins de 22), l'accueil caché dessous`, ecrans < 22
+      && await p.evaluate(() => document.body.classList.contains('lot-ouvert') && getComputedStyle(document.querySelector('#view')).visibility === 'hidden'), ecrans);
+    await p.waitForSelector('.ob-fin'); await p.waitForTimeout(1300);
     verif(L + '« Tout retourner » : 10 cartes vues, bilan et « Envoyer au club »', (await p.$$('.ob-c.vu')).length === 10 && /nouveau|Rien de nouveau/.test(await p.textContent('.ob-info'))
       && (await p.textContent('.ob-fin')).trim() === 'Envoyer au club', await p.textContent('.ob-bas'));
     verif(L + 'le bas (bilan, bouton) ne recouvre aucune carte', await p.evaluate(() => { const b = document.querySelector('.ob-bas').getBoundingClientRect();
       return [...document.querySelectorAll('.ob-c')].every(x => x.getBoundingClientRect().bottom <= b.top + 1); }));
     if (SP) await p.screenshot({path: `${SP}/lot-${W}-4-fin.png`});
     await p.click('.ob-fin'); await p.waitForSelector('.ob-lot', {state: 'detached'});
+    verif(L + 'l’accueil réapparaît après la scène', await p.evaluate(() => !document.body.classList.contains('lot-ouvert') && getComputedStyle(document.querySelector('#view')).visibility === 'visible'));
     verif(L + 'retour au jeu, pièces à jour (200), bouton ×10 coupé', (await p.textContent('#coinv')).replace(/\D/g, '') === '200' && await p.isDisabled('.btn-lot'));
     // bouton retour du téléphone : 1er retour = tout se retourne, 2e = au club
     await q('update profils set pieces = 5200 where user_id = $1', [al.id]);

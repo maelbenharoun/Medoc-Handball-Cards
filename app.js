@@ -2339,6 +2339,7 @@ function coucheOB() {
   toutReveler(); ouvrirCouche(coucheOB);
 }
 function envoyerAuClub() {
+  document.body.classList.remove('lot-ouvert');   // l'accueil réapparaît derrière le fondu
   if (!OB.parRetour) quitterCouche(coucheOB); OB.parRetour = false;
   const el = OB.el, cible = document.querySelector('.tabs:not([hidden]) a[data-tab="club"]')?.getBoundingClientRect();
   const tx = cible ? cible.left + cible.width / 2 : innerWidth / 2, ty = cible ? cible.top + cible.height / 2 : innerHeight + 80;
@@ -2358,7 +2359,9 @@ function envoyerAuClub() {
 // Une scène à elle : les 10 sachets en éventail ; au toucher ils filent chacun à leur place, frissonnent, sont découpés et
 // arrachés tous ensemble dans un éclair, et laissent 10 cartes de dos. On retourne chaque carte en la touchant (onde et
 // étincelles à la couleur du palier, éclair et rayons pour Or et Ultime), une carte retournée se regarde en grand.
-// Les cartes sont dessinées en grand et rapetissées (nettes quand on les agrandit) ; seuls transform et opacity bougent.
+// Mémoire graphique (bug vu sur Android à « Tout retourner » : des trous dans l'écran, l'accueil visible au travers) : les cartes
+// sont dessinées à leur taille dans la grille (agrandies seulement pour la vue en grand), sans ombre floutée ; l'accueil est
+// caché dessous (body.lot-ouvert) ; seuls transform et opacity bougent.
 const lotN = () => PARAMS.booster_lot ?? 10;
 const lotPrix = eq => carPrix(eq) * lotN();
 const lotPossible = eq => S().pieces >= lotPrix(eq) && (eq === '?' || nbEquipe(eq) > 0);
@@ -2393,9 +2396,9 @@ function sceneLot(res, nom, cls, deco = {}) {
   const largeur = r => { const cols = Math.ceil(n / r); return Math.min((W - 24 - (cols - 1) * g) / cols, ((bas - haut) - (r - 1) * g) / r * .69, 170); };
   const nr = Array.from({length: n}, (_, k) => k + 1).reduce((m, r) => largeur(r) > largeur(m) + .5 ? r : m, 1);
   const rangs = rangsLot(n, nr), w = Math.floor(largeur(nr)), h = w / .69;
-  const hw = Math.round(Math.min(W * .64, H * .42, 260)), s = w / hw;   // taille dessinée (celle de la carte vue en grand), et son échelle dans la grille
+  const hw = Math.round(Math.min(W * .64, H * .42, 260));   // largeur de la carte vue en grand
   const y0 = haut + ((bas - haut) - (rangs.length * h + (rangs.length - 1) * g)) / 2 + h / 2, finales = [];
-  rangs.forEach((m, k) => { for (let j = 0; j < m; j++) finales.push({x: W / 2 + (j - (m - 1) / 2) * (w + g), y: y0 + k * (h + g), w: hw, s, r: 0}); });
+  rangs.forEach((m, k) => { for (let j = 0; j < m; j++) finales.push({x: W / 2 + (j - (m - 1) / 2) * (w + g), y: y0 + k * (h + g), w, s: 1, r: 0}); });
   // l'éventail du départ : les sachets en arc, comme une main de cartes
   // (rayon = 2 sachets : chacun montre une bande de son voisin ; la taille est choisie pour que l'éventail tienne dans l'écran)
   const pw = Math.round(w * .98), amax = (large ? 28 : 32) * Math.PI / 180, kR = 2;
@@ -2407,9 +2410,9 @@ function sceneLot(res, nom, cls, deco = {}) {
   el.style.setProperty('--pw', pw + 'px');
   el.innerHTML = `${fondHand()}<div class="ob-lueur"></div><div class="ob-rayons"></div>
     <div class="lot-titre"><b>×${n}</b><span>${deco.hasard ? 'Boosters mystère' : 'Boosters ' + esc(nom)}</span></div>
-    <div class="ob-cartes"><i class="lot-voile"></i>${res.map((r, i) => `<div class="ob-c lot-c" data-i="${i}" style="width:${hw}px;height:${hw / .69}px;--tc:${TEINTE[r.c.rarete]};--i:${i}">
-      <i class="lot-aura"></i><div class="lot-f"><div class="ob-flip"><div class="ob-dos">${dosHTML(hw)}</div>
-      <div class="ob-face">${(r.staff ? staffCarteHTML(r.staff, '', r.c.rarete, {nouveau: r.nouveau}) : carteHTML(r.c, {nouveau: r.nouveau})).replace('class="card', `style="--w:${hw}px" class="card`)}</div></div></div></div>`).join('')}</div>
+    <div class="ob-cartes"><i class="lot-voile"></i>${res.map((r, i) => `<div class="ob-c lot-c" data-i="${i}" style="width:${w}px;height:${w / .69}px;--tc:${TEINTE[r.c.rarete]};--i:${i}">
+      <i class="lot-aura"></i><div class="lot-f"><div class="ob-flip"><div class="ob-dos">${dosHTML(w)}</div>
+      <div class="ob-face">${(r.staff ? staffCarteHTML(r.staff, '', r.c.rarete, {nouveau: r.nouveau}) : carteHTML(r.c, {nouveau: r.nouveau})).replace('class="card', `style="--w:${w}px" class="card`)}</div></div></div></div>`).join('')}</div>
     <div class="lot-packs">${res.map((r, i) => `<div class="lot-p" style="--i:${i}">${sachetHTML({theme: cls, nom, sous: deco.hasard ? '1 carte' : '1 joueur', photo: deco.photo, poste: deco.poste, pw, hasard: deco.hasard})}
       <span class="ob-coupe"><i class="ob-trace"></i><i class="ob-etoile"></i></span></div>`).join('')}</div>
     <i class="lot-flash"></i>
@@ -2418,8 +2421,8 @@ function sceneLot(res, nom, cls, deco = {}) {
     <button class="ob-passer" hidden>Tout retourner</button>
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
-  document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheOB);
-  Object.assign(OB, {el, res, nom, finales, pw, ph: pw * 1.45, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false,
+  document.body.classList.add('avec-intro', 'lot-ouvert'); Son.discret(true); ouvrirCouche(coucheOB);
+  Object.assign(OB, {el, res, nom, finales, pw, ph: pw * 1.45, zoomS: hw / w, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false,
     lot: true, tout: false, zoom: null, meilleur: -1, enVague: false});
   el.querySelectorAll('.lot-p').forEach((p, i) => { p.style.transform = eventail(i); });
   el.querySelectorAll('.ob-c').forEach((c, i) => { const f = finales[i]; c.style.transform = place(f.x, f.y, f.s * .8); });   // cachée derrière son sachet
@@ -2508,8 +2511,8 @@ function lotRetourner(c, enMasse) {
   if (k > OB.meilleur) { OB.meilleur = k; el.style.setProperty('--tc', TEINTE[r]); }   // le fond prend la couleur de la meilleure carte vue
   if (!OB.vite) {
     lotVers(c, place(f.x, f.y, f.s), {via: place(f.x, f.y - 8, f.s * (1.1 + k * .03)), a: .45, duree: 620});
-    lotOnde(f.x, f.y, d, TEINTE[r], 1.7 + k * .5, 600 + k * 100, 240);
-    for (let j = 0; j < [0, 8, 16, 26][k]; j++) {   // étincelles : plus le palier est haut, plus il y en a
+    if (!enMasse || k) lotOnde(f.x, f.y, d, TEINTE[r], 1.7 + k * .5, 600 + k * 100, 240);
+    for (let j = 0; j < (enMasse ? 0 : [0, 8, 16, 26][k]); j++) {   // « Tout retourner » : pas d'étincelles (10 cartes en 1 s)   // étincelles : plus le palier est haut, plus il y en a
       const p = document.createElement('i'); p.className = 'lot-etin'; p.style.setProperty('--tc', TEINTE[r]); el.appendChild(p);
       const a = Math.random() * 6.283, l = d * (.55 + Math.random() * (.7 + k * .25));
       p.animate([{transform: `translate(${f.x}px, ${f.y}px) scale(1)`, opacity: 0}, {opacity: 1, offset: .15},
@@ -2543,7 +2546,7 @@ function lotZoom(c) {
     lotVers(z, place(f.x, f.y, f.s), {duree: 260, toujours: !moinsAnim()}).then(() => { if (OB.zoom !== z) z.classList.remove('grand'); }); }
   if (!c || c === z) return;
   OB.zoom = c; c.classList.add('grand'); el.classList.add('zoom'); Son.jouer('retourne');
-  lotVers(c, place(innerWidth / 2, innerHeight * .45, 1), {duree: 320, courbe: 'cubic-bezier(.25, .9, .35, 1)', toujours: !moinsAnim()});
+  lotVers(c, place(innerWidth / 2, innerHeight * .45, OB.zoomS), {duree: 320, courbe: 'cubic-bezier(.25, .9, .35, 1)', toujours: !moinsAnim()});
 }
 function finLot() {
   OB.etape = 'fini';
@@ -3042,7 +3045,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=67').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=68').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

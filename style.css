@@ -1852,3 +1852,15 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
   background: rgba(11, 13, 16, .6); font-weight: 900; font-size: .85rem; color: #fff; }
 .lot-astuce { display: block; text-align: center; color: rgba(255, 255, 255, .7); font-size: .76rem; }
 @media (prefers-reduced-motion: reduce) { .lot-p .sachet, .lot-titre b, .lot-c.attente .lot-f, .lot-c.vu .lot-aura { animation: none !important; } }
+/* Mémoire graphique de la scène des 10 boosters (bug vu sur Android à « Tout retourner » : écran troué, l'accueil visible au travers) :
+   l'accueil et ses animations sont cachés dessous ; pas d'ombre floutée sur les cartes (chaque ombre agrandissait leur couche) ;
+   pas de will-change (la carte est redessinée nette à sa taille, en grand comme dans la grille) ; fonds juste assez grands pour
+   couvrir l'écran en tournant ; reflets et hologrammes seulement sur le sachet de devant. */
+body.lot-ouvert > :not(.ob) { visibility: hidden; }
+.ob-lot .lot-c { will-change: auto; }
+.ob-lot .ob-c .card { filter: none; }
+.ob-lot .ob-rayons { width: 125vmax; }
+.ob-lot .ob-lueur { width: 115vmax; }
+.ob-lot:not(.t-haut) .ob-rayons { animation: none; }   /* invisibles tant qu'il n'y a pas d'Or ni d'Ultime : sans rotation, pas de couche */
+.ob-lot.t-haut .fh-rayons { display: none; }   /* les rayons du palier prennent la place de ceux du fond : un seul grand disque qui tourne */
+.lot-p:not(:last-child) .sa-holo, .lot-p:not(:last-child) .ob-brille { display: none; }
