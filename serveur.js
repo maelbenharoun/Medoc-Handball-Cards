@@ -266,6 +266,7 @@ const CompteServeur = (() => {
     ajouterAmi: pseudo => rpc('ajouter_ami', {p_pseudo: pseudo}),
     repondreAmi: (pseudo, oui) => rpc('repondre_ami', {p_pseudo: pseudo, p_accepte: oui}),
     retirerAmi: pseudo => rpc('retirer_ami', {p_pseudo: pseudo}),
+    equipePublique: pseudo => rpc('equipe_publique', {p_pseudo: pseudo}),       // « Voir l'équipe » (classement) → {pseudo, joueurs, tactique, note, staff…}
     clubAmi: pseudo => rpc('club_ami', {p_pseudo: pseudo}),                       // → [{id, carte, palier, note}]
     proposerEchange: (pseudo, donne, demande) => rpc('proposer_echange', {p_pseudo: pseudo, p_donne: donne, p_demande: demande}),
     repondreEchange: (id, oui) => rpc('repondre_echange', {p_id: id, p_accepte: oui}),

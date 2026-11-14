@@ -1864,3 +1864,21 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .ob-lot:not(.t-haut) .ob-rayons { animation: none; }   /* invisibles tant qu'il n'y a pas d'Or ni d'Ultime : sans rotation, pas de couche */
 .ob-lot.t-haut .fh-rayons { display: none; }   /* les rayons du palier prennent la place de ceux du fond : un seul grand disque qui tourne */
 .lot-p:not(:last-child) .sa-holo, .lot-p:not(:last-child) .ob-brille { display: none; }
+
+/* « Voir l'équipe » (demande de Maël) : chaque ligne du classement ouvre l'équipe du joueur, montrée en lecture seule */
+.classe.poules .cl-l { display: grid; grid-template-columns: 2.2em 1fr auto auto; gap: 4px 10px; align-items: center; width: 100%; padding: 8px 10px; border: 0;
+  border-radius: 10px; background: var(--bg2); color: inherit; font: inherit; text-align: left; }
+.classe.poules .cl-l b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.classe.poules .cl-l:active { transform: scale(.985); }
+.cl-eq { grid-column: 2 / -1; justify-self: end; font-style: normal; font-size: .74rem; font-weight: 800; color: var(--accent); }
+.eqde-t { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.eqde-t h3 { margin: 0; }
+.eqde-t small { color: var(--muted); font-size: .8rem; }
+.eqde-tac { font-size: .95rem !important; line-height: 1.15; }
+.eq-de .pitch div.slot { cursor: default; }
+.eqde-staff { cursor: default; }
+.eqde-cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 12px 8px; justify-items: center; margin-bottom: 12px; }
+.eqde-c { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+.eqde-c .card { --w: 98px; }
+.eqde-c small { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.eq-de > * { flex-shrink: 0; }   /* la fenêtre est une colonne flexible : sans ça, le terrain (aspect-ratio, contenu en absolu) s’écrasait à 0 */

@@ -2788,6 +2788,27 @@ begin
   return coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note) order by e.note desc)
     from exemplaires e join cartes c on c.id = e.carte_id where e.proprietaire = a.user_id and not c.legende and carte_libre(a.user_id, e.id)), '[]');
 end $$;
+-- « Voir l'équipe » depuis le classement (demande de Maël) : ce que joue un autre joueur, en lecture seule. Les 7 alignés (carte,
+-- palier, note, capitaine), sa tactique, sa carte staff et, si ses 7 sont visibles, la note d'équipe telle que le match la calcule
+-- (force_equipe : postes, forme, capitaine, staff, collectif). Les légendes alignées se voient aussi (demande de Maël : seule
+-- exception à « une légende n'apparaît chez personne d'autre ») ; leur carte est jointe, le jeu ne les a pas dans son catalogue.
+-- Rien d'autre (ni pièces, ni club, ni cartes libres).
+create or replace function equipe_publique(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo); vis jsonb; f jsonb; st text; niv int;
+begin
+  select coalesce(jsonb_object_agg(j.key, j.value), '{}') into vis
+    from jsonb_each_text(a.equipe) j join exemplaires e on e.id::text = j.value and e.proprietaire = a.user_id
+    where j.key in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB');
+  if (select count(*) from jsonb_object_keys(vis)) = 7 then f := force_equipe(vis, a.tactique); end if;
+  st := staff_actif(a.user_id); niv := coalesce((a.parcours ->> 'niveau')::int, 1);
+  return jsonb_build_object('pseudo', a.pseudo, 'moi', a.user_id = p.user_id, 'perso', perso_public(a.user_id),
+    'niveau', niv, 'poule', param('parcours') -> (niv - 1) ->> 'nom', 'groupe', param('parcours') -> (niv - 1) ->> 'groupe',
+    'tactique', a.tactique, 'note', f -> 'note', 'collectif', f -> 'collectif', 'notes', f -> 'notes',
+    'staff', case when st is null then null else jsonb_build_object('id', st, 'palier', staff_meilleur(a.user_id, st)) end,
+    'joueurs', coalesce((select jsonb_agg(jsonb_build_object('poste', j.key, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note, 'capitaine', e.id = a.capitaine,
+        'legende', case when c.legende then to_jsonb(c) end))
+      from jsonb_each_text(vis) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id), '[]'));
+end $$;
 -- Proposer un échange à un(e) ami(e) : ma carte contre la sienne, quels que soient les paliers ; 3 propositions par jour
 create or replace function proposer_echange(p_pseudo text, p_donne uuid, p_demande uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); a profils := ami_de(p_pseudo); e1 exemplaires; e2 exemplaires; id_x uuid;
@@ -3641,7 +3662,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

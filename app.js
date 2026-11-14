@@ -809,11 +809,11 @@ function hexMorph(h, liste, s, ton) {
 // Fiche d'un joueur : ses stats en hexagone, ses 4 paliers, tes exemplaires, entraînement, fusion, vente
 // (poste : ouverte depuis le choix d'un poste de l'onglet Équipe, avec un retour vers ce choix)
 const FICHE = {carte: null, liste: null};
-function fiche(carte, poste) {
+function fiche(carte, poste, de) {
   const c = PAR_ID[carte], mes = mesEx(carte), n = PARAMS.fusion_nombre || 3;
   const liste = statsDu(c.poste), meilleur = PALIERS.map(p => mes.filter(e => e.palier === p.id).sort((a, b) => b.note - a.note)[0]);
   const best = [...meilleur].reverse().find(Boolean), palH = best ? best.palier : 'bronze', noteH = best ? best.note : PALIER.bronze.min;
-  Object.assign(FICHE, {carte, liste});
+  Object.assign(FICHE, {carte, liste, poste, de});
   const forts = [...liste].sort((a, b) => (c.ecarts?.[b[0]] || 0) - (c.ecarts?.[a[0]] || 0)).slice(0, 2).map(x => x[0]);
   const hex = `<div class="fiche-hex">${hexHTML(liste, statsAuNiveau(c, noteH), {ton: c.legende ? 'legende' : palH, fond: statsAuNiveau(c, 99), forts, min: 20})}
     ${c.legende ? '' : `<div class="hx-ch">${PALIERS.map((p, i) => { const nt = meilleur[i] ? meilleur[i].note : p.min;
@@ -839,7 +839,8 @@ function fiche(carte, poste) {
     return k >= n ? `<button class="btn gold large" data-fusion="${carte}:${r}">Fusionner ${n} ${R_LABEL[r]} → 1 ${R_LABEL[palierSuivant(r)]} ${PALIER[palierSuivant(r)].min} · ${nb(cout)} pièces</button>`
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
-  ouvrirOverlay(`<div class="sheet fiche">${poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
+  ouvrirOverlay(`<div class="sheet fiche">${de ? `<button class="retour" data-retour-equipe="${esc(de)}">‹ Équipe de ${esc(de)}</button>`
+    : poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
     <h3>${esc(c.nom)} <small>${c.legende ? 'Légende du club · ' : ''}${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
     ${c.fiche?.intro ? `<p class="f-desc">${esc(c.fiche.intro)}</p>` : ''}
     ${hex}
@@ -895,6 +896,18 @@ function vignetteHTML(c) {
     <span class="vig-p">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy">` : `<b>${esc(initiales(c.nom))}</b>`}</span>
     <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span>${enForme(c.id) ? '<i class="vig-f" aria-label="joueur de la semaine">🔥</i>' : ''}</span>`;
 }
+// notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
+// deux quarts de cercle de 6 m centrés sur les poteaux, reliés par 3 m de ligne droite (15 m de large, 6 m de profondeur).
+// 9 m : même tracé à 9 m, en pointillés, coupé par les lignes de touche ; 7 m : 1 m de long ; 4 m : 15 cm.
+function terrainSVG() {
+  const H = TERRAIN_H + TERRAIN_B, G = TERRAIN_H, n9 = G - Math.sqrt(81 - 8.5 * 8.5);
+  return `<svg class="pitch-l" viewBox="-10 0 20 ${H}" aria-hidden="true">
+    <rect class="aire" x="-10" y="0" width="20" height="${G}"/>
+    <path class="zone" d="M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G} Z"/>
+    <path d="M-10 ${G} H10 M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G}"/>
+    <path class="neuf" d="M-10 ${n9} A9 9 0 0 1 -1.5 ${G - 9} H1.5 A9 9 0 0 1 10 ${n9}"/>
+    <path d="M-0.5 ${G - 7} h1 M-0.075 ${G - 4} h.15"/><rect class="but" x="-1.5" y="${G}" width="3" height="1"/></svg>`;
+}
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
@@ -908,16 +921,7 @@ function vueEquipe() {
     return `<line class="${meme ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
   const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
-  // notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
-  // deux quarts de cercle de 6 m centrés sur les poteaux, reliés par 3 m de ligne droite (15 m de large, 6 m de profondeur).
-  // 9 m : même tracé à 9 m, en pointillés, coupé par les lignes de touche ; 7 m : 1 m de long ; 4 m : 15 cm.
-  const G = TERRAIN_H, n9 = G - Math.sqrt(81 - 8.5 * 8.5);
-  const terrain = `<svg class="pitch-l" viewBox="-10 0 20 ${H}" aria-hidden="true">
-    <rect class="aire" x="-10" y="0" width="20" height="${G}"/>
-    <path class="zone" d="M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G} Z"/>
-    <path d="M-10 ${G} H10 M-7.5 ${G} A6 6 0 0 1 -1.5 ${G - 6} H1.5 A6 6 0 0 1 7.5 ${G}"/>
-    <path class="neuf" d="M-10 ${n9} A9 9 0 0 1 -1.5 ${G - 9} H1.5 A9 9 0 0 1 10 ${n9}"/>
-    <path d="M-0.5 ${G - 7} h1 M-0.075 ${G - 4} h.15"/><rect class="but" x="-1.5" y="${G}" width="3" height="1"/></svg>`;
+  const terrain = terrainSVG();
   const bloc = (liste, cle) => liste.map(([k, nom, st]) => { const b = bonusTactique(m, st), on = T[cle] === k;
     return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${b >= .06 ? 'fort' : b <= .005 ? 'nul' : ''}">+${pc100(b)}</em></button>`; }).join('');
   const att = TACT_ATT.find(x => x[0] === T.att), def = TACT_DEF.find(x => x[0] === T.def);
@@ -1025,7 +1029,6 @@ function vueChampionnat() {
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
     <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
     ${blocParcours(e, complet && matchsDispo(e) > 0, note, matchsDispo(e))}
-    <p class="sub petit">Entraîner un joueur : sa carte, dans le Club. Défier un(e) ami(e) : la bulle en bas à droite 💬</p>
     ${histo ? `<h2>Derniers matchs</h2><div class="hists">${histo}</div>` : ''}`;
 }
 // Gagner des pièces : 4 grandes tuiles animées (une scène par jeu) ; « ? » pour revoir le tuto
@@ -1874,9 +1877,55 @@ function vueClassement() {
   const L = SOC.classement?.joueurs;
   const moi = L ? L.findIndex(x => x.moi) : -1;
   return `${retour('social', 'Social')}<h1>Classement</h1>
-    <p class="sub">Le niveau de poule de chaque joueur inscrit, du plus haut au plus bas.${moi >= 0 ? ` Tu es <b>${ordinal(moi + 1)}</b>.` : ''}</p>
-    ${!L ? '<p class="sub">Chargement…</p>' : `<div class="classe poules">${L.map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b>
-      <small>${esc(x.groupe === 'Légendes' ? x.nom : x.groupe + ' · ' + x.nom)}</small><em>niv. ${x.niveau}</em></div>`).join('') || '<p class="sub">Personne pour l’instant.</p>'}</div>`}`;
+    <p class="sub">Le niveau de poule de chaque joueur inscrit, du plus haut au plus bas.${moi >= 0 ? ` Tu es <b>${ordinal(moi + 1)}</b>.` : ''}
+      Touche un joueur pour <b>voir son équipe</b>.</p>
+    ${!L ? '<p class="sub">Chargement…</p>' : `<div class="classe poules">${L.map((x, i) => `<button class="cl-l${x.moi ? ' moi-l' : ''}" data-voir-equipe="${esc(x.pseudo)}"
+      aria-label="Voir l’équipe de ${esc(x.pseudo)}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b>
+      <small>${esc(x.groupe === 'Légendes' ? x.nom : x.groupe + ' · ' + x.nom)}</small><em>niv. ${x.niveau}</em><i class="cl-eq" aria-hidden="true">Équipe ›</i></button>`).join('')
+      || '<p class="sub">Personne pour l’instant.</p>'}</div>`}`;
+}
+// « Voir l'équipe » (demande de Maël) : ce que joue un autre joueur du classement, en lecture seule. Le serveur donne ses 7 alignés,
+// sa tactique, sa carte staff et sa note d'équipe calculée comme en match (equipe_publique) ; ses légendes viennent avec leur carte.
+const EQDE = {d: null, pseudo: ''};
+function voirEquipe(pseudo, depuisFiche) {
+  EQDE.pseudo = pseudo;
+  if (depuisFiche && EQDE.d && EQDE.d.pseudo.toLowerCase() === pseudo.toLowerCase()) return fenetreEquipeDe(EQDE.d);
+  ouvrirOverlay(`<div class="sheet eq-de"><h3>Équipe de ${esc(pseudo)}</h3><p class="sub">Chargement…</p></div>`);
+  action(Compte.equipePublique(pseudo), d => { EQDE.d = d; if (EQDE.pseudo === pseudo && !$('#overlay').hidden) fenetreEquipeDe(d); })
+    .then(() => { if (EQDE.d?.pseudo?.toLowerCase() !== pseudo.toLowerCase() && !$('#overlay').hidden) cacherOverlay(); });
+}
+function fenetreEquipeDe(d) {
+  const [ta, td] = String(d.tactique || '').split(':'), att = TACT_ATT.find(x => x[0] === ta), def = TACT_DEF.find(x => x[0] === td);
+  const pl = PLACEMENTS[def ? def[0] : '06'], H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;
+  const al = {};
+  for (const j of d.joueurs || []) {
+    const c = j.legende ? Compte.carteDepuisLigne?.(j.legende) : PAR_ID[j.carte] && vueExemplaire(PAR_ID[j.carte], {palier: j.palier, note: j.note});
+    if (c) al[j.poste] = {c, j};
+  }
+  const posDe = id => { const [x, y] = id === 'GB' ? [0, 1.1] : pl[id]; return [px(x), py(y)]; };
+  const liens = LIENS.map(([u, v]) => { const a = al[u], b = al[v]; if (!a || !b) return '';
+    const [x1, y1] = posDe(u), [x2, y2] = posDe(v);
+    return `<line class="${a.c.equipe === b.c.equipe ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
+  // une légende n'a pas de fiche à ouvrir chez un autre (elle n'est pas dans le catalogue du jeu)
+  const ouvre = x => x && !x.j.legende ? ` data-voir-fiche="${x.c.id}" data-de="${esc(d.pseudo)}"` : '';
+  const slots = POSTES.map(p => { const x = al[p.id], [l, t] = posDe(p.id), tag = x && !x.j.legende ? 'button' : 'div';
+    return `<${tag} class="slot${p.gb ? ' gb' : ''}"${ouvre(x)} style="left:${l}%;top:${t}%">${x ? vignetteHTML(x.c) : '<span class="empty">–</span>'}${x?.j.capitaine ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${x && horsPoste(x.c, p.id) ? ' class="hors"' : ''}>${p.id}</em></${tag}>`; }).join('');
+  const st = d.staff && staffDe(d.staff.id);
+  const cartes = POSTES.filter(p => al[p.id]).map(p => { const x = al[p.id], tag = x.j.legende ? 'div' : 'button';
+    return `<${tag} class="eqde-c"${ouvre(x)}>${carteHTML(x.c)}<small>${p.id}${d.notes?.[p.id] != null ? ` · ${d.notes[p.id]} en match` : ''}</small></${tag}>`; }).join('');
+  ouvrirOverlay(`<div class="sheet eq-de">
+    <div class="eqde-t">${avatarHTML(d.perso)}<div><h3>${d.moi ? 'Ton équipe' : 'Équipe de ' + esc(d.pseudo)}</h3>
+      <small>${esc(d.groupe === 'Légendes' ? d.poule : d.groupe + ' · ' + d.poule)} · niv. ${d.niveau}</small></div></div>
+    ${Object.keys(al).length ? `<div class="teamnote"><div class="stat"><b>${d.note ?? '–'}</b><span>note d’équipe</span></div>
+      <div class="stat"><b>+${d.collectif ?? 0}</b><span>collectif</span></div>
+      <div class="stat"><b class="eqde-tac">${att ? att[1] : '–'}<br>${def ? def[1] : '–'}</b><span>tactique</span></div></div>
+      <div class="pitch" style="aspect-ratio:20 / ${H}">${terrainSVG()}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
+      ${st ? `<div class="staff-place eqde-staff"><span class="sp-t">Staff</span>${staffCarteHTML(st, 'mini', d.staff.palier)}
+        <span class="sp-d"><b>${esc(st.personne || st.nom)}</b><small>${R_LABEL[d.staff.palier] || ''} · ${staffEffet(st, d.staff.palier)}</small></span></div>` : ''}
+      <h2>Ses ${Object.keys(al).length} cartes</h2><div class="eqde-cartes">${cartes}</div>
+      ${d.note == null ? '<p class="sub petit">Note d’équipe : il faut 7 joueurs alignés.</p>' : ''}`
+      : '<p class="sub">Aucun joueur aligné pour l’instant.</p>'}
+    <button class="btn" data-act="fermer" style="width:100%">Fermer</button></div>`);
 }
 // Ami(e)s (la bulle) : la liste, puis pour chaque ami(e) : message, échange, défi
 function chargerAmis() { return Compte.mesAmis().then(d => { SOC.amis = d; return d; }); }
@@ -2035,6 +2084,9 @@ function supprimerCompte() {
 const COUCHES = [];
 let retoursIgnores = 0;
 function ouvrirCouche(fermer) { COUCHES.push(fermer); try { history.pushState({mhc: COUCHES.length}, ''); } catch (e) {} }
+// passer une couche à une autre sans toucher à l'historique : un history.back() suivi aussitôt d'un pushState embrouille le
+// navigateur (l'entrée qu'on vient d'ajouter peut être retirée, la page rechargée au toucher suivant)
+function relayerCouche(ancien, nouveau) { const i = COUCHES.lastIndexOf(ancien); if (i < 0) return false; COUCHES[i] = nouveau; return true; }
 function quitterCouche(fermer) {
   const i = COUCHES.lastIndexOf(fermer); if (i < 0) return;
   COUCHES.splice(i, 1); retoursIgnores++; history.back();
@@ -2569,7 +2621,9 @@ function vibrer(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e
 
 // Montée de palier (fusion) : les 3 cartes se rejoignent dans un éclair, la carte se retourne au nouveau palier
 // (couleur, cadre, photo du palier) et sa note et ses 6 stats montent sous nos yeux.
-function montee(avant, apres) {
+// suite : ce qu'on rouvre après (la fiche du joueur, après une fusion) ; relais : la couche de la fenêtre d'où l'on vient, que
+// l'animation reprend dans l'historique puis rend à la fiche (pas d'aller-retour dans l'historique)
+function montee(avant, apres, suite, relais) {
   const W = Math.round(Math.min(innerWidth * .62, innerHeight * .4, 260)), w3 = Math.round(W * .52);
   const el = document.createElement('div');
   el.className = 'montee'; el.style.setProperty('--tc', TEINTE[apres.rarete]); el.style.setProperty('--ta', TEINTE[avant.rarete]);
@@ -2579,13 +2633,18 @@ function montee(avant, apres) {
     <div class="mt-carte"><div class="mt-flip"><div class="mt-face a">${carteHTML(avant).replace('class="card', `style="--w:${W}px" class="card`)}</div>
       <div class="mt-face b">${carteHTML(apres).replace('class="card', `style="--w:${W}px" class="card`)}</div></div></div>
     <div class="mt-titre"><small>Fusion</small><b><span class="t-${avant.rarete}">${R_LABEL[avant.rarete]}</span> → <span class="t-${apres.rarete}">${R_LABEL[apres.rarete]}</span></b></div>
-    <div class="mt-bas"><p>${esc(apres.nom)} passe ${R_LABEL[apres.rarete]} ${apres.ovr}</p><button class="btn gold large">Envoyer au club</button></div>`;
+    <div class="mt-bas"><p>${esc(apres.nom)} passe ${R_LABEL[apres.rarete]} ${apres.ovr}</p><button class="btn gold large">${suite ? 'Continuer' : 'Envoyer au club'}</button></div>`;
   document.body.appendChild(el); document.body.classList.add('avec-intro');
   const q = x => el.querySelector(x), vite = moinsAnim();
   const anim = (x, f, o) => x.animate(f, {fill: 'forwards', ...o, duration: vite ? 0 : o.duration, delay: vite ? 0 : o.delay || 0}).finished.catch(() => {});
   const coucheM = () => fin(true);
-  const fin = parRetour => { if (!parRetour) quitterCouche(coucheM); el.remove(); document.body.classList.remove('avec-intro'); Son.discret(false); route(true); };
-  ouvrirCouche(coucheM);
+  const fin = parRetour => {
+    el.remove(); document.body.classList.remove('avec-intro'); Son.discret(false); route(true);
+    if (parRetour) return;   // le retour du téléphone pendant l'animation : on la quitte, sans rouvrir la fiche
+    if (suite && relayerCouche(coucheM, coucheOverlay)) { $('#overlay').hidden = false; return suite(); }   // la fiche reprend la place
+    quitterCouche(coucheM); if (suite) suite();
+  };
+  if (!(relais && relayerCouche(relais, coucheM))) ouvrirCouche(coucheM);
   q('.mt-bas button').addEventListener('click', () => fin());
   (async () => {
     // 1. les trois cartes arrivent, puis se rejoignent au centre
@@ -2624,7 +2683,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2645,8 +2704,10 @@ document.addEventListener('click', e => {
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (d.fiche) return fenetreFiche(d.fiche);
-  if (d.voirFiche) return fiche(d.voirFiche, d.poste);
+  if (d.voirFiche) return fiche(d.voirFiche, d.poste, d.de);
   if (d.retourPoste) return choisir(d.retourPoste);
+  if (d.voirEquipe) return voirEquipe(d.voirEquipe);
+  if (d.retourEquipe) return voirEquipe(d.retourEquipe, true);
   if (d.hex) { const [pal, nt] = d.hex.split(':'); t.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === t));
     return hexMorph($('.fiche .hx'), FICHE.liste, statsAuNiveau(PAR_ID[FICHE.carte], +nt), pal); }
   if (a === 'passer') return finMatch();
@@ -2745,10 +2806,11 @@ document.addEventListener('click', e => {
     // la carte d'avant : le meilleur exemplaire du palier fusionné (la note de départ de l'animation)
     const avantEx = mesEx(carte).filter(e => e.palier === palier).sort(rangEx)[0];
     const avant = vueExemplaire(PAR_ID[carte], {palier, note: avantEx?.note ?? PALIER[palier].max});
+    const {poste, de} = FICHE;   // après la montée, on revient sur la fiche (retour de Maël : « ça sort du menu fusion, mieux d'y rester »)
     return action(Compte.fusionner(carte, palier), r => {
       const e = exParId(r.id);
-      cacherOverlay();
-      montee(avant, vue(e));
+      cacherOverlay(true);   // sa place dans l'historique passe à l'animation, puis revient à la fiche
+      montee(avant, vue(e), () => fiche(carte, poste, de), coucheOverlay);
     });
   }
   if (a === 'google') return action(Compte.google());
@@ -3045,7 +3107,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=68').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=69').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
