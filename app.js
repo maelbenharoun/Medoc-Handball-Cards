@@ -1338,7 +1338,10 @@ function texteMD(x) {
   return {but: `But de <b>${n}</b>${x.z === 'contre' ? ' en contre-attaque' : x.z === 'pivot' ? ' au pivot' : x.z === 'ailes' ? ' depuis l’aile' : ''}`,
     '7m-but': `<b>${n}</b> transforme le jet de 7 m`, '7m-arret': `<b>${g}</b> arrête le jet de 7 m de ${n}`,
     arret: `Arrêt de <b>${g}</b> devant ${n}`, poteau: `Poteau ! Le tir de ${n} ne rentre pas`, dehors: `${n} tire à côté`,
-    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`, 'temps-mort': `Temps mort pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}`,
+    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`,
+    'temps-mort': x.c === 'a' && x.va ? `Temps mort : ${esc(MD.vue?.eux?.nom || '')} attaque en <b>${NOM_ATT[x.va] || x.va}</b> et défend en <b>${NOM_DEF[x.vd] || x.vd}</b> 🕵️`
+      : `Temps mort pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}`,
+    tactique: `Tu passes en <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`}[x.ty] || '';
@@ -1379,7 +1382,7 @@ function ouvrirDirect(vue, reprise) {
     <p class="md-info"></p>
     <div class="md-onglets" role="tablist"><button class="on" data-md-onglet="direct">Direct</button><button data-md-onglet="stats">Stats</button></div>
     <div class="md-corps"><div class="md-fil"></div><div class="md-stats" hidden></div></div>
-    <div class="md-bas"><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler la fin</button></div>
+    <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
     <div class="md-panneau" hidden></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
@@ -1507,35 +1510,49 @@ function majHorlogeMD() {
   for (const c of ['a', 'b']) MD.el.querySelector('.md-ex.' + c).hidden = !(MD.exclu[c] > MD.h);
 }
 // fin du récit d'un bloc : le bloc suivant, la mi-temps, le temps mort demandé ou le résultat
+// (la mi-temps est obligatoire : le match s'arrête à 30' sur un écran à part, même sans rien changer)
 function finBlocMD() {
   MD.attente = true;
+  if (MD.enCours || MD.panneau) return;   // une tranche déjà demandée, ou un panneau ouvert : on attend
   const pause = Math.round(650 / MD.vitesse);
   if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
   if (MD.vue.bloc === 6) return MD.timers.push(setTimeout(() => panneauMD('mi-temps'), pause));
-  if (MD.tmDemande) return MD.timers.push(setTimeout(() => panneauMD('tm'), pause));
-  blocMD(false);
+  if (MD.tmDemande) return MD.timers.push(setTimeout(tempsMortMD, pause));
+  blocMD();
 }
-function blocMD(tm) {
-  MD.attente = true; majMD();
-  Compte.matchBloc(MD.tac, MD.cons, !!tm).then(r => {
-    if (!MD.el) return;
-    if (tm) MD.tmDemande = false;
+// temps mort (à la fin de la tranche) : le serveur le compte et dévoile leur tactique du moment, attaque comprise
+function tempsMortMD() {
+  MD.enCours = true; MD.tmDemande = false;
+  Compte.matchTempsMort().then(r => {
+    MD.enCours = false; if (!MD.el) return;
+    MD.vue = r.vue; MD.adverse = r.adverse; MD.defB = r.adverse.defense;
+    for (const x of r.vue.evenements || []) noterMD(x);
+    Son.jouer('sifflet'); panneauMD('tm');
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majMD(); blocMD(); });
+}
+function blocMD() {
+  MD.attente = true; MD.enCours = true; majMD();
+  Compte.matchBloc(MD.tac, MD.cons, false).then(r => {
+    MD.enCours = false; if (!MD.el) return;
     MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.bloc * 300;
     if (r.match) { MD.fin = r; MD.finBloc = 3600; }
-    MD.attente = false; majMD();
-  }).catch(e => { if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); MD.dernierTm = tm; panneauMD('erreur'); });
+    if (!MD.panneau) MD.attente = false;
+    majMD();
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
 }
 const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.vue.bloc < 6 ? 'p1' : 'p2'; return t.restants > 0 && (t[per] || 0) < 2 && MD.vue.bloc > 0 && MD.vue.bloc < 12; };
 function majMD() {
   if (!MD.el) return;
   const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
+  const tc = MD.el.querySelector('.md-tac');
+  tc.disabled = !!MD.fin; tc.innerHTML = `Tactique<small>${MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
   const bt = MD.el.querySelector('.md-tm');
   bt.disabled = !MD.tmDemande && (!tmPossible() || !!MD.fin);
   bt.classList.toggle('on', MD.tmDemande);
-  bt.innerHTML = MD.tmDemande ? `Temps mort à ${MD.finBloc / 60}'<small>toucher pour annuler</small>` : `Temps mort<small>${t.restants} restant${t.restants > 1 ? 's' : ''}</small>`;
+  bt.innerHTML = MD.tmDemande ? `Temps mort à ${MD.finBloc / 60}'<small>toucher pour annuler</small>` : `Temps mort<small>${t.restants} · voir leur jeu</small>`;
   MD.el.querySelector('.md-vit').innerHTML = `×${MD.vitesse}<small>vitesse</small>`;
   const sim = MD.el.querySelector('.md-sim'), g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
-  sim.disabled = !!MD.fin; sim.innerHTML = `Simuler la fin<small>gains −${pcMoins(g)} %</small>`;
+  sim.disabled = !!MD.fin; sim.innerHTML = `Simuler<small>gains −${pcMoins(g)} %</small>`;
   const sb = statsMD(MD.evs).b, top = ZONES_MD.filter(([k]) => k !== '7m').sort((p, q) => sb.zones[q[0]] - sb.zones[p[0]])[0];
   MD.el.querySelector('.md-info').innerHTML = `Toi : <b>${NOM_ATT[att]}</b> · <b>${NOM_DEF[def]}</b> · ${CONSIGNES.find(c => c[0] === MD.cons)?.[1] || ''}
     <span>Eux : défense <b>${NOM_DEF[MD.defB] || '?'}</b> · ${MD.vue.tempsMortsAdv?.restants ?? 3} temps mort${(MD.vue.tempsMortsAdv?.restants ?? 3) > 1 ? 's' : ''}${sb.buts >= 3 ? ` · buts surtout : ${top[1].toLowerCase()}` : ''}</span>`;
@@ -1556,25 +1573,35 @@ function majStatsMD() {
 function panneauMD(type) {
   if (!MD.el) return;
   MD.attente = true; MD.panneau = type;
-  if (type === 'mi-temps' || type === 'tm') MD.tmDemande = false;   // à la mi-temps, on change sans temps mort
+  if (type === 'mi-temps') MD.tmDemande = false;   // à la mi-temps, on change sans temps mort
   const [att, def] = MD.tac.split(':');
   MD.choix = {att, def, cons: MD.cons};
   const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
-  const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
-  const change = ['envoi', 'mi-temps', 'tm'].includes(type);
-  const intro = {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer !`,
+  const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, tactique: 'Tactique',
+    pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
+  const change = ['envoi', 'mi-temps', 'tm', 'tactique', 'pause'].includes(type), A = MD.adverse;
+  const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 && type === 'tactique' ? ` Ton choix s’applique à <b>${Math.min(60, MD.finBloc / 60)}'</b>.` : '';
+  const intro = {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer ! Tu pourras changer de tactique toutes les 5 minutes.`,
     'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
-    tm: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Bonus : élan pendant 3 minutes ⚡`,
-    pause: 'Pour changer de tactique : prends un temps mort ⏱️', erreur: 'Oups, la connexion a coupé.'}[type];
-  p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3><p class="sub petit">${intro}</p>
+    tm: A ? `🕵️ Leur jeu dévoilé : ils attaquent en <b>${NOM_ATT[A.attaque]}</b> et défendent en <b>${NOM_DEF[A.defense]}</b>. Bonus : élan pendant 3 minutes ⚡`
+      : `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>.`,
+    tactique: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b> ; leur attaque reste cachée (un temps mort la dévoile).${quand}`,
+    pause: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux, puis reprends.`, erreur: 'Oups, la connexion a coupé.'}[type];
+  // la mi-temps : le bilan de la 1re période (ce qui a été raconté jusqu'ici)
+  const st = type === 'mi-temps' ? statsMD(MD.evs) : null, reu = x => x.tirs ? Math.round(x.buts / x.tirs * 100) + ' %' : '–';
+  const zoneB = st && ZONES_MD.filter(([k]) => k !== '7m').sort((x, y) => st.b.zones[y[0]] - st.b.zones[x[0]])[0];
+  const bilan = st ? `<div class="md-bilan"><div><b>${st.a.tirs}</b><small>tirs</small><b>${st.b.tirs}</b></div><div><b>${reu(st.a)}</b><small>réussite</small><b>${reu(st.b)}</b></div>
+    <div><b>${st.a.arrets}</b><small>arrêts</small><b>${st.b.arrets}</b></div><div><b>${st.a.pertes}</b><small>pertes</small><b>${st.b.pertes}</b></div></div>
+    ${st.b.buts >= 3 ? `<p class="sub petit centre">Leurs buts viennent surtout : <b>${zoneB[1].toLowerCase()}</b></p>` : ''}` : '';
+  p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3>${bilan}<p class="sub petit">${intro}</p>
     ${change ? `<p class="md-astuce">Coach adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}</p>` : ''}
     ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
       <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
-    <div class="md-p-b">${type === 'pause' ? `<button class="btn ghost" data-md-go="tm"${tmPossible() ? '' : ' disabled'}>Temps mort (${MD.vue.tempsMorts?.restants ?? 0})</button>` : ''}
-      ${type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
-      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
+    <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
+        : type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
+      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
   p.hidden = false; MD.el.classList.add('en-pause');
   choixMD();
   majMD();
@@ -1584,6 +1611,12 @@ function choixMD() {
   p.querySelectorAll('[data-md-att]').forEach(b => b.classList.toggle('on', b.dataset.mdAtt === c.att));
   p.querySelectorAll('[data-md-def]').forEach(b => b.classList.toggle('on', b.dataset.mdDef === c.def));
   p.querySelectorAll('[data-md-cons]').forEach(b => b.classList.toggle('on', b.dataset.mdCons === c.cons));
+}
+// après le panneau Tactique : le récit reprend là où il était (ou la tranche suivante est demandée s'il était fini)
+function reprendreMD() {
+  if (MD.enCours) return;
+  if (!MD.file.length && MD.h >= MD.finBloc) return finBlocMD();
+  MD.attente = false;
 }
 function fermerPanneauMD() { MD.el.querySelector('.md-panneau').hidden = true; MD.el.classList.remove('en-pause'); MD.panneau = null; }
 function clicMD(e) {
@@ -1604,14 +1637,16 @@ function clicMD(e) {
   if (d.mdCons) { MD.choix.cons = d.mdCons; return choixMD(); }
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
   if (b.classList.contains('md-tm')) { MD.tmDemande = !MD.tmDemande; return majMD(); }
+  if (b.classList.contains('md-tac')) return panneauMD('tactique');
   if (b.classList.contains('md-sim') || d.mdGo === 'sim') return simulerFinMD();
-  if (d.mdGo === 'tm') return panneauMD('tm');
+  if (d.mdGo === 'annuler') { fermerPanneauMD(); return reprendreMD(); }
   if (d.mdGo === 'jouer') {
     const type = MD.panneau;
-    if (['envoi', 'mi-temps', 'tm'].includes(type)) { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
-    fermerPanneauMD();
+    if (type !== 'erreur') { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
+    fermerPanneauMD(); majMD();
     if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
-    return blocMD(type === 'tm' || (type === 'erreur' && MD.dernierTm));
+    if (type === 'tactique') return reprendreMD();   // le récit reprend ; le changement part avec la tranche suivante
+    return blocMD();
   }
   if (d.act === 'fin-direct') return fermerDirect();
 }
@@ -3107,7 +3142,7 @@ function miniFin(r) {
 
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=69').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=70').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

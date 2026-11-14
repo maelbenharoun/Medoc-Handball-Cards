@@ -117,7 +117,9 @@ async function demarrer(options = {}) {
       if (m) return r.fulfill({status: 200, contentType: 'application/javascript', headers: {'access-control-allow-origin': '*'}, body: fs.readFileSync(THREE_DIR + m[1])});
       return r.fulfill({status: 200, contentType: 'application/javascript', body: fs.readFileSync(UMD)});
     });
-    await ctx.route(/localhost:87\d\d\/config\.js/, r => r.fulfill({status: 200, contentType: 'application/javascript',
+    // jamais le vrai projet pendant un test : tout autre appel à Supabase est coupé (une adresse de test hors 87xx avait pris la vraie config)
+    await ctx.route(/^https:\/\/(?!test\.)[a-z0-9-]+\.supabase\.co\//, r => r.abort('blockedbyclient'));
+    await ctx.route(/localhost:\d+\/config\.js/, r => r.fulfill({status: 200, contentType: 'application/javascript',
       body: `const CONFIG = {supabaseUrl: '${URL_SB}', supabaseCle: 'cle-publique-test'};`}));
   }
   return {db, users, journal, brancher, creerUtilisateur, couper: v => { coupe = v; }};

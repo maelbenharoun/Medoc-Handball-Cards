@@ -1882,3 +1882,14 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .eqde-c .card { --w: 98px; }
 .eqde-c small { color: var(--muted); font-size: .72rem; font-weight: 700; }
 .eq-de > * { flex-shrink: 0; }   /* la fenêtre est une colonne flexible : sans ça, le terrain (aspect-ratio, contenu en absolu) s’écrasait à 0 */
+
+/* Match en direct (demande de Maël, 14 nov. 2026) : 4 boutons en bas (Tactique, Temps mort, vitesse, Simuler) ; bilan de la 1re période à la mi-temps */
+.md-bas { grid-template-columns: 1fr 1fr auto 1fr; gap: 6px; }
+.md-bas .btn { padding: 9px 6px; font-size: .9rem; }
+.md-bas .md-tac { background: linear-gradient(180deg, #5aa2ff, #2f6fd6); color: #fff; box-shadow: 0 4px 0 #1d4a94; }
+.md-bas .md-tac small { color: #d6e7ff; }
+.md-bilan { display: grid; gap: 4px; margin: 6px 0 2px; }
+.md-bilan div { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 10px; background: #18263a; }
+.md-bilan b { font-weight: 900; font-variant-numeric: tabular-nums; }
+.md-bilan b:last-child { text-align: right; }
+.md-bilan small { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; text-align: center; }

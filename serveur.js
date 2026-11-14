@@ -240,6 +240,7 @@ const CompteServeur = (() => {
     // → {direct, vue: {bloc, minute, score, tempsMorts, nous, eux, evenements}} ; simuler = tout de suite (→ comme un match fini)
     matchCommencer: (type, cible, tactique, consigne, simuler) => rpc('match_commencer', {p_type: type, p_cible: cible, p_tactique: tactique, p_consigne: consigne, p_simuler: !!simuler}),
     matchBloc: (tactique, consigne, tempsMort) => rpc('match_bloc', {p_tactique: tactique, p_consigne: consigne, p_temps_mort: !!tempsMort}),   // fin : + match, gains…
+    matchTempsMort: () => rpc('match_temps_mort'),                                // temps mort : élan + tactique adverse dévoilée → {vue, adverse}
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
