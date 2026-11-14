@@ -1893,3 +1893,12 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .md-bilan b { font-weight: 900; font-variant-numeric: tabular-nums; }
 .md-bilan b:last-child { text-align: right; }
 .md-bilan small { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; text-align: center; }
+
+/* Entraînement aux mini-jeux (demande de Maël, 14 nov. 2026) : un bouton sous chaque tuile, une étiquette pendant la partie */
+.jeu-w { display: flex; flex-direction: column; gap: 6px; }
+.jeu-w .jeu { flex: 1; }
+.jeu-entr { padding: 8px 6px; border-radius: 12px; border: 1.5px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .06); color: #fff;
+  font: inherit; font-size: .82rem; font-weight: 800; }
+.jeu-entr:active { transform: translateY(2px); }
+.j7-mode { margin: 0 8px 0 auto; padding: 4px 10px; border-radius: 99px; background: rgba(90, 162, 255, .22); border: 1px solid rgba(90, 162, 255, .6);
+  color: #d6e7ff; font-size: .72rem; font-weight: 800; white-space: nowrap; }

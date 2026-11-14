@@ -1053,10 +1053,11 @@ function vuePieces() {
       ${sceneJeu(t.k)}<b class="jeu-nom">${NOMS_TUILE[t.k]}</b><small class="jeu-gain"><i class="coin"></i>${t.gain}</small>
       <span class="j7-pastilles petit">${past}</span>
       <span class="jeu-go">${reste ? `Jouer · ${reste} ${t.unite}${reste > 1 ? 's' : ''}` : '✓ Reviens demain'}</span></button>
-      <button class="jeu-aide" data-tuto="${t.k}" aria-label="Comment jouer : ${NOMS_TUILE[t.k]}">?</button></div>`;
+      <button class="jeu-aide" data-tuto="${t.k}" aria-label="Comment jouer : ${NOMS_TUILE[t.k]}">?</button>
+      <button class="jeu-entr" data-mini-entr="${t.k}" aria-label="S’entraîner : ${NOMS_TUILE[t.k]}, sans pièces">🎯 S’entraîner</button></div>`;
   }).join('');
   return `${retour('jouer', 'Jouer')}<h1>Gagner des pièces</h1>
-    <p class="sub">4 mini-jeux, chaque jour : gagne des pièces pour tes boosters ! 🪙</p>
+    <p class="sub">4 mini-jeux, chaque jour : gagne des pièces pour tes boosters ! 🪙 Entraîne-toi autant que tu veux avant : seuls les essais « Jouer » comptent.</p>
     <p class="pieces-tete"><b>${essais}</b> essai${essais > 1 ? 's' : ''} aujourd’hui</p>
     <div class="jeux">${html}</div>`;
 }
@@ -1341,7 +1342,7 @@ function texteMD(x) {
     perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`,
     'temps-mort': x.c === 'a' && x.va ? `Temps mort : ${esc(MD.vue?.eux?.nom || '')} attaque en <b>${NOM_ATT[x.va] || x.va}</b> et défend en <b>${NOM_DEF[x.vd] || x.vd}</b> 🕵️`
       : `Temps mort pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}`,
-    tactique: `Tu passes en <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
+    tactique: `${x.adj ? 'Ton adjoint passe en' : 'Tu passes en'} <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`}[x.ty] || '';
@@ -2718,7 +2719,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2788,6 +2789,7 @@ document.addEventListener('click', e => {
   if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
+  if (d.miniEntr) return d.miniEntr === '7m' ? ouvrirJet7m(true) : ouvrirMini(d.miniEntr, true);
   if (d.tuto) return tuto(d.tuto, null, true);
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
@@ -2961,12 +2963,17 @@ function tir7mDemo(x0, y0, f) {
   const tirs = [...J7.tirs, res];
   return Promise.resolve({resultat: res, x, y, vitesse, gardien: {x: gx, y: gy}, pieces: 0, bonus: 0, tirs, restants: J7.limite - tirs.length});
 }
+// Entraînement (demande de Maël, 14 nov. 2026) : le mode démo des mini-jeux (mêmes règles, calculées dans la page, sans pièces ni
+// essai compté), ouvert par « S'entraîner » sous chaque tuile ; à la fin, « Jouer pour de vrai » enchaîne sur les essais qui comptent
+const essaisVrais = k => { if (k === '7m') { const j = S().jet7m || {tirs: [], limite: 5}; return Math.max(0, j.limite - j.tirs.length); }
+  const m = S().minijeux || {}, l = m[k] || [], lim = m.limites?.[k] || m.limite || 5; return k === 'gardien' ? seriesRestantes(l.length, lim) : Math.max(0, lim - l.length); };
+const MODE_ENTR = '<span class="j7-mode">Entraînement</span>';
 function ouvrirJet7m(demo) {
   const j = demo ? {tirs: [], limite: 5} : S().jet7m || {tirs: [], limite: 5};
   if (j.tirs.length >= j.limite) return toast('Reviens demain pour 5 nouveaux tirs');
   const el = document.createElement('div');
   el.className = 'j7 j7-3d';
-  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b>${demo ? MODE_ENTR : ''}<button class="j7-quitter">Fermer</button></div>
     <div class="j7-terrain"><div class="t3"></div><div class="j7-but"><div class="j7-viseur"><i></i></div></div></div>
     <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
     <p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
@@ -3040,10 +3047,13 @@ function animerTir(r) {
     const n = J7.tirs.length, buts = J7.tirs.filter(t => t === 'but').length;
     el.querySelector('.j7-score').textContent = `Tir ${n}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
     el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large j7-suivant">Tir suivant</button>`
-      : J7.demo ? `<p class="j7-bilan">${buts} sur ${J7.limite} · démo : pas de pièces</p><button class="btn gold large j7-rejouer">Rejouer</button>`
+      : J7.demo ? `<p class="j7-bilan">${buts} sur ${J7.limite} · entraînement : pas de pièces</p>${essaisVrais('7m') ? '<button class="btn gold large j7-vrai">Jouer pour de vrai</button>' : ''}
+        <button class="btn ${essaisVrais('7m') ? 'ghost' : 'gold'} large j7-rejouer">Rejouer l’entraînement</button>`
       : `<p class="j7-bilan">${buts} sur ${J7.limite} · +${nb(J7.gains)} pièces</p><button class="btn gold large j7-fin">Fermer</button>`;
     el.querySelector('.j7-suivant')?.addEventListener('click', e => { e.stopPropagation(); nouveauTir(); });
     el.querySelector('.j7-rejouer')?.addEventListener('click', e => { e.stopPropagation(); J7.tirs = []; nouveauTir(); });
+    el.querySelector('.j7-vrai')?.addEventListener('click', e => { e.stopPropagation(); const j = S().jet7m || {tirs: [], limite: 5};
+      Object.assign(J7, {demo: false, tirs: [...j.tirs], limite: j.limite, gains: 0}); el.querySelector('.j7-mode')?.remove(); nouveauTir(); });
     el.querySelector('.j7-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerJet7m(); });
   });
 }
@@ -3070,7 +3080,7 @@ function ouvrirMini(jeu, demo) {
   if (liste.length >= limite) return toast('Reviens demain pour 5 nouveaux essais');
   const el = document.createElement('div');
   el.className = `j7 mj mj-${jeu}`;
-  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b><button class="j7-quitter">Fermer</button></div>
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score"></b>${demo ? MODE_ENTR : ''}<button class="j7-quitter">Fermer</button></div>
     <div class="mj-scene">${JEUX[jeu].scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); Son.theme('minijeux'); ouvrirCouche(coucheMini);
@@ -3124,25 +3134,36 @@ function miniFin(r) {
     el.querySelector('.j7-score').textContent = `Tir ${MJ.serie.length}/${SERIE} · ${a} arrêt${a > 1 ? 's' : ''}`;
     if (MJ.serie.length < SERIE && r.restants > 0) { MJ.timers.push(setTimeout(() => { if (MJ.el) miniEssai(); }, moinsAnim() ? 300 : 1250)); return; }
     const gainsSerie = MJ.demo ? 0 : a * (S().minijeux?.gains?.gardien || 10) + (r.bonus || 0);
-    el.querySelector('.j7-bas').innerHTML = `<p class="j7-bilan">Série : ${a} arrêt${a > 1 ? 's' : ''} sur ${MJ.serie.length}${MJ.demo ? ' · démo : pas de pièces' : ` · +${nb(gainsSerie)} pièces`}</p>`
-      + (r.restants > 0 || MJ.demo ? `<button class="btn gold large mj-suivant">${MJ.demo && r.restants <= 0 ? 'Rejouer' : 'Série suivante'}</button>` : `<button class="btn gold large mj-fin">Fermer</button>`)
-      + (r.restants > 0 ? `<button class="btn ghost large mj-fin">Fermer</button>` : '');
+    const vrai = MJ.demo && essaisVrais(MJ.jeu) > 0;
+    el.querySelector('.j7-bas').innerHTML = `<p class="j7-bilan">Série : ${a} arrêt${a > 1 ? 's' : ''} sur ${MJ.serie.length}${MJ.demo ? ' · entraînement : pas de pièces' : ` · +${nb(gainsSerie)} pièces`}</p>`
+      + (vrai ? '<button class="btn gold large mj-vrai">Jouer pour de vrai</button>' : '')
+      + (r.restants > 0 || MJ.demo ? `<button class="btn ${vrai ? 'ghost' : 'gold'} large mj-suivant">${MJ.demo ? 'Encore une série d’entraînement' : 'Série suivante'}</button>` : `<button class="btn gold large mj-fin">Fermer</button>`)
+      + (r.restants > 0 && !MJ.demo ? `<button class="btn ghost large mj-fin">Fermer</button>` : '');
     el.querySelector('.mj-suivant')?.addEventListener('click', e => { e.stopPropagation(); if (MJ.demo && r.restants <= 0) MJ.liste = []; MJ.serie = []; miniEssai(); });
+    el.querySelector('.mj-vrai')?.addEventListener('click', e => { e.stopPropagation(); passerEnVrai(); });
     el.querySelectorAll('.mj-fin').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); fermerMini(); }));
     return;
   }
   el.querySelector('.j7-score').textContent = `Essai ${n}/${MJ.limite} · ${ok} réussi${ok > 1 ? 's' : ''}`;
   el.querySelector('.j7-bas').innerHTML = r.restants > 0 ? `<button class="btn gold large mj-suivant">Essai suivant</button>`
-    : MJ.demo ? `<p class="j7-bilan">${ok} sur ${MJ.limite} · démo : pas de pièces</p><button class="btn gold large mj-rejouer">Rejouer</button>`
+    : MJ.demo ? `<p class="j7-bilan">${ok} sur ${MJ.limite} · entraînement : pas de pièces</p>${essaisVrais(MJ.jeu) ? '<button class="btn gold large mj-vrai">Jouer pour de vrai</button>' : ''}
+      <button class="btn ${essaisVrais(MJ.jeu) ? 'ghost' : 'gold'} large mj-rejouer">Rejouer l’entraînement</button>`
     : `<p class="j7-bilan">${ok} sur ${MJ.limite} · +${nb(MJ.gains)} pièces</p><button class="btn gold large mj-fin">Fermer</button>`;
   el.querySelector('.mj-suivant')?.addEventListener('click', e => { e.stopPropagation(); miniEssai(); });
   el.querySelector('.mj-rejouer')?.addEventListener('click', e => { e.stopPropagation(); MJ.liste = []; miniEssai(); });
+  el.querySelector('.mj-vrai')?.addEventListener('click', e => { e.stopPropagation(); passerEnVrai(); });
   el.querySelector('.mj-fin')?.addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
 }
 
+// fin d'entraînement → les essais qui comptent, dans le même écran (pas d'aller-retour dans l'historique)
+function passerEnVrai() {
+  const m = S().minijeux || {};
+  Object.assign(MJ, {demo: false, liste: [...(m[MJ.jeu] || [])], limite: m.limites?.[MJ.jeu] || m.limite || 5, gains: 0, serie: [], serieN: 0});
+  MJ.el.querySelector('.j7-mode')?.remove(); Son.jouer('sifflet'); miniEssai();
+}
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=70').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=71').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

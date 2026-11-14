@@ -66,6 +66,18 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   }
   verif(`l’entraîneur adverse change sans temps mort (${libres} fois en 25 matchs, contre une tactique figée)`, libres >= 5, libres);
   verif(`il ne prend un temps mort que mené de 3 buts ou plus (${tms} temps morts)`, tmsMalMenes === 0, tmsMalMenes);
+  // « Simuler » : l'adjoint (match_adjoint) contre leur défense une tranche sur deux environ ; jamais de temps mort
+  let contres = 0, essais = 0, adjTm = 0, adjEv = 0;
+  for (let i = 0; i < 40; i++) {
+    let x = (await q(`select match_nouveau('championnat', '{}', $1::jsonb, $1::jsonb, 'duels:06', 'normal', 'duels', '15') e`,
+      [JSON.stringify({att: 70, def: 70, note: 70, joueurs: {}, tireurs: []})]))[0].e;
+    x.ia = ia; x.bloc = 1; x.t = 300;
+    const y = (await q('select match_adjoint($1::jsonb) e', [JSON.stringify(x)]))[0].e;
+    essais++; if (y.a.attaque === 'rapide') contres++;   // rapide bat la 1-5
+    adjTm += y.tm.restants !== 3 ? 1 : 0; adjEv += y.ev.some(v => v.ty === 'tactique' && v.adj) ? 1 : 0;
+  }
+  verif(`adjoint de « Simuler » : il contre leur défense environ une fois sur deux (${contres}/${essais}), raconté au fil, sans temps mort`,
+    contres >= 10 && contres <= 30 && adjEv === contres && adjTm === 0, {contres, adjEv, adjTm});
 
   // ── 2. dans le navigateur
   const b = await chromium.launch();

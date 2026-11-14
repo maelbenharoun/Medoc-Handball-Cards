@@ -21,6 +21,7 @@ Playwright (le navigateur des tests) doit être installé à part ; dans les ses
 | `node tests/test_voir_equipe.js` | « Voir l'équipe » du classement : ce que renvoie `equipe_publique` (note = celle du match, rien de privé, légendes visibles avec leur carte, équipe incomplète, staff), puis la fenêtre à 390 px | 30 s |
 | `node tests/test_fusion.js` | Après une fusion, retour sur la fiche du joueur (avec son retour d'origine), fusions d'affilée, historique propre pour le bouton retour du téléphone | 30 s |
 | `node tests/test_match_direct.js` | Match en direct : changement de tactique libre à chaque tranche, temps mort qui dévoile la vraie tactique adverse (limites : 3 par match, 2 par période, pas à la mi-temps), l'entraîneur adverse qui change sans temps mort, puis un match dans le navigateur à 390 px (panneau Tactique, temps mort, mi-temps obligatoire avec bilan) | 1 min |
+| `node tests/test_entrainement.js` | S'entraîner aux mini-jeux : une série d'arrêt réflexe à l'entraînement ne coûte aucun essai ni ne rapporte de pièce ; « Jouer pour de vrai » enchaîne et compte (WebGL logiciel, 390 px) | 1 min |
 | `node tests/economie.js` | Pas un test : la simulation de l'économie (pièces par jour, jours pour les grands objectifs, selon le rythme de jeu) | 1 min |
 
 `test_concurrence.js` a besoin d'un vrai Postgres (PGlite n'a qu'une connexion) :

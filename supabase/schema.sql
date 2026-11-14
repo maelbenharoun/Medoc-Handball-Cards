@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5,
   "pve_par_jour": 10, "match_minutes": 120, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -1680,8 +1680,8 @@ end $$;
 -- Le serveur ne calcule le bloc suivant que quand le jeu le demande, avec la tactique du moment : impossible de voir la suite
 -- à l'avance ou de rejouer un match. Les choix comptent : la défense adverse se voit (à contrer avec la bonne attaque),
 -- son attaque se devine (d'où viennent ses buts) ; 3 temps morts (2 par période) et la mi-temps pour changer.
--- « Simuler » joue tout de suite avec la tactique de l'onglet Équipe, sans adaptation, et rapporte un peu moins
--- (match_simule_gain) : en moyenne 10 % de moins que jouer le match, 20 % de moins qu'un joueur qui lit bien le jeu.
+-- « Simuler » joue tout de suite : un adjoint coache à ta place (match_adjoint, une tranche sur deux il contre leur défense), et
+-- rapporte un peu moins (match_simule_gain).
 -- ════════════════════════════════════════════════════════════════════════════
 -- (la table matchs_direct est créée avec les autres tables, en haut du fichier)
 
@@ -2007,10 +2007,25 @@ begin
     'match', (s -> 'match') || jsonb_build_object('stats', r -> 'stats', 'evenements', e -> 'ev'));
 end $$;
 -- joue tous les blocs qui restent, sans adaptation
+-- « Simuler » : un adjoint coache à ta place (demande de Maël, 14 nov. 2026 : simuler perdait bien plus souvent qu'un joueur actif).
+-- Avant chaque tranche, avec la probabilité match_simule_lecture, il passe à l'attaque qui bat leur défense du moment ; il garde ta
+-- défense et ta consigne et ne prend pas de temps mort : moins bien qu'un joueur attentif, mieux qu'une tactique figée.
+create or replace function match_adjoint(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare d text := e #>> '{b,defense}'; ma text := e #>> '{a,defense}'; att text;
+begin
+  if d is null or ma is null or random() >= coalesce((param('match_simule_lecture') #>> '{}')::numeric, 0) then return e; end if;
+  select y into att from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, d) = 1;
+  if att is null or att = e #>> '{a,attaque}' then return e; end if;
+  if (e ->> 'bloc')::int > 0 then
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'tactique', 'v', att || ':' || ma,
+      'cons', coalesce(e #>> '{a,consigne}', 'normal'), 'adj', true, 's', e -> 'score'));
+  end if;
+  return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma) || jsonb_build_object('tactique', att || ':' || ma));
+end $$;
 create or replace function match_finir_simule(p_uid uuid, e jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare reste int := 12 - (e ->> 'bloc')::int; g numeric := (param('match_simule_gain') #>> '{}')::numeric;
 begin
-  while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(e); end loop;
+  while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(match_adjoint(e)); end loop;
   e := jsonb_set(e, '{simules}', to_jsonb((e ->> 'simules')::int + reste));
   return match_conclure(p_uid, e, round(1 - (1 - g) * reste / 12.0, 4));
 end $$;
