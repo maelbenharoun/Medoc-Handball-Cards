@@ -157,10 +157,12 @@ function secondesAvantBooster() {
   const s = S().prochainBooster;
   return s == null ? null : Math.max(0, Math.ceil(s - (Date.now() - S().recu) / 1000));
 }
-// matchs de championnat disponibles : la réserve (1 toutes les 2 h, 10 au plus) ; avec un serveur pas encore à jour,
+// recharge des matchs de championnat (match_minutes : 1 par heure depuis le 14 nov. 2026)
+const rechargeMatch = () => { const m = +(PARAMS.match_minutes ?? 60); return m === 60 ? '1 par heure' : m % 60 ? `1 toutes les ${m} min` : `1 toutes les ${m / 60} h`; };
+// matchs de championnat disponibles : la réserve (1 par heure, 10 au plus) ; avec un serveur pas encore à jour,
 // l'ancienne limite du jour
 const matchsDispo = e => e.matchs ?? Math.max(0, (e.limites?.championnat || 0) - (e.jour?.championnat || 0));
-// le prochain match de championnat (1 toutes les 2 h, 10 en réserve au plus)
+// le prochain match de championnat (1 par heure, 10 en réserve au plus)
 function secondesAvantMatch() {
   const s = S().prochainMatch;
   return s == null ? null : Math.max(0, Math.ceil(s - (Date.now() - S().recu) / 1000));
@@ -1009,7 +1011,7 @@ function vueJouer() {
     + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
   return `<h1>Jouer</h1>
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
-      <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (1 toutes les 2 h)` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
+      <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (${rechargeMatch()})` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>
     <a class="porte ligue" href="#ligue"><span class="porte-ic" aria-hidden="true">🏟️</span><b>Ligue de la semaine</b>
@@ -3163,7 +3165,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=71').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=72').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

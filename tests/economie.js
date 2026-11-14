@@ -8,14 +8,15 @@ const {REPO, creerBase} = require('./base');
 const RUNS = +process.env.ECO_RUNS || 200, JOURS_MAX = 365 * 4;
 
 // ── hypothèses : quatre façons de jouer ──────────────────────────────────────────
-// gratuits : boosters gratuits ouverts par jour (1 toutes les 30 min, 5 en stock : 5 par visite, 48 au plus) ; matchs : championnat
-// (1 toutes les 2 h, 12 par jour au plus) ; minis : part des essais du jour joués ; adresse : part des essais réussis ;
+// gratuits : boosters gratuits ouverts par jour (1 toutes les 30 min, 5 en stock : 5 par visite, 48 au plus) ; championnat : envie =
+// matchs qu'on a envie de jouer par jour, heures = heures de la journée où l'on revient chercher ses matchs (la réserve se recharge
+// d'un match toutes les match_minutes) : matchs joués = le plus petit des deux ; minis : part des essais du jour joués ; adresse : part des essais réussis ;
 // quetes / quetesSem : quêtes finies (sur 3 par jour, 4 par semaine) ; rangLigue : place habituelle dans son groupe de 10
 const PROFILS = {
-  'Occasionnel (1 visite par jour)': {gratuits: 5, matchs: 3, ligue: 0, minis: .4, adresse: .5, quetes: 1.5, quetesSem: 1, defis: 0, pronos: 0, rangLigue: 0},
-  'Régulier (2 à 3 visites)': {gratuits: 12, matchs: 8, ligue: 5, minis: 1, adresse: .65, quetes: 2.5, quetesSem: 3, defis: 2, pronos: 1, rangLigue: 5},
-  'Acharné (5 visites et plus)': {gratuits: 25, matchs: 12, ligue: 5, minis: 1, adresse: .85, quetes: 3, quetesSem: 4, defis: 5, pronos: 1, rangLigue: 2},
-  'Plafond (un robot, tout au maximum)': {gratuits: 48, matchs: 12, ligue: 5, minis: 1, adresse: 1, quetes: 3, quetesSem: 4, defis: 5, pronos: 1, rangLigue: 1},
+  'Occasionnel (1 visite par jour)': {gratuits: 5, envie: 3, heures: 24, ligue: 0, minis: .4, adresse: .5, quetes: 1.5, quetesSem: 1, defis: 0, pronos: 0, rangLigue: 0},
+  'Régulier (2 à 3 visites)': {gratuits: 12, envie: 12, heures: 16, ligue: 5, minis: 1, adresse: .65, quetes: 2.5, quetesSem: 3, defis: 2, pronos: 1, rangLigue: 5},
+  'Acharné (5 visites et plus)': {gratuits: 25, envie: 20, heures: 24, ligue: 5, minis: 1, adresse: .85, quetes: 3, quetesSem: 4, defis: 5, pronos: 1, rangLigue: 2},
+  'Plafond (un robot, tout au maximum)': {gratuits: 48, envie: 999, heures: 24, ligue: 5, minis: 1, adresse: 1, quetes: 3, quetesSem: 4, defis: 5, pronos: 1, rangLigue: 1},
 };
 const VICTOIRES = {aNiveau: [.5, .1, .4], enMontee: [.75, .05, .2]};   // gagné, nul, perdu : à son niveau, ou en train de monter
 const MATCHS_PAR_NIVEAU = 14;                                          // matchs pour monter d'un niveau du parcours, en moyenne
@@ -55,8 +56,12 @@ const PRONO_POINTS = 1.5, PRONO_MATCHS_SEMAINE = 4;                    // points
     return {r, xp, boosters, boostersOr};
   }
 
+  // matchs de championnat joués par jour, et ce que rapporte chacun (championnat_gain : ×0,5 depuis le 14 nov. 2026)
+  const matchsJour = f => Math.min(f.envie, f.heures * 60 / P.match_minutes, 1440 / P.match_minutes);
+  const gainMatch = +(P.championnat_gain ?? 1);
   // ── une partie simulée, jour après jour ──
-  function partie(f, cible = 'SF1') {
+  function partie(f0, cible = 'SF1') {
+    const f = {...f0, matchs: matchsJour(f0)};
     const fixe = revenuFixe(f), equipe = cartes.filter(c => c.equipe === cible);
     const cibles = [equipe.find(c => c.gb), ...equipe.filter(c => !c.gb).slice(0, 6)].map(c => c.id), estCible = new Set(cibles);
     const inv = {}, staff = {}, notes = {};   // inv[carte] = [bronze, argent, or, ultime] ; notes[carte] = note de la carte Ultime entraînée
@@ -88,8 +93,8 @@ const PRONO_POINTS = 1.5, PRONO_MATCHS_SEMAINE = 4;                    // points
       const nivForce = Math.max(1, P.parcours.filter(x => x.base <= noteEq).length), niv = Math.min(nivForce, 1 + Math.floor(matchs / MATCHS_PAR_NIVEAU));
       const pr = niv < nivForce ? VICTOIRES.enMontee : VICTOIRES.aNiveau, mult = 1 + (niv - 1) / 4;
       for (const k in fixe.r) gagner(k, fixe.r[k]);
-      gagner('Championnat', f.matchs * (esp(P.pve_pieces, pr) * mult + P.parcours_saison_pieces * mult * 1.2 / MATCHS_PAR_NIVEAU)); matchs += f.matchs;
-      gagnerXp(fixe.xp + f.matchs * esp(P.pve_xp, pr));
+      gagner('Championnat', f.matchs * (esp(P.pve_pieces, pr) * mult * gainMatch + P.parcours_saison_pieces * mult * 1.2 / MATCHS_PAR_NIVEAU)); matchs += f.matchs;
+      gagnerXp(fixe.xp + f.matchs * esp(P.pve_xp, pr) * gainMatch);
       resteB += fixe.boosters; resteO += fixe.boostersOr;
       while (resteB >= 1) { resteB--; bBonus++; } while (resteO >= 1) { resteO--; bOr++; }
       for (let i = 0; i < f.gratuits; i++) tirer('gratuit');
@@ -116,8 +121,10 @@ const PRONO_POINTS = 1.5, PRONO_MATCHS_SEMAINE = 4;                    // points
       j('Une carte staff précise en Or', !!(staff[staffIds[0]] && (staff[staffIds[0]][2] || staff[staffIds[0]][3])));
       j('Une carte staff précise en Ultime', !!(staff[staffIds[0]] && staff[staffIds[0]][3]));
       j('Niveau 20', niveau >= 20); j('Sommet du championnat (Légendes)', niv >= P.parcours.length);
+      j('Collection complète (chaque joueur au moins en Bronze)', cartes.every(c => meilleur(c.id) >= 0));
       if (jour === 30) { jalons._sources = {...sources}; jalons._niveau = niveau; jalons._depenses = {...depenses}; }
-      if (jalons['7 Ultime à 99'] && jalons['Une carte staff précise en Ultime'] && jalons['Album Or d’une équipe'] && jour > 60) break;
+      if (jalons['7 Ultime à 99'] && jalons['Une carte staff précise en Ultime'] && jalons['Album Or d’une équipe'] && jalons['Collection complète (chaque joueur au moins en Bronze)']
+        && jalons['Sommet du championnat (Légendes)'] && jour > 60) break;
     }
     return jalons;
   }
@@ -125,7 +132,7 @@ const PRONO_POINTS = 1.5, PRONO_MATCHS_SEMAINE = 4;                    // points
   const mediane = t => { const s = [...t].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
   const duree = j => j == null ? `plus de ${JOURS_MAX / 365} ans` : j < 60 ? `${j} j` : j < 730 ? `${Math.round(j / 30.4)} mois` : `${(j / 365).toFixed(1).replace('.', ',')} ans`;
   const JALONS = ['7 Argent ou mieux', '7 Or ou mieux', '7 Ultime', '7 Ultime à 99', 'Album Bronze d’une équipe', 'Album Or d’une équipe', '1re carte staff', 'Les 10 cartes staff',
-    'Une carte staff Or', 'Une carte staff Ultime', 'Une carte staff précise en Or', 'Une carte staff précise en Ultime', 'Niveau 20', 'Sommet du championnat (Légendes)'];
+    'Une carte staff Or', 'Une carte staff Ultime', 'Une carte staff précise en Or', 'Une carte staff précise en Ultime', 'Niveau 20', 'Sommet du championnat (Légendes)', 'Collection complète (chaque joueur au moins en Bronze)'];
   const sortie = {reglages: {booster_equipe_prix: P.booster_equipe_prix, booster_hasard_prix: P.booster_hasard_prix, staff_chance: P.staff_chance, booster_chances: P.booster_chances}, profils: {}};
   console.log(`Simulation de l'économie : ${RUNS} parties par profil, jusqu'à ${JOURS_MAX / 365} ans. Équipe visée : 7 joueurs de SF1 (collectif +3).\n`);
   for (const [nom, f] of Object.entries(PROFILS).filter(([n]) => !process.env.ECO_PROFIL || n.startsWith(process.env.ECO_PROFIL))) {
@@ -135,7 +142,7 @@ const PRONO_POINTS = 1.5, PRONO_MATCHS_SEMAINE = 4;                    // points
     console.log(`━━ ${nom}`);
     console.log(`   Pièces par jour (moyenne des 30 premiers jours) : ${nb(total)}  →  ${(total / P.booster_equipe_prix).toFixed(1).replace('.', ',')} booster(s) d'équipe par jour`);
     console.log('   ' + Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${nb(v)} (${Math.round(100 * v / total)} %)`).join(' · '));
-    console.log(`   Cartes par jour : ${f.gratuits} gratuites · niveau du compte après 30 jours : ${mediane(parties.map(p => p._niveau))} · paliers du passe à la 1re saison : ${mediane(parties.map(p => p.passe1 ?? 0))}/${P.passe_paliers}`);
+    console.log(`   Matchs de championnat par jour : ${matchsJour(f)} · cartes par jour : ${f.gratuits} gratuites · niveau du compte après 30 jours : ${mediane(parties.map(p => p._niveau))} · paliers du passe à la 1re saison : ${mediane(parties.map(p => p.passe1 ?? 0))}/${P.passe_paliers}`);
     const res = {};
     for (const k of JALONS) { const v = parties.map(p => p[k] ?? Infinity), m = mediane(v); res[k] = isFinite(m) ? m : null; }
     console.log('   ' + JALONS.map(k => `${k} : ${duree(res[k])}`).join('\n   ') + '\n');

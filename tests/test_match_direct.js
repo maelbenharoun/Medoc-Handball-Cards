@@ -50,6 +50,14 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
     && erreur(await rpcJoueur(db, al.id, 'match_temps_mort'), 'Plus de temps mort'));
   verif('tactique inconnue : refusée', erreur(await rpcJoueur(db, al.id, 'match_bloc', ['n_importe:quoi', 'normal', false])));
   await rpcJoueur(db, al.id, 'match_simuler_fin');
+  // championnat (demande de Maël, 14 nov. 2026) : un match par heure, chaque match rapporte moitié moins (pièces et XP)
+  const P = (await q('select valeurs v from parametres'))[0].v;
+  await q('update profils set matchs = 5 where user_id = $1', [al.id]);
+  r = await rpcJoueur(db, al.id, 'match_commencer', ['championnat', null, 'duels:06', 'normal', true]);
+  const res = r.match?.resultat, g = +P.match_simule_gain * +P.championnat_gain;
+  verif(`recharge d’une heure, gains du championnat ×${P.championnat_gain} (match simulé, ${res})`, P.match_minutes === 60 && +P.championnat_gain === .5
+    && r.gains?.pieces === Math.round(P.pve_pieces[res] * g) && r.gains.xp === Math.round(P.pve_xp[res] * g) && r.gains.xpCarte === Math.round(P.pve_xp_carte[res] * g),
+    {gains: r.gains, attendu: [P.pve_pieces[res] * g, P.pve_xp[res] * g]});
   // l'entraîneur adverse change lui aussi sans temps mort (style « rapide »), et n'en prend que mené de 3 buts ou plus
   let libres = 0, tms = 0, tmsMalMenes = 0;
   const ia = (await q("select match_ia('rapide') i"))[0].i;
@@ -78,6 +86,13 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   }
   verif(`adjoint de « Simuler » : il contre leur défense environ une fois sur deux (${contres}/${essais}), raconté au fil, sans temps mort`,
     contres >= 10 && contres <= 30 && adjEv === contres && adjTm === 0, {contres, adjEv, adjTm});
+  // l'adjoint ne touche pas à la tactique choisie (enregistrée dans l'onglet Équipe en fin de match) : bug de la v71
+  await q("update profils set tactique = 'duels:06', matchs = 5 where user_id = $1", [al.id]);
+  let changee = 0;
+  for (let i = 0; i < 6; i++) { const m = await rpcJoueur(db, al.id, 'match_commencer', ['championnat', null, 'duels:06', 'normal', true]);
+    if ((await q('select tactique from profils where user_id = $1', [al.id]))[0].tactique !== 'duels:06') changee++;
+    if (m.erreur) { changee = -1; break; } await q('update profils set matchs = 5 where user_id = $1', [al.id]); }
+  verif('après des matchs simulés, la tactique choisie reste la même (l’adjoint ne l’écrase pas)', changee === 0, changee);
 
   // ── 2. dans le navigateur
   const b = await chromium.launch();

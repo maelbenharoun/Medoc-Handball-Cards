@@ -31,8 +31,8 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5,
-  "pve_par_jour": 10, "match_minutes": 120, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "championnat_gain": 0.5,
+  "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
   "pve_xp_carte": {"gagne": 30, "nul": 20, "perdu": 10},
@@ -1650,7 +1650,9 @@ begin
     end if;
   end if;
 
-  -- un match simulé rapporte un peu moins (p_gain) que le même match joué en direct
+  -- un match simulé rapporte un peu moins (p_gain) que le même match joué en direct ; championnat_gain : depuis le 14 nov. 2026 (demande
+  -- de Maël), un match par heure au lieu de 2 h, chaque match rapporte moitié moins (pièces, XP du joueur et des cartes)
+  p_gain := p_gain * coalesce((param('championnat_gain') #>> '{}')::numeric, 1);
   xp := round((param('pve_xp') ->> res)::int * p_gain); xpc := round((param('pve_xp_carte') ->> res)::int * p_gain);
   v_pieces := round((param('pve_pieces') ->> res)::int * mult * p_gain * (1 + staff_val(p_uid, 'manager') / 100.0));   -- manager
   update profils set tactique = p_tactique, parcours = pc, pieces = pieces + v_pieces + recompense,
@@ -2020,7 +2022,8 @@ begin
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'tactique', 'v', att || ':' || ma,
       'cons', coalesce(e #>> '{a,consigne}', 'normal'), 'adj', true, 's', e -> 'score'));
   end if;
-  return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma) || jsonb_build_object('tactique', att || ':' || ma));
+  -- l'attaque jouée change, pas la tactique choisie par le joueur (e.a.tactique, enregistrée dans son onglet Équipe en fin de match)
+  return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma));
 end $$;
 create or replace function match_finir_simule(p_uid uuid, e jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare reste int := 12 - (e ->> 'bloc')::int; g numeric := (param('match_simule_gain') #>> '{}')::numeric;
@@ -2049,7 +2052,7 @@ begin
   if p_type = 'championnat' then
     perform matchs_a_jour(p.user_id);
     if (select matchs from profils where user_id = p.user_id) < 1 then
-      raise exception 'Plus de match pour l’instant : un nouveau arrive toutes les % heures', parami('match_minutes') / 60;
+      raise exception 'Plus de match pour l’instant : un nouveau arrive toutes les % minutes', parami('match_minutes');
     end if;
     update profils set matchs = matchs - 1, matchs_maj = case when matchs >= parami('match_stock_max') then now() else matchs_maj end
       where user_id = p.user_id;
@@ -3316,6 +3319,9 @@ end $$;
 update parametres set valeurs = valeurs || '{"legende_note": 100}' where (valeurs ->> 'legende_note')::int = 95;
 -- booster d'équipe : 300 → 500 pièces (demande de Maël ; une valeur réglée autrement depuis n'est pas touchée)
 update parametres set valeurs = valeurs || '{"booster_equipe_prix": 500}' where (valeurs ->> 'booster_equipe_prix')::int = 300;
+-- championnat (demande de Maël, 14 nov. 2026) : un match toutes les heures au lieu de 2 h, et des gains par match divisés par 2
+-- (championnat_gain = 0,5, pièces et XP des matchs de championnat seulement ; la ligue garde les siens)
+update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeurs ->> 'match_minutes')::int = 120;
 update exemplaires e set note = least(100, parami('legende_note')) from cartes c
   where c.id = e.carte_id and c.legende and e.note < least(100, parami('legende_note'));
 
