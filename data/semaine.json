@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-12",
+ "maj": "2026-11-16",
  "saison": "2026-2027",
  "semaines": [
   {
@@ -422,6 +422,79 @@
      }
     }
    }
+  },
+  {
+   "lundi": "2026-11-09",
+   "equipes": {
+    "SF1": {
+     "carte": "soane-audard",
+     "nom": "Soane Audard",
+     "buts": 4,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-14",
+      "adv": "Créon",
+      "score": [
+       25,
+       20
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SF2": {
+     "carte": "amandine-faugerolles",
+     "nom": "Amandine Faugerolles",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-14",
+      "adv": "Arcachon la Teste",
+      "score": [
+       24,
+       25
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SG1": {
+     "carte": "bryan-carrey",
+     "nom": "Bryan Carrey",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-15",
+      "adv": "Pessacais 2",
+      "score": [
+       36,
+       25
+      ],
+      "lieu": "ext"
+     }
+    },
+    "SG2": {
+     "carte": "lucas-nissou",
+     "nom": "Lucas Nissou",
+     "buts": 6,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-15",
+      "adv": "Langonnais 2",
+      "score": [
+       19,
+       18
+      ],
+      "lieu": "ext"
+     }
+    }
+   }
   }
  ],
  "buteurs": {
@@ -449,6 +522,10 @@
    "carte": "enguerran-chaigneau",
    "buts": 10
   },
+  "2635762": {
+   "carte": "lucas-nissou",
+   "buts": 6
+  },
   "2636263": {
    "carte": "elodie-perez",
    "buts": 11
@@ -468,6 +545,10 @@
   "2636288": {
    "carte": "camille-seurin",
    "buts": 7
+  },
+  "2636295": {
+   "carte": "amandine-faugerolles",
+   "buts": 5
   },
   "2645736": {
    "carte": "zadig-stora-simonet",
@@ -493,6 +574,10 @@
    "carte": "maxime-rabut",
    "buts": 12
   },
+  "2645772": {
+   "carte": "maxime-rabut",
+   "buts": 8
+  },
   "2647793": {
    "carte": "cecilia-ennelin",
    "buts": 6
@@ -516,6 +601,10 @@
   "2647822": {
    "carte": "norah-de-wilde",
    "buts": 13
+  },
+  "2647829": {
+   "carte": "norah-de-wilde",
+   "buts": 6
   }
  }
 }
