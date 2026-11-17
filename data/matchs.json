@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-16",
+ "maj": "2026-11-17",
  "matchs": [
   {
    "equipe": "SF1",
@@ -3356,7 +3356,7 @@
    "rid": "2635776",
    "j": 9,
    "date": "2026-12-05",
-   "heure": "21:15",
+   "heure": "21:20",
    "dom": "Arsac",
    "ext": "Médoc Handball",
    "medoc": "ext",
@@ -3453,23 +3453,6 @@
    "score": null
   },
   {
-   "equipe": "SF2",
-   "competition": "+16 Féminines Honneur · Poule Unique",
-   "rid": "2636316",
-   "j": 10,
-   "date": "2026-12-12",
-   "heure": null,
-   "dom": "Médoc Handball",
-   "ext": "Gazinet Cestas 2",
-   "medoc": "dom",
-   "p": [
-    0.577,
-    0.052,
-    0.371
-   ],
-   "score": null
-  },
-  {
    "equipe": "SG1",
    "competition": "Excellence Régionale Masculine · Poule B",
    "rid": "2645787",
@@ -3483,23 +3466,6 @@
     0.856,
     0.03,
     0.114
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SG2",
-   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
-   "rid": "2635783",
-   "j": 10,
-   "date": "2026-12-12",
-   "heure": null,
-   "dom": "Médoc Handball",
-   "ext": "Talence",
-   "medoc": "dom",
-   "p": [
-    0.178,
-    0.04,
-    0.781
    ],
    "score": null
   },
@@ -3759,6 +3725,40 @@
    "score": null
   },
   {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635783",
+   "j": 10,
+   "date": "2026-12-13",
+   "heure": "10:00",
+   "dom": "Médoc Handball",
+   "ext": "Talence",
+   "medoc": "dom",
+   "p": [
+    0.178,
+    0.04,
+    0.781
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636316",
+   "j": 10,
+   "date": "2026-12-13",
+   "heure": "12:00",
+   "dom": "Médoc Handball",
+   "ext": "Gazinet Cestas 2",
+   "medoc": "dom",
+   "p": [
+    0.577,
+    0.052,
+    0.371
+   ],
+   "score": null
+  },
+  {
    "equipe": "SF1",
    "competition": "Excellence Régionale Féminine · Poule B",
    "rid": "2647847",
@@ -3891,23 +3891,6 @@
     0.52,
     0.054,
     0.426
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SF2",
-   "competition": "+16 Féminines Honneur · Poule Unique",
-   "rid": "2636318",
-   "j": 11,
-   "date": "2027-01-09",
-   "heure": null,
-   "dom": "Pe2M 2",
-   "ext": "Haillan",
-   "medoc": null,
-   "p": [
-    0.472,
-    0.054,
-    0.474
    ],
    "score": null
   },
@@ -4197,6 +4180,23 @@
     0.901,
     0.022,
     0.077
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636318",
+   "j": 11,
+   "date": "2027-01-09",
+   "heure": "21:00",
+   "dom": "Pe2M 2",
+   "ext": "Haillan",
+   "medoc": null,
+   "p": [
+    0.472,
+    0.054,
+    0.474
    ],
    "score": null
   },
