@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "match_banc_poids": 0.5, "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -160,7 +160,7 @@ create table if not exists profils (
   user_id uuid primary key references auth.users on delete cascade,
   pseudo text not null check (pseudo ~ '^[A-Za-z0-9À-ÖØ-öø-ÿ_.-]{3,20}$'),
   pieces int not null check (pieces >= 0),
-  equipe jsonb not null default '{}',        -- Mon 7 : {poste: id de l'exemplaire}
+  equipe jsonb not null default '{}',        -- l'équipe (ex « Mon 7 ») : {poste: id de l'exemplaire}
   role text not null default 'joueur' check (role in ('joueur', 'admin')),
   accord_le timestamptz not null default now(),  -- « j'ai 15 ans ou plus, ou l'accord de mes parents »
   cree_le timestamptz not null default now()
@@ -764,6 +764,7 @@ alter table staff_reglages enable row level security;
 revoke all on staff_reglages from anon, authenticated;   -- lu par etat_de et catalogue_staff, écrit par admin_publier_staff
 alter table profils add column if not exists staff text;   -- la carte staff placée dans l'équipe (une seule place)
 alter table profils add column if not exists perso jsonb not null default '{}';   -- {avatar, cadre, fond}
+alter table profils add column if not exists remplacants jsonb not null default '{}';   -- un remplaçant par poste (demande de Maël) : {poste: id de l'exemplaire}
 
 create or replace function lundi_courant() returns date language sql stable as $$ select date_trunc('week', aujourdhui())::date $$;
 create or replace function debut_semaine() returns timestamptz language sql stable as $$ select lundi_courant()::timestamp at time zone 'Europe/Paris' $$;
@@ -942,7 +943,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'boosterMax', parami('booster_stock_max'),
     'prochainBooster', case when p.boosters >= parami('booster_stock_max') then null
       else greatest(0, ceil(extract(epoch from p.boosters_maj + make_interval(mins => parami('booster_minutes')) - now())))::int end,
-    'equipe', p.equipe, 'tactique', p.tactique,
+    'equipe', p.equipe, 'remplacants', p.remplacants, 'tactique', p.tactique,
     'matchDirect', (select jsonb_build_object('type', d.etat ->> 'type', 'adversaire', d.etat #>> '{b,nom}', 'minute', (d.etat ->> 't')::int / 60,
       'score', d.etat -> 'score') from matchs_direct d where d.user_id = p.user_id),
     'matchs', p.matchs, 'matchMax', parami('match_stock_max'),
@@ -1015,11 +1016,34 @@ begin
   end if;
 end $$;
 
--- Retire de Mon 7 les cartes qui n'y ont plus leur place (vendues, fusionnées, au marché)
+-- Retire de l'équipe et du banc les cartes qui n'y ont plus leur place (vendues, fusionnées, au marché)
 create or replace function nettoyer_equipe(p_uid uuid) returns void language sql security definer set search_path = public as $$
   update profils set equipe = coalesce((select jsonb_object_agg(j.key, j.value) from jsonb_each(equipe) j
+    where exists (select 1 from exemplaires e where e.id::text = j.value #>> '{}' and e.proprietaire = p_uid and e.verrou is null)), '{}'),
+    remplacants = coalesce((select jsonb_object_agg(j.key, j.value) from jsonb_each(remplacants) j
     where exists (select 1 from exemplaires e where e.id::text = j.value #>> '{}' and e.proprietaire = p_uid and e.verrou is null)), '{}')
   where user_id = p_uid
+$$;
+-- une carte de l'équipe : titulaire ou remplaçant (ni à vendre, ni à échanger, ni à donner)
+create or replace function en_equipe(p_uid uuid, p_ex text) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from profils pr where pr.user_id = p_uid and (exists (select 1 from jsonb_each_text(pr.equipe) j where j.value = p_ex)
+    or exists (select 1 from jsonb_each_text(pr.remplacants) j where j.value = p_ex)))
+$$;
+-- les remplaçants (un par poste) : mêmes règles que l'équipe, et jamais un joueur déjà titulaire
+create or replace function verifier_remplacants(p_uid uuid, p_equipe jsonb, p_remp jsonb) returns void language plpgsql security definer set search_path = public as $$
+begin
+  if jsonb_typeof(p_remp) <> 'object' then raise exception 'Remplaçants invalides'; end if;
+  perform verifier_equipe(p_uid, p_remp);
+  if exists (select 1 from jsonb_each_text(p_remp) r join exemplaires er on er.id::text = r.value
+      join jsonb_each_text(p_equipe) j on true join exemplaires ej on ej.id::text = j.value where er.carte_id = ej.carte_id) then
+    raise exception 'Ce joueur est déjà titulaire';
+  end if;
+end $$;
+-- après un changement de l'équipe : les remplaçants déjà titulaires (même joueur) quittent le banc
+create or replace function banc_sans_titulaires(p_equipe jsonb, p_remp jsonb) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_object_agg(r.key, r.value), '{}') from jsonb_each(p_remp) r
+  where not exists (select 1 from exemplaires er join jsonb_each_text(p_equipe) j on true join exemplaires ej on ej.id::text = j.value
+    where er.id::text = r.value #>> '{}' and er.carte_id = ej.carte_id)
 $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1075,10 +1099,10 @@ begin
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- Cartes : boosters, fusion, entraînement, vente, Mon 7
+-- Cartes : boosters, fusion, entraînement, vente, équipe
 -- ════════════════════════════════════════════════════════════════════════════
 
--- Booster de départ : 7 joueurs, un par poste, alignés tout de suite dans Mon 7
+-- Booster de départ : 7 joueurs, un par poste, alignés tout de suite dans l'équipe
 create or replace function ouvrir_depart() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); poste text; c text; ids uuid[] := '{}'; pris text[] := '{}'; e jsonb := '{}'; ex uuid;
 begin
@@ -1176,17 +1200,20 @@ begin
   if suivant is null then raise exception 'Une carte Ultime ne peut plus fusionner : entraîne-la jusqu’à 99'; end if;
   cout := (param('fusion_cout') ->> p_palier)::int;
   if p.pieces < cout then raise exception 'Il faut % pièces pour cette fusion', cout; end if;
-  -- les moins entraînés (on garde les plus forts) ; à égalité, d'abord ceux qui ne jouent pas dans Mon 7
+  -- les moins entraînés (on garde les plus forts) ; à égalité, d'abord ceux qui ne jouent pas dans l'équipe (titulaires et remplaçants)
   select array_agg(id) into pris from (
     select e2.id from exemplaires e2 where e2.proprietaire = p.user_id and e2.carte_id = p_carte and e2.palier = p_palier and e2.verrou is null
-    order by e2.note, e2.xp, exists (select 1 from jsonb_each_text(p.equipe) j where j.value = e2.id::text) limit n) t;
+    order by e2.note, e2.xp, en_equipe(p.user_id, e2.id::text) limit n) t;
   if coalesce(cardinality(pris), 0) < n then raise exception 'Il faut % exemplaires libres de ce joueur au même palier', n; end if;
   ex := creer_exemplaire(p.user_id, p_carte, suivant, 'fusion');
-  -- si un des exemplaires fusionnés jouait dans Mon 7, le nouveau prend sa place
+  -- si un des exemplaires fusionnés jouait dans l'équipe (ou sur le banc), le nouveau prend sa place
   select coalesce(jsonb_object_agg(j.key, case when j.value #>> '{}' = any(pris::text[]) then to_jsonb(ex::text) else j.value end), '{}')
     into e from jsonb_each(p.equipe) j;
   delete from exemplaires where id = any(pris);
-  update profils set pieces = pieces - cout, equipe = e where user_id = p.user_id;
+  update profils set pieces = pieces - cout, equipe = e,
+    remplacants = banc_sans_titulaires(e, coalesce((select jsonb_object_agg(j.key, case when j.value #>> '{}' = any(pris::text[]) then to_jsonb(ex::text) else j.value end)
+      from jsonb_each(p.remplacants) j), '{}'))
+    where user_id = p.user_id;
   perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'fusion');
   niveaux := gagner_xp(p.user_id, parami('xp_fusion'));
@@ -1212,15 +1239,15 @@ begin
   return jsonb_build_object('avant', e.note, 'apres', apres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
--- Vend un exemplaire (pas s'il joue dans Mon 7 ou s'il est au marché)
+-- Vend un exemplaire (pas s'il joue dans l'équipe, remplaçants compris, ni s'il est au marché)
 create or replace function vendre(p_ex uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); e exemplaires; gain int;
 begin
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
   if e.verrou is not null then raise exception 'Cette carte est proposée aux transferts'; end if;
-  if exists (select 1 from jsonb_each_text(p.equipe) j where j.value = p_ex::text) then
-    raise exception 'Cette carte joue dans ton équipe : retire-la d’abord';
+  if en_equipe(p.user_id, p_ex::text) then
+    raise exception 'Cette carte joue dans ton équipe (titulaire ou remplaçant) : retire-la d’abord';
   end if;
   gain := (param('vente') ->> e.palier)::int;
   delete from exemplaires where id = p_ex;
@@ -1247,7 +1274,7 @@ begin
         is distinct from (select carte_id from exemplaires where id = p_ex);
   end if;
   perform verifier_equipe(p.user_id, e);
-  update profils set equipe = e where user_id = p.user_id;
+  update profils set equipe = e, remplacants = banc_sans_titulaires(e, remplacants) where user_id = p.user_id;
   perform progresser(p.user_id, 'equipe');
   return jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
@@ -1256,7 +1283,23 @@ create or replace function aligner_equipe(p_equipe jsonb) returns jsonb language
 declare p profils := moi();
 begin
   perform verifier_equipe(p.user_id, p_equipe);
-  update profils set equipe = p_equipe where user_id = p.user_id;
+  update profils set equipe = p_equipe, remplacants = banc_sans_titulaires(p_equipe, remplacants) where user_id = p.user_id;
+  perform listes_nettoyer(p.user_id);
+  perform progresser(p.user_id, 'equipe');
+  return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+-- l'équipe et ses remplaçants ensemble (demande de Maël : un remplaçant à chaque poste) ; sert aussi à échanger un titulaire et son remplaçant
+create or replace function aligner_remplacants(p_equipe jsonb, p_remplacants jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  perform verifier_equipe(p.user_id, p_equipe);
+  perform verifier_remplacants(p.user_id, p_equipe, p_remplacants);
+  if exists (select 1 from jsonb_each_text(p_remplacants) r join jsonb_each_text(p_equipe) j on j.value = r.value) then
+    raise exception 'Une carte ne peut pas être titulaire et remplaçante';
+  end if;
+  update profils set equipe = p_equipe, remplacants = p_remplacants,
+    capitaine = case when exists (select 1 from jsonb_each_text(p_equipe) j where j.value = capitaine::text) then capitaine end
+    where user_id = p.user_id;
   perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'equipe');
   return jsonb_build_object('etat', etat_de(p.user_id));
@@ -1861,6 +1904,73 @@ returns jsonb language sql volatile security definer set search_path = public as
     'b', match_tactique(fb, p_b_attaque, p_b_defense) || jsonb_build_object('consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
     'tmb', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0))
 $$;
+-- Remplaçants en match (demande de Maël, 19 nov. 2026) : chaque joueur a sa fatigue (fp : {exemplaire: fatigue}). Sur le terrain,
+-- elle monte selon la consigne ; sur le banc, elle redescend. La fatigue de l'équipe (celle du moteur) = fw × la moyenne des 7 sur le
+-- terrain + (1 − fw) × fe, la fatigue du groupe (le rythme du match, comme avant : les changements n'y font rien) ; fw =
+-- match_banc_poids = 0,5 (mesure du 19 nov. : avec la moyenne seule, faire tourner un banc du même niveau à chaque tranche faisait
+-- passer de 24 à 43 % de victoires). Sans changement, rien ne change par rapport à avant. p_terrain : ajouté à ceux sur le terrain,
+-- p_banc : retiré à ceux du banc, p_fois : multiplie tout (mi-temps). Une équipe sans fp (l'ordinateur, un match commencé avant)
+-- garde sa fatigue d'équipe.
+create or replace function match_fat(eq jsonb, p_terrain numeric, p_banc numeric, p_fois numeric default 1) returns jsonb
+language plpgsql immutable as $$
+declare fp jsonb := '{}'; s numeric := 0; n int := 0; l record; v numeric; sur boolean; fe numeric; w numeric := coalesce((eq ->> 'fw')::numeric, 1);
+begin
+  if coalesce(jsonb_typeof(eq -> 'fp'), '') <> 'object' then
+    return jsonb_set(eq, '{fatigue}', to_jsonb(round(greatest(0, ((eq ->> 'fatigue')::numeric + p_terrain) * p_fois), 4)));
+  end if;
+  fe := round(greatest(0, (coalesce((eq ->> 'fe')::numeric, 0) + p_terrain) * p_fois), 4);
+  for l in select key, value::numeric v from jsonb_each_text(eq -> 'fp') loop
+    sur := exists (select 1 from jsonb_each_text(eq -> 'equipe') j where j.value = l.key);
+    v := round(greatest(0, (l.v + case when sur then p_terrain else -p_banc end) * p_fois), 4);
+    fp := fp || jsonb_build_object(l.key, v);
+    if sur then s := s + v; n := n + 1; end if;
+  end loop;
+  return eq || jsonb_build_object('fp', fp, 'fe', fe, 'fatigue', round(w * case when n > 0 then s / n else 0 end + (1 - w) * fe, 4));
+end $$;
+-- au coup d'envoi : qui est sur le terrain (equipe), le banc valable (banc : un remplaçant par poste, encore au club), leurs noms (bn)
+-- et leur note à ce poste (nb, calculée comme s'il était titulaire), tout le monde frais
+create or replace function match_banc_init(p_uid uuid, p_equipe jsonb, p_remp jsonb, p_tactique text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare banc jsonb := '{}'; bn jsonb := '{}'; nb jsonb := '{}'; fp jsonb := '{}'; l record; f jsonb;
+begin
+  for l in select key, value from jsonb_each_text(p_equipe) loop fp := fp || jsonb_build_object(l.value, 0); end loop;
+  for l in select r.key, r.value, c.nom from jsonb_each_text(coalesce(p_remp, '{}')) r join exemplaires e on e.id::text = r.value join cartes c on c.id = e.carte_id
+      where r.key in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB') loop
+    begin
+      perform verifier_remplacants(p_uid, p_equipe, jsonb_build_object(l.key, l.value));
+      f := force_equipe(p_equipe || jsonb_build_object(l.key, l.value), p_tactique);
+    exception when others then continue;
+    end;
+    banc := banc || jsonb_build_object(l.key, l.value); bn := bn || jsonb_build_object(l.key, l.nom);
+    nb := nb || jsonb_build_object(l.key, f -> 'notes' -> l.key); fp := fp || jsonb_build_object(l.value, 0);
+  end loop;
+  return jsonb_build_object('equipe', p_equipe, 'banc', banc, 'bn', bn, 'nb', nb, 'fp', fp, 'fe', 0,
+    'fw', coalesce((param('match_banc_poids') #>> '{}')::numeric, .5));
+end $$;
+-- changements (entre deux tranches) : le titulaire de chaque poste demandé et son remplaçant échangent leurs places ; la force de
+-- l'équipe (attaque, défense, tireurs, bonus de la tactique jouée) est recalculée ; chaque changement est raconté au fil
+create or replace function match_changer_e(e jsonb, p_uid uuid, p_postes text[]) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare a jsonb := e -> 'a'; eq jsonb; banc jsonb; k text; t_id text; r_id text; f jsonb; ev jsonb := '[]';
+begin
+  if coalesce(jsonb_typeof(a -> 'banc'), '') <> 'object' then raise exception 'Pas de remplaçant dans ce match'; end if;
+  eq := a -> 'equipe'; banc := a -> 'banc';
+  for k in select distinct x from unnest(p_postes) x loop
+    if not banc ? k then raise exception 'Pas de remplaçant à ce poste'; end if;
+    t_id := eq ->> k; r_id := banc ->> k;
+    eq := eq || jsonb_build_object(k, r_id); banc := banc || jsonb_build_object(k, t_id);
+    ev := ev || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'changement', 'p', k, 'n', a -> 'bn' ->> k, 'o', a -> 'joueurs' ->> k, 's', e -> 'score');
+    a := a || jsonb_build_object('bn', (a -> 'bn') || jsonb_build_object(k, a -> 'joueurs' ->> k), 'nb', (a -> 'nb') || jsonb_build_object(k, a -> 'notes' -> k));
+  end loop;
+  if jsonb_array_length(ev) = 0 then return e; end if;
+  begin
+    perform verifier_equipe(p_uid, eq);
+    f := force_equipe(eq, a ->> 'tactique');
+  exception when others then raise exception 'Un de ces joueurs n’est plus dans ton club';
+  end;
+  a := a || match_tactique(f, a ->> 'attaque', a ->> 'defense') || jsonb_build_object('equipe', eq, 'banc', banc);
+  return jsonb_set(e || jsonb_build_object('a', match_fat(a, 0, 0)), '{ev}', (e -> 'ev') || ev);
+end $$;
 -- joue les possessions jusqu'à la seconde p_fin
 create or replace function match_avancer(e jsonb, p_fin int) returns jsonb language plpgsql volatile as $$
 declare x text; y text; eqx jsonb; eqy jsonb; t int; duree int; p numeric; ps numeric; pen numeric; perte numeric; r numeric; zn text;
@@ -1918,11 +2028,11 @@ begin
       eqy := jsonb_set(eqy, '{exclu}', to_jsonb(t + 120)); eqy := jsonb_set(eqy, '{stats,excl}', to_jsonb((eqy #>> '{stats,excl}')::int + 1));
       e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', y, 'ty', 'excl', 'n', joueur_zone(eqy -> 'joueurs', 'champ'), 's', sc));
     end if;
-    -- fatigue : par minute jouée, selon la consigne
+    -- fatigue : par minute jouée, selon la consigne ; sur le banc, on récupère (match_fat)
     fx := duree / 3600.0 * case cx when 'pression' then .22 when 'prudent' then .06 else .1 end;
     fy := duree / 3600.0 * case cy when 'pression' then .22 when 'prudent' then .06 else .1 end;
-    eqx := jsonb_set(eqx, '{fatigue}', to_jsonb(round((eqx ->> 'fatigue')::numeric + fx, 4)));
-    eqy := jsonb_set(eqy, '{fatigue}', to_jsonb(round((eqy ->> 'fatigue')::numeric + fy, 4)));
+    eqx := match_fat(eqx, fx, duree / 3600.0 * .15);
+    eqy := match_fat(eqy, fy, duree / 3600.0 * .15);
     e := e || jsonb_build_object(x, eqx, y, eqy, 'balle', y);
   end loop;
   return e || jsonb_build_object('t', t, 'score', sc);
@@ -1938,8 +2048,7 @@ begin
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
-    e := jsonb_set(e, '{a,fatigue}', to_jsonb(round((e #>> '{a,fatigue}')::numeric * .5, 4)));
-    e := jsonb_set(e, '{b,fatigue}', to_jsonb(round((e #>> '{b,fatigue}')::numeric * .5, 4)));
+    e := e || jsonb_build_object('a', match_fat(e -> 'a', 0, 0, .5), 'b', match_fat(e -> 'b', 0, 0, .5));
     e := match_ordi(e, true);
     e := jsonb_set(e, '{balle}', to_jsonb(case when random() < .5 then 'a' else 'b' end));
   elsif b + 1 < 12 then
@@ -1953,7 +2062,12 @@ create or replace function match_vue(e jsonb, p_depuis int default 0) returns js
     'tempsMorts', e -> 'tm', 'tempsMortsAdv', coalesce(e -> 'tmb', '{"restants": 3}'),
     'fini', (e ->> 'bloc')::int >= 12,
     'nous', jsonb_build_object('nom', e #>> '{a,nom}', 'note', e -> 'a' -> 'note', 'joueurs', e -> 'a' -> 'joueurs', 'tactique', e #>> '{a,tactique}',
-      'consigne', e #>> '{a,consigne}', 'stats', e -> 'a' -> 'stats'),
+      'consigne', e #>> '{a,consigne}', 'stats', e -> 'a' -> 'stats',
+      -- chaque poste : le titulaire et son remplaçant, leur note à ce poste et leur fatigue (0 = frais)
+      'effectif', case when jsonb_typeof(e -> 'a' -> 'banc') = 'object' then (select jsonb_object_agg(k, jsonb_build_object(
+        'n', e -> 'a' -> 'joueurs' ->> k, 'note', e -> 'a' -> 'notes' -> k, 'f', e -> 'a' -> 'fp' -> (e -> 'a' -> 'equipe' ->> k),
+        'r', e -> 'a' -> 'bn' ->> k, 'rnote', e -> 'a' -> 'nb' -> k, 'rf', e -> 'a' -> 'fp' -> (e -> 'a' -> 'banc' ->> k)))
+        from unnest(array['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB']) k) end),
     'eux', jsonb_build_object('nom', e #>> '{b,nom}', 'note', e -> 'b' -> 'note', 'joueurs', e -> 'b' -> 'joueurs', 'defense', e #>> '{b,defense}',
       'entraineur', coalesce(e #>> '{ia,nom}', 'réfléchi'),
       'stats', e -> 'b' -> 'stats'),
@@ -2035,10 +2149,28 @@ begin
   -- l'attaque jouée change, pas la tactique choisie par le joueur (e.a.tactique, enregistrée dans son onglet Équipe en fin de match)
   return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma));
 end $$;
+-- l'adjoint fait aussi les changements : il fait entrer le remplaçant quand, fatigue comptée, il apporte nettement plus que le
+-- titulaire (valeur = note au poste − fatigue × 58 × fw, 30 × fw pour le but : ce que coûte la fatigue d'un joueur au moteur),
+-- avec une marge de 2 points pour ne pas faire tourner à chaque tranche
+create or replace function match_adjoint_changer(e jsonb, p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare a jsonb := e -> 'a'; k text; vt numeric; vr numeric; kf numeric; postes text[] := '{}'; w numeric := coalesce((e #>> '{a,fw}')::numeric, 1);
+begin
+  if coalesce(jsonb_typeof(a -> 'banc'), '') <> 'object' or (e ->> 'bloc')::int >= 12 then return e; end if;
+  for k in select jsonb_object_keys(a -> 'banc') loop
+    kf := w * case when k = 'GB' then 30 else 58 end;
+    vt := (a -> 'notes' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0);
+    vr := (a -> 'nb' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0);
+    if vr > vt + 2 then postes := postes || k; end if;
+  end loop;
+  if cardinality(postes) = 0 then return e; end if;
+  begin return match_changer_e(e, p_uid, postes);
+  exception when others then return e;   -- une carte vendue entre-temps : il ne change rien
+  end;
+end $$;
 create or replace function match_finir_simule(p_uid uuid, e jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare reste int := 12 - (e ->> 'bloc')::int; g numeric := (param('match_simule_gain') #>> '{}')::numeric;
 begin
-  while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(match_adjoint(e)); end loop;
+  while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(match_adjoint(match_adjoint_changer(e, p_uid))); end loop;
   e := jsonb_set(e, '{simules}', to_jsonb((e ->> 'simules')::int + reste));
   return match_conclure(p_uid, e, round(1 - (1 - g) * reste / 12.0, 4));
 end $$;
@@ -2058,7 +2190,7 @@ begin
   if coalesce(p_consigne, 'normal') not in ('normal', 'prudent', 'pression') then raise exception 'Consigne inconnue'; end if;
   perform verifier_tactique(p_tactique);
   perform verifier_equipe(p.user_id, p.equipe);
-  fa := force_equipe(p.equipe, p_tactique) || jsonb_build_object('nom', p.pseudo);
+  fa := force_equipe(p.equipe, p_tactique) || jsonb_build_object('nom', p.pseudo) || match_banc_init(p.user_id, p.equipe, p.remplacants, p_tactique);
   if p_type = 'championnat' then
     perform matchs_a_jour(p.user_id);
     if (select matchs from profils where user_id = p.user_id) < 1 then
@@ -2102,7 +2234,7 @@ begin
   if (e -> 'tm' ->> per)::int >= 2 then raise exception 'Déjà 2 temps morts dans cette période'; end if;
   e := jsonb_set(e, '{tm}', (e -> 'tm') || jsonb_build_object('restants', (e #>> '{tm,restants}')::int - 1, per, (e -> 'tm' ->> per)::int + 1));
   e := jsonb_set(e, '{a,elan}', to_jsonb((e ->> 't')::int + 180));
-  e := jsonb_set(e, '{a,fatigue}', to_jsonb(greatest(0, (e #>> '{a,fatigue}')::numeric - .02)));
+  e := e || jsonb_build_object('a', match_fat(e -> 'a', -.02, 0));
   return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'temps-mort', 's', e -> 'score',
     'va', e #>> '{b,attaque}', 'vd', e #>> '{b,defense}'));
 end $$;
@@ -2150,6 +2282,21 @@ begin
   e := match_tm_prendre(e);
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
   return jsonb_build_object('vue', match_vue(e, n), 'adverse', jsonb_build_object('attaque', e #>> '{b,attaque}', 'defense', e #>> '{b,defense}'));
+end $$;
+-- changements demandés par le jeu, à la fin de la tranche racontée (autant qu'on veut, comme au handball) : p_postes = liste de postes
+create or replace function match_changer(p_postes jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; n int; ps text[];
+begin
+  select * into cur from matchs_direct where user_id = p.user_id for update;
+  if not found then raise exception 'Pas de match en cours'; end if;
+  e := cur.etat; n := jsonb_array_length(e -> 'ev');
+  if (e ->> 'bloc')::int >= 12 then raise exception 'Le match est fini'; end if;
+  if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) = 0 or jsonb_array_length(p_postes) > 7 then raise exception 'Changements invalides'; end if;
+  select array_agg(x) into ps from jsonb_array_elements_text(p_postes) x;
+  if exists (select 1 from unnest(ps) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then raise exception 'Poste inconnu'; end if;
+  e := match_changer_e(e, p.user_id, ps);
+  update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
+  return jsonb_build_object('vue', match_vue(e, n));
 end $$;
 create or replace function match_simuler_fin() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); cur matchs_direct;
@@ -2330,7 +2477,7 @@ begin
   return jsonb_build_object('xpCarte', parami('seance_xp_carte'), 'prix', prix, 'progres', progres, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
--- Défi contre le Mon 7 d'un autre joueur (il n'a pas besoin d'être connecté : il défend avec sa dernière tactique)
+-- Défi contre l'équipe d'un autre joueur (il n'a pas besoin d'être connecté : il défend avec sa dernière tactique)
 create or replace function defier(p_pseudo text, p_tactique text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); a profils; fa jsonb; fb jsonb; r jsonb; res text; res_d text; tr int; tr_d int;
   xp int; v_pieces int; progres jsonb; niveaux jsonb;
@@ -2510,7 +2657,7 @@ create or replace function annonce_json(a annonces) returns jsonb language sql s
     -- un de mes exemplaires libres correspond à ce qui est cherché ?
     'possible', a.vendeur <> auth.uid() and exists (select 1 from exemplaires e where e.proprietaire = auth.uid() and e.carte_id = a.carte_cherchee
       and e.palier = a.palier_cherche and e.verrou is null
-      and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = auth.uid() and j.value = e.id::text)))
+      and not en_equipe(auth.uid(), e.id::text)))
 $$;
 
 -- p_filtre : 'tout' (les annonces ouvertes des autres), 'pour_moi' (celles que je peux accepter), 'mes' (les miennes)
@@ -2556,12 +2703,12 @@ end $$;
 -- un exemplaire libre (hors équipe, ni réservé ni en échange) de ce joueur à ce palier : le moins entraîné
 create or replace function ex_libre(p_uid uuid, p_carte text, p_palier text) returns uuid language sql stable security definer set search_path = public as $$
   select e.id from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
-    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = e.id::text)
+    and not en_equipe(p_uid, e.id::text)
   order by e.note, e.xp limit 1
 $$;
 create or replace function libres_nombre(p_uid uuid, p_carte text, p_palier text) returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
-    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = e.id::text)
+    and not en_equipe(p_uid, e.id::text)
 $$;
 -- mes listes, les échanges possibles avec les listes des autres, combien cherchent / donnent ce qui m'intéresse, mes derniers transferts
 create or replace function mes_transferts() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -2663,7 +2810,7 @@ begin
   return mes_transferts() || jsonb_build_object('exRecu', e2, 'exDonne', e1, 'etat', etat_de(p.user_id));
 end $$;
 
--- Accepter une annonce : je donne un de mes exemplaires de la carte cherchée (le moins entraîné, hors Mon 7)
+-- Accepter une annonce : je donne un de mes exemplaires de la carte cherchée (le moins entraîné, hors équipe)
 create or replace function accepter_annonce(p_id uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); a annonces; mon_ex uuid; v profils;
 begin
@@ -2674,9 +2821,9 @@ begin
   if a.palier_cherche <> a.offre ->> 'palier' then raise exception 'Aux transferts, on échange seulement des cartes du même palier'; end if;
   select * into v from profils where user_id = a.vendeur for update;
   select e.id into mon_ex from exemplaires e where e.proprietaire = p.user_id and e.carte_id = a.carte_cherchee and e.palier = a.palier_cherche
-    and e.verrou is null and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = e.id::text)
+    and e.verrou is null and not en_equipe(p.user_id, e.id::text)
     order by e.note, e.xp limit 1;
-  if mon_ex is null then raise exception 'Il te faut un exemplaire libre (hors Mon 7) de la carte demandée, au bon palier'; end if;
+  if mon_ex is null then raise exception 'Il te faut un exemplaire libre (hors équipe) de la carte demandée, au bon palier'; end if;
   if not exists (select 1 from exemplaires where id = a.exemplaire and proprietaire = a.vendeur) then
     raise exception 'La carte proposée n’est plus disponible';
   end if;
@@ -2802,7 +2949,7 @@ end $$;
 -- Carte libre d'un joueur : à lui, pas au marché, pas dans son équipe
 create or replace function carte_libre(p_uid uuid, p_ex uuid) returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from exemplaires e where e.id = p_ex and e.proprietaire = p_uid and e.verrou is null)
-    and not exists (select 1 from profils pr, jsonb_each_text(pr.equipe) j where pr.user_id = p_uid and j.value = p_ex::text)
+    and not en_equipe(p_uid, p_ex::text)
 $$;
 create or replace function expirer_echanges() returns void language sql security definer set search_path = public as $$
   update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and cree_le < now() - make_interval(days => parami('echange_jours'))
@@ -3711,7 +3858,7 @@ revoke execute on all functions in schema public from public, anon, authenticate
 grant execute on function
   mon_etat(), creer_profil(text, boolean), supprimer_mon_compte(),
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
-  aligner(text, uuid), aligner_equipe(jsonb), reclamer_quete(text), mes_rencontres(),
+  aligner(text, uuid), aligner_equipe(jsonb), aligner_remplacants(jsonb, jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
   mes_transferts(), maj_listes_transfert(jsonb, jsonb), transferer(text, text, text, text),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
@@ -3719,7 +3866,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(), match_changer(jsonb), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

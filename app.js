@@ -34,7 +34,9 @@ const exParId = id => EX().find(e => e.id === id);
 const rangEx = (a, b) => RARETES.indexOf(b.palier) - RARETES.indexOf(a.palier) || b.note - a.note || b.xp - a.xp;
 const mesEx = carte => EX().filter(e => e.carte === carte).sort(rangEx);
 const vue = ex => vueExemplaire(PAR_ID[ex.carte], ex);   // carte affichable d'un exemplaire
-const dansEquipe = id => Object.values(S().equipe || {}).includes(id);
+const titulaireEx = id => Object.values(S().equipe || {}).includes(id);
+const remplacantEx = id => Object.values(S().remplacants || {}).includes(id);
+const dansEquipe = id => titulaireEx(id) || remplacantEx(id);   // titulaires et remplaçants : ni vendus, ni échangés, ni donnés
 const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
   && EX().filter(e => e.carte === carte && e.palier === r && !e.verrou).length >= (PARAMS.fusion_nombre || 3));
 
@@ -56,6 +58,12 @@ function noteAuPoste(c, slot) {
 }
 const aligne = slot => {
   const e = exParId(S().equipe?.[slot]);
+  if (!e || !PAR_ID[e.carte]) return null;
+  const c = vue(e); return peutJouer(c, slot) ? c : null;
+};
+// le remplaçant d'un poste (demande de Maël : un remplaçant à chaque poste, il entre pendant les matchs)
+const remplacant = slot => {
+  const e = exParId(S().remplacants?.[slot]);
   if (!e || !PAR_ID[e.carte]) return null;
   const c = vue(e); return peutJouer(c, slot) ? c : null;
 };
@@ -829,7 +837,7 @@ function fiche(carte, poste, de) {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
     return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${c.legende ? 'Légende' : R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
-      <small>${c.legende ? 'Note maximale' : e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${dansEquipe(e.id) ? ' · dans ton équipe' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
+      <small>${c.legende ? 'Note maximale' : e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${titulaireEx(e.id) ? ' · dans ton équipe' : remplacantEx(e.id) ? ' · remplaçant' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
         ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
@@ -935,10 +943,13 @@ function vueEquipe() {
     <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
     <p class="sub petit">Liens dorés : des coéquipiers de la même équipe côte à côte (le bonus collectif). <b>C</b> : ton capitaine, +${PARAMS.capitaine_bonus ?? 2} en match.${S().capitaine ? '' : ' Nomme-le en touchant son poste.'}</p>
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
+    <h3 class="banc-t">Remplaçants <small>${POSTES.filter(p => remplacant(p.id)).length}/7 · ils entrent pendant les matchs</small></h3>
+    <div class="banc">${POSTES.map(p => { const c = remplacant(p.id);
+      return `<button class="banc-s${c ? '' : ' vide'}" data-banc="${p.id}" aria-label="Remplaçant ${p.id}">${c ? vignetteHTML(c) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`; }).join('')}</div>
     ${(() => { const x = staffDe(staffActif());
       return `<button class="staff-place${x ? '' : ' vide'}" data-act="staff-place"><span class="sp-t">Staff</span>${x ? staffCarteHTML(x, 'mini') : '<span class="sp-plus" aria-hidden="true">+</span>'}
         <span class="sp-d"><b>${x ? esc(x.personne || x.nom) : 'Aucune carte staff'}</b><small>${x ? `${R_LABEL[x.meilleur] || ''} · ${staffEffet(x)}` : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
-    <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe</button>
+    <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe et le banc</button>
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
       <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
@@ -957,11 +968,40 @@ function choisir(poste) {
     ${actuel ? `<div class="pick-actuel">${carteHTML(actuel, {note: noteAuPoste(actuel, poste)})}<div><small>Aligné(e)</small><b>${esc(actuel.nom)}</b></div>
       <button class="btn ghost petit" data-voir-fiche="${actuel.id}" data-poste="${poste}">Voir la fiche</button>
       ${S().capitaine === actuel.ex.id ? '<span class="cap-on">C · capitaine</span>' : `<button class="btn ghost petit" data-capitaine="${actuel.ex.id}">Nommer capitaine</button>`}</div>` : ''}
-    <div class="picklist">${ok.length ? ok.map(c => `<div class="pick-l"><button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>
+    ${(rb => `<button class="banc-lien" data-banc="${poste}"><span aria-hidden="true">🔁</span> Remplaçant : <b>${rb ? esc(rb.nom) : 'aucun'}</b><i aria-hidden="true">›</i></button>`)(remplacant(poste))}
+    <div class="picklist">${ok.length ? ok.map(c => `<div class="pick-l"><button class="pick" data-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}${remplacantEx(c.ex.id) ? ' · remplaçant' : ''}</small></div></button>
       <button class="pick-f" data-voir-fiche="${c.id}" data-poste="${poste}" aria-label="Fiche de ${esc(c.nom)}"><span aria-hidden="true">⬡</span>Fiche</button></div>`).join('')
       : `<p class="sub">Aucune carte disponible pour ce poste. Ouvre des boosters !</p>`}</div>
     <div style="display:flex;gap:10px">${S().equipe?.[poste] ? `<button class="btn ghost" style="flex:1" data-act="retirer" data-poste="${poste}">Retirer</button>` : ''}
     <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
+}
+// le remplaçant d'un poste : un joueur qui n'est ni titulaire ni remplaçant ailleurs, qui peut jouer à ce poste
+function choisirBanc(poste) {
+  const eq = S().equipe || {}, rp = S().remplacants || {};
+  const pris = new Set([...Object.values(eq), ...Object.entries(rp).filter(([k]) => k !== poste).map(([, id]) => id)].map(id => exParId(id)?.carte));
+  const ok = EX().filter(e => !e.verrou && PAR_ID[e.carte] && !pris.has(e.carte) && peutJouer(PAR_ID[e.carte], poste))
+    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
+  const actuel = remplacant(poste), tit = aligne(poste), nomP = poste === 'GB' ? 'gardien(ne)' : 'poste ' + poste;
+  ouvrirOverlay(`<div class="sheet"><h3>Remplaçant · ${nomP}</h3>
+    <p class="sub petit">Il entre pendant les matchs (bouton « Banc ») quand ton titulaire fatigue ou pour changer de jeu. Il ne compte pas dans la note d’équipe.</p>
+    ${actuel ? `<div class="pick-actuel">${carteHTML(actuel, {note: noteAuPoste(actuel, poste)})}<div><small>Remplaçant</small><b>${esc(actuel.nom)}</b></div>
+      <button class="btn ghost petit" data-voir-fiche="${actuel.id}" data-poste="${poste}">Voir la fiche</button>
+      ${tit ? `<button class="btn ghost petit" data-banc-titulaire="${poste}">⇄ Titulaire</button>` : ''}</div>` : ''}
+    ${tit ? `<p class="sub petit">Titulaire : <b>${esc(tit.nom)}</b> (${noteAuPoste(tit, poste)})</p>` : ''}
+    <div class="picklist">${ok.length ? ok.map(c => `<div class="pick-l"><button class="pick" data-banc-choix="${c.ex.id}" data-poste="${poste}">${carteHTML(c, {note: noteAuPoste(c, poste)})}<div><b>${esc(c.nom)}</b><small>${noteAuPoste(c, poste)} · ${R_LABEL[c.rarete]} · ${posteAffiche(c)} · ${c.equipe}${horsPoste(c, poste) ? ` · hors poste −${MALUS_HORS_POSTE}` : ''}</small></div></button>
+      <button class="pick-f" data-voir-fiche="${c.id}" data-poste="${poste}" aria-label="Fiche de ${esc(c.nom)}"><span aria-hidden="true">⬡</span>Fiche</button></div>`).join('')
+      : `<p class="sub">Aucune carte libre pour ce poste : il faut un joueur qui n’est pas déjà dans ton équipe.</p>`}</div>
+    <div style="display:flex;gap:10px">${actuel ? `<button class="btn ghost" style="flex:1" data-banc-retirer="${poste}">Retirer du banc</button>` : ''}
+    <button class="btn" style="flex:1" data-act="fermer">Fermer</button></div></div>`);
+}
+// les meilleurs remplaçants possibles pour une équipe donnée (un par poste, jamais un titulaire, chaque joueur une fois)
+function bancAuto(equipe, meilleurs) {
+  const pris = new Set(Object.values(equipe).map(id => exParId(id)?.carte)), banc = {};
+  for (const p of [...POSTES.filter(x => x.gb), ...POSTES.filter(x => !x.gb)]) {
+    const c = meilleurs.filter(c => !pris.has(c.id) && peutJouer(c, p.id)).sort((a, b) => noteAuPoste(b, p.id) - noteAuPoste(a, p.id))[0];
+    if (c) { banc[p.id] = c.ex.id; pris.add(c.id); }
+  }
+  return banc;
 }
 function autoEquipe() {
   // le meilleur exemplaire de chaque joueur, puis la meilleure répartition (malus hors poste compris)
@@ -989,8 +1029,8 @@ function autoEquipe() {
     const t = terrain(g), total = t.total + (g ? g.ovr : 0);
     if (total > mieux.total) mieux = {total, choix: g ? {GB: g.ex.id, ...t.choix} : t.choix};
   }
-  const equipe = mieux.choix;
-  action(Compte.alignerEquipe(equipe), () => { toast('Ta meilleure équipe est alignée'); route(true); });
+  const equipe = mieux.choix, banc = bancAuto(equipe, meilleurs);
+  action(Compte.alignerRemplacants(equipe, banc), () => { toast(Object.keys(banc).length ? 'Ta meilleure équipe et ses remplaçants sont alignés' : 'Ta meilleure équipe est alignée'); route(true); });
 }
 
 // ── jouer : le championnat (les défis passent par les ami(e)s, l'entraînement par le Club) ───────────────
@@ -1347,7 +1387,8 @@ function texteMD(x) {
     tactique: `${x.adj ? 'Ton adjoint passe en' : 'Tu passes en'} <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
-    'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`}[x.ty] || '';
+    'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`,
+    changement: `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`}[x.ty] || '';
 }
 const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
 
@@ -1385,7 +1426,7 @@ function ouvrirDirect(vue, reprise) {
     <p class="md-info"></p>
     <div class="md-onglets" role="tablist"><button class="on" data-md-onglet="direct">Direct</button><button data-md-onglet="stats">Stats</button></div>
     <div class="md-corps"><div class="md-fil"></div><div class="md-stats" hidden></div></div>
-    <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
+    <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-chg">Banc</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
     <div class="md-panneau" hidden></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
@@ -1393,6 +1434,7 @@ function ouvrirDirect(vue, reprise) {
     tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, tmDemande: false, vitesse: vitesseMD(), onglet: 'direct',
     exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
   if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
+  el.classList.toggle('avec-banc', bancMD().length > 0);
   // reprise : tout ce qui s'est passé est affiché d'un coup ; puis le panneau qui convient (coup d'envoi, mi-temps ou pause)
   for (const x of vue.evenements || []) noterMD(x, true);
   formationDepart();
@@ -1466,6 +1508,7 @@ function animerMD(x, D) {
     else if (x.ty === 'consigne') flashMD(x.v === 'pression' ? 'Ils pressent !' : x.v === 'prudent' ? 'Ils gèrent' : 'Jeu normal', 'b');
     else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
     else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
+    else if (x.ty === 'changement') flashMD(`Changement<small>${esc(nomCourt(x.n))} entre</small>`, 'tm');
     return;
   }
   const s = slotMD(c, x.n, x.z), i = SLOTS_MD.indexOf(s), contre = x.z === 'contre';
@@ -1549,6 +1592,8 @@ function majMD() {
   const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
   const tc = MD.el.querySelector('.md-tac');
   tc.disabled = !!MD.fin; tc.innerHTML = `Tactique<small>${MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
+  const bc = MD.el.querySelector('.md-chg'), nbanc = bancMD().length;
+  bc.hidden = !nbanc; bc.disabled = !!MD.fin; bc.innerHTML = `Banc<small>${nbanc} remplaçant${nbanc > 1 ? 's' : ''}</small>`;
   const bt = MD.el.querySelector('.md-tm');
   bt.disabled = !MD.tmDemande && (!tmPossible() || !!MD.fin);
   bt.classList.toggle('on', MD.tmDemande);
@@ -1602,12 +1647,57 @@ function panneauMD(type) {
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
       <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
+    ${change && type !== 'tactique' && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
     <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
         : type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
       <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
   p.hidden = false; MD.el.classList.add('en-pause');
   choixMD();
   majMD();
+}
+// ── remplaçants en match (demande de Maël, 19 nov. 2026) : chaque poste, son titulaire et son remplaçant, leur fraîcheur
+const POSTES_MD = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
+const bancMD = () => { const ef = MD.vue?.nous?.effectif; return ef ? POSTES_MD.filter(k => ef[k]?.r) : []; };
+const fraicheur = f => Math.max(0, Math.min(100, Math.round(100 - 400 * (+f || 0))));   // fatigue 0 → 100 %, 0,25 → 0 %
+function resumeBancMD() {
+  const ef = MD.vue.nous.effectif, k = POSTES_MD.filter(k => ef[k]?.n).sort((a, b) => fraicheur(ef[a].f) - fraicheur(ef[b].f))[0];
+  return k ? `le plus fatigué : ${esc(nomCourt(ef[k].n))}, ${fraicheur(ef[k].f)} %` : '';
+}
+function panneauBanc() {
+  if (!MD.el || !bancMD().length) return;
+  if (MD.panneau !== 'banc') MD.avantBanc = MD.panneau;
+  MD.attente = true; MD.panneau = 'banc'; MD.chg = new Set();
+  const ef = MD.vue.nous.effectif, p = MD.el.querySelector('.md-panneau');
+  const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `${Math.min(60, MD.finBloc / 60)}'` : 'au coup d’envoi';
+  const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(nomCourt(n))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${fraicheur(f) < 50 ? ' bas' : ''}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
+  p.innerHTML = `<div class="md-p-c"><h3>Changements</h3>
+    <p class="sub petit">Touche un poste pour faire entrer le remplaçant (à ${quand}). Changements illimités, comme au handball : sur le banc, on récupère. La barre = la fraîcheur.</p>
+    <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
+      return `<button class="md-bl" data-md-chg="${k}"${x.r ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't')}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r') : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
+    <div class="md-p-b"><button class="btn ghost" data-md-go="banc-retour">Retour</button><button class="btn gold" data-md-go="banc-ok" disabled>Valider</button></div></div>`;
+  p.hidden = false; MD.el.classList.add('en-pause');
+  majMD();
+}
+function majBancMD() {
+  const p = MD.el.querySelector('.md-panneau'), n = MD.chg.size;
+  p.querySelectorAll('[data-md-chg]').forEach(b => b.classList.toggle('on', MD.chg.has(b.dataset.mdChg)));
+  const ok = p.querySelector('[data-md-go="banc-ok"]'); ok.disabled = !n; ok.textContent = n ? `Valider ${n} changement${n > 1 ? 's' : ''}` : 'Valider';
+}
+function sortieBanc() {
+  const av = MD.avantBanc; MD.avantBanc = null;
+  if (av && av !== 'tactique') return panneauMD(av);
+  fermerPanneauMD(); majMD(); reprendreMD();
+}
+function validerBanc() {
+  if (MD.enCours) return toast('Un instant : la tranche se joue');
+  const postes = [...MD.chg], btn = MD.el.querySelector('[data-md-go="banc-ok"]'); btn.disabled = true;
+  MD.enCours = true;
+  Compte.matchChanger(postes).then(r => {
+    MD.enCours = false; if (!MD.el) return;
+    MD.vue = r.vue; MD.file.push(...(r.vue.evenements || []));
+    Son.jouer('sifflet'); toast(postes.length > 1 ? `${postes.length} changements` : 'Changement fait');
+    sortieBanc();
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); btn.disabled = false; });
 }
 function choixMD() {
   const p = MD.el.querySelector('.md-panneau'), c = MD.choix;
@@ -1638,6 +1728,10 @@ function clicMD(e) {
   if (d.mdAtt) { MD.choix.att = d.mdAtt; return choixMD(); }
   if (d.mdDef) { MD.choix.def = d.mdDef; return choixMD(); }
   if (d.mdCons) { MD.choix.cons = d.mdCons; return choixMD(); }
+  if (d.mdChg) { MD.chg.has(d.mdChg) ? MD.chg.delete(d.mdChg) : MD.chg.add(d.mdChg); return majBancMD(); }
+  if (b.classList.contains('md-chg') || d.mdGo === 'banc') { if (MD.panneau && MD.panneau !== 'banc') { MD.choix && (MD.tac = `${MD.choix.att}:${MD.choix.def}`, MD.cons = MD.choix.cons); } return panneauBanc(); }
+  if (d.mdGo === 'banc-retour') return sortieBanc();
+  if (d.mdGo === 'banc-ok') return validerBanc();
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
   if (b.classList.contains('md-tm')) { MD.tmDemande = !MD.tmDemande; return majMD(); }
   if (b.classList.contains('md-tac')) return panneauMD('tactique');
@@ -2721,7 +2815,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -2827,6 +2921,13 @@ document.addEventListener('click', e => {
   if (a === 'compo-ok') return validerCompo();
   if (d.quete) return action(Compte.reclamerQuete(d.quete), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (d.choix) return action(Compte.aligner(d.poste, d.choix), fermerOverlay);
+  if (d.banc) return choisirBanc(d.banc);
+  if (d.bancChoix) return action(Compte.alignerRemplacants(S().equipe || {}, {...(S().remplacants || {}), [d.poste]: d.bancChoix}), () => { toast('Remplaçant choisi'); fermerOverlay(); });
+  if (d.bancRetirer) { const r = {...(S().remplacants || {})}; delete r[d.bancRetirer]; return action(Compte.alignerRemplacants(S().equipe || {}, r), fermerOverlay); }
+  if (d.bancTitulaire) {   // le remplaçant devient titulaire, le titulaire passe sur le banc
+    const k = d.bancTitulaire, eq = {...(S().equipe || {})}, r = {...(S().remplacants || {})}; [eq[k], r[k]] = [r[k], eq[k]];
+    return action(Compte.alignerRemplacants(eq, r), () => { toast('Ton remplaçant devient titulaire'); fermerOverlay(); });
+  }
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
   if (a === 'staff-place') return fenetreStaffEquipe();
@@ -3165,7 +3266,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=72').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=73').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

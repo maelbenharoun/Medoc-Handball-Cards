@@ -108,10 +108,10 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   await p.click('[data-act=championnat]'); await p.waitForSelector('.md-panneau:not([hidden])');
   verif('coup d’envoi : on annonce le changement possible toutes les 5 minutes', /toutes les 5 minutes/.test(await p.textContent('.md-panneau')));
   await p.click('[data-md-go=jouer]');
-  const bas = await p.evaluate(() => { const l = [...document.querySelectorAll('.md-bas .btn')], r = document.querySelector('.md-bas').getBoundingClientRect();
+  const bas = await p.evaluate(() => { const l = [...document.querySelectorAll('.md-bas .btn')].filter(x => !x.hidden), r = document.querySelector('.md-bas').getBoundingClientRect();
     return {n: l.length, txt: l.map(x => x.firstChild.textContent.trim()), dedans: l.every(x => { const z = x.getBoundingClientRect(); return z.left >= r.left - 1 && z.right <= r.right + 1; }),
       deborde: document.documentElement.scrollWidth > innerWidth}; });
-  verif('en bas : Tactique, Temps mort, vitesse, Simuler, sans déborder', bas.n === 4 && bas.txt[0] === 'Tactique' && bas.txt[1] === 'Temps mort' && bas.dedans && !bas.deborde, bas);
+  verif('en bas (sans remplaçant) : Tactique, Temps mort, vitesse, Simuler, sans déborder', bas.n === 4 && bas.txt[0] === 'Tactique' && bas.txt[1] === 'Temps mort' && bas.dedans && !bas.deborde, bas);
   // pendant la tranche : Tactique → le récit s'arrête, le choix part à la fin de la tranche
   await p.waitForFunction(() => MD.h > 60 && MD.h < 240, null, {timeout: 15000});
   await p.click('.md-tac'); await p.waitForSelector('.md-panneau:not([hidden])');

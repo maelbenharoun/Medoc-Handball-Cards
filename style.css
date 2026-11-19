@@ -1902,3 +1902,48 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .jeu-entr:active { transform: translateY(2px); }
 .j7-mode { margin: 0 8px 0 auto; padding: 4px 10px; border-radius: 99px; background: rgba(90, 162, 255, .22); border: 1px solid rgba(90, 162, 255, .6);
   color: #d6e7ff; font-size: .72rem; font-weight: 800; white-space: nowrap; }
+
+/* Remplaçants (demande de Maël, 19 nov. 2026) : un par poste sous le terrain de l'onglet Équipe ; en match, bouton « Banc » et panneau des changements */
+.banc-t { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 6px; font-size: 1rem; }
+.banc-t small { font-size: .72rem; font-weight: 600; color: var(--muted); }
+.banc { container-type: inline-size; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin-bottom: 12px;
+  padding: 10px 6px 8px; border-radius: 16px; background: linear-gradient(180deg, #1b2636, #141c28); border: 1px solid #26354b; }
+.banc-s { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+.banc-s .vig { width: 100%; }
+.banc-s .vig-p { width: min(44px, 12.5cqw); }
+.banc-s .vig-n { padding: 1px 2px; }
+.banc-s .vig-n b { font-size: min(.6rem, 2.6cqw); }
+.banc-s .vig-n small { display: none; }
+.banc-s .vig-f { right: -2px; font-size: .75rem; }
+.banc-s .empty { width: min(44px, 12.5cqw); aspect-ratio: 1; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .4); display: grid; place-items: center;
+  color: rgba(255, 255, 255, .6); font-size: 1.2rem; font-weight: 800; }
+.banc-s em { font-style: normal; font-size: .6rem; font-weight: 800; letter-spacing: .06em; color: var(--muted); }
+.banc-s:active { transform: translateY(2px); }
+.banc-lien { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 10px; padding: 10px 12px; border-radius: 14px; border: 1px dashed #3a4b63;
+  background: #161f2c; color: inherit; font: inherit; font-size: .88rem; text-align: left; }
+.banc-lien b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.banc-lien i { font-style: normal; color: var(--muted); font-size: 1.2rem; }
+.md.avec-banc .md-bas { grid-template-columns: 1fr 1fr 1.3fr auto 1fr; gap: 5px; }
+.md.avec-banc .md-bas .btn { white-space: nowrap; }
+.md.avec-banc .md-bas .btn { padding: 9px 3px; font-size: .8rem; }
+.md.avec-banc .md-bas .btn small { font-size: .58rem; }
+.md-bas .md-chg { background: linear-gradient(180deg, #3fcf8e, #1f9a62); color: #fff; box-shadow: 0 4px 0 #136140; }
+.md-bas .md-chg small { color: #d9ffe9; }
+.md-p-banc { width: 100%; margin-top: 12px; flex-direction: column; gap: 0; padding: 10px; font-weight: 800; }
+.md-p-banc small { font-size: .68rem; font-weight: 600; color: var(--muted); }
+.md-banc { display: grid; gap: 6px; margin-top: 8px; }
+.md-bl { display: grid; grid-template-columns: 34px minmax(0, 1fr) 22px minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px 8px; border-radius: 14px;
+  border: 2px solid #26354b; background: #1a2433; color: inherit; font: inherit; text-align: left; transition: transform .15s; }
+.md-bl:disabled { opacity: .55; }
+.md-bl em { font-style: normal; font-size: .7rem; font-weight: 900; letter-spacing: .05em; color: var(--muted); }
+.md-bj { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.md-bj b { font-size: .82rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-bj small { font-size: .64rem; color: var(--muted); }
+.md-bj.vide small { font-style: italic; }
+.md-fr { display: block; height: 4px; border-radius: 4px; background: #0e1520; overflow: hidden; }
+.md-fr i { display: block; height: 100%; background: #3fcf8e; transform-origin: left; }
+.md-fr.bas i { background: #f2a33a; }
+.md-bfl { text-align: center; font-size: 1rem; color: var(--muted); transition: transform .2s; }
+.md-bl.on { border-color: #3fcf8e; background: #16291f; transform: translateY(-2px); }
+.md-bl.on .md-bfl { color: #3fcf8e; transform: rotate(180deg); }
+.md-bl.on .md-bj.t { opacity: .55; }

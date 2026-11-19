@@ -66,7 +66,7 @@ const CompteServeur = (() => {
 
   function vide() {
     return {profil: false, pseudo: '', role: '', pieces: 0, niveau: 1, xp: 0, xpNiveau: 100, depart: true, boosters: 0, bonus: 0, bonusOr: 0,
-      boosterMax: 5, prochainBooster: null, equipe: {}, tactique: 'equilibre', exemplaires: [], quetes: [], recu: Date.now()};
+      boosterMax: 5, prochainBooster: null, equipe: {}, remplacants: {}, tactique: 'equilibre', exemplaires: [], quetes: [], recu: Date.now()};
   }
   const lireCache = () => { try { return JSON.parse(localStorage.getItem(CACHE)) || {}; } catch (e) { return {}; } };
   const ecrireCache = o => { try { localStorage.setItem(CACHE, JSON.stringify({...lireCache(), ...o})); } catch (e) {} };
@@ -210,6 +210,7 @@ const CompteServeur = (() => {
     vendre: ex => rpc('vendre', {p_ex: ex}),                                    // → {gain}
     aligner: (poste, ex) => rpc('aligner', {p_poste: poste, p_ex: ex || null}),
     alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}),
+    alignerRemplacants: (equipe, remp) => rpc('aligner_remplacants', {p_equipe: equipe, p_remplacants: remp}),   // l'équipe et son banc (un remplaçant par poste)
     reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
     reclamerQueteSemaine: id => rpc('reclamer_quete_semaine', {p_quete: id}),  // → {xp, pieces, niveaux}
     ouvrirBoosterSemaine: () => rpc('ouvrir_booster_semaine'),                 // un joueur de la semaine → {ids}
@@ -241,6 +242,7 @@ const CompteServeur = (() => {
     matchCommencer: (type, cible, tactique, consigne, simuler) => rpc('match_commencer', {p_type: type, p_cible: cible, p_tactique: tactique, p_consigne: consigne, p_simuler: !!simuler}),
     matchBloc: (tactique, consigne, tempsMort) => rpc('match_bloc', {p_tactique: tactique, p_consigne: consigne, p_temps_mort: !!tempsMort}),   // fin : + match, gains…
     matchTempsMort: () => rpc('match_temps_mort'),                                // temps mort : élan + tactique adverse dévoilée → {vue, adverse}
+    matchChanger: postes => rpc('match_changer', {p_postes: postes}),   // changements entre deux tranches : [poste, …]
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
