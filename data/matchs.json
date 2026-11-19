@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-17",
+ "maj": "2026-11-19",
  "matchs": [
   {
    "equipe": "SF1",
@@ -3013,23 +3013,6 @@
   {
    "equipe": "SG2",
    "competition": "+16 Masculins Honneur Excellence · Poule Unique",
-   "rid": "2635768",
-   "j": 8,
-   "date": "2026-11-29",
-   "heure": "16:00",
-   "dom": "Bruges 33",
-   "ext": "Canejan 3",
-   "medoc": null,
-   "p": [
-    0.72,
-    0.047,
-    0.233
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SG2",
-   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
    "rid": "2635769",
    "j": 8,
    "date": "2026-11-29",
@@ -3041,6 +3024,23 @@
     0.494,
     0.058,
     0.448
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635768",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "16:30",
+   "dom": "Bruges 33",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.72,
+    0.047,
+    0.233
    ],
    "score": null
   },
@@ -4747,23 +4747,6 @@
   {
    "equipe": "SF2",
    "competition": "+16 Féminines Honneur · Poule Unique",
-   "rid": "2636333",
-   "j": 13,
-   "date": "2027-01-30",
-   "heure": null,
-   "dom": "Avenir Pailleton 2",
-   "ext": "Lormont Hauts de Garonne",
-   "medoc": null,
-   "p": [
-    0.025,
-    0.009,
-    0.966
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SF2",
-   "competition": "+16 Féminines Honneur · Poule Unique",
    "rid": "2636334",
    "j": 13,
    "date": "2027-01-30",
@@ -4996,6 +4979,23 @@
     0.558,
     0.056,
     0.385
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636333",
+   "j": 13,
+   "date": "2027-01-30",
+   "heure": "19:00",
+   "dom": "Avenir Pailleton 2",
+   "ext": "Lormont Hauts de Garonne",
+   "medoc": null,
+   "p": [
+    0.025,
+    0.009,
+    0.966
    ],
    "score": null
   },
