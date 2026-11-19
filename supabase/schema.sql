@@ -1162,6 +1162,13 @@ begin
 end $$;
 
 -- Fusion : 3 exemplaires du même joueur au même palier (les moins entraînés) → 1 au palier suivant
+-- Listes de transferts : une ligne « à donner » dont le joueur n'a plus de carte libre (fusionnée, vendue, échangée, alignée dans
+-- l'équipe) s'en va d'elle-même. Avant (bug signalé par un joueur, 19 nov. 2026), elle restait, et l'enregistrement des listes,
+-- qui revérifie chaque ligne, refusait toute modification : avec deux lignes mortes, on ne pouvait même plus les retirer.
+create or replace function listes_nettoyer(p_uid uuid) returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from listes_transfert l where l.user_id = p_uid and l.sens = 'donne' and libres_nombre(p_uid, l.carte, l.palier) = 0;
+end $$;
 create or replace function fusionner(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); suivant text := palier_suivant(p_palier); n int := parami('fusion_nombre'); cout int;
   pris uuid[]; ex uuid; e jsonb; niveaux jsonb;
@@ -1180,6 +1187,7 @@ begin
     into e from jsonb_each(p.equipe) j;
   delete from exemplaires where id = any(pris);
   update profils set pieces = pieces - cout, equipe = e where user_id = p.user_id;
+  perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'fusion');
   niveaux := gagner_xp(p.user_id, parami('xp_fusion'));
   perform noter(p.user_id, 'fusion', jsonb_build_object('carte', p_carte, 'de', p_palier, 'vers', suivant, 'cout', cout, 'exemplaire', ex));
@@ -1217,6 +1225,7 @@ begin
   gain := (param('vente') ->> e.palier)::int;
   delete from exemplaires where id = p_ex;
   update profils set pieces = pieces + gain where user_id = p.user_id;
+  perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'vente');
   perform noter(p.user_id, 'vente', jsonb_build_object('carte', e.carte_id, 'palier', e.palier, 'note', e.note, 'gain', gain));
   return jsonb_build_object('gain', gain, 'etat', etat_de(p.user_id));
@@ -1248,6 +1257,7 @@ declare p profils := moi();
 begin
   perform verifier_equipe(p.user_id, p_equipe);
   update profils set equipe = p_equipe where user_id = p.user_id;
+  perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'equipe');
   return jsonb_build_object('etat', etat_de(p.user_id));
 end $$;
@@ -2557,6 +2567,7 @@ $$;
 create or replace function mes_transferts() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); r jsonb;
 begin
+  perform listes_nettoyer(p.user_id);   -- les lignes mortes d'avant la correction partent à l'ouverture des Transferts
   r := jsonb_build_object('max', parami('transfert_liste_max'),
     'veux', coalesce((select jsonb_agg(jsonb_build_object('carte', l.carte, 'palier', l.palier) order by l.cree_le)
       from listes_transfert l where l.user_id = p.user_id and l.sens = 'veux'), '[]'),
@@ -2599,10 +2610,12 @@ begin
     raise exception '% joueurs au plus dans chaque liste', m;
   end if;
   for x in select v from jsonb_array_elements(p_donne) v loop
-    if libres_nombre(p.user_id, x ->> 'carte', x ->> 'palier') < 1 then
+    if libres_nombre(p.user_id, x ->> 'carte', x ->> 'palier') < 1 and not exists (select 1 from listes_transfert l
+        where l.user_id = p.user_id and l.sens = 'donne' and l.carte = x ->> 'carte' and l.palier = x ->> 'palier') then
       raise exception 'Tu n’as pas de carte libre (hors équipe) de ce joueur à ce palier';
     end if;
   end loop;
+  select coalesce(jsonb_agg(v), '[]') into p_donne from jsonb_array_elements(p_donne) v where libres_nombre(p.user_id, v ->> 'carte', v ->> 'palier') >= 1;
   if exists (select 1 from jsonb_array_elements(p_veux) v, jsonb_array_elements(p_donne) w where v ->> 'carte' = w ->> 'carte' and v ->> 'palier' = w ->> 'palier') then
     raise exception 'Un même joueur ne peut pas être dans les deux listes au même palier';
   end if;
@@ -2889,6 +2902,7 @@ begin
   update exemplaires set proprietaire = x.de where id = x.demande;
   update echanges set statut = 'accepte', fini_le = now() where id = p_id;
   update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and id <> p_id and (donne in (x.donne, x.demande) or demande in (x.donne, x.demande));
+  perform listes_nettoyer(p.user_id); perform listes_nettoyer(x.de);
   perform noter(p.user_id, 'echange', jsonb_build_object('echange', p_id, 'recu', x.donne, 'donne', x.demande));
   perform noter(x.de, 'echange', jsonb_build_object('echange', p_id, 'recu', x.demande, 'donne', x.donne));
   return mes_amis() || jsonb_build_object('etat', etat_de(p.user_id));
