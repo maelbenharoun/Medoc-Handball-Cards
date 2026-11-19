@@ -3013,6 +3013,23 @@
   {
    "equipe": "SG2",
    "competition": "+16 Masculins Honneur Excellence · Poule Unique",
+   "rid": "2635768",
+   "j": 8,
+   "date": "2026-11-29",
+   "heure": "16:00",
+   "dom": "Bruges 33",
+   "ext": "Canejan 3",
+   "medoc": null,
+   "p": [
+    0.72,
+    0.047,
+    0.233
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG2",
+   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
    "rid": "2635769",
    "j": 8,
    "date": "2026-11-29",
@@ -3024,23 +3041,6 @@
     0.494,
     0.058,
     0.448
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SG2",
-   "competition": "+16 Masculins Honneur Excellence · Poule Unique",
-   "rid": "2635768",
-   "j": 8,
-   "date": "2026-11-29",
-   "heure": "16:30",
-   "dom": "Bruges 33",
-   "ext": "Canejan 3",
-   "medoc": null,
-   "p": [
-    0.72,
-    0.047,
-    0.233
    ],
    "score": null
   },
