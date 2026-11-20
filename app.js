@@ -837,7 +837,7 @@ function fiche(carte, poste, de) {
     const v = vue(e), max = PALIER[e.palier].max, besoin = PARAMS.xp_par_point?.[e.palier] || 100;
     const cout = PARAMS.entrainement_cout?.[e.palier], gain = PARAMS.vente?.[e.palier];
     return `<div class="exl">${carteHTML(v)}<div class="exl-d"><b>${c.legende ? 'Légende' : R_LABEL[e.palier]} ${e.note}${e.note >= max ? ' · max' : ''}</b>
-      <small>${c.legende ? 'Note maximale' : e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${titulaireEx(e.id) ? ' · dans ton équipe' : remplacantEx(e.id) ? ' · remplaçant' : ''}${e.verrou ? ' · aux transferts' : ''}</small>
+      <small>${c.legende ? 'Note maximale' : e.note >= max ? 'Au plafond du palier : fusionne pour monter' : `${e.xp}/${besoin} XP avant ${e.note + 1}`}${titulaireEx(e.id) ? ' · dans ton équipe' : remplacantEx(e.id) ? ' · remplaçant' : ''}${e.blessure > 0 ? ` · 🚑 blessure ${esc(e.blessureG || '')}, absent(e) ${e.blessure} match${e.blessure > 1 ? 's' : ''}` : ''}${e.verrou ? ' · aux transferts' : ''}</small>
       ${e.note < max ? `<div class="bar"><i style="width:${100 * e.xp / besoin}%"></i></div>` : ''}
       <div class="exl-b">${e.note < max ? `<button class="btn gold petit" data-entrainer="${e.id}">Entraîner · ${nb(cout)}</button>` : ''}
         ${!dansEquipe(e.id) && !e.verrou ? `<button class="btn ghost petit" data-vendre="${e.id}">Vendre · +${nb(gain)}</button>` : ''}</div></div></div>`;
@@ -904,7 +904,7 @@ function vignetteHTML(c) {
   const [prenom, ...reste] = c.nom.split(' ');
   return `<span class="vig r-${c.rarete}${c.legende ? ' legende' : ''}" style="--tc:${TEINTE[c.rarete] || '212 140 88'}" aria-label="${esc(c.nom)}, ${R_LABEL[c.rarete] || ''}">
     <span class="vig-p">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy">` : `<b>${esc(initiales(c.nom))}</b>`}</span>
-    <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span>${enForme(c.id) ? '<i class="vig-f" aria-label="joueur de la semaine">🔥</i>' : ''}</span>`;
+    <span class="vig-n"><b>${esc(prenom)}</b>${reste.length ? `<small>${esc(reste.join(' '))}</small>` : ''}</span>${enForme(c.id) ? '<i class="vig-f" aria-label="joueur de la semaine">🔥</i>' : ''}${c.ex?.blessure > 0 ? `<i class="vig-b" aria-label="blessé(e) : ${c.ex.blessure} match${c.ex.blessure > 1 ? 's' : ''} d’absence">🚑</i>` : ''}</span>`;
 }
 // notre demi-terrain aux mesures officielles (20 m de large, but de 3 m), notre but en bas. La zone n'est pas un demi-cercle :
 // deux quarts de cercle de 6 m centrés sur les poteaux, reliés par 3 m de ligne droite (15 m de large, 6 m de profondeur).
@@ -943,6 +943,9 @@ function vueEquipe() {
     <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
     <p class="sub petit">Liens dorés : des coéquipiers de la même équipe côte à côte (le bonus collectif). <b>C</b> : ton capitaine, +${PARAMS.capitaine_bonus ?? 2} en match.${S().capitaine ? '' : ' Nomme-le en touchant son poste.'}</p>
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
+    ${(() => { const l = POSTES.map(p => [p, aligne(p.id)]).filter(([, c]) => c?.ex?.blessure > 0);
+      return l.length ? `<p class="sub warn">🚑 ${l.map(([p, c]) => { const r = remplacant(p.id), rOk = r && !(r.ex?.blessure > 0);
+        return `<b>${esc(c.nom)}</b> (${p.id}) blessé(e), absent(e) ${c.ex.blessure} match${c.ex.blessure > 1 ? 's' : ''} : ${rOk ? `${esc(r.nom)} le remplacera` : 'sans remplaçant valide, il jouera diminué'}`; }).join(' · ')}</p>` : ''; })()}
     <h3 class="banc-t">Remplaçants <small>${POSTES.filter(p => remplacant(p.id)).length}/7 · ils entrent pendant les matchs</small></h3>
     <div class="banc">${POSTES.map(p => { const c = remplacant(p.id);
       return `<button class="banc-s${c ? '' : ' vide'}" data-banc="${p.id}" aria-label="Remplaçant ${p.id}">${c ? vignetteHTML(c) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`; }).join('')}</div>
@@ -1388,7 +1391,9 @@ function texteMD(x) {
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`,
-    changement: `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`}[x.ty] || '';
+    changement: `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`,
+    blessure: `🚑 Blessure ${x.g ? `<b>${esc(x.g)}</b> ` : ''}de <b>${esc(x.n || '')}</b> (${x.p})${x.m ? `, absent(e) ${x.m} match${x.m > 1 ? 's' : ''} après celui-ci` : ''} : ${x.r ? 'fais entrer son remplaçant (Banc)' : 'pas de remplaçant à ce poste, jeu diminué'}`,
+    absent: `🚑 <b>${esc(x.n || '')}</b> (${x.p}) est blessé(e)${x.m ? `, encore ${x.m} match${x.m > 1 ? 's' : ''} d’absence` : ''} : ${x.r ? 'son remplaçant commence' : 'pas de remplaçant valide, il joue diminué'}`}[x.ty] || '';
 }
 const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
 
@@ -1430,8 +1435,9 @@ function ouvrirDirect(vue, reprise) {
     <div class="md-panneau" hidden></div><div class="md-panneau md-bancp" hidden></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
-  Object.assign(MD, {el, vue, evs: [], file: [], h: vue.bloc * 300, finBloc: vue.bloc * 300, attente: true, fin: null, timers: [], ts: 0,
-    tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, tmDemande: false, vitesse: vitesseMD(), onglet: 'direct',
+  const h0 = Math.max(vue.bloc * 300, Math.round((vue.minute || 0) * 60));
+  Object.assign(MD, {el, vue, evs: [], file: [], h: h0, finBloc: h0, attente: true, fin: null, timers: [], ts: 0,
+    tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, vitesse: vitesseMD(), onglet: 'direct',
     exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
   if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
   el.classList.toggle('avec-banc', bancMD().length > 0);
@@ -1443,7 +1449,7 @@ function ouvrirDirect(vue, reprise) {
   el.addEventListener('pointerdown', e => e.stopPropagation());
   MD.raf = requestAnimationFrame(boucleMD);
   if (vue.bloc === 0) panneauMD('envoi');
-  else if (vue.bloc === 6) panneauMD('mi-temps');
+  else if (vue.bloc === 6 && h0 === 1800) panneauMD('mi-temps');
   else panneauMD(reprise ? 'pause' : 'pause');
   if (!reprise) Son.jouer('sifflet');
 }
@@ -1509,6 +1515,10 @@ function animerMD(x, D) {
     else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
     else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
     else if (x.ty === 'changement') flashMD(`Changement<small>${esc(nomCourt(x.n))} entre</small>`, 'tm');
+    else if (x.ty === 'blessure') {   // le banc s'ouvre : il faut le remplacer (il joue diminué en attendant)
+      flashMD(`Blessure !<small>${esc(nomCourt(x.n))}</small>`, 'ex'); Son.jouer('sifflet'); vibrer([60, 40, 60]);
+      if (x.r && !MD.fin) { MD.blessePoste = x.p; panneauBanc(); }
+    }
     return;
   }
   const s = slotMD(c, x.n, x.z), i = SLOTS_MD.indexOf(s), contre = x.z === 'contre';
@@ -1563,18 +1573,24 @@ function finBlocMD() {
   const pause = Math.round(650 / MD.vitesse);
   if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
   if (MD.vue.bloc === 6) return MD.timers.push(setTimeout(() => panneauMD('mi-temps'), pause));
-  if (MD.tmDemande) return MD.timers.push(setTimeout(tempsMortMD, pause));
   blocMD();
 }
 // temps mort (à la fin de la tranche) : le serveur le compte et dévoile leur tactique du moment, attaque comprise
+// temps mort tout de suite (demande de Maël, 20 nov. 2026), à la seconde affichée : le serveur revient à cette seconde ; ce qui était
+// prévu après est oublié, la fin de la tranche sera jouée à la reprise (blocMD), avec la tactique choisie pendant le temps mort
 function tempsMortMD() {
-  MD.enCours = true; MD.tmDemande = false;
-  Compte.matchTempsMort().then(r => {
+  if (MD.enCours || MD.chgEnCours) return toast('Un instant…');
+  MD.enCours = true; MD.attente = true; majMD();
+  Compte.matchTempsMort(Math.floor(MD.h)).then(r => {
     MD.enCours = false; if (!MD.el) return;
     MD.vue = r.vue; MD.adverse = r.adverse; MD.defB = r.adverse.defense;
+    // ce qui était déjà joué jusqu'au temps mort s'écrit au fil ; la suite prévue est oubliée
+    const avant = MD.file.filter(x => x.t <= r.reprise); MD.file = [];
+    for (const x of avant) noterMD(x, true);
+    MD.h = Math.max(MD.h, r.reprise); MD.finBloc = MD.h; majHorlogeMD();
     for (const x of r.vue.evenements || []) noterMD(x);
-    Son.jouer('sifflet'); panneauMD('tm');
-  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majMD(); blocMD(); });
+    fermerBancMD(); Son.jouer('sifflet'); flashMD('Temps mort', 'tm'); panneauMD('tm');
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); reprendreMD(); majMD(); });
 }
 function blocMD() {
   MD.attente = true; MD.enCours = true; majMD();
@@ -1586,7 +1602,8 @@ function blocMD() {
     majMD(); majBancMD();
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
 }
-const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.vue.bloc < 6 ? 'p1' : 'p2'; return t.restants > 0 && (t[per] || 0) < 2 && MD.vue.bloc > 0 && MD.vue.bloc < 12; };
+const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.h < 1800 ? 'p1' : 'p2';
+  return t.restants > 0 && (t[per] || 0) < 2 && MD.h > 0 && MD.h < 3600 && !(MD.h === 1800 && MD.vue.bloc === 6) && !MD.panneau; };
 function majMD() {
   if (!MD.el) return;
   const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
@@ -1595,9 +1612,8 @@ function majMD() {
   const bc = MD.el.querySelector('.md-chg'), nbanc = bancMD().length;
   bc.hidden = !nbanc; bc.disabled = !!MD.fin; bc.innerHTML = `Banc<small>${nbanc} remplaçant${nbanc > 1 ? 's' : ''}</small>`;
   const bt = MD.el.querySelector('.md-tm');
-  bt.disabled = !MD.tmDemande && (!tmPossible() || !!MD.fin);
-  bt.classList.toggle('on', MD.tmDemande);
-  bt.innerHTML = MD.tmDemande ? `Temps mort à ${MD.finBloc / 60}'<small>toucher pour annuler</small>` : `Temps mort<small>${t.restants} · voir leur jeu</small>`;
+  bt.disabled = !tmPossible() || !!MD.fin || !!MD.enCours;
+  bt.innerHTML = `Temps mort<small>${t.restants} · voir leur jeu</small>`;
   MD.el.querySelector('.md-vit').innerHTML = `×${MD.vitesse}<small>vitesse</small>`;
   const sim = MD.el.querySelector('.md-sim'), g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
   sim.disabled = !!MD.fin; sim.innerHTML = `Simuler<small>gains −${pcMoins(g)} %</small>`;
@@ -1621,7 +1637,6 @@ function majStatsMD() {
 function panneauMD(type) {
   if (!MD.el) return;
   MD.attente = true; MD.panneau = type;
-  if (type === 'mi-temps') MD.tmDemande = false;   // à la mi-temps, on change sans temps mort
   const [att, def] = MD.tac.split(':');
   MD.choix = {att, def, cons: MD.cons};
   const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
@@ -1673,11 +1688,15 @@ function panneauBanc() {
 function majBancMD() {
   if (!MD.el || !MD.bancOuvert) return;
   const ef = MD.vue.nous.effectif || {}, p = MD.el.querySelector('.md-bancp'), occupe = MD.chgEnCours || MD.enCours;
+  const blesses = new Set(MD.evs.filter(x => (x.ty === 'blessure' || x.ty === 'absent') && x.c === 'a').map(x => x.n));
   const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(String(nomCourt(n) || '').replace(/--/g, '-'))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${fraicheur(f) < 50 ? ' bas' : ''}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
+  const bl = POSTES_MD.find(k => blesses.has(ef[k]?.n) && ef[k]?.r && !blesses.has(ef[k].r));
   p.innerHTML = `<div class="md-p-c"><h3>Changements <small>le match continue</small></h3>
+    ${bl ? `<p class="md-alerte">🚑 <b>${esc(nomCourt(ef[bl].n))}</b> est blessé(e) et joue diminué(e) : fais entrer ${esc(nomCourt(ef[bl].r))} (${bl}).</p>` : ''}
     <p class="sub petit">Touche un poste : le remplaçant entre tout de suite. Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur.</p>
     <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
-      return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}" data-md-chg="${k}"${x.r && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't')}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r') : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
+      const bt = blesses.has(x.n), br = blesses.has(x.r);
+      return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}${bt ? ' blesse' : ''}" data-md-chg="${k}"${x.r && !br && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't' + (bt ? ' md-blesse' : ''))}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r' + (br ? ' md-blesse' : '')) : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
     <div class="md-p-b"><button class="btn gold" data-md-go="banc-fermer">Fermer</button></div></div>`;
 }
 function fermerBancMD() { MD.bancOuvert = false; if (MD.el) MD.el.querySelector('.md-bancp').hidden = true; }
@@ -1730,7 +1749,7 @@ function clicMD(e) {
   if (b.classList.contains('md-chg') || d.mdGo === 'banc') return panneauBanc();
   if (d.mdGo === 'banc-fermer') return fermerBancMD();
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
-  if (b.classList.contains('md-tm')) { MD.tmDemande = !MD.tmDemande; return majMD(); }
+  if (b.classList.contains('md-tm')) return tempsMortMD();
   if (b.classList.contains('md-tac')) return panneauMD('tactique');
   if (b.classList.contains('md-sim') || d.mdGo === 'sim') return simulerFinMD();
   if (d.mdGo === 'annuler') { fermerPanneauMD(); return reprendreMD(); }

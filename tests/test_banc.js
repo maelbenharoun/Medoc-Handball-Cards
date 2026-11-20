@@ -13,6 +13,7 @@ const SP = process.argv[2];
   const ad = await sb.creerUtilisateur('mael@test.fr', 'x-admin-123');
   await q("insert into profils (user_id, pseudo, pieces, role) values ($1, 'Mael', 1000, 'admin')", [ad.id]);
   await rpc(db, ad.id, 'admin_publier_cartes', [JSON.stringify(lignesCatalogue()), true]);
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0}'`);   // pas de blessure au hasard ici (tests/test_blessures.js)
   const al = await sb.creerUtilisateur('alice@test.fr', 'motdepasse-alice');
   await rpc(db, al.id, 'creer_profil', ['Alice', true]); await rpc(db, al.id, 'ouvrir_depart');
   await q('update profils set matchs = 5 where user_id = $1', [al.id]);
@@ -111,6 +112,42 @@ const SP = process.argv[2];
   await p.waitForFunction(() => MD.h > 1900, null, {timeout: 20000});
   await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('simuler la fin : résultat', !!(await p.$('.md-fin')));
+  // ── blessure en direct (demande de Maël, 20 nov. 2026) : le banc s'ouvre pour forcer le changement ; une blessure grave prive
+  // des matchs suivants (remplacé d'office au coup d'envoi)
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0.5, "blessures_max": 1, "blessure_gravites": [{"nom": "grave", "p": 1, "min": 2, "max": 2}]}'`);
+  await q('update profils set matchs = 5 where user_id = $1', [al.id]);
+  await p.click('[data-act=fin-direct]').catch(() => {});
+  await p.goto(web.url + '#championnat'); await p.waitForSelector('[data-act=championnat]');
+  await p.click('[data-act=championnat]'); await p.waitForSelector('.md-panneau:not([hidden])');
+  await p.click('[data-md-go=jouer]');
+  await p.waitForSelector('.md-bancp:not([hidden]) .md-alerte', {timeout: 30000});
+  const blTxt = await p.textContent('.md-l.t-blessure');
+  verif('blessure : le banc s’ouvre tout seul, avec l’alerte, et le fil dit la gravité et l’absence', /grave/.test(blTxt) && /absent\(e\) 2 matchs/.test(blTxt) && !!(await p.$('.md-bl.blesse')), blTxt);
+  if (SP) { await p.waitForTimeout(300); await p.screenshot({path: SP + '/banc-4-blessure.png'}); }
+  const pBl = await p.$eval('.md-bl.blesse', x => x.dataset.mdChg);
+  await p.click('.md-bl.blesse'); await p.waitForFunction(() => !MD.chgEnCours && document.querySelectorAll('.md-l.t-changement').length >= 1, null, {timeout: 10000});
+  verif('le blessé remplacé : l’alerte disparaît', !(await p.$('.md-bancp .md-alerte')));
+  await p.click('[data-md-go=banc-fermer]');
+  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
+  await p.click('[data-act=fin-direct]');
+  await p.goto(web.url + '#equipe'); await p.waitForSelector('.pitch');
+  verif('onglet Équipe : 🚑 sur le blessé et ce qui se passera au prochain match', !!(await p.$(`.slot[data-slot=${pBl}] .vig-b`)) && /absent\(e\) 2 matchs/.test(await p.textContent('#view')) && /le remplacera/.test(await p.textContent('#view')));
+  if (SP) { await p.evaluate(() => document.querySelector('.pitch').scrollIntoView({block: 'center'})); await p.waitForTimeout(400); await p.screenshot({path: SP + '/banc-5-equipe-blesse.png'}); }
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0}'`);
+  await p.goto(web.url + '#championnat'); await p.waitForSelector('[data-act=championnat]');
+  await p.click('[data-act=championnat]'); await p.waitForSelector('.md-panneau:not([hidden])');
+  verif('match suivant : « est blessé(e), encore 2 matchs d’absence : son remplaçant commence » au fil', /est blessé\(e\), encore 2 matchs d’absence : son remplaçant commence/.test(await p.textContent('.md-fil')));
+  await p.click('[data-md-go=jouer]'); await p.waitForFunction(() => MD.h > 60, null, {timeout: 20000});
+  // temps mort : tout de suite, à la minute affichée
+  await p.waitForFunction(() => !document.querySelector('.md-tm').disabled && MD.h > 330 && MD.h < 560, null, {timeout: 20000});
+  const hTm = await p.evaluate(() => { const h = MD.h; document.querySelector('.md-tm').click(); return h; });
+  await p.waitForFunction(() => /Temps mort/.test(document.querySelector('.md-panneau:not([hidden]) h3')?.textContent || ''), null, {timeout: 10000});
+  const eTm = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
+  verif('temps mort au toucher : pris à la minute affichée, pas en fin de tranche', eTm.t < 600 && Math.abs(eTm.t - hTm) < 40 && eTm.ev.at(-1).ty === 'temps-mort', {t: eTm.t, hTm});
+  await p.click('[data-md-att=rapide]'); await p.click('[data-md-go=jouer]');
+  await p.waitForFunction(() => MD.h > 620, null, {timeout: 20000});
+  verif('après le temps mort : la tactique choisie s’applique tout de suite', /Tu passes en/.test(await p.textContent('.md-fil')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.blocs.length >= 2);
+  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();
   process.exit(bilan() ? 1 : 0);

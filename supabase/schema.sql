@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "match_banc_poids": 0.5, "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -764,7 +764,10 @@ alter table staff_reglages enable row level security;
 revoke all on staff_reglages from anon, authenticated;   -- lu par etat_de et catalogue_staff, écrit par admin_publier_staff
 alter table profils add column if not exists staff text;   -- la carte staff placée dans l'équipe (une seule place)
 alter table profils add column if not exists perso jsonb not null default '{}';   -- {avatar, cadre, fond}
-alter table profils add column if not exists remplacants jsonb not null default '{}';   -- un remplaçant par poste (demande de Maël) : {poste: id de l'exemplaire}
+alter table profils add column if not exists remplacants jsonb not null default '{}';
+-- blessure d'une carte (demande de Maël, 20 nov. 2026 : « certaines prennent plusieurs matchs ») : matchs encore à manquer, gravité
+alter table exemplaires add column if not exists blessure int not null default 0;
+alter table exemplaires add column if not exists blessure_g text;   -- un remplaçant par poste (demande de Maël) : {poste: id de l'exemplaire}
 
 create or replace function lundi_courant() returns date language sql stable as $$ select date_trunc('week', aujourdhui())::date $$;
 create or replace function debut_semaine() returns timestamptz language sql stable as $$ select lundi_courant()::timestamp at time zone 'Europe/Paris' $$;
@@ -968,7 +971,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'defi', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'defi' and r.le >= debut_du_jour())),
     'limites', jsonb_build_object('championnat', parami('pve_par_jour'), 'seance', parami('seances_par_jour'), 'defi', parami('defis_par_jour')),
     'exemplaires', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note,
-        'xp', e.xp, 'verrou', e.verrou) order by e.obtenu_le) from exemplaires e where e.proprietaire = p.user_id), '[]'),
+        'xp', e.xp, 'verrou', e.verrou, 'blessure', e.blessure, 'blessureG', e.blessure_g) order by e.obtenu_le) from exemplaires e where e.proprietaire = p.user_id), '[]'),
     'quetes', coalesce((select jsonb_agg(jsonb_build_object('id', q.quete, 'progres', least(q.progres, c.objectif), 'objectif', c.objectif,
         'xp', c.xp, 'pieces', c.pieces, 'texte', c.texte, 'reclamee', q.reclamee) order by c.id)
       from quetes q join quetes_catalogue() c on c.id = q.quete where q.user_id = p.user_id and q.jour = aujourdhui()), '[]'),
@@ -1949,6 +1952,33 @@ begin
 end $$;
 -- changements (entre deux tranches) : le titulaire de chaque poste demandé et son remplaçant échangent leurs places ; la force de
 -- l'équipe (attaque, défense, tireurs, bonus de la tactique jouée) est recalculée ; chaque changement est raconté au fil
+-- Blessures (demande de Maël, 20 nov. 2026 : « pour forcer les changements ») : un joueur blessé joue diminué (blessure_malus = 15
+-- points de note à son poste, ramenés sur l'attaque et la défense de l'équipe comme dans force_equipe : 1/6 de l'attaque et 0,6/6 de
+-- la défense pour un joueur de champ, 0,4 de la défense pour le gardien) tant qu'il n'est pas remplacé, et ne peut plus revenir de ce
+-- match (liste « blesses » de l'équipe, des exemplaires).
+create or replace function match_malus_blessure(a jsonb, k text) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare m numeric := coalesce((param('blessure_malus') #>> '{}')::numeric, 15);
+begin
+  return a || jsonb_build_object('att', round((a ->> 'att')::numeric - case when k = 'GB' then 0 else m / 6 end, 2),
+    'def', round((a ->> 'def')::numeric - case when k = 'GB' then .4 * m else .6 * m / 6 end, 2));
+end $$;
+-- la gravité d'une blessure (blessure_gravites : nom, chance, matchs d'absence après celui-ci entre min et max)
+create or replace function blessure_tirer() returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare r numeric := random(); c numeric := 0; g jsonb; der jsonb;
+begin
+  for g in select x from jsonb_array_elements(param('blessure_gravites')) x loop
+    der := g; c := c + (g ->> 'p')::numeric;
+    if r < c then exit; end if;
+  end loop;
+  if der is null then return jsonb_build_object('g', 'légère', 'm', 0); end if;
+  return jsonb_build_object('g', der ->> 'nom', 'm', (der ->> 'min')::int + floor(random() * ((der ->> 'max')::int - (der ->> 'min')::int + 1))::int);
+end $$;
+create or replace function match_blesser(a jsonb, k text) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare id text := a -> 'equipe' ->> k;
+begin
+  if id is null or coalesce(a -> 'blesses', '[]') ? id then return a; end if;
+  return match_malus_blessure(a || jsonb_build_object('blesses', coalesce(a -> 'blesses', '[]') || to_jsonb(id)), k);
+end $$;
 create or replace function match_changer_e(e jsonb, p_uid uuid, p_postes text[]) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare a jsonb := e -> 'a'; eq jsonb; banc jsonb; k text; t_id text; r_id text; f jsonb; ev jsonb := '[]';
@@ -1958,6 +1988,7 @@ begin
   for k in select distinct x from unnest(p_postes) x loop
     if not banc ? k then raise exception 'Pas de remplaçant à ce poste'; end if;
     t_id := eq ->> k; r_id := banc ->> k;
+    if coalesce(a -> 'blesses', '[]') ? r_id then raise exception 'Blessure : % ne peut pas revenir dans ce match', a -> 'bn' ->> k; end if;
     eq := eq || jsonb_build_object(k, r_id); banc := banc || jsonb_build_object(k, t_id);
     ev := ev || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'changement', 'p', k, 'n', a -> 'bn' ->> k, 'o', a -> 'joueurs' ->> k, 's', e -> 'score');
     a := a || jsonb_build_object('bn', (a -> 'bn') || jsonb_build_object(k, a -> 'joueurs' ->> k), 'nb', (a -> 'nb') || jsonb_build_object(k, a -> 'notes' -> k));
@@ -1969,12 +2000,15 @@ begin
   exception when others then raise exception 'Un de ces joueurs n’est plus dans ton club';
   end;
   a := a || match_tactique(f, a ->> 'attaque', a ->> 'defense') || jsonb_build_object('equipe', eq, 'banc', banc);
+  -- un blessé resté sur le terrain à un autre poste garde son malus (la force vient d'être recalculée)
+  for k in select j.key from jsonb_each_text(eq) j where coalesce(a -> 'blesses', '[]') ? j.value loop a := match_malus_blessure(a, k); end loop;
   return jsonb_set(e || jsonb_build_object('a', match_fat(a, 0, 0)), '{ev}', (e -> 'ev') || ev);
 end $$;
 -- joue les possessions jusqu'à la seconde p_fin
 create or replace function match_avancer(e jsonb, p_fin int) returns jsonb language plpgsql volatile as $$
 declare x text; y text; eqx jsonb; eqy jsonb; t int; duree int; p numeric; ps numeric; pen numeric; perte numeric; r numeric; zn text;
-  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric;
+  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric; ea jsonb; kb text;
+  pbl numeric := coalesce((param('blessure_chance') #>> '{}')::numeric, 0); bmax int := coalesce(parami('blessures_max'), 2);
   m numeric := (param('match_contre') #>> '{}')::numeric; base numeric := parami('match_base');
   k numeric := (param('match_coef') #>> '{}')::numeric; POSS constant numeric := 55;
 begin
@@ -2033,6 +2067,20 @@ begin
     fy := duree / 3600.0 * case cy when 'pression' then .22 when 'prudent' then .06 else .1 end;
     eqx := match_fat(eqx, fx, duree / 3600.0 * .15);
     eqy := match_fat(eqy, fy, duree / 3600.0 * .15);
+    -- blessure : plus probable quand l'équipe est fatiguée ; le joueur touché est tiré au sort, les plus fatigués d'abord
+    ea := case x when 'a' then eqx else eqy end;
+    if jsonb_typeof(ea -> 'fp') = 'object' and jsonb_array_length(coalesce(ea -> 'blesses', '[]')) < bmax
+        and random() < pbl * (1 + 4 * (ea ->> 'fatigue')::numeric) then
+      select j.key into kb from jsonb_each_text(ea -> 'equipe') j where not coalesce(ea -> 'blesses', '[]') ? j.value
+        order by -ln(1 - random()) / (1 + 5 * coalesce((ea -> 'fp' ->> j.value)::numeric, 0)) limit 1;
+      if kb is not null then
+        ea := match_blesser(ea, kb);
+        e := jsonb_set(e, '{ev}', (e -> 'ev') || (blessure_tirer() || jsonb_build_object('t', t, 'c', 'a', 'ty', 'blessure', 'p', kb, 'n', ea -> 'joueurs' ->> kb,
+          'id', ea -> 'equipe' ->> kb,
+          'r', coalesce(coalesce(ea -> 'banc', '{}') ? kb and not coalesce(ea -> 'blesses', '[]') ? (ea -> 'banc' ->> kb), false), 's', sc)));
+        if x = 'a' then eqx := ea; else eqy := ea; end if;
+      end if;
+    end if;
     e := e || jsonb_build_object(x, eqx, y, eqy, 'balle', y);
   end loop;
   return e || jsonb_build_object('t', t, 'score', sc);
@@ -2073,7 +2121,7 @@ create or replace function match_rembobiner(e jsonb, h int) returns jsonb langua
 declare d jsonb := e -> 'debut'; n0 int := (e ->> 'debut_n')::int; t0 int; dt numeric; x jsonb; i int := 0; garde jsonb := '[]'; sc jsonb;
   st jsonb := jsonb_build_object('a', e #> '{debut,a,stats}', 'b', e #> '{debut,b,stats}');
   ex jsonb := jsonb_build_object('a', coalesce((e #>> '{debut,a,exclu}')::int, 0), 'b', coalesce((e #>> '{debut,b,exclu}')::int, 0));
-  der jsonb; prochain jsonb; c text; o text; balle text; contre text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
+  der jsonb; prochain jsonb; c text; o text; balle text; contre text; bl jsonb := '[]'; ra jsonb; kbl text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
 begin
   t0 := (d ->> 't')::int; dt := greatest(0, h - t0) / 3600.0; sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
   for x in select v from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k > n0 order by k loop
@@ -2096,6 +2144,7 @@ begin
       ex := jsonb_set(ex, array[c], to_jsonb(greatest((ex ->> c)::int, (x ->> 't')::int + 120)));
     end if;
     if x ->> 'ty' = any(POSS) then der := x; end if;
+    if x ->> 'ty' = 'blessure' then bl := bl || to_jsonb(x ->> 'p'); end if;
   end loop;
   if der is not null then
     balle := case der ->> 'c' when 'a' then 'b' else 'a' end;
@@ -2103,10 +2152,12 @@ begin
     contre := case when der ->> 'ty' = 'perte' and prochain ->> 'c' = balle and prochain ->> 'z' = 'contre' then balle end;
   end if;
   d := (d - 'contre') || case when contre is not null then jsonb_build_object('contre', contre) else '{}' end;
+  ra := match_fat((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int),
+      dt * case d #>> '{a,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15);
+  for kbl in select jsonb_array_elements_text(bl) loop ra := match_blesser(ra, kbl); end loop;
   return d || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
     't', h, 'score', sc, 'balle', balle,
-    'a', match_fat((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int),
-      dt * case d #>> '{a,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15),
+    'a', ra,
     'b', match_fat((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int),
       dt * case d #>> '{b,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15),
     'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t');
@@ -2121,7 +2172,8 @@ create or replace function match_vue(e jsonb, p_depuis int default 0) returns js
       -- chaque poste : le titulaire et son remplaçant, leur note à ce poste et leur fatigue (0 = frais)
       'effectif', case when jsonb_typeof(e -> 'a' -> 'banc') = 'object' then (select jsonb_object_agg(k, jsonb_build_object(
         'n', e -> 'a' -> 'joueurs' ->> k, 'note', e -> 'a' -> 'notes' -> k, 'f', e -> 'a' -> 'fp' -> (e -> 'a' -> 'equipe' ->> k),
-        'r', e -> 'a' -> 'bn' ->> k, 'rnote', e -> 'a' -> 'nb' -> k, 'rf', e -> 'a' -> 'fp' -> (e -> 'a' -> 'banc' ->> k)))
+        'r', e -> 'a' -> 'bn' ->> k, 'rnote', e -> 'a' -> 'nb' -> k, 'rf', e -> 'a' -> 'fp' -> (e -> 'a' -> 'banc' ->> k),
+        'bl', coalesce(e -> 'a' -> 'blesses', '[]') ? (e -> 'a' -> 'equipe' ->> k), 'rbl', coalesce(e -> 'a' -> 'blesses', '[]') ? (e -> 'a' -> 'banc' ->> k)))
         from unnest(array['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB']) k) end),
     'eux', jsonb_build_object('nom', e #>> '{b,nom}', 'note', e -> 'b' -> 'note', 'joueurs', e -> 'b' -> 'joueurs', 'defense', e #>> '{b,defense}',
       'entraineur', coalesce(e #>> '{ia,nom}', 'réfléchi'),
@@ -2178,6 +2230,11 @@ create or replace function match_conclure(p_uid uuid, e jsonb, p_gain numeric) r
 declare r jsonb := match_resultat(e); s jsonb;
 begin
   delete from matchs_direct where user_id = p_uid;   -- avant : l'état renvoyé n'a plus de match en cours
+  -- blessures : chaque match joué (championnat, défi) compte pour les absences en cours ; puis celles de ce match, sur la carte
+  update exemplaires set blessure = blessure - 1, blessure_g = case when blessure > 1 then blessure_g end where proprietaire = p_uid and blessure > 0;
+  update exemplaires x set blessure = greatest(x.blessure, (v ->> 'm')::int), blessure_g = v ->> 'g'
+    from jsonb_array_elements(e -> 'ev') v where v ->> 'ty' = 'blessure' and v ->> 'c' = 'a' and coalesce((v ->> 'm')::int, 0) > 0
+      and x.id::text = v ->> 'id' and x.proprietaire = p_uid;
   if e ->> 'type' = 'championnat' then
     s := championnat_conclure(p_uid, e #>> '{a,tactique}', e -> 'a', e -> 'b', r, p_gain);
   else
@@ -2212,6 +2269,8 @@ declare a jsonb := e -> 'a'; k text; vt numeric; vr numeric; kf numeric; postes 
 begin
   if coalesce(jsonb_typeof(a -> 'banc'), '') <> 'object' or (e ->> 'bloc')::int >= 12 then return e; end if;
   for k in select jsonb_object_keys(a -> 'banc') loop
+    if coalesce(a -> 'blesses', '[]') ? (a -> 'banc' ->> k) then continue; end if;
+    if coalesce(a -> 'blesses', '[]') ? (a -> 'equipe' ->> k) then postes := postes || k; continue; end if;
     kf := w * case when k = 'GB' then 30 else 58 end;
     vt := (a -> 'notes' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0);
     vr := (a -> 'nb' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0);
@@ -2222,9 +2281,51 @@ begin
   exception when others then return e;   -- une carte vendue entre-temps : il ne change rien
   end;
 end $$;
+-- la seconde à laquelle le jeu demande une action au milieu d'une tranche déjà jouée : pas plus tôt que ce que le récit a montré
+-- à la vitesse ×1 depuis que la tranche est servie (sinon on rejouerait une tranche dont on connaît la fin), pas plus tard que sa fin
+create or replace function match_seconde(e jsonb, p_seconde int) returns int language plpgsql stable as $$
+declare fin int := (e ->> 't')::int; h int := least(fin, greatest(0, coalesce(p_seconde, fin)));
+begin
+  if not (e ? 'debut') or (e ->> 'bloc')::int < 1 then return fin; end if;
+  return least(fin, greatest(h, (e #>> '{debut,t}')::int,
+    (e ->> 'servi_t')::int + floor((extract(epoch from clock_timestamp()) - (e ->> 'servi')::numeric) * 25)::int));
+end $$;
+-- une tranche interrompue (temps mort pris au milieu) : on garde l'état du moment pour pouvoir y revenir, puis la fin de la tranche
+create or replace function match_reprendre_tranche(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+begin
+  if (e ->> 't')::int <= (e ->> 'bloc')::int * 300 then return e; end if;
+  e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'),
+    'servi', extract(epoch from clock_timestamp()), 'servi_t', (e ->> 't')::int);
+  return match_bloc_suite(e);
+end $$;
+-- au coup d'envoi, les cartes encore blessées : un titulaire absent est remplacé par son remplaçant (s'il est valide), sinon il joue
+-- diminué ; un remplaçant blessé ne peut pas entrer. Raconté au fil (« absent »).
+create or replace function match_absents(e jsonb, p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare a jsonb := e -> 'a'; l record; postes text[] := '{}'; ev jsonb := '[]'; rid text; ok boolean;
+begin
+  if coalesce(jsonb_typeof(a -> 'fp'), '') <> 'object' then return e; end if;
+  -- remplaçants blessés : sur la liste (ils ne peuvent pas entrer)
+  for l in select j.key, j.value from jsonb_each_text(coalesce(a -> 'banc', '{}')) j join exemplaires x on x.id::text = j.value where x.blessure > 0 loop
+    a := a || jsonb_build_object('blesses', coalesce(a -> 'blesses', '[]') || to_jsonb(l.value));
+  end loop;
+  for l in select j.key, j.value, x.blessure, x.blessure_g from jsonb_each_text(a -> 'equipe') j join exemplaires x on x.id::text = j.value where x.blessure > 0 loop
+    rid := a -> 'banc' ->> l.key;
+    ok := rid is not null and not coalesce(a -> 'blesses', '[]') ? rid;
+    ev := ev || jsonb_build_object('t', 0, 'c', 'a', 'ty', 'absent', 'p', l.key, 'n', a -> 'joueurs' ->> l.key, 'm', l.blessure, 'g', l.blessure_g, 'r', ok, 's', e -> 'score');
+    if ok then
+      a := a || jsonb_build_object('blesses', coalesce(a -> 'blesses', '[]') || to_jsonb(l.value)); postes := postes || l.key;
+    else
+      a := match_blesser(a, l.key);   -- pas de remplaçant valide : il joue, diminué
+    end if;
+  end loop;
+  e := jsonb_set(e || jsonb_build_object('a', a), '{ev}', (e -> 'ev') || ev);
+  if cardinality(postes) > 0 then e := match_changer_e(e, p_uid, postes); end if;
+  return e;
+end $$;
 create or replace function match_finir_simule(p_uid uuid, e jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare reste int := 12 - (e ->> 'bloc')::int; g numeric := (param('match_simule_gain') #>> '{}')::numeric;
 begin
+  e := match_reprendre_tranche(e);
   while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(match_adjoint(match_adjoint_changer(e, p_uid))); end loop;
   e := jsonb_set(e, '{simules}', to_jsonb((e ->> 'simules')::int + reste));
   return match_conclure(p_uid, e, round(1 - (1 - g) * reste / 12.0, 4));
@@ -2273,6 +2374,7 @@ begin
   update profils set tactique = p_tactique where user_id = p.user_id;
   e := match_nouveau(p_type, ctx, fa, fb, p_tactique, coalesce(p_consigne, 'normal'), batt, bdef);
   e := e || jsonb_build_object('ia', match_ia(case when p_type = 'championnat' then match_ia_niveau(p.parcours) else 'reflechi' end));
+  e := match_absents(e, p.user_id);
   if p_simuler then return match_finir_simule(p.user_id, e); end if;
   insert into matchs_direct (user_id, etat) values (p.user_id, e);
   return jsonb_build_object('direct', true, 'vue', match_vue(e), 'etat', etat_de(p.user_id));
@@ -2282,9 +2384,9 @@ end $$;
 -- un temps mort du joueur, à la fin d'une tranche (3 par match, 2 par période) : élan pendant 3 minutes, un peu de fraîcheur, et
 -- surtout (demande de Maël, 14 nov. 2026) la tactique adverse du moment dévoilée, attaque comprise (elle est cachée le reste du temps)
 create or replace function match_tm_prendre(e jsonb) returns jsonb language plpgsql stable as $$
-declare b int := (e ->> 'bloc')::int; per text := case when b < 6 then 'p1' else 'p2' end;
+declare t int := (e ->> 't')::int; per text := case when t < 1800 then 'p1' else 'p2' end;
 begin
-  if b < 1 or b >= 12 then raise exception 'Pas de temps mort maintenant'; end if;
+  if t <= 0 or t >= 3600 then raise exception 'Pas de temps mort maintenant'; end if;
   if (e #>> '{tm,restants}')::int < 1 then raise exception 'Plus de temps mort'; end if;
   if (e -> 'tm' ->> per)::int >= 2 then raise exception 'Déjà 2 temps morts dans cette période'; end if;
   e := jsonb_set(e, '{tm}', (e -> 'tm') || jsonb_build_object('restants', (e #>> '{tm,restants}')::int - 1, per, (e -> 'tm' ->> per)::int + 1));
@@ -2297,12 +2399,12 @@ end $$;
 -- (demande de Maël, 14 nov. 2026 ; avant : seulement au coup d'envoi, à la mi-temps et sur un temps mort)
 create or replace function match_regler(e jsonb, p_tactique text, p_consigne text, p_temps_mort boolean) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare b int := (e ->> 'bloc')::int; cons text := coalesce(p_consigne, 'normal');
+declare t int := (e ->> 't')::int; cons text := coalesce(p_consigne, 'normal');
 begin
   if p_temps_mort then e := match_tm_prendre(e); end if;   -- ancienne façon de prendre un temps mort (jeu pas encore à jour)
   perform verifier_tactique(p_tactique);
   if cons not in ('normal', 'prudent', 'pression') then raise exception 'Consigne inconnue'; end if;
-  if b > 0 and b < 12 and (p_tactique is distinct from e #>> '{a,tactique}' or cons is distinct from e #>> '{a,consigne}') then
+  if t > 0 and t < 3600 and (p_tactique is distinct from e #>> '{a,tactique}' or cons is distinct from e #>> '{a,consigne}') then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'tactique', 'v', p_tactique, 'cons', cons, 's', e -> 'score'));
   end if;
   return e || jsonb_build_object('a', match_tactique(e -> 'a', tac_attaque(p_tactique), tac_defense(p_tactique))
@@ -2318,7 +2420,8 @@ begin
   -- la dernière tranche jouée, le jeu la raconte (on peut encore faire des changements) ; le résultat vient à l'appel suivant
   if (e ->> 'bloc')::int >= 12 then return match_conclure(p.user_id, e, 1) || jsonb_build_object('vue', match_vue(e, n)); end if;
   e := match_regler(e, p_tactique, p_consigne, p_temps_mort);
-  e := match_bloc_jouer(e);
+  -- après un temps mort pris au milieu d'une tranche : la fin de cette tranche (avec les réglages choisis pendant le temps mort)
+  if (e ->> 't')::int > (e ->> 'bloc')::int * 300 then e := match_reprendre_tranche(e); else e := match_bloc_jouer(e); end if;
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
   return jsonb_build_object('direct', true, 'vue', match_vue(e, n));
 end $$;
@@ -2327,17 +2430,25 @@ create or replace function match_en_cours() returns jsonb language sql security 
   select match_vue(etat) from matchs_direct where user_id = auth.uid()
 $$;
 -- simuler la fin du match en cours : les blocs restants sans adaptation, gains réduits au prorata
--- temps mort demandé par le jeu, à la fin de la tranche racontée : renvoie la tactique adverse du moment (attaque et défense)
-create or replace function match_temps_mort() returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); cur matchs_direct; e jsonb; n int;
+-- temps mort demandé par le jeu, tout de suite (demande de Maël, 20 nov. 2026) : à la seconde que montre le récit (p_seconde,
+-- bornée par match_seconde). Le serveur revient à cette seconde, prend le temps mort et s'arrête là : la fin de la tranche est jouée
+-- au prochain match_bloc, avec la tactique choisie pendant le temps mort. Renvoie la tactique adverse du moment et « reprise ».
+-- (L'ancienne fonction sans paramètre est remplacée : avec une valeur par défaut, le jeu pas encore à jour l'appelle encore.)
+drop function if exists match_temps_mort();
+create or replace function match_temps_mort(p_seconde int default null) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; n int; h int;
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
-  e := cur.etat; n := jsonb_array_length(e -> 'ev');
-  if (e ->> 'bloc')::int = 6 then raise exception 'C’est la mi-temps : change ce que tu veux sans temps mort'; end if;
+  e := cur.etat;
+  h := match_seconde(e, p_seconde);
+  if h = 1800 and (e ->> 'bloc')::int = 6 then raise exception 'C’est la mi-temps : change ce que tu veux sans temps mort'; end if;
+  if h < (e ->> 't')::int then e := match_rembobiner(e, h); end if;
+  n := jsonb_array_length(e -> 'ev');
   e := match_tm_prendre(e);
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
-  return jsonb_build_object('vue', match_vue(e, n), 'adverse', jsonb_build_object('attaque', e #>> '{b,attaque}', 'defense', e #>> '{b,defense}'));
+  return jsonb_build_object('vue', match_vue(e, n), 'reprise', h,
+    'adverse', jsonb_build_object('attaque', e #>> '{b,attaque}', 'defense', e #>> '{b,defense}'));
 end $$;
 -- changements demandés par le jeu, tout de suite (demande de Maël, 20 nov. 2026 : « dès qu'on appuie, et le temps ne s'arrête pas ») :
 -- p_seconde = la seconde que le récit montre. Le serveur a déjà joué la tranche jusqu'au bout : il revient à cette seconde (ce qui
@@ -2346,7 +2457,7 @@ end $$;
 -- lent prend du retard, même en ×4), sinon il pourrait rejouer une tranche entière dont il connaît déjà la fin. Renvoie les nouveaux événements et « reprise » : le jeu garde
 -- ceux qu'il avait jusqu'à cette seconde et remplace la suite.
 create or replace function match_changer(p_postes jsonb, p_seconde int) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); cur matchs_direct; e jsonb; n int; ps text[]; h int; hmin int; fin int; b int;
+declare p profils := moi(); cur matchs_direct; e jsonb; n int; ps text[]; h int; fin int; b int;
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
@@ -2354,13 +2465,7 @@ begin
   if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) = 0 or jsonb_array_length(p_postes) > 7 then raise exception 'Changements invalides'; end if;
   select array_agg(x) into ps from jsonb_array_elements_text(p_postes) x;
   if exists (select 1 from unnest(ps) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then raise exception 'Poste inconnu'; end if;
-  h := least(fin, greatest(0, coalesce(p_seconde, fin)));
-  if e ? 'debut' and b >= 1 then
-    hmin := (e ->> 'servi_t')::int + floor((extract(epoch from clock_timestamp()) - (e ->> 'servi')::numeric) * 25)::int;
-    h := least(fin, greatest(h, hmin, (e #>> '{debut,t}')::int));
-  else
-    h := fin;
-  end if;
+  h := match_seconde(e, p_seconde);
   if b >= 12 and h >= fin then raise exception 'Le match est fini'; end if;
   if h < fin then
     -- au milieu de la tranche : retour à la seconde h, changements, puis la fin de la tranche rejouée
@@ -2369,6 +2474,7 @@ begin
     e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'));
     e := match_bloc_suite(e);
   else
+    -- au bout de ce qui est joué (fin de tranche, ou pendant un temps mort pris au milieu) : le changement s'ajoute là
     n := jsonb_array_length(e -> 'ev');
     e := match_changer_e(e, p.user_id, ps);
   end if;
@@ -3943,7 +4049,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

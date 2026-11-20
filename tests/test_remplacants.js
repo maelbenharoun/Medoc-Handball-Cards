@@ -12,6 +12,7 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   const q = async (s, p = []) => (await db.query(s, p)).rows;
   const ad = await nouvelUtilisateur(db); await q("insert into profils (user_id, pseudo, pieces, role) values ($1, 'Mael', 0, 'admin')", [ad]);
   await rpc(db, ad, 'admin_publier_cartes', [JSON.stringify(lignesCatalogue()), true]);
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0}'`);   // pas de blessure au hasard ici (tests/test_blessures.js)
   const al = await nouvelUtilisateur(db), bo = await nouvelUtilisateur(db);
   for (const [u, n] of [[al, 'Alice'], [bo, 'Bob']]) { await rpcJoueur(db, u, 'creer_profil', [n, true]); await rpcJoueur(db, u, 'ouvrir_depart'); }
   await q('update profils set pieces = 100000, matchs = 10 where user_id in ($1, $2)', [al, bo]);

@@ -16,6 +16,7 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   const ad = await sb.creerUtilisateur('mael@test.fr', 'x-admin-123');
   await q("insert into profils (user_id, pseudo, pieces, role) values ($1, 'Mael', 1000, 'admin')", [ad.id]);
   await rpc(db, ad.id, 'admin_publier_cartes', [JSON.stringify(lignesCatalogue()), true]);
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0}'`);   // pas de blessure au hasard ici (tests/test_blessures.js)
   const al = await sb.creerUtilisateur('alice@test.fr', 'motdepasse-alice');
   await rpc(db, al.id, 'creer_profil', ['Alice', true]); await rpc(db, al.id, 'ouvrir_depart');
   const etat = async () => (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0]?.etat;

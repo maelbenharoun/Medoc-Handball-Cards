@@ -1951,3 +1951,11 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .md-bancp h3 small { margin-left: 6px; font-size: .72rem; font-weight: 700; color: #3fcf8e; }
 .md-bancp .md-bl:disabled { opacity: .7; }
 .md-bancp .md-bl.on { opacity: 1; }
+.md-bl.blesse { border-color: #e5484d; background: #2a1618; }
+.md-bj.md-blesse b::before { content: '🚑 '; }
+.md-bj.r.md-blesse { opacity: .5; }
+.md-alerte { margin: 4px 0 8px; padding: 8px 10px; border-radius: 12px; background: #3a1619; border: 1px solid #e5484d; color: #ffd7d7; font-size: .82rem; }
+.md-l.t-blessure span { color: #ffb4b4; }
+.vig-b { position: absolute; top: -6px; left: calc(50% - min(36px, 10cqw)); font-style: normal; font-size: .9rem; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8)); }
+.banc-s .vig-b { left: -2px; font-size: .75rem; }
+.md-l.t-absent span { color: #ffb4b4; }
