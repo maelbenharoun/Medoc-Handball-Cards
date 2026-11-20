@@ -578,7 +578,7 @@ function vuePronos() {
   const passes = d.passes.map(m => `<div class="pr-r"><div><b>${esc(m.dom)} ${m.score.join(' – ')} ${esc(m.ext)}</b>
       <small>Ton prono : ${m.prono.dom} – ${m.prono.ext}${m.prono.buteur ? ' · ' + esc(nomC(m.prono.buteur)) : ''}${m.buteur ? ` · meilleur buteur : ${esc(nomC(m.buteur.carte))} (${m.buteur.buts})` : ''}</small></div>
     <em class="${m.prono.points ? 'gagne' : ''}">${m.prono.points == null ? '…' : '+' + m.prono.points}</em></div>`).join('');
-  const classe = (l, vide) => l.length ? `<div class="classe av-l">${l.map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}"><span>${i + 1}</span>${avatarHTML(x.perso)}<b>${esc(x.pseudo)}</b><em>${plur(x.points, 'pt')}</em></div>`).join('')}</div>` : `<p class="sub">${vide}</p>`;
+  const classe = (l, vide) => l.length ? `<div class="classe av-l">${l.map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}"><span>${i + 1}</span>${avatarHTML(x.perso)}<b>${lienJ(x.pseudo)}</b><em>${plur(x.points, 'pt')}</em></div>`).join('')}</div>` : `<p class="sub">${vide}</p>`;
   return `${retour('social', 'Social')}<h1>Pronos</h1>
     <p class="sub">Devine le score des matchs du club et leur meilleur buteur, avant le coup d’envoi 🔮</p>
     <p class="pr-bareme">Score exact <b>${B.exact} pts</b> · bon vainqueur <b>${B.issue}</b> (+${B.ecart} avec le bon écart) · buteur <b>${B.buteur}</b> · 1 point = ${d.piecesPoint} <i class="coin"></i></p>
@@ -603,7 +603,7 @@ function vueLigue() {
   const lignes = d.classement.map((x, i) => { const zone = i < d.montee ? 'monte' : i >= n - d.descente ? 'descend' : '';
     const peut = !x.moi && reste > 0 && x.contreMoi < d.memeAdversaire;
     return `<div class="lg-l ${zone}${x.moi ? ' moi-l' : ''}"><span>${i + 1}</span>${x.humain ? avatarHTML(x.perso) : '<span class="av bot" aria-hidden="true">🤖</span>'}
-      <b>${esc(x.nom)}${x.note ? ` <small>${x.note}</small>` : ''}</b><small title="matchs joués">${x.joues} J</small><em>${x.points}</em>
+      <b>${x.humain ? lienJ(x.nom) : esc(x.nom)}${x.note ? ` <small>${x.note}</small>` : ''}</b><small title="matchs joués">${x.joues} J</small><em>${x.points}</em>
       ${x.moi ? '<i class="lg-moi">toi</i>' : `<button class="btn ${peut ? 'gold' : 'ghost'} petit" data-ligue="${esc(x.id)}"${peut ? '' : ' disabled'}>${x.contreMoi >= d.memeAdversaire ? '✓' : 'Jouer'}</button>`}</div>`; }).join('');
   return `${retour('jouer', 'Jouer')}<h1>Ligue · ${esc(d.nom)}</h1>
     ${b ? `<div class="lg-bilan"><b>Semaine passée : ${b.rang}${b.rang === 1 ? 'er' : 'e'} sur ${b.sur}</b>
@@ -641,7 +641,7 @@ function vueClubs() {
     <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, ligue, défis que tu lances, depuis ton arrivée dans le club)</p>
     <div class="cl-pal">${c.paliers.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * c.victoires / p.objectif)}%"></i></span>
       ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>
-    <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${esc(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
+    <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${lienJ(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
       <small>niv. ${m.niveau}</small><em>${plur(m.victoires, 'victoire')}</em></div>`).join('')}</div>
     <h2>Classement des clubs</h2><div class="cl-liste">${liste}</div>
     <button class="btn ghost danger" data-act="club-quitter" style="width:100%;margin-top:14px">Quitter le club</button>`;
@@ -1087,7 +1087,7 @@ function vueChampionnat() {
   const complet = noteEquipe().n === 7, note = noteEquipe().note;
   const restant = (k) => Math.max(0, (l[k] || 0) - (j[k] || 0));
   const histo = (JEU.rencontres || []).slice(0, 8).map(r => `<div class="hist r-${r.resultat}"><b>${r.score ? r.score.join(' – ') : ''}</b>
-    <span>${{championnat: 'Championnat', defi: 'Défi', defi_ami: 'Défi ami(e)', defense_ami: 'Défi ami(e) reçu'}[r.type] || 'Défendu'} · ${esc(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
+    <span>${{championnat: 'Championnat', defi: 'Défi', defi_ami: 'Défi ami(e)', defense_ami: 'Défi ami(e) reçu'}[r.type] || 'Défendu'} · ${r.type === 'championnat' || r.type === 'ligue' ? esc(r.adversaire) : lienJ(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
   const T = tactiqueActuelle(), ta = TACT_ATT.find(x => x[0] === T.att)[1], td = TACT_DEF.find(x => x[0] === T.def)[1];
   return `${retour('jouer', 'Jouer')}<h1>Championnat</h1>
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
@@ -1846,13 +1846,13 @@ function vueMarche() {
   const possibles = D.possibles.map((x, i) => { const o = carteDe(x.donne, x.palier), r = carteDe(x.recoit, x.palier);
     return o && r ? `<div class="ann tr-p"><div class="ann-l"><div class="ann-c"><span>Tu donnes</span>${carteHTML(o)}<small>${esc(o.nom)}</small></div>
       <div class="fleche">⇄</div><div class="ann-c"><span>Tu reçois</span>${carteHTML(r)}<small>${esc(r.nom)}</small></div></div>
-      <p class="ann-p">Avec <b>${esc(x.pseudo)}</b>${x.ami ? ' · ami(e)' : ''} · ${R_LABEL[x.palier]}</p>
+      <p class="ann-p">Avec <b>${lienJ(x.pseudo)}</b>${x.ami ? ' · ami(e)' : ''} · ${R_LABEL[x.palier]}</p>
       <button class="btn gold" data-transferer="${i}">Échanger</button></div>` : ''; }).join('');
   const veux = D.veux.map((x, i) => vignetteListe(x, 'veux', i)).join('');
   const donne = D.donne.map((x, i) => vignetteListe(x, 'donne', i, x.libres > 1 ? `<i class="tr-n">×${x.libres}</i>` : '')).join('');
   const ajout = (sens, n) => n < max ? `<button class="tr-plus" data-ajout-liste="${sens}"><b>+</b><small>Ajouter</small></button>` : '';
   const histo = (D.historique || []).map(h => `<p class="tr-h${h.nouveau ? ' nouveau' : ''}">${h.nouveau ? '<b class="pastille-n">nouveau</b>' : ''}
-    Avec <b>${esc(h.avec || '?')}</b> : ${esc(PAR_ID[h.donne]?.nom || h.donne)} ⇄ ${esc(PAR_ID[h.recoit]?.nom || h.recoit)} <small>${R_LABEL[h.palier]} · ${new Date(h.le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></p>`).join('');
+    Avec <b>${lienJ(h.avec)}</b> : ${esc(PAR_ID[h.donne]?.nom || h.donne)} ⇄ ${esc(PAR_ID[h.recoit]?.nom || h.recoit)} <small>${R_LABEL[h.palier]} · ${new Date(h.le).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></p>`).join('');
   return `${retour('social', 'Social')}<h1>Transferts</h1>
     <p class="sub">${max} joueurs que tu veux, ${max} que tu donnes : on te trouve les échanges qui collent, un toucher et c’est fait ⇄</p>
     <h2>Échanges possibles${D.possibles.length ? ` (${D.possibles.length})` : ''}</h2>
@@ -2059,11 +2059,16 @@ function vueClassement() {
       <small>${esc(x.groupe === 'Légendes' ? x.nom : x.groupe + ' · ' + x.nom)}</small><em>niv. ${x.niveau}</em><i class="cl-eq" aria-hidden="true">Équipe ›</i></button>`).join('')
       || '<p class="sub">Personne pour l’instant.</p>'}</div>`}`;
 }
+// Pseudo d'un autre joueur, partout où il s'affiche (demande de Maël, retour de Guit, 20 nov. 2026 : pas seulement depuis le
+// classement) : un toucher ouvre son équipe. Pas de lien pour soi-même ni pour un compte supprimé.
+const lienJ = pseudo => !pseudo || pseudo === 'Joueur supprimé' || pseudo.toLowerCase() === String(S().pseudo || '').toLowerCase() ? esc(pseudo || '?')
+  : `<button class="lien-j" data-voir-equipe="${esc(pseudo)}" aria-label="Voir l’équipe de ${esc(pseudo)}">${esc(pseudo)}</button>`;
 // « Voir l'équipe » (demande de Maël) : ce que joue un autre joueur du classement, en lecture seule. Le serveur donne ses 7 alignés,
 // sa tactique, sa carte staff et sa note d'équipe calculée comme en match (equipe_publique) ; ses légendes viennent avec leur carte.
-const EQDE = {d: null, pseudo: ''};
+const EQDE = {d: null, pseudo: '', ami: null};
 function voirEquipe(pseudo, depuisFiche) {
   EQDE.pseudo = pseudo;
+  if (!depuisFiche) { EQDE.ami = (SOC.panneau === 'ami' || SOC.panneau === 'defi') && !$('#overlay').hidden ? SOC.ami : null; SOC.panneau = null; }
   if (depuisFiche && EQDE.d && EQDE.d.pseudo.toLowerCase() === pseudo.toLowerCase()) return fenetreEquipeDe(EQDE.d);
   ouvrirOverlay(`<div class="sheet eq-de"><h3>Équipe de ${esc(pseudo)}</h3><p class="sub">Chargement…</p></div>`);
   action(Compte.equipePublique(pseudo), d => { EQDE.d = d; if (EQDE.pseudo === pseudo && !$('#overlay').hidden) fenetreEquipeDe(d); })
@@ -2088,7 +2093,7 @@ function fenetreEquipeDe(d) {
   const st = d.staff && staffDe(d.staff.id);
   const cartes = POSTES.filter(p => al[p.id]).map(p => { const x = al[p.id], tag = x.j.legende ? 'div' : 'button';
     return `<${tag} class="eqde-c"${ouvre(x)}>${carteHTML(x.c)}<small>${p.id}${d.notes?.[p.id] != null ? ` · ${d.notes[p.id]} en match` : ''}</small></${tag}>`; }).join('');
-  ouvrirOverlay(`<div class="sheet eq-de">
+  ouvrirOverlay(`<div class="sheet eq-de">${EQDE.ami ? `<button class="retour" data-ami="${esc(EQDE.ami)}">‹ ${esc(EQDE.ami)}</button>` : ''}
     <div class="eqde-t">${avatarHTML(d.perso)}<div><h3>${d.moi ? 'Ton équipe' : 'Équipe de ' + esc(d.pseudo)}</h3>
       <small>${esc(d.groupe === 'Légendes' ? d.poule : d.groupe + ' · ' + d.poule)} · niv. ${d.niveau}</small></div></div>
     ${Object.keys(al).length ? `<div class="teamnote"><div class="stat"><b>${d.note ?? '–'}</b><span>note d’équipe</span></div>
@@ -2113,7 +2118,7 @@ function panneauAmis() {
   ouvrirOverlay(`<div class="sheet amis-p"><h3>Ami(e)s</h3>
     <form class="ajout-ami" data-form="ami"><input class="champ" name="pseudo" placeholder="Pseudo d’un(e) ami(e)" value="${esc(SOC.ajout)}" autocapitalize="off" autocomplete="off" spellcheck="false" required>
       <button class="btn gold" type="submit">Ajouter</button></form>
-    ${A.recues.map(p => `<div class="adv"><div><b>${esc(p)}</b><small>veut être ton ami(e)</small></div>
+    ${A.recues.map(p => `<div class="adv"><div><b>${lienJ(p)}</b><small>veut être ton ami(e)</small></div>
       <div class="ed-btns"><button class="btn ghost petit" data-repondre-ami="${esc(p)}:0">Refuser</button><button class="btn gold petit" data-repondre-ami="${esc(p)}:1">Accepter</button></div></div>`).join('')}
     ${recus.length ? `<p class="sub petit">${recus.length} échange${recus.length > 1 ? 's' : ''} proposé${recus.length > 1 ? 's' : ''} : touche l’ami(e) pour répondre.</p>` : ''}
     <div class="liste-amis">${A.amis.map(x => { const r = recus.some(e => e.de === x.pseudo);
@@ -2121,7 +2126,7 @@ function panneauAmis() {
         <span><b>${esc(x.pseudo)}</b><small>${esc(x.nom || '')} · niveau ${x.niveau}</small></span>
         ${x.nonLus ? `<em class="ami-n">${x.nonLus} message${x.nonLus > 1 ? 's' : ''}</em>` : r ? '<em class="ami-n">échange</em>' : ''}</button>`; }).join('')
       || '<p class="sub petit">Pas encore d’ami(e) : ajoute un pseudo ci-dessus.</p>'}</div>
-    ${A.envoyees.length ? `<p class="sub petit">En attente de réponse : ${A.envoyees.map(esc).join(', ')}</p>` : ''}
+    ${A.envoyees.length ? `<p class="sub petit">En attente de réponse : ${A.envoyees.map(lienJ).join(', ')}</p>` : ''}
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 function ficheAmi(pseudo) {
@@ -2142,6 +2147,7 @@ function ficheAmi(pseudo) {
   }).join('');
   ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-act="amis">‹ Ami(e)s</button>
     <h3>${esc(pseudo)} <small>${esc(x.nom || '')} · niveau ${x.niveau}</small></h3>
+    <button class="lien voir-eq" data-voir-equipe="${esc(pseudo)}">Voir son équipe ›</button>
     <div class="ami-actions">
       <button class="ami-a" data-ami-message="${esc(pseudo)}"><span aria-hidden="true">💬</span><b>Message</b><small>${x.nonLus ? `${x.nonLus} non lu${x.nonLus > 1 ? 's' : ''}` : 'Écrire'}</small></button>
       <button class="ami-a" data-proposer="${esc(pseudo)}"${x.echange || !A.restants ? ' disabled' : ''}><span aria-hidden="true">⇄</span><b>Échange</b>
@@ -2158,6 +2164,7 @@ function fenetreDefi(pseudo) {
   const A = SOC.amis || {};
   ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button>
     <h3>Défier ${esc(pseudo)}</h3>
+    <button class="lien voir-eq" data-voir-equipe="${esc(pseudo)}">Voir son équipe ›</button>
     <p class="sub petit">Son équipe joue avec sa tactique. ${A.defiPieces ?? 30} pièces au gagnant.</p>
     <div class="jouer-2"><button class="btn gold large" data-act="defi-direct">Jouer le match</button>
       <button class="btn ghost" data-act="defi-simuler">Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div></div>`);
@@ -3334,7 +3341,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=78').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=79').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
