@@ -76,7 +76,7 @@ insert into parametres values (1, '{
   "synchro_matchs_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/matchs.json", "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
   "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
   "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
-  "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.10, "tactique_pente": 0.4,
+  "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.06, "tactique_pente": 0.4,
   "amis_max": 50, "echanges_amis_par_jour": 3, "echange_jours": 7,
   "messages_par_jour": 100, "message_longueur": 300, "defis_amis_par_jour": 5, "defi_ami_pieces": 30,
   "synchro_semaine_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/semaine.json",
@@ -3841,6 +3841,9 @@ update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' wher
 -- 20 nov. 2026 (fatigue de chaque joueur) : au plus 1 blessure par match (Maël : « 2 blessures par match c'est trop ») ; seulement si
 -- la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs ->> 'blessures_max')::int = 2;
+-- 20 nov. 2026 : bonus de tactique au plus 6 % (10 % avant) ; prendre le dessus (match_contre = 5 % de chances de marquer en plus)
+-- doit compter plus que le plus gros bonus (10 % d'attaque ≈ +7 à 8 % de chances, 6 % ≈ +4,4 %) ; seulement si encore à 0,10
+update parametres set valeurs = valeurs || '{"tactique_bonus_max": 0.06}' where (valeurs ->> 'tactique_bonus_max')::numeric = 0.10;
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case
