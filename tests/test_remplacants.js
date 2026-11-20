@@ -68,16 +68,19 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   for (let k = 0; k < 3; k++) r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'pression', false]);
   e = await etat();
   const fT = e.a.fp[e.a.equipe.AG], fB = e.a.fp[e.a.banc.AG];
-  verif('sans changement : les 7 sur le terrain ont la même fatigue, celle de l’équipe ; le banc reste frais', +fT > 0 && +fB === 0
-    && POSTES.every(k => +e.a.fp[e.a.equipe[k]] === +fT) && Math.abs(+e.a.fatigue - +fT) < 1e-9, {fT, fB, f: e.a.fatigue});
+  // fatigue de chaque joueur (20 nov. 2026) : 15 minutes sous pression, chacun selon son endurance (fr, de 0,8 à 1,2)
+  const surT = POSTES.map(k => +e.a.fp[e.a.equipe[k]]), moy = surT.reduce((a, b) => a + b, 0) / 7;
+  verif('sans changement : chacun sa fatigue (15 min sous pression × son endurance) ; le banc reste frais ; l’équipe = la moyenne des 7',
+    POSTES.every(k => Math.abs(+e.a.fp[e.a.equipe[k]] - Math.min(1, 15 * .04 * +e.a.fr[e.a.equipe[k]])) < .02) && +fB === 0
+    && Math.abs(+e.a.fatigue - moy) < 1e-3 && Object.values(e.a.fr).every(v => +v >= .8 && +v <= 1.2), {surT, fB, f: e.a.fatigue, fr: e.a.fr});
   const avant = {att: e.a.att, nomAG: e.a.joueurs.AG, nomR: e.a.bn.AG};
   r = await rpcJoueur(db, al, 'match_changer', [JSON.stringify(['AG', 'PIV']), null]);
   e = await etat();
   verif('changement : le remplaçant entre, le titulaire va sur le banc', !r.erreur && e.a.equipe.AG === remp.AG && e.a.banc.AG === eq0.AG && e.a.joueurs.AG === avant.nomR && e.a.bn.AG === avant.nomAG, r.erreur);
   verif('raconté au fil (« changement », entrant et sortant)', r.vue?.evenements?.some(x => x.ty === 'changement' && x.p === 'AG' && x.n === avant.nomR && x.o === avant.nomAG));
   verif('la force est recalculée (tireurs, attaque)', e.a.tireurs.some(x => x.n === avant.nomR) && !e.a.tireurs.some(x => x.n === avant.nomAG));
-  const w = +e.a.fw, att = w * fT * 5 / 7 + (1 - w) * fT;   // moitié la moyenne des 7 sur le terrain, moitié la fatigue du groupe (match_banc_poids)
-  verif('la fatigue de l’équipe baisse (2 joueurs frais sur 7, compté à moitié : match_banc_poids)', w === 0.5 && Math.abs(+e.a.fatigue - att) < 1e-3, {f: e.a.fatigue, attendu: att});
+  const att = POSTES.map(k => +e.a.fp[e.a.equipe[k]]).reduce((a, b) => a + b, 0) / 7;
+  verif('la fatigue de l’équipe baisse (2 joueurs frais sur 7) : la moyenne des 7 sur le terrain', Math.abs(+e.a.fatigue - att) < 1e-3 && +e.a.fatigue < moy - .1, {f: e.a.fatigue, attendu: att});
   r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'pression', false]);
   e = await etat();
   verif('la tranche suivante : le titulaire sorti récupère sur le banc, l’entrant se fatigue', +e.a.fp[eq0.AG] < +fT && +e.a.fp[remp.AG] > 0, {sorti: e.a.fp[eq0.AG], entre: e.a.fp[remp.AG]});
@@ -129,7 +132,7 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   e = await etat();
   verif('sans remplaçant : pas de changement possible', erreur(await rpcJoueur(db, al, 'match_changer', [JSON.stringify(['AG']), null]), 'Pas de remplaçant'));
   r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'normal', false]); e = await etat();
-  verif('sans remplaçant : fatigue de l’équipe = celle des 7', +e.a.fatigue > 0 && Object.values(e.a.fp).every(v => +v === +e.a.fatigue));
+  verif('sans remplaçant : fatigue de l’équipe = la moyenne des 7', +e.a.fatigue > 0 && Math.abs(Object.values(e.a.fp).reduce((a, b) => a + +b, 0) / 7 - +e.a.fatigue) < 1e-3);
   // un match commencé avant cette version (sans fp ni banc) : il se joue toujours
   await q("update matchs_direct set etat = jsonb_set(etat, '{a}', (etat -> 'a') - 'fp' - 'banc' - 'equipe' - 'bn' - 'nb') where user_id = $1", [al]);
   r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'normal', false]);

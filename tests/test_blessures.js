@@ -23,6 +23,9 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
     remp[po] = (await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, 'argent', 70) returning id", [al, c]))[0].id;
   }
   await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eq0), JSON.stringify(remp)]);
+  // cartes neuves = protégées 5 matchs contre les blessures (exemplaires.protection) : on l'enlève pour tester les blessures, on la
+  // vérifie à part (partie 5)
+  await q('update exemplaires set protection = null where proprietaire = $1', [al]);
   const etat = async () => (await q('select etat from matchs_direct where user_id = $1', [al]))[0]?.etat;
   const vieillir = async s => q("update matchs_direct set etat = jsonb_set(etat, '{servi}', to_jsonb(extract(epoch from clock_timestamp()) - $2::numeric)) where user_id = $1", [al, s]);
 
@@ -51,7 +54,7 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   await rpcJoueur(db, al, 'match_simuler_fin');
 
   // ── 2. blessures en match
-  await regler({blessure_chance: 0.5, blessures_max: 1, blessure_gravites: [{nom: 'grave', p: 1, min: 2, max: 2}]});
+  await regler({blessure_chance: 5, blessures_max: 1, blessure_gravites: [{nom: 'grave', p: 1, min: 2, max: 2}]});   // risque énorme : une blessure dès la 1re tranche
   await q('update profils set matchs = 10 where user_id = $1', [al]);
   r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', false]);
   r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'normal', false]);
@@ -100,16 +103,43 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   verif('guéri : plus d’absence au coup d’envoi', !r.vue.evenements.some(y => y.ty === 'absent'));
   await rpcJoueur(db, al, 'match_simuler_fin');
 
-  // ── 4. fréquence réelle (réglages par défaut) : environ 1 blessure tous les 2 à 4 matchs, la plupart légères
-  await regler({blessure_chance: 0.003, blessures_max: 2, blessure_gravites: [{nom: 'légère', p: 0.55, min: 0, max: 0}, {nom: 'moyenne', p: 0.3, min: 1, max: 1},
+  // ── 4. fréquence réelle (réglages par défaut, fatigue de chaque joueur) : avec le banc, l'adjoint de « Simuler » fait tourner,
+  // peu de blessures ; sans banc, tout le monde finit dans le rouge : une blessure presque à chaque match (1 au plus)
+  await regler({blessure_chance: 0.003, blessures_max: 1, blessure_gravites: [{nom: 'légère', p: 0.55, min: 0, max: 0}, {nom: 'moyenne', p: 0.3, min: 1, max: 1},
     {nom: 'sérieuse', p: 0.12, min: 2, max: 3}, {nom: 'grave', p: 0.03, min: 4, max: 6}]});
+  const serie = async (k, banc) => { let nb = 0, max = 0;
+    await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eq0), banc ? JSON.stringify(remp) : '{}']);
+    for (let i = 0; i < k; i++) {
+      await q('update profils set matchs = 10 where user_id = $1', [al]); await q('update exemplaires set blessure = 0, protection = null where proprietaire = $1', [al]);
+      r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', true]);
+      const c = (r.match?.evenements || []).filter(y => y.ty === 'blessure').length; nb += c; max = Math.max(max, c);
+    }
+    return {nb, max}; };
+  let s1 = await serie(30, true);
+  verif(`avec le banc (l'adjoint fait tourner) : ${s1.nb} blessures en 30 matchs (attendu peu : 0 à 12)`, s1.nb <= 12 && s1.max <= 1, s1);
+  let s2 = await serie(12, false);
+  verif(`sans banc (tout le monde dans le rouge) : ${s2.nb} blessures en 12 matchs, jamais plus d'une par match`, s2.nb >= 7 && s2.max <= 1, s2);
+
+  // ── 5. protection cachée : une carte qui vient d'arriver ne se blesse pas pendant 5 matchs (demande de Maël, 20 nov. 2026)
+  await regler({blessure_chance: 5, blessures_max: 1});
   await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eq0), JSON.stringify(remp)]);
-  let n = 0, nb = 0;
-  for (let i = 0; i < 30; i++) {
-    await q('update profils set matchs = 10 where user_id = $1', [al]); await q('update exemplaires set blessure = 0 where proprietaire = $1', [al]);
-    r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', true]);
-    n++; nb += (r.match?.evenements || []).filter(y => y.ty === 'blessure').length;
+  await q('update exemplaires set blessure = 0, protection = 5 where proprietaire = $1', [al]);
+  let touchees = 0;
+  for (let i = 0; i < 5; i++) {
+    await q('update profils set matchs = 10 where user_id = $1', [al]);
+    r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'pression', true]);
+    touchees += (r.match?.evenements || []).filter(y => y.ty === 'blessure').length;
   }
-  verif(`fréquence : ${nb} blessures en ${n} matchs simulés (attendu 1 tous les 2 à 4 matchs)`, nb >= 3 && nb <= 25, nb);
+  const prot = (await q('select max(protection) mx, min(protection) mn from exemplaires where proprietaire = $1', [al]))[0];
+  verif('cartes protégées : aucune blessure pendant 5 matchs, même avec un risque énorme', touchees === 0, touchees);
+  verif('chaque match use la protection : à 0 après 5 matchs', prot.mx === 0 && prot.mn === 0, prot);
+  await q('update profils set matchs = 10 where user_id = $1', [al]);
+  r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'pression', true]);
+  verif('ensuite, la carte peut se blesser comme les autres', (r.match?.evenements || []).some(y => y.ty === 'blessure'));
+  verif('la protection n’est jamais envoyée au jeu', !JSON.stringify(r.etat.exemplaires).includes('protection'));
+  const neuve = (await q("select protection from exemplaires where id = (select id from exemplaires where proprietaire = $1 order by obtenu_le desc limit 1)", [al]))[0];
+  r = await rpcJoueur(db, al, 'ouvrir_booster', ['gratuit']).catch(() => null);
+  const nv = (await q("select protection from exemplaires where proprietaire = $1 order by obtenu_le desc limit 1", [al]))[0];
+  verif('une carte tirée d’un booster arrive protégée (5 matchs)', nv.protection === 5, {avant: neuve, nv});
   process.exit(bilan() ? 1 : 0);
 })();

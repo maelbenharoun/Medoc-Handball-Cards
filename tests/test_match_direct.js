@@ -147,7 +147,7 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   verif('mi-temps : le match attend le joueur', (await etat()).bloc === 6 && (await p.evaluate(() => MD.h)) === 1800);
   await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 1900, null, {timeout: 20000});
-  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
+  await p.click('.md-sim'); await p.click('.dmd-oui'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('simuler la fin : résultat', !!(await p.$('.md-fin')));
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();

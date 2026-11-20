@@ -529,8 +529,10 @@ export async function gardien(sc, n) {
   S.cadrage = () => {
     const cam = S.cam, v = new THREE.Vector3(), D = 10, H = 5.3;
     const essai = (ly, fov) => { cam.fov = fov; cam.updateProjectionMatrix(); S.regarder(0, H, -D, 0, ly, 8);
-      return {px: v.set(1.6, 1, 0).project(cam).x, barre: v.set(0, 2.04, 0).project(cam).y}; };
-    const fovPour = ly => { let a = 8, b = 90; for (let k = 0; k < 18; k++) { const m = (a + b) / 2; if (Math.abs(essai(ly, m).px) > .985) a = m; else b = m; } return (a + b) / 2; };
+      return {px: v.set(1.6, 1, 0).project(cam).x, barre: v.set(0, 2.04, 0).project(cam).y, bas: v.set(0, 0, 0).project(cam).y}; };
+    // le bas du but reste dans l'écran, au-dessus des textes du bas (sur PC, écran large, il sortait de l'écran : impossible d'arrêter
+    // un tir en bas ; Maël, 20 nov. 2026) : sur téléphone rien ne change, sur écran large le but est un peu moins large
+    const fovPour = ly => { let a = 8, b = 90; for (let k = 0; k < 18; k++) { const m = (a + b) / 2, r = essai(ly, m); if (Math.abs(r.px) > .985 || r.bas < -.6) a = m; else b = m; } return (a + b) / 2; };
     let a = -4, b = 4;   // plus on vise haut, plus la barre descend à l'écran
     for (let k = 0; k < 22; k++) { const m = (a + b) / 2; if (essai(m, fovPour(m)).barre > -.02) a = m; else b = m; }
     essai(a, fovPour(a));
@@ -541,9 +543,10 @@ export async function gardien(sc, n) {
   q('.t3-zones').innerHTML = ['g', 'c', 'd'].map(c => ['h', 'b'].map(h => `<i data-z="${c}${h}"></i>`).join('')).join('');
   // à l'écran, la gauche du but est du côté des x positifs (on regarde vers le terrain)
   const X = {g: 1.05, c: 0, d: -1.05};
-  const x0 = (Math.random() - .5) * 5, dep = {x: x0, z: 15.5}, appui = {x: x0 * .55, z: 9.6};
+  // course d'élan plus courte (Maël, 20 nov. 2026 : « c'est trop long de voir le mec courir ») : il part de 12 m au lieu de 15,5
+  const x0 = (Math.random() - .5) * 4, dep = {x: x0, z: 12.2}, appui = {x: x0 * .55, z: 9.6};
   const cible = v3(X[prep.colonne] + (Math.random() - .5) * .3, {h: 1.55, b: .42}[prep.hauteur] + (Math.random() - .5) * .25, 0);
-  const vite = Math.max(.85, 1 - (MJ.serieN || 0) * .02), course = 1100 * vite, saut = 520 * vite, duree = prep.duree;
+  const vite = Math.max(.85, 1 - (MJ.serieN || 0) * .02), course = 520 * vite, saut = 440 * vite, duree = prep.duree;
   tireur.mettre(dep.x, 0, dep.z, Math.PI); tireur.regarder(appui.x, appui.z); tireur.jouer('course', .1, 1.15);
   miniAide('Le tireur arrive…');
   let choisi = null, envoye = false, r = null, quand = 0, depart = null, fini = false, tChoix = 0, par = null;

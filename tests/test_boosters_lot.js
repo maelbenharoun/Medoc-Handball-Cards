@@ -88,10 +88,10 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
     verif(L + 'booster mystère : 10 boosters · 3 000 pièces', /10 boosters · 3.000 pièces/.test(await p.textContent('.btn-lot')), await p.textContent('.btn-lot'));
     await p.click('.car-points i[data-car="0"]', {force: true}); await p.waitForTimeout(700);
     // on refuse la confirmation : rien n'est acheté
-    await p.click('.btn-lot'); await p.waitForTimeout(400);
+    await p.click('.btn-lot'); await p.waitForSelector('.dmd'); await p.click('.dmd-non'); await p.waitForTimeout(300);
     verif(L + 'confirmation refusée : rien n’est acheté', !(await p.$('.ob-lot')) && (await profil()).pieces === 5200);
     accepter = true;
-    await p.click('.btn-lot'); await p.waitForSelector('.ob-lot');
+    await p.click('.btn-lot'); await p.waitForSelector('.dmd'); await p.click('.dmd-oui'); await p.waitForSelector('.ob-lot');
     verif(L + '10 sachets en éventail, tous dans l’écran', await p.evaluate(() => { const l = [...document.querySelectorAll('.lot-p')];
       return l.length === 10 && l.every(x => { const r = x.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight; }); }));
     verif(L + 'les pièces sont déjà payées (5 000)', (await profil()).pieces === 200);
@@ -139,7 +139,7 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
     // bouton retour du téléphone : 1er retour = tout se retourne, 2e = au club
     await q('update profils set pieces = 5200 where user_id = $1', [al.id]);
     await p.reload(); await p.waitForSelector('.btn-lot:not([disabled])');
-    await p.click('.btn-lot'); await p.waitForSelector('.ob-lot'); await p.mouse.click(W / 2, H / 2);
+    await p.click('.btn-lot'); await p.waitForSelector('.dmd'); await p.click('.dmd-oui'); await p.waitForSelector('.ob-lot'); await p.mouse.click(W / 2, H / 2);
     await p.waitForSelector('.ob-c.attente', {timeout: 8000});
     await p.goBack(); await p.waitForSelector('.ob-fin');
     verif(L + 'retour du téléphone : toutes les cartes se retournent, on reste dans la scène', (await p.$$('.ob-c.vu')).length === 10 && !!(await p.$('.ob-lot')));

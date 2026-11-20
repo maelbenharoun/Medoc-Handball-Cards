@@ -54,13 +54,16 @@ const SP = process.argv[2];
   verif('« ⇄ Titulaire » : le remplaçant devient titulaire, le titulaire va sur le banc', (await prof()).equipe.PIV === avant.remplacants.PIV && (await prof()).remplacants.PIV === avant.equipe.PIV);
   // la carte du banc n'est plus vendable (Club)
   verif('un remplaçant n’a pas de bouton « Vendre »', await p.evaluate(() => typeof dansEquipe === 'function' && dansEquipe(S().remplacants.PIV)));
-  // « Voir toutes les cartes staff » depuis la place staff (bug signalé le 20 nov. 2026 : on restait sur l'Équipe)
+  // « Voir toutes les cartes staff » (retour de Rémi, 20 nov. 2026) : toutes les cartes dans la même fenêtre, sans quitter l'Équipe
   await p.goto(web.url + '#equipe'); await p.waitForSelector('[data-act=staff-place]');
-  await p.click('[data-act=staff-place]'); await p.waitForSelector('[data-act=staff-boutique]');
-  await p.click('[data-act=staff-boutique]'); await p.waitForTimeout(600);
-  verif('« Voir toutes les cartes staff » : la page Staff s’ouvre et y reste', (await p.evaluate(() => location.hash)) === '#staff' && /Staff/.test(await p.textContent('#view h1')) && await p.evaluate(() => $('#overlay').hidden));
-  await p.goBack(); await p.waitForTimeout(500);
-  verif('le retour du téléphone ramène à l’Équipe', (await p.evaluate(() => location.hash)) === '#equipe' && !!(await p.$('.pitch')));
+  await p.click('[data-act=staff-place]'); await p.waitForSelector('[data-act=staff-toutes]');
+  await p.click('[data-act=staff-toutes]'); await p.waitForTimeout(300);
+  const stf = await p.evaluate(() => ({hash: location.hash, ouverte: !$('#overlay').hidden, n: document.querySelectorAll('#overlay .stf-c').length, total: (S().staff?.liste || []).length,
+    titre: document.querySelector('#overlay h3')?.textContent}));
+  verif('« Voir toutes les cartes staff » : toutes les cartes dans la fenêtre, on reste sur l’Équipe', stf.hash === '#equipe' && stf.ouverte && stf.n === stf.total && stf.total > 0 && stf.titre === 'Toutes les cartes staff', stf);
+  await p.click('[data-act=staff-miennes]'); await p.waitForTimeout(200);
+  verif('« Seulement mes cartes » ramène à ses cartes', (await p.textContent('#overlay h3')) === 'Carte staff de l’équipe');
+  await p.click('#overlay [data-act=fermer]'); await p.waitForTimeout(300);
   // aligner automatiquement : l'équipe et le banc
   await p.goto(web.url + '#equipe'); await p.waitForSelector('[data-act=auto]');
   await p.click('[data-act=auto]');
@@ -110,11 +113,12 @@ const SP = process.argv[2];
   verif('à la mi-temps : changement fait, le panneau de la mi-temps est toujours là', /Mi-temps/.test(await p.textContent('.md-panneau h3')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.a.equipe.AG === pr.equipe.AG);
   await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 1900, null, {timeout: 20000});
-  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
+  await p.click('.md-sim'); await p.click('.dmd-oui'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('simuler la fin : résultat', !!(await p.$('.md-fin')));
   // ── blessure en direct (demande de Maël, 20 nov. 2026) : le banc s'ouvre pour forcer le changement ; une blessure grave prive
   // des matchs suivants (remplacé d'office au coup d'envoi)
-  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 0.5, "blessures_max": 1, "blessure_gravites": [{"nom": "grave", "p": 1, "min": 2, "max": 2}]}'`);
+  await q(`update parametres set valeurs = valeurs || '{"blessure_chance": 5, "blessures_max": 1, "blessure_gravites": [{"nom": "grave", "p": 1, "min": 2, "max": 2}]}'`);
+  await q('update exemplaires set protection = null where proprietaire = $1', [al.id]);   // cartes neuves : protégées 5 matchs (tests/test_blessures.js)
   await q('update profils set matchs = 5 where user_id = $1', [al.id]);
   await p.click('[data-act=fin-direct]').catch(() => {});
   await p.goto(web.url + '#championnat'); await p.waitForSelector('[data-act=championnat]');
@@ -128,7 +132,7 @@ const SP = process.argv[2];
   await p.click('.md-bl.blesse'); await p.waitForFunction(() => !MD.chgEnCours && document.querySelectorAll('.md-l.t-changement').length >= 1, null, {timeout: 10000});
   verif('le blessé remplacé : l’alerte disparaît', !(await p.$('.md-bancp .md-alerte')));
   await p.click('[data-md-go=banc-fermer]');
-  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
+  await p.click('.md-sim'); await p.click('.dmd-oui'); await p.waitForSelector('.md-fin', {timeout: 20000});
   await p.click('[data-act=fin-direct]');
   await p.goto(web.url + '#equipe'); await p.waitForSelector('.pitch');
   verif('onglet Équipe : 🚑 sur le blessé et ce qui se passera au prochain match', !!(await p.$(`.slot[data-slot=${pBl}] .vig-b`)) && /absent\(e\) 2 matchs/.test(await p.textContent('#view')) && /le remplacera/.test(await p.textContent('#view')));
@@ -147,7 +151,7 @@ const SP = process.argv[2];
   await p.click('[data-md-att=rapide]'); await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 620, null, {timeout: 20000});
   verif('après le temps mort : la tactique choisie s’applique tout de suite', /Tu passes en/.test(await p.textContent('.md-fil')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.blocs.length >= 2);
-  await p.click('.md-sim'); await p.waitForSelector('.md-fin', {timeout: 20000});
+  await p.click('.md-sim'); await p.click('.dmd-oui'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();
   process.exit(bilan() ? 1 : 0);

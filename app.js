@@ -91,8 +91,22 @@ function majPieces() {
 // enchaîne une action du compte : une seule à la fois, message en cas de refus, pièces et niveaux à jour
 function action(promesse, suite) {
   occupe = true;
-  return promesse.then(r => { occupe = false; majPieces(); celebrer(r?.niveaux); return suite ? suite(r) : r; })
-    .catch(e => { occupe = false; majPieces(); Son.jouer('erreur'); toast(e.message || 'Action impossible'); });
+  const filet = setTimeout(() => { occupe = false; }, 30000);   // jamais bloqué pour de bon (le serveur abandonne à 25 s)
+  return promesse.then(r => { clearTimeout(filet); occupe = false; majPieces(); celebrer(r?.niveaux); return suite ? suite(r) : r; })
+    .catch(e => { clearTimeout(filet); occupe = false; majPieces(); Son.jouer('erreur'); toast(e.message || 'Action impossible'); });
+}
+// Confirmation dans le jeu, à la place de confirm() (retour de Rémi, iPhone, 20 nov. 2026 : des boutons ne marchaient plus « par
+// moment » jusqu'au rafraîchissement ; Safari peut bloquer les fenêtres de confirmation d'un site, confirm() renvoie alors « non »
+// sans rien afficher). Renvoie une promesse : true si on confirme.
+function demander(texte, oui = 'Confirmer') {
+  document.querySelector('.dmd')?.remove();
+  return new Promise(ok => {
+    const el = document.createElement('div'); el.className = 'dmd'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    el.innerHTML = `<div class="dmd-b"><p>${esc(texte)}</p><div class="ed-btns"><button class="btn ghost dmd-non">Annuler</button><button class="btn gold dmd-oui">${esc(oui)}</button></div></div>`;
+    const fin = v => { el.remove(); ok(v); };
+    el.addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('.dmd-oui')) fin(true); else if (e.target.closest('.dmd-non') || e.target === el) fin(false); });
+    document.body.appendChild(el); el.querySelector('.dmd-oui').focus();
+  });
 }
 function toast(t) {
   const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t);
@@ -682,12 +696,16 @@ function vueStaff() {
     <div class="stf">${staffListe().map(bloc).join('')}</div>`;
 }
 // la place staff de l'onglet Équipe : choisir parmi ses cartes
-function fenetreStaffEquipe() {
-  const actif = staffActif(), miennes = staffListe().filter(x => x.meilleur);
-  ouvrirOverlay(`<div class="sheet"><h3>Carte staff de l’équipe</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces. C’est ton meilleur exemplaire de la carte qui compte.</p>
-    ${miennes.length ? `<div class="stf">${miennes.map(x => `<button class="stf-c a${x.id === actif ? ' on' : ''}" data-staff-mettre="${x.id === actif ? '' : x.id}">${staffCarteHTML(x)}
-      <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff : elles sortent des boosters (gratuit et mystère).</p>'}
-    <button class="btn gold" data-act="staff-boutique">Voir toutes les cartes staff</button>
+// « Voir toutes les cartes staff » (demande de Maël, retour de Rémi, 20 nov. 2026) : toutes les cartes dans la même fenêtre, on change
+// sans quitter l'onglet Équipe (comme pour les joueurs) ; celles qu'on n'a pas encore sont grisées
+function fenetreStaffEquipe(tout) {
+  const actif = staffActif(), liste = tout ? staffListe() : staffListe().filter(x => x.meilleur);
+  const carte = x => x.meilleur ? `<button class="stf-c a${x.id === actif ? ' on' : ''}" data-staff-mettre="${x.id === actif ? '' : x.id}">${staffCarteHTML(x)}
+      <em>${x.id === actif ? 'Dans ton équipe · retirer' : 'Placer'}</em></button>`
+    : `<div class="stf-c a absente">${staffCarteHTML(x)}<em>🎁 Dans les boosters</em></div>`;
+  ouvrirOverlay(`<div class="sheet"><h3>${tout ? 'Toutes les cartes staff' : 'Carte staff de l’équipe'}</h3><p class="sub">Une seule place : elle ne joue pas, mais son passif compte en match, à l’entraînement ou pour les pièces. C’est ton meilleur exemplaire de la carte qui compte.</p>
+    ${liste.length ? `<div class="stf">${liste.map(carte).join('')}</div>` : '<p class="sub">Tu n’as pas encore de carte staff : elles sortent des boosters (gratuit et mystère).</p>'}
+    <button class="btn gold" data-act="${tout ? 'staff-miennes' : 'staff-toutes'}">${tout ? 'Seulement mes cartes' : 'Voir toutes les cartes staff'}</button>
     <button class="btn ghost" data-act="fermer">Fermer</button></div>`);
 }
 const COMPO = {id: null, choix: []};
@@ -737,8 +755,9 @@ function basculerCompo(id) {
 }
 function validerCompo() {
   const x = (S().defis || []).find(d => d.id === COMPO.id);
-  if (!x || !confirm(`Donner ces ${COMPO.choix.length} cartes ? Elles quittent ton club pour de bon.`)) return;
-  action(Compte.faireDefi(COMPO.id, COMPO.choix.slice()), r => { Son.jouer('recompense'); toast(`Défi réussi ! +${texteRecomp(r.recompense)}`); fermerOverlay(); });
+  if (!x) return;
+  demander(`Donner ces ${COMPO.choix.length} cartes ? Elles quittent ton club pour de bon.`, 'Donner').then(oui => oui && !occupe &&
+    action(Compte.faireDefi(COMPO.id, COMPO.choix.slice()), r => { Son.jouer('recompense'); toast(`Défi réussi ! +${texteRecomp(r.recompense)}`); fermerOverlay(); }));
 }
 
 // ── club : la collection ────────────────────────────────────────────────────────
@@ -1637,7 +1656,9 @@ function majMD() {
   const tc = MD.el.querySelector('.md-tac');
   tc.disabled = !!MD.fin; tc.innerHTML = `Tactique<small>${MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
   const bc = MD.el.querySelector('.md-chg'), nbanc = bancMD().length;
-  bc.hidden = !nbanc; bc.disabled = !!MD.fin; bc.innerHTML = `Banc<small>${nbanc} remplaçant${nbanc > 1 ? 's' : ''}</small>`;
+  const ef = MD.vue.nous.effectif || {}, rouges = POSTES_MD.filter(k => ef[k]?.n && fraicheur(ef[k].f) < 40).length;
+  bc.hidden = !nbanc; bc.disabled = !!MD.fin; bc.classList.toggle('alerte', !!rouges && !MD.fin);
+  bc.innerHTML = `Banc<small>${rouges ? `${rouges} dans le rouge` : `${nbanc} remplaçant${nbanc > 1 ? 's' : ''}`}</small>`;
   const bt = MD.el.querySelector('.md-tm');
   bt.disabled = !tmPossible() || !!MD.fin || !!MD.enCours;
   bt.innerHTML = `Temps mort<small>${t.restants} · voir leur jeu</small>`;
@@ -1700,7 +1721,10 @@ function panneauMD(type) {
 // ── remplaçants en match (demande de Maël, 19 nov. 2026) : chaque poste, son titulaire et son remplaçant, leur fraîcheur
 const POSTES_MD = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
 const bancMD = () => { const ef = MD.vue?.nous?.effectif; return ef ? POSTES_MD.filter(k => ef[k]?.r) : []; };
-const fraicheur = f => Math.max(0, Math.min(100, Math.round(100 - 400 * (+f || 0))));   // fatigue 0 → 100 %, 0,25 → 0 %
+// fraîcheur affichée : fatigue 0 → 100 %, 1 → 0 % (fatigue de chaque joueur, 20 nov. 2026) ; dans le rouge sous 40 %, il joue
+// moins bien et risque de se blesser
+const fraicheur = f => Math.max(0, Math.min(100, Math.round(100 - 100 * (+f || 0))));
+const zoneFr = fr => fr < 40 ? ' rouge' : fr < 65 ? ' bas' : '';
 function resumeBancMD() {
   const ef = MD.vue.nous.effectif, k = POSTES_MD.filter(k => ef[k]?.n).sort((a, b) => fraicheur(ef[a].f) - fraicheur(ef[b].f))[0];
   return k ? `le plus fatigué : ${esc(nomCourt(ef[k].n))}, ${fraicheur(ef[k].f)} %` : '';
@@ -1716,11 +1740,11 @@ function majBancMD() {
   if (!MD.el || !MD.bancOuvert) return;
   const ef = MD.vue.nous.effectif || {}, p = MD.el.querySelector('.md-bancp'), occupe = MD.chgEnCours || MD.enCours;
   const blesses = new Set(MD.evs.filter(x => (x.ty === 'blessure' || x.ty === 'absent') && x.c === 'a').map(x => x.n));
-  const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(String(nomCourt(n) || '').replace(/--/g, '-'))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${fraicheur(f) < 50 ? ' bas' : ''}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
+  const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(String(nomCourt(n) || '').replace(/--/g, '-'))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${zoneFr(fraicheur(f))}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
   const bl = POSTES_MD.find(k => blesses.has(ef[k]?.n) && ef[k]?.r && !blesses.has(ef[k].r));
   p.innerHTML = `<div class="md-p-c"><h3>Changements <small>le match continue</small></h3>
     ${bl ? `<p class="md-alerte">🚑 <b>${esc(nomCourt(ef[bl].n))}</b> est blessé(e) et joue diminué(e) : fais entrer ${esc(nomCourt(ef[bl].r))} (${bl}).</p>` : ''}
-    <p class="sub petit">Touche un poste : le remplaçant entre tout de suite. Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur.</p>
+    <p class="sub petit">Touche un poste : le remplaçant entre tout de suite. Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur : dans le rouge, il joue moins bien et risque de se blesser.</p>
     <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
       const bt = blesses.has(x.n), br = blesses.has(x.r);
       return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}${bt ? ' blesse' : ''}" data-md-chg="${k}"${x.r && !br && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't' + (bt ? ' md-blesse' : ''))}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r' + (br ? ' md-blesse' : '')) : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
@@ -1792,7 +1816,10 @@ function clicMD(e) {
 }
 function simulerFinMD() {
   const g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
-  if (!confirm(`Simuler la fin du match ? Le reste est joué tout de suite avec ta tactique actuelle, sans temps mort. Gains −${pcMoins(g)} %.`)) return;
+  demander(`Simuler la fin du match ? Le reste est joué tout de suite avec ta tactique actuelle, sans temps mort. Gains −${pcMoins(g)} %.`, 'Simuler')
+    .then(oui => { if (oui && MD.el && !MD.fin && !MD.attente) simulerFinMDOui(); });
+}
+function simulerFinMDOui() {
   MD.attente = true; MD.timers.forEach(clearTimeout); MD.file = [];
   Compte.matchSimulerFin().then(r => {
     if (!MD.el) return;
@@ -2293,16 +2320,19 @@ const coucheOverlay = () => { SOC.panneau = null; fermerOverlay(true); };
 function ouvrirOverlay(html) { const o = $('#overlay'); if (o.hidden) ouvrirCouche(coucheOverlay); o.innerHTML = html; o.hidden = false; document.body.style.overflow = 'hidden'; }
 function cacherOverlay(parRetour) { const o = $('#overlay'); if (!parRetour) quitterCouche(coucheOverlay); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; }
 function fermerOverlay(parRetour) { cacherOverlay(parRetour); route(true); }
-// quitter une fenêtre pour une autre page (#staff…) : la place de la fenêtre dans l'historique devient cette page. Fermer avec
-// history.back() puis changer location.hash ne marchait pas : le retour, qui arrive après, ramenait à la page d'avant (bug « Voir
-// toutes les cartes staff » depuis l'onglet Équipe, 20 nov. 2026)
-function fenetreVers(hash) {
+// Bandeau des onglets visible par-dessus la fenêtre des ami(e)s (retour d'un joueur, 20 nov. 2026 : « dans Amis, le bandeau en bas me
+// manque, je suis un peu perdu ») : toucher un onglet ferme la fenêtre et ouvre l'onglet ; la place de la fenêtre dans
+// l'historique devient cet onglet (un history.back() suivi d'un changement d'adresse se faisait annuler par le retour)
+document.addEventListener('click', e => {
+  const a = e.target.closest('.tabs a[href^="#"]'), o = $('#overlay');
+  if (!a || o.hidden || !o.querySelector('.amis-p')) return;
+  e.preventDefault(); SOC.panneau = null;
   const i = COUCHES.lastIndexOf(coucheOverlay);
-  if (i < 0) { cacherOverlay(true); location.hash = hash; return; }
-  COUCHES.splice(i, 1); cacherOverlay(true);
-  try { history.replaceState(null, '', hash); } catch (e) { location.hash = hash; return; }
+  if (i >= 0) COUCHES.splice(i, 1);
+  cacherOverlay(true);
+  try { history.replaceState(null, '', a.getAttribute('href')); } catch (er) { location.hash = a.getAttribute('href'); return; }
   route();
-}
+}, true);
 
 // ── ouverture des boosters ──────────────────────────────────────────────────────
 // Mise en scène (même esprit que l'intro) : le booster flotte et brille ; au toucher, une découpe lumineuse court le long
@@ -2628,7 +2658,10 @@ const melanger = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.
 function acheterLot(eq) {
   if (occupe || !lotPossible(eq)) return;
   const n = lotN();
-  if (!confirm(`Acheter ${n} ${eq === '?' ? 'boosters mystère' : 'boosters ' + (NOM_EQUIPE[eq] || eq)} pour ${nb(lotPrix(eq))} pièces ?`)) return;
+  demander(`Acheter ${n} ${eq === '?' ? 'boosters mystère' : 'boosters ' + (NOM_EQUIPE[eq] || eq)} pour ${nb(lotPrix(eq))} pièces ?`, 'Acheter')
+    .then(oui => { if (oui && !occupe && lotPossible(eq)) acheterLotOui(eq); });
+}
+function acheterLotOui(eq) {
   const avant = new Set(EX().map(e => e.carte)), avantStaff = new Set(staffListe().filter(x => x.meilleur).map(x => x.id));
   action(Compte.ouvrirBoostersLot(eq), ({ids, staffs}) => {
     // « nouveau » seulement sur le premier exemplaire d'un joueur qu'on n'avait pas
@@ -2931,12 +2964,12 @@ document.addEventListener('click', e => {
     return majListes(sens === 'veux' ? D.veux.filter((x, k) => k !== +i) : D.veux, sens === 'donne' ? D.donne.filter((x, k) => k !== +i) : D.donne); }
   if (d.transferer) {
     const x = MKT.data.possibles[+d.transferer], o = PAR_ID[x.donne], r = PAR_ID[x.recoit];
-    if (!confirm(`Tu donnes ${o.nom} ${R_LABEL[x.palier]} (ta moins entraînée) et tu reçois ${r.nom} ${R_LABEL[x.palier]} de ${x.pseudo}. D’accord ?`)) return;
-    return action(Compte.transferer(x.pseudo, x.donne, x.recoit, x.palier), dd => { MKT.data = dd; Son.jouer('recompense'); toast(`${r.nom} rejoint ton club !`); vibrer([40, 60, 80]); route(true); });
+    return demander(`Tu donnes ${o.nom} ${R_LABEL[x.palier]} (ta moins entraînée) et tu reçois ${r.nom} ${R_LABEL[x.palier]} de ${x.pseudo}. D’accord ?`, 'Échanger').then(oui => oui && !occupe &&
+      action(Compte.transferer(x.pseudo, x.donne, x.recoit, x.palier), dd => { MKT.data = dd; Son.jouer('recompense'); toast(`${r.nom} rejoint ton club !`); vibrer([40, 60, 80]); route(true); }));
   }
   const amis = (pr, msg) => action(pr, r => { if (r?.amis) SOC.amis = r; if (msg) toast(msg); route(true); revoirAmis(); });
   if (d.repondreAmi) { const [ps, oui] = d.repondreAmi.split(':'); return amis(Compte.repondreAmi(ps, oui === '1'), oui === '1' ? `${ps} est ton ami(e) !` : ''); }
-  if (d.retirerAmi) { if (!confirm(`Retirer ${d.retirerAmi} de tes ami(e)s ?`)) return; return amis(Compte.retirerAmi(d.retirerAmi)); }
+  if (d.retirerAmi) { const qui = d.retirerAmi; return demander(`Retirer ${qui} de tes ami(e)s ?`, 'Retirer').then(oui => oui && !occupe && amis(Compte.retirerAmi(qui))); }
   if (d.annulerEchange) return amis(Compte.annulerEchange(d.annulerEchange), 'Proposition annulée');
   if (d.repondreEchange) { const [id, oui] = d.repondreEchange.split(':'); return amis(Compte.repondreEchange(id, oui === '1'), oui === '1' ? 'Échange fait : la carte est dans ton club' : 'Proposition refusée'); }
   if (d.proposer) {
@@ -2975,7 +3008,7 @@ document.addEventListener('click', e => {
   if (d.ligue) return jouerLigue(d.ligue);
   if (a === 'club-creer') { const nom = $('#club-nom')?.value || ''; return action(Compte.clubCreer(nom), r => { SOC.clubs = r; Son.jouer('recompense'); toast('Club créé 🛡️'); route(true); }); }
   if (d.clubRejoindre) return action(Compte.clubRejoindre(+d.clubRejoindre), r => { SOC.clubs = r; toast('Bienvenue au club !'); route(true); });
-  if (a === 'club-quitter') { if (!confirm('Quitter ton club ?')) return; return action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }); }
+  if (a === 'club-quitter') return demander('Quitter ton club ?', 'Quitter').then(oui => oui && !occupe && action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }));
   if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
   if (d.staffFusion) { const [id, pal] = d.staffFusion.split(':');
@@ -3004,15 +3037,16 @@ document.addEventListener('click', e => {
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
   if (a === 'staff-place') return fenetreStaffEquipe();
-  if (a === 'staff-boutique') return fenetreVers('#staff');
+  if (a === 'staff-toutes' || a === 'staff-miennes') return fenetreStaffEquipe(a === 'staff-toutes');
   if (d.entrainer) {
     const carte = exParId(d.entrainer).carte;
     return action(Compte.entrainer(d.entrainer), r => { toast(r.apres > r.avant ? `+1 ! Note ${r.apres}` : '+XP : encore un peu d’entraînement'); fiche(carte); });
   }
   if (d.vendre) {
     const ex = exParId(d.vendre);
-    if (RARETES.indexOf(ex.palier) >= RARETES.indexOf('or') && !confirm(`Vendre cette carte ${R_LABEL[ex.palier]} ${ex.note} pour ${nb(PARAMS.vente?.[ex.palier])} pièces ?`)) return;
-    return action(Compte.vendre(d.vendre), r => { toast(`+${nb(r.gain)} pièces`); if (mesEx(ex.carte).length) fiche(ex.carte); else fermerOverlay(); });
+    const vendre = () => action(Compte.vendre(ex.id), r => { toast(`+${nb(r.gain)} pièces`); if (mesEx(ex.carte).length) fiche(ex.carte); else fermerOverlay(); });
+    if (RARETES.indexOf(ex.palier) < RARETES.indexOf('or')) return vendre();
+    return demander(`Vendre cette carte ${R_LABEL[ex.palier]} ${ex.note} pour ${nb(PARAMS.vente?.[ex.palier])} pièces ?`, 'Vendre').then(oui => oui && !occupe && vendre());
   }
   if (d.fusion) {
     const [carte, palier] = d.fusion.split(':');
@@ -3179,7 +3213,8 @@ function nouveauTir() {
   J7.ctl.nouveau();
   el.querySelector('.j7-aide').textContent = 'Touche pour viser';
   // plus rapide à chaque tir
-  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: Math.max(1.2, 1.7 - n * .117), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
+  // viseur 20 % plus lent (Maël, 20 nov. 2026 : « les penaltys sont trop durs ») : période × 1,25
+  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: 1.25 * Math.max(1.2, 1.7 - n * .117), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
   el.querySelector('.j7-niveau').style.bottom = '0%';
   boucleJet7m();
 }
@@ -3310,9 +3345,16 @@ function miniFin(r) {
     MJ.serie.push(r.resultat); MJ.serieN++;
     const a = MJ.serie.filter(x => x === 'arret').length;
     el.querySelector('.j7-score').textContent = `Tir ${MJ.serie.length}/${SERIE} · ${a} arrêt${a > 1 ? 's' : ''}`;
-    if (MJ.serie.length < SERIE && r.restants > 0) { MJ.timers.push(setTimeout(() => { if (MJ.el) miniEssai(); }, moinsAnim() ? 300 : 1250)); return; }
+    if (MJ.serie.length < SERIE && r.restants > 0) { MJ.timers.push(setTimeout(() => { if (MJ.el) miniEssai(); }, moinsAnim() ? 300 : 700)); return; }
     const gainsSerie = MJ.demo ? 0 : a * (S().minijeux?.gains?.gardien || 10) + (r.bonus || 0);
     const vrai = MJ.demo && essaisVrais(MJ.jeu) > 0;
+    // les séries s'enchaînent toutes seules (Maël, 20 nov. 2026) : le bilan de la série, puis la suivante démarre ; « Fermer » pour arrêter
+    if (r.restants > 0 && !MJ.demo) {
+      el.querySelector('.j7-bas').innerHTML = `<p class="j7-bilan">Série : ${a} arrêt${a > 1 ? 's' : ''} sur ${MJ.serie.length} · +${nb(gainsSerie)} pièces · série suivante…</p><button class="btn ghost large mj-fin">Fermer</button>`;
+      el.querySelector('.mj-fin').addEventListener('click', e => { e.stopPropagation(); fermerMini(); });
+      MJ.timers.push(setTimeout(() => { if (MJ.el) { MJ.serie = []; miniEssai(); } }, moinsAnim() ? 600 : 1800));
+      return;
+    }
     el.querySelector('.j7-bas').innerHTML = `<p class="j7-bilan">Série : ${a} arrêt${a > 1 ? 's' : ''} sur ${MJ.serie.length}${MJ.demo ? ' · entraînement : pas de pièces' : ` · +${nb(gainsSerie)} pièces`}</p>`
       + (vrai ? '<button class="btn gold large mj-vrai">Jouer pour de vrai</button>' : '')
       + (r.restants > 0 || MJ.demo ? `<button class="btn ${vrai ? 'ghost' : 'gold'} large mj-suivant">${MJ.demo ? 'Encore une série d’entraînement' : 'Série suivante'}</button>` : `<button class="btn gold large mj-fin">Fermer</button>`)
@@ -3341,7 +3383,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=79').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=80').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

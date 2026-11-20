@@ -1945,6 +1945,8 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .md-fr { display: block; height: 4px; border-radius: 4px; background: #0e1520; overflow: hidden; }
 .md-fr i { display: block; height: 100%; background: #3fcf8e; transform-origin: left; }
 .md-fr.bas i { background: #f2a33a; }
+.md-fr.rouge i { background: #ef5b4c; }
+.md-bas .md-chg.alerte { border-color: #ef5b4c; color: #ffb4ab; }
 .md-bfl { text-align: center; font-size: 1rem; color: var(--muted); transition: transform .2s; }
 .md-bl.on { border-color: #3fcf8e; background: #16291f; transform: translateY(-2px); }
 .md-bl.on .md-bfl { color: #3fcf8e; transform: rotate(180deg); }
@@ -1973,3 +1975,15 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
   text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
 .lien-j:active { opacity: .6; }
 .lien.voir-eq { display: block; margin: -4px 0 12px; }
+/* fenêtre staff de l'onglet Équipe : une carte pas encore obtenue */
+.stf-c.absente { opacity: .45; }
+.stf-c.absente em { color: var(--muted); }
+/* confirmation dans le jeu (demander dans app.js), au-dessus de tout, fenêtres et scènes comprises */
+.dmd { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 16px; background: rgba(5, 7, 10, .72); }
+.dmd-b { width: min(100%, 360px); padding: 18px; border-radius: 18px; background: var(--bg2); border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(0, 0, 0, .5); }
+.dmd-b p { margin: 0 0 14px; line-height: 1.4; }
+.dmd-b .ed-btns { display: flex; gap: 10px; }
+.dmd-b .ed-btns .btn { flex: 1; }
+/* fenêtre des ami(e)s : le bandeau des onglets reste visible et utilisable par-dessus (la fenêtre lui laisse sa place) */
+body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
+#overlay:has(.amis-p) { padding-bottom: calc(92px + var(--safe-b)); }

@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -770,7 +770,12 @@ alter table profils add column if not exists perso jsonb not null default '{}'; 
 alter table profils add column if not exists remplacants jsonb not null default '{}';
 -- blessure d'une carte (demande de Maël, 20 nov. 2026 : « certaines prennent plusieurs matchs ») : matchs encore à manquer, gravité
 alter table exemplaires add column if not exists blessure int not null default 0;
-alter table exemplaires add column if not exists blessure_g text;   -- un remplaçant par poste (demande de Maël) : {poste: id de l'exemplaire}
+alter table exemplaires add column if not exists blessure_g text;
+-- protection contre les blessures (demande de Maël, 20 nov. 2026, jamais affichée : « ça évitera la frustration ») : une carte qui
+-- vient d'arriver (booster, fusion, choix du coach, transfert, échange…) ne peut pas se blesser pendant les 5 matchs qui suivent
+-- (championnat ou défi entre ami(e)s). Les cartes d'avant n'en ont pas (null) ; le jeu ne la reçoit pas (etat_de).
+alter table exemplaires add column if not exists protection int;
+alter table exemplaires alter column protection set default 5;   -- un remplaçant par poste (demande de Maël) : {poste: id de l'exemplaire}
 
 create or replace function lundi_courant() returns date language sql stable as $$ select date_trunc('week', aujourdhui())::date $$;
 create or replace function debut_semaine() returns timestamptz language sql stable as $$ select lundi_courant()::timestamp at time zone 'Europe/Paris' $$;
@@ -1994,12 +1999,33 @@ $$;
 -- passer de 24 à 43 % de victoires). Sans changement, rien ne change par rapport à avant. p_terrain : ajouté à ceux sur le terrain,
 -- p_banc : retiré à ceux du banc, p_fois : multiplie tout (mi-temps). Une équipe sans fp (l'ordinateur, un match commencé avant)
 -- garde sa fatigue d'équipe.
-create or replace function match_fat(eq jsonb, p_terrain numeric, p_banc numeric, p_fois numeric default 1) returns jsonb
+-- Fatigue de chaque joueur (demande de Maël, 20 nov. 2026 : « la fatigue de tous les joueurs est homogène », « bien plus rapide »,
+-- aucun joueur ne doit pouvoir jouer 60 minutes sans être dans le rouge) : une équipe qui a fcfg (réglages copiés au coup d'envoi par
+-- match_banc_init) suit chaque joueur de 0 (frais) à 1 (épuisé). Sur le terrain, sa fatigue monte au rythme de la consigne × son
+-- endurance (fr : de 0,8 à 1,2, d'après VIT + PHY comparées à la moyenne de son poste : aucun poste n'est avantagé) ; sur le banc, elle
+-- redescend (repos) ; la mi-temps et un temps mort en retirent à tous (p_tous). Au-delà du seuil, chaque joueur sur le terrain perd
+-- malus × (fatigue − seuil)² points de note, ramenés sur l'attaque et la défense comme une blessure (fma, fmd). Ancienne fatigue
+-- (sans fcfg) : un match commencé avant, et l'équipe de l'ordinateur (fatigue d'équipe, sans fp).
+create or replace function match_fat(eq jsonb, p_terrain numeric, p_banc numeric, p_fois numeric default 1, p_tous numeric default 0) returns jsonb
 language plpgsql immutable as $$
 declare fp jsonb := '{}'; s numeric := 0; n int := 0; l record; v numeric; sur boolean; fe numeric; w numeric := coalesce((eq ->> 'fw')::numeric, 1);
+  k text; mm numeric; ms numeric; mal numeric; ma numeric := 0; md numeric := 0;
 begin
   if coalesce(jsonb_typeof(eq -> 'fp'), '') <> 'object' then
-    return jsonb_set(eq, '{fatigue}', to_jsonb(round(greatest(0, ((eq ->> 'fatigue')::numeric + p_terrain) * p_fois), 4)));
+    return jsonb_set(eq, '{fatigue}', to_jsonb(round(greatest(0, ((eq ->> 'fatigue')::numeric + p_terrain) * p_fois - p_tous), 4)));
+  end if;
+  if eq ? 'fcfg' then
+    mm := coalesce((eq #>> '{fcfg,m}')::numeric, 80); ms := coalesce((eq #>> '{fcfg,s}')::numeric, .3);
+    for l in select key, value::numeric v from jsonb_each_text(eq -> 'fp') loop
+      select j.key into k from jsonb_each_text(eq -> 'equipe') j where j.value = l.key limit 1;
+      v := round(least(1, greatest(0, (l.v + case when k is not null then p_terrain * coalesce((eq -> 'fr' ->> l.key)::numeric, 1) else -p_banc end) * p_fois - p_tous)), 4);
+      fp := fp || jsonb_build_object(l.key, v);
+      if k is not null then
+        s := s + v; n := n + 1; mal := mm * greatest(0, v - ms) ^ 2;
+        if k = 'GB' then md := md + .4 * mal; else ma := ma + mal / 6; md := md + .6 * mal / 6; end if;
+      end if;
+    end loop;
+    return eq || jsonb_build_object('fp', fp, 'fatigue', round(case when n > 0 then s / n else 0 end, 4), 'fma', round(ma, 2), 'fmd', round(md, 2));
   end if;
   fe := round(greatest(0, (coalesce((eq ->> 'fe')::numeric, 0) + p_terrain) * p_fois), 4);
   for l in select key, value::numeric v from jsonb_each_text(eq -> 'fp') loop
@@ -2010,6 +2036,23 @@ begin
   end loop;
   return eq || jsonb_build_object('fp', fp, 'fe', fe, 'fatigue', round(w * case when n > 0 then s / n else 0 end + (1 - w) * fe, 4));
 end $$;
+create or replace function match_fatiguer(eq jsonb, sec numeric) returns jsonb language sql immutable as $$
+  select case when eq ? 'fcfg' then
+      match_fat(eq, sec / 60.0 * coalesce((eq -> 'fcfg' -> 'rythme' ->> coalesce(eq ->> 'consigne', 'normal'))::numeric, .03),
+        sec / 60.0 * coalesce((eq #>> '{fcfg,repos}')::numeric, .04))
+    else match_fat(eq, sec / 3600.0 * case eq ->> 'consigne' when 'pression' then .22 when 'prudent' then .06 else .1 end, sec / 3600.0 * .15) end
+$$;
+-- endurance d'une carte : multiplie la vitesse à laquelle elle se fatigue (0,8 à 1,2). VIT + PHY (écarts de forme) comparées à la
+-- moyenne des cartes du même poste principal : VIT + PHY avantageait les ailiers (+20 en moyenne) et pénalisait les demi-centres
+-- (−10) ; comparées à leur poste, chaque poste a la même endurance moyenne, seul l'écart entre joueurs d'un même poste compte
+create or replace function endurance_carte(p_carte text) returns numeric language sql stable security definer set search_path = public as $$
+  select least(1 + ec, greatest(1 - ec, 1 - pente * (vp - coalesce(moy, vp)) / 40))
+  from (select coalesce((c.ecarts ->> 'vit')::numeric, 0) + coalesce((c.ecarts ->> 'phy')::numeric, 0) vp,
+      (select avg(coalesce((x.ecarts ->> 'vit')::numeric, 0) + coalesce((x.ecarts ->> 'phy')::numeric, 0)) from cartes x
+        where x.actif and not x.legende and x.poste is not distinct from c.poste) moy,
+      coalesce((param('fatigue_endurance') #>> '{}')::numeric, .4) pente, coalesce((param('fatigue_endurance_ecart') #>> '{}')::numeric, .2) ec
+    from cartes c where c.id = p_carte) t
+$$;
 -- au coup d'envoi : qui est sur le terrain (equipe), le banc valable (banc : un remplaçant par poste, encore au club), leurs noms (bn)
 -- et leur note à ce poste (nb, calculée comme s'il était titulaire), tout le monde frais
 create or replace function match_banc_init(p_uid uuid, p_equipe jsonb, p_remp jsonb, p_tactique text) returns jsonb
@@ -2028,7 +2071,13 @@ begin
     nb := nb || jsonb_build_object(l.key, f -> 'notes' -> l.key); fp := fp || jsonb_build_object(l.value, 0);
   end loop;
   return jsonb_build_object('equipe', p_equipe, 'banc', banc, 'bn', bn, 'nb', nb, 'fp', fp, 'fe', 0,
-    'fw', coalesce((param('match_banc_poids') #>> '{}')::numeric, .5));
+    'fw', coalesce((param('match_banc_poids') #>> '{}')::numeric, .5),
+    'fr', (select coalesce(jsonb_object_agg(f.key, round(coalesce(endurance_carte(x.carte_id), 1), 3)), '{}') from jsonb_each(fp) f join exemplaires x on x.id::text = f.key),
+    'pr', (select coalesce(jsonb_agg(f.key), '[]') from jsonb_each(fp) f join exemplaires x on x.id::text = f.key where coalesce(x.protection, 0) > 0),
+    'fcfg', jsonb_build_object('rythme', coalesce(param('fatigue_rythme'), '{"prudent": 0.0225, "normal": 0.03, "pression": 0.04}'),
+      'repos', coalesce(param('fatigue_repos'), '0.04'), 'mt', coalesce(param('fatigue_mi_temps'), '0.6'), 'tm', coalesce(param('fatigue_temps_mort'), '0.06'),
+      'm', coalesce(param('fatigue_malus'), '80'), 's', coalesce(param('fatigue_seuil'), '0.3'),
+      'bm', coalesce(param('blessure_minute'), '0.0002'), 'bf', coalesce(param('blessure_fatigue'), '0.1'), 'bs', coalesce(param('blessure_fatigue_seuil'), '0.35')));
 end $$;
 -- changements (entre deux tranches) : le titulaire de chaque poste demandé et son remplaçant échangent leurs places ; la force de
 -- l'équipe (attaque, défense, tireurs, bonus de la tactique jouée) est recalculée ; chaque changement est raconté au fil
@@ -2098,21 +2147,23 @@ begin
     x := e ->> 'balle'; y := case x when 'a' then 'b' else 'a' end; eqx := e -> x; eqy := e -> y;
     contre_pour := e ->> 'contre';
     duree := case when contre_pour = x then 8 + floor(random() * 7)::int else 22 + floor(random() * 23)::int end;
-    t := least(t + duree, p_fin);
+    duree := least(duree, p_fin - t);   -- la dernière possession de la tranche s'arrête à sa fin (fatigue, blessures : le temps vraiment joué)
+    t := t + duree;
     cx := eqx ->> 'consigne'; cy := eqy ->> 'consigne';
     -- chances de marquer sur la possession : forces (comme avant), tactiques, consignes, fatigue, exclusions, temps mort
-    p := (base + k * ((eqx ->> 'att')::numeric - (eqy ->> 'def')::numeric)) / POSS;
+    p := (base + k * ((eqx ->> 'att')::numeric - coalesce((eqx ->> 'fma')::numeric, 0) - (eqy ->> 'def')::numeric + coalesce((eqy ->> 'fmd')::numeric, 0))) / POSS;
     ctr := contre_tactique(eqx ->> 'attaque', eqy ->> 'defense');
     p := p * (1 + m * ctr);
     p := p * case cx when 'pression' then 1.04 when 'prudent' then .975 else 1 end * case cy when 'pression' then .97 when 'prudent' then 1.01 else 1 end;
-    p := p * (1 - .5 * (eqx ->> 'fatigue')::numeric) * (1 + .5 * (eqy ->> 'fatigue')::numeric);
+    -- fatigue d'équipe (l'ordinateur, un match d'avant) ; la fatigue de chacun est déjà dans les forces (fma, fmd)
+    p := p * (1 - .5 * case when eqx ? 'fcfg' then 0 else (eqx ->> 'fatigue')::numeric end) * (1 + .5 * case when eqy ? 'fcfg' then 0 else (eqy ->> 'fatigue')::numeric end);
     if (eqy ->> 'exclu')::int > t then p := p * 1.25; end if;
     if (eqx ->> 'elan')::int > t then p := p * 1.05; end if;
     if (eqy ->> 'elan')::int > t then p := p * .95; end if;
     if contre_pour = x then p := p * 1.35; zn := 'contre'; else zn := zone_tirage(eqx ->> 'attaque'); end if;
     e := e - 'contre';
     perte := case cx when 'prudent' then .08 when 'pression' then .13 else .11 end;
-    pen := least(.88, greatest(.55, .75 + .01 * ((eqx ->> 'att')::numeric - (eqy ->> 'def')::numeric)));
+    pen := least(.88, greatest(.55, .75 + .01 * ((eqx ->> 'att')::numeric - coalesce((eqx ->> 'fma')::numeric, 0) - (eqy ->> 'def')::numeric + coalesce((eqy ->> 'fmd')::numeric, 0))));
     gb := coalesce(eqy -> 'joueurs' ->> 'GB', 'le gardien');
     -- régularité (retour de Maël, 20 nov. 2026 : trop d'aléatoire, la même équipe face au même adversaire avait des résultats trop
     -- différents) : xg = les buts que l'équipe « méritait » jusque-là (somme des chances de marquer de ses possessions) ; une équipe en
@@ -2149,17 +2200,23 @@ begin
       eqy := jsonb_set(eqy, '{exclu}', to_jsonb(t + 120)); eqy := jsonb_set(eqy, '{stats,excl}', to_jsonb((eqy #>> '{stats,excl}')::int + 1));
       e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', y, 'ty', 'excl', 'n', joueur_zone(eqy -> 'joueurs', 'champ'), 's', sc));
     end if;
-    -- fatigue : par minute jouée, selon la consigne ; sur le banc, on récupère (match_fat)
-    fx := duree / 3600.0 * case cx when 'pression' then .22 when 'prudent' then .06 else .1 end;
-    fy := duree / 3600.0 * case cy when 'pression' then .22 when 'prudent' then .06 else .1 end;
-    eqx := match_fat(eqx, fx, duree / 3600.0 * .15);
-    eqy := match_fat(eqy, fy, duree / 3600.0 * .15);
-    -- blessure : plus probable quand l'équipe est fatiguée ; le joueur touché est tiré au sort, les plus fatigués d'abord
+    -- fatigue : par minute jouée, selon la consigne ; sur le banc, on récupère (match_fatiguer, match_fat)
+    eqx := match_fatiguer(eqx, duree);
+    eqy := match_fatiguer(eqy, duree);
+    -- blessure (seulement notre équipe, a) : chaque joueur sur le terrain a son risque, par minute jouée, qui grimpe avec SA fatigue
+    -- au-delà d'un seuil (bm + bf × (fatigue − bs)²) ; blessure_chance (0,003) sert d'échelle (0 = aucune blessure, tests)
     ea := case x when 'a' then eqx else eqy end;
-    if jsonb_typeof(ea -> 'fp') = 'object' and jsonb_array_length(coalesce(ea -> 'blesses', '[]')) < bmax
-        and random() < pbl * (1 + 4 * (ea ->> 'fatigue')::numeric) then
-      select j.key into kb from jsonb_each_text(ea -> 'equipe') j where not coalesce(ea -> 'blesses', '[]') ? j.value
-        order by -ln(1 - random()) / (1 + 5 * coalesce((ea -> 'fp' ->> j.value)::numeric, 0)) limit 1;
+    kb := null;
+    if jsonb_typeof(ea -> 'fp') = 'object' and jsonb_array_length(coalesce(ea -> 'blesses', '[]')) < bmax and pbl > 0 then
+      if ea ? 'fcfg' then
+        with r as (select j.key, duree / 60.0 * pbl / .003 * ((ea #>> '{fcfg,bm}')::numeric + (ea #>> '{fcfg,bf}')::numeric
+              * greatest(0, coalesce((ea -> 'fp' ->> j.value)::numeric, 0) - (ea #>> '{fcfg,bs}')::numeric) ^ 2) h
+            from jsonb_each_text(ea -> 'equipe') j where not coalesce(ea -> 'blesses', '[]') ? j.value and not coalesce(ea -> 'pr', '[]') ? j.value)
+        select case when random() < (select sum(h) from r) then (select r.key from r where h > 0 order by -ln(1 - random()) / h limit 1) end into kb;
+      elsif random() < pbl * (1 + 4 * (ea ->> 'fatigue')::numeric) then
+        select j.key into kb from jsonb_each_text(ea -> 'equipe') j where not coalesce(ea -> 'blesses', '[]') ? j.value and not coalesce(ea -> 'pr', '[]') ? j.value
+          order by -ln(1 - random()) / (1 + 5 * coalesce((ea -> 'fp' ->> j.value)::numeric, 0)) limit 1;
+      end if;
       if kb is not null then
         ea := match_blesser(ea, kb);
         e := jsonb_set(e, '{ev}', (e -> 'ev') || (blessure_tirer() || jsonb_build_object('t', t, 'c', 'a', 'ty', 'blessure', 'p', kb, 'n', ea -> 'joueurs' ->> kb,
@@ -2194,7 +2251,8 @@ begin
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
-    e := e || jsonb_build_object('a', match_fat(e -> 'a', 0, 0, .5), 'b', match_fat(e -> 'b', 0, 0, .5));
+    e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,mt}')::numeric) else match_fat(e -> 'a', 0, 0, .5) end,
+      'b', case when e -> 'b' ? 'fcfg' then match_fat(e -> 'b', 0, 0, 1, (e #>> '{b,fcfg,mt}')::numeric) else match_fat(e -> 'b', 0, 0, .5) end);
     e := match_ordi(e, true);
     e := jsonb_set(e, '{balle}', to_jsonb(case when random() < .5 then 'a' else 'b' end));
   elsif b + 1 < 12 then
@@ -2210,7 +2268,7 @@ declare d jsonb := e -> 'debut'; n0 int := (e ->> 'debut_n')::int; t0 int; dt nu
   ex jsonb := jsonb_build_object('a', coalesce((e #>> '{debut,a,exclu}')::int, 0), 'b', coalesce((e #>> '{debut,b,exclu}')::int, 0));
   der jsonb; prochain jsonb; c text; o text; balle text; contre text; bl jsonb := '[]'; ra jsonb; kbl text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
 begin
-  t0 := (d ->> 't')::int; dt := greatest(0, h - t0) / 3600.0; sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
+  t0 := (d ->> 't')::int; dt := greatest(0, h - t0); sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
   for x in select v from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k > n0 order by k loop
     if (x ->> 't')::int > h then
       if prochain is null and x ->> 'ty' = any(POSS) then prochain := x; end if;
@@ -2240,14 +2298,12 @@ begin
     contre := case when der ->> 'ty' = 'perte' and prochain ->> 'c' = balle and prochain ->> 'z' = 'contre' then balle end;
   end if;
   d := (d - 'contre') || case when contre is not null then jsonb_build_object('contre', contre) else '{}' end;
-  ra := match_fat((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int),
-      dt * case d #>> '{a,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15);
+  ra := match_fatiguer((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int), dt);
   for kbl in select jsonb_array_elements_text(bl) loop ra := match_blesser(ra, kbl); end loop;
   return d || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
     't', h, 'score', sc, 'balle', balle,
     'a', ra,
-    'b', match_fat((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int),
-      dt * case d #>> '{b,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15),
+    'b', match_fatiguer((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int), dt),
     'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t');
 end $$;
 -- ce que le jeu voit d'un match en cours : tout, sauf l'attaque adverse (à deviner) et les forces exactes
@@ -2321,6 +2377,7 @@ begin
   delete from matchs_direct where user_id = p_uid;   -- avant : l'état renvoyé n'a plus de match en cours
   -- blessures : chaque match joué (championnat, défi) compte pour les absences en cours ; puis celles de ce match, sur la carte
   update exemplaires set blessure = blessure - 1, blessure_g = case when blessure > 1 then blessure_g end where proprietaire = p_uid and blessure > 0;
+  update exemplaires set protection = protection - 1 where proprietaire = p_uid and protection > 0;
   update exemplaires x set blessure = greatest(x.blessure, (v ->> 'm')::int), blessure_g = v ->> 'g'
     from jsonb_array_elements(e -> 'ev') v where v ->> 'ty' = 'blessure' and v ->> 'c' = 'a' and coalesce((v ->> 'm')::int, 0) > 0
       and x.id::text = v ->> 'id' and x.proprietaire = p_uid;
@@ -2350,16 +2407,28 @@ begin
   -- l'attaque jouée change, pas la tactique choisie par le joueur (e.a.tactique, enregistrée dans son onglet Équipe en fin de match)
   return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma));
 end $$;
--- l'adjoint fait aussi les changements : il fait entrer le remplaçant quand, fatigue comptée, il apporte nettement plus que le
--- titulaire (valeur = note au poste − fatigue × 58 × fw, 30 × fw pour le but : ce que coûte la fatigue d'un joueur au moteur),
--- avec une marge de 2 points pour ne pas faire tourner à chaque tranche
+-- l'adjoint fait aussi les changements, avant chaque tranche : à chaque poste, il met sur le terrain celui des deux qui vaudra le plus
+-- pendant les 5 minutes à venir : sa note au poste, moins le malus de sa fatigue à la fin de la tranche, moins un coût pour le risque
+-- de blessure (300 × (fatigue − seuil des blessures)²), avec 1 point de marge. Ancienne fatigue (match commencé avant) : note −
+-- fatigue × 58 × fw (30 × fw pour le but), 2 points de marge.
 create or replace function match_adjoint_changer(e jsonb, p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare a jsonb := e -> 'a'; k text; vt numeric; vr numeric; kf numeric; postes text[] := '{}'; w numeric := coalesce((e #>> '{a,fw}')::numeric, 1);
+  ft numeric; fb numeric; r5 numeric; mm numeric; ms numeric; bs numeric;
 begin
   if coalesce(jsonb_typeof(a -> 'banc'), '') <> 'object' or (e ->> 'bloc')::int >= 12 then return e; end if;
+  r5 := 5 * coalesce((a -> 'fcfg' -> 'rythme' ->> coalesce(a ->> 'consigne', 'normal'))::numeric, .03);
+  mm := coalesce((a #>> '{fcfg,m}')::numeric, 80); ms := coalesce((a #>> '{fcfg,s}')::numeric, .3); bs := coalesce((a #>> '{fcfg,bs}')::numeric, .35);
   for k in select jsonb_object_keys(a -> 'banc') loop
     if coalesce(a -> 'blesses', '[]') ? (a -> 'banc' ->> k) then continue; end if;
     if coalesce(a -> 'blesses', '[]') ? (a -> 'equipe' ->> k) then postes := postes || k; continue; end if;
+    if a ? 'fcfg' then
+      ft := coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'equipe' ->> k))::numeric, 1);
+      fb := coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'banc' ->> k))::numeric, 1);
+      vt := (a -> 'notes' ->> k)::numeric - mm * greatest(0, ft - ms) ^ 2 - 300 * greatest(0, ft - bs) ^ 2;
+      vr := (a -> 'nb' ->> k)::numeric - mm * greatest(0, fb - ms) ^ 2 - 300 * greatest(0, fb - bs) ^ 2;
+      if vr > vt + 1 then postes := postes || k; end if;
+      continue;
+    end if;
     kf := w * case when k = 'GB' then 30 else 58 end;
     vt := (a -> 'notes' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0);
     vr := (a -> 'nb' ->> k)::numeric - kf * coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0);
@@ -2480,7 +2549,7 @@ begin
   if (e -> 'tm' ->> per)::int >= 2 then raise exception 'Déjà 2 temps morts dans cette période'; end if;
   e := jsonb_set(e, '{tm}', (e -> 'tm') || jsonb_build_object('restants', (e #>> '{tm,restants}')::int - 1, per, (e -> 'tm' ->> per)::int + 1));
   e := jsonb_set(e, '{a,elan}', to_jsonb((e ->> 't')::int + 180));
-  e := e || jsonb_build_object('a', match_fat(e -> 'a', -.02, 0));
+  e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,tm}')::numeric) else match_fat(e -> 'a', -.02, 0) end);
   return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'temps-mort', 's', e -> 'score',
     'va', e #>> '{b,attaque}', 'vd', e #>> '{b,defense}'));
 end $$;
@@ -3067,8 +3136,8 @@ begin
   end if;
   e1 := ex_libre(p.user_id, p_donne, p_palier); e2 := ex_libre(o.user_id, p_recoit, p_palier);
   if e1 is null or e2 is null then raise exception 'Cet échange n’est plus possible : une des cartes n’est plus libre'; end if;
-  update exemplaires set proprietaire = o.user_id where id = e1;
-  update exemplaires set proprietaire = p.user_id where id = e2;
+  update exemplaires set proprietaire = o.user_id, protection = 5 where id = e1;
+  update exemplaires set proprietaire = p.user_id, protection = 5 where id = e2;
   -- les joueurs voulus sont obtenus ; on garde un joueur à donner tant qu'il en reste une carte libre
   delete from listes_transfert where palier = p_palier and ((user_id = p.user_id and sens = 'veux' and carte = p_recoit)
     or (user_id = o.user_id and sens = 'veux' and carte = p_donne));
@@ -3099,8 +3168,8 @@ begin
   if not exists (select 1 from exemplaires where id = a.exemplaire and proprietaire = a.vendeur) then
     raise exception 'La carte proposée n’est plus disponible';
   end if;
-  update exemplaires set proprietaire = p.user_id, verrou = null where id = a.exemplaire;
-  update exemplaires set proprietaire = a.vendeur where id = mon_ex;
+  update exemplaires set proprietaire = p.user_id, verrou = null, protection = 5 where id = a.exemplaire;
+  update exemplaires set proprietaire = a.vendeur, protection = 5 where id = mon_ex;
   update annonces set statut = 'conclue', acheteur = p.user_id, conclue_le = now() where id = p_id;
   perform nettoyer_equipe(a.vendeur); perform nettoyer_equipe(p.user_id);
   perform progresser(p.user_id, 'marche');
@@ -3317,8 +3386,8 @@ begin
   if not sont_amis(p.user_id, x.de) then raise exception 'Vous n’êtes plus ami(e)s'; end if;
   if not carte_libre(x.de, x.donne) then raise exception 'Sa carte n’est plus disponible'; end if;
   if not carte_libre(p.user_id, x.demande) then raise exception 'Ta carte doit être hors de ton équipe et des transferts'; end if;
-  update exemplaires set proprietaire = p.user_id where id = x.donne;
-  update exemplaires set proprietaire = x.de where id = x.demande;
+  update exemplaires set proprietaire = p.user_id, protection = 5 where id = x.donne;
+  update exemplaires set proprietaire = x.de, protection = 5 where id = x.demande;
   update echanges set statut = 'accepte', fini_le = now() where id = p_id;
   update echanges set statut = 'annule', fini_le = now() where statut = 'ouvert' and id <> p_id and (donne in (x.donne, x.demande) or demande in (x.donne, x.demande));
   perform listes_nettoyer(p.user_id); perform listes_nettoyer(x.de);
@@ -3761,6 +3830,9 @@ update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeur
 -- 20 nov. 2026 (même jour) : avec la régularité des matchs (match_regularite = 0,04), la tactique compte bien plus et un adjoint à 0,2
 -- ne gagnait plus que 22 à 30 % des matchs à force égale : 0,35 le remet entre qui garde sa tactique et qui joue activement
 update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' where (valeurs ->> 'match_simule_lecture')::numeric in (0.5, 0.2);
+-- 20 nov. 2026 (fatigue de chaque joueur) : au plus 1 blessure par match (Maël : « 2 blessures par match c'est trop ») ; seulement si
+-- la valeur est encore l'ancienne
+update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs ->> 'blessures_max')::int = 2;
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case

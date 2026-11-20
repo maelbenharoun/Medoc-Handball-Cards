@@ -76,9 +76,20 @@ const CompteServeur = (() => {
     S = {...vide(), ...e, recu: Date.now()};   // recu : pour le compte à rebours du prochain booster
     if (session) ecrireCache({etat: S, utilisateur: session.user.id});
   }
+  // une action sans réponse au bout de 25 s est abandonnée (retour de Rémi, iPhone, 20 nov. 2026 : au retour sur l'appli, une
+  // requête pouvait ne jamais répondre ; le jeu attendait sa fin et plus aucun bouton ne marchait jusqu'au rafraîchissement)
+  const DELAI_RPC = 25000;
   async function rpc(nom, args) {
     if (!sb || horsLigne) throw new Error('Pas de connexion : reviens en ligne pour jouer');
-    const {data, error} = await sb.rpc(nom, args);
+    const stop = new AbortController(), minuteur = setTimeout(() => stop.abort(), DELAI_RPC);
+    let res;
+    try { res = await sb.rpc(nom, args).abortSignal(stop.signal); }
+    finally { clearTimeout(minuteur); }
+    const {data, error} = res;
+    if (stop.signal.aborted) {
+      sb.rpc('mon_etat').then(r => { if (r.data) majEtat(r.data); }).catch(() => {});   // l'action a peut-être eu lieu : on relit l'état
+      throw new Error('Le serveur ne répond pas : vérifie ta connexion et réessaie');
+    }
     if (error) throw new Error(texteErreur(error));
     if (data && data.etat) majEtat(data.etat);
     return data;
