@@ -1947,3 +1947,7 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .md-bl.on { border-color: #3fcf8e; background: #16291f; transform: translateY(-2px); }
 .md-bl.on .md-bfl { color: #3fcf8e; transform: rotate(180deg); }
 .md-bl.on .md-bj.t { opacity: .55; }
+.md-bancp { z-index: 6; }
+.md-bancp h3 small { margin-left: 6px; font-size: .72rem; font-weight: 700; color: #3fcf8e; }
+.md-bancp .md-bl:disabled { opacity: .7; }
+.md-bancp .md-bl.on { opacity: 1; }

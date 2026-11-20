@@ -73,6 +73,7 @@ const ouvrir = async base => { const c = new Client({connectionString: url(base)
   await appel(db, a, 'mon_etat');
   const quete = (await q('select q.quete, k.objectif, k.pieces from quetes q join quetes_catalogue() k on k.id = q.quete where q.user_id = $1 limit 1', [a]))[0];
   await q('update quetes set progres = $2 where user_id = $1 and quete = $3', [a, quete.objectif, quete.quete]);
+  await q('update profils set niveau = 50, xp = 0 where user_id = $1', [a]);   // l'XP de la quête ne fait pas monter de niveau (sinon + les pièces du niveau, selon la quête du jour)
   av = await pieces(a); rs = await ensemble(fois(N, [a, 'reclamer_quete', [quete.quete]]));
   verif(`${N} réclamations de la même quête : payée une fois`, reussis(rs) === 1 && await pieces(a) - av === quete.pieces, {reussis: reussis(rs), gain: await pieces(a) - av});
 

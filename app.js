@@ -1427,7 +1427,7 @@ function ouvrirDirect(vue, reprise) {
     <div class="md-onglets" role="tablist"><button class="on" data-md-onglet="direct">Direct</button><button data-md-onglet="stats">Stats</button></div>
     <div class="md-corps"><div class="md-fil"></div><div class="md-stats" hidden></div></div>
     <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-chg">Banc</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
-    <div class="md-panneau" hidden></div>`;
+    <div class="md-panneau" hidden></div><div class="md-panneau md-bancp" hidden></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
   Object.assign(MD, {el, vue, evs: [], file: [], h: vue.bloc * 300, finBloc: vue.bloc * 300, attente: true, fin: null, timers: [], ts: 0,
@@ -1559,7 +1559,7 @@ function majHorlogeMD() {
 // (la mi-temps est obligatoire : le match s'arrête à 30' sur un écran à part, même sans rien changer)
 function finBlocMD() {
   MD.attente = true;
-  if (MD.enCours || MD.panneau) return;   // une tranche déjà demandée, ou un panneau ouvert : on attend
+  if (MD.enCours || MD.chgEnCours || MD.panneau) return;   // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend
   const pause = Math.round(650 / MD.vitesse);
   if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
   if (MD.vue.bloc === 6) return MD.timers.push(setTimeout(() => panneauMD('mi-temps'), pause));
@@ -1583,7 +1583,7 @@ function blocMD() {
     MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.bloc * 300;
     if (r.match) { MD.fin = r; MD.finBloc = 3600; }
     if (!MD.panneau) MD.attente = false;
-    majMD();
+    majMD(); majBancMD();
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
 }
 const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.vue.bloc < 6 ? 'p1' : 'p2'; return t.restants > 0 && (t[per] || 0) < 2 && MD.vue.bloc > 0 && MD.vue.bloc < 12; };
@@ -1663,41 +1663,39 @@ function resumeBancMD() {
   const ef = MD.vue.nous.effectif, k = POSTES_MD.filter(k => ef[k]?.n).sort((a, b) => fraicheur(ef[a].f) - fraicheur(ef[b].f))[0];
   return k ? `le plus fatigué : ${esc(nomCourt(ef[k].n))}, ${fraicheur(ef[k].f)} %` : '';
 }
+// le banc s'ouvre par-dessus le match sans l'arrêter (demande de Maël, 20 nov. 2026 : « dès qu'on appuie, et le temps ne
+// s'arrête pas ») : un toucher sur un poste et le remplaçant entre à la seconde affichée (match_changer)
 function panneauBanc() {
   if (!MD.el || !bancMD().length) return;
-  if (MD.panneau !== 'banc') MD.avantBanc = MD.panneau;
-  MD.attente = true; MD.panneau = 'banc'; MD.chg = new Set();
-  const ef = MD.vue.nous.effectif, p = MD.el.querySelector('.md-panneau');
-  const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `${Math.min(60, MD.finBloc / 60)}'` : 'au coup d’envoi';
-  const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(nomCourt(n))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${fraicheur(f) < 50 ? ' bas' : ''}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
-  p.innerHTML = `<div class="md-p-c"><h3>Changements</h3>
-    <p class="sub petit">Touche un poste pour faire entrer le remplaçant (à ${quand}). Changements illimités, comme au handball : sur le banc, on récupère. La barre = la fraîcheur.</p>
-    <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
-      return `<button class="md-bl" data-md-chg="${k}"${x.r ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't')}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r') : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
-    <div class="md-p-b"><button class="btn ghost" data-md-go="banc-retour">Retour</button><button class="btn gold" data-md-go="banc-ok" disabled>Valider</button></div></div>`;
-  p.hidden = false; MD.el.classList.add('en-pause');
-  majMD();
+  MD.bancOuvert = true; majBancMD();
+  MD.el.querySelector('.md-bancp').hidden = false;
 }
 function majBancMD() {
-  const p = MD.el.querySelector('.md-panneau'), n = MD.chg.size;
-  p.querySelectorAll('[data-md-chg]').forEach(b => b.classList.toggle('on', MD.chg.has(b.dataset.mdChg)));
-  const ok = p.querySelector('[data-md-go="banc-ok"]'); ok.disabled = !n; ok.textContent = n ? `Valider ${n} changement${n > 1 ? 's' : ''}` : 'Valider';
+  if (!MD.el || !MD.bancOuvert) return;
+  const ef = MD.vue.nous.effectif || {}, p = MD.el.querySelector('.md-bancp'), occupe = MD.chgEnCours || MD.enCours;
+  const jr = (n, note, f, cls) => `<span class="md-bj ${cls}"><b>${esc(String(nomCourt(n) || '').replace(/--/g, '-'))}</b><small>${note ?? '–'} · ${fraicheur(f)} %</small><i class="md-fr${fraicheur(f) < 50 ? ' bas' : ''}"><i style="transform:scaleX(${fraicheur(f) / 100})"></i></i></span>`;
+  p.innerHTML = `<div class="md-p-c"><h3>Changements <small>le match continue</small></h3>
+    <p class="sub petit">Touche un poste : le remplaçant entre tout de suite. Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur.</p>
+    <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
+      return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}" data-md-chg="${k}"${x.r && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't')}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r') : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
+    <div class="md-p-b"><button class="btn gold" data-md-go="banc-fermer">Fermer</button></div></div>`;
 }
-function sortieBanc() {
-  const av = MD.avantBanc; MD.avantBanc = null;
-  if (av && av !== 'tactique') return panneauMD(av);
-  fermerPanneauMD(); majMD(); reprendreMD();
-}
-function validerBanc() {
-  if (MD.enCours) return toast('Un instant : la tranche se joue');
-  const postes = [...MD.chg], btn = MD.el.querySelector('[data-md-go="banc-ok"]'); btn.disabled = true;
-  MD.enCours = true;
-  Compte.matchChanger(postes).then(r => {
-    MD.enCours = false; if (!MD.el) return;
-    MD.vue = r.vue; MD.file.push(...(r.vue.evenements || []));
-    Son.jouer('sifflet'); toast(postes.length > 1 ? `${postes.length} changements` : 'Changement fait');
-    sortieBanc();
-  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); btn.disabled = false; });
+function fermerBancMD() { MD.bancOuvert = false; if (MD.el) MD.el.querySelector('.md-bancp').hidden = true; }
+function changerMD(poste) {
+  if (MD.chgEnCours || MD.fin) return;
+  if (MD.enCours) return toast('Un instant…');
+  MD.chgEnCours = true; MD.chgPoste = poste; majBancMD();
+  Compte.matchChanger([poste], Math.floor(MD.h)).then(r => {
+    MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return;
+    // ce qui est déjà raconté (jusqu'à « reprise ») reste ; la suite de la tranche est rejouée avec le remplaçant
+    MD.vue = r.vue; MD.file = MD.file.filter(x => x.t <= r.reprise).concat(r.vue.evenements || []);
+    // récit à l'arrêt (mi-temps, temps mort, pause) : le changement s'écrit tout de suite au fil
+    if (MD.attente) while (MD.file.length && MD.file[0].t <= MD.h) animerMD(MD.file.shift(), 300);
+    Son.jouer('sifflet');
+    if (r.reprise > MD.h + 30) toast(`Il entre à ${Math.floor(r.reprise / 60)}'`);
+    majBancMD(); majMD();
+    if (!MD.panneau && !MD.file.length && MD.h >= MD.finBloc) finBlocMD();
+  }).catch(e => { MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majBancMD(); });
 }
 function choixMD() {
   const p = MD.el.querySelector('.md-panneau'), c = MD.choix;
@@ -1728,10 +1726,9 @@ function clicMD(e) {
   if (d.mdAtt) { MD.choix.att = d.mdAtt; return choixMD(); }
   if (d.mdDef) { MD.choix.def = d.mdDef; return choixMD(); }
   if (d.mdCons) { MD.choix.cons = d.mdCons; return choixMD(); }
-  if (d.mdChg) { MD.chg.has(d.mdChg) ? MD.chg.delete(d.mdChg) : MD.chg.add(d.mdChg); return majBancMD(); }
-  if (b.classList.contains('md-chg') || d.mdGo === 'banc') { if (MD.panneau && MD.panneau !== 'banc') { MD.choix && (MD.tac = `${MD.choix.att}:${MD.choix.def}`, MD.cons = MD.choix.cons); } return panneauBanc(); }
-  if (d.mdGo === 'banc-retour') return sortieBanc();
-  if (d.mdGo === 'banc-ok') return validerBanc();
+  if (d.mdChg) return changerMD(d.mdChg);
+  if (b.classList.contains('md-chg') || d.mdGo === 'banc') return panneauBanc();
+  if (d.mdGo === 'banc-fermer') return fermerBancMD();
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
   if (b.classList.contains('md-tm')) { MD.tmDemande = !MD.tmDemande; return majMD(); }
   if (b.classList.contains('md-tac')) return panneauMD('tactique');
@@ -1760,7 +1757,7 @@ function simulerFinMD() {
 }
 function resultatMD(r) {
   if (!MD.el) return;
-  fermerPanneauMD(); MD.attente = true;
+  fermerPanneauMD(); fermerBancMD(); MD.attente = true;
   majPieces(); celebrer(r.niveaux);
   MD.el.querySelector('.md-sa').textContent = r.match.a; MD.el.querySelector('.md-sb').textContent = r.match.b;
   MD.el.querySelector('.md-per').textContent = 'Fin du match';

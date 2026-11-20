@@ -2038,12 +2038,23 @@ begin
   return e || jsonb_build_object('t', t, 'score', sc);
 end $$;
 -- un bloc de 5 minutes ; à la mi-temps, l'adversaire peut s'adapter et l'équipe récupère un peu
+-- Une tranche : on garde l'état du match à son début (debut, sans le fil ; debut_n = longueur du fil à ce moment ; servi = quand elle
+-- a été jouée, servi_t = sa première seconde) pour pouvoir y revenir : un changement de joueurs se fait à la seconde où on le
+-- demande, au milieu de la tranche déjà jouée (match_rembobiner, match_changer)
 create or replace function match_bloc_jouer(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare b int := (e ->> 'bloc')::int;
 begin
   if b >= 12 then return e; end if;
   e := e || jsonb_build_object('blocs', coalesce(e -> 'blocs', '[]') || jsonb_build_object('aa', e #>> '{a,attaque}', 'ad', e #>> '{a,defense}',
     'ba', e #>> '{b,attaque}', 'bd', e #>> '{b,defense}'));
+  e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'),
+    'servi', extract(epoch from clock_timestamp()), 'servi_t', (e ->> 't')::int);
+  return match_bloc_suite(e);
+end $$;
+-- la fin d'une tranche, depuis la seconde où le match en est (t) : les possessions, puis la mi-temps ou l'entraîneur adverse
+create or replace function match_bloc_suite(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare b int := (e ->> 'bloc')::int;
+begin
   e := match_avancer(e, (b + 1) * 300);
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
@@ -2055,6 +2066,50 @@ begin
     e := match_ordi(e, false);
   end if;
   return e;
+end $$;
+-- le match tel qu'il était à la seconde h de la tranche jouée en dernier : l'état du début de la tranche, plus ce que le fil a
+-- déjà raconté jusqu'à h (score, stats, exclusions, qui a le ballon, contre-attaque en cours, fatigue) ; la suite est oubliée
+create or replace function match_rembobiner(e jsonb, h int) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare d jsonb := e -> 'debut'; n0 int := (e ->> 'debut_n')::int; t0 int; dt numeric; x jsonb; i int := 0; garde jsonb := '[]'; sc jsonb;
+  st jsonb := jsonb_build_object('a', e #> '{debut,a,stats}', 'b', e #> '{debut,b,stats}');
+  ex jsonb := jsonb_build_object('a', coalesce((e #>> '{debut,a,exclu}')::int, 0), 'b', coalesce((e #>> '{debut,b,exclu}')::int, 0));
+  der jsonb; prochain jsonb; c text; o text; balle text; contre text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
+begin
+  t0 := (d ->> 't')::int; dt := greatest(0, h - t0) / 3600.0; sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
+  for x in select v from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k > n0 order by k loop
+    if (x ->> 't')::int > h then
+      if prochain is null and x ->> 'ty' = any(POSS) then prochain := x; end if;
+      continue;
+    end if;
+    garde := garde || x; c := x ->> 'c'; o := case c when 'a' then 'b' else 'a' end;
+    if x ? 's' then sc := x -> 's'; end if;
+    if x ->> 'ty' in ('but', 'arret', 'poteau', 'dehors', '7m-but', '7m-arret') then st := jsonb_set(st, array[c, 'tirs'], to_jsonb((st #>> array[c, 'tirs'])::int + 1)); end if;
+    if x ->> 'ty' in ('but', '7m-but') then
+      st := jsonb_set(st, array[c, 'buts'], to_jsonb((st #>> array[c, 'buts'])::int + 1));
+      st := jsonb_set(st, array[c, 'zones', x ->> 'z'], to_jsonb((st #>> array[c, 'zones', x ->> 'z'])::int + 1));
+    end if;
+    if x ->> 'ty' in ('arret', '7m-arret') then st := jsonb_set(st, array[o, 'arrets'], to_jsonb((st #>> array[o, 'arrets'])::int + 1)); end if;
+    if x ->> 'ty' like '7m%' then st := jsonb_set(st, array[c, 'sept'], to_jsonb((st #>> array[c, 'sept'])::int + 1)); end if;
+    if x ->> 'ty' = 'perte' then st := jsonb_set(st, array[c, 'pertes'], to_jsonb((st #>> array[c, 'pertes'])::int + 1)); end if;
+    if x ->> 'ty' = 'excl' then
+      st := jsonb_set(st, array[c, 'excl'], to_jsonb((st #>> array[c, 'excl'])::int + 1));
+      ex := jsonb_set(ex, array[c], to_jsonb(greatest((ex ->> c)::int, (x ->> 't')::int + 120)));
+    end if;
+    if x ->> 'ty' = any(POSS) then der := x; end if;
+  end loop;
+  if der is not null then
+    balle := case der ->> 'c' when 'a' then 'b' else 'a' end;
+    -- après une perte de balle, la contre-attaque qui suivait (elle se voit à la possession suivante)
+    contre := case when der ->> 'ty' = 'perte' and prochain ->> 'c' = balle and prochain ->> 'z' = 'contre' then balle end;
+  end if;
+  d := (d - 'contre') || case when contre is not null then jsonb_build_object('contre', contre) else '{}' end;
+  return d || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
+    't', h, 'score', sc, 'balle', balle,
+    'a', match_fat((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int),
+      dt * case d #>> '{a,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15),
+    'b', match_fat((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int),
+      dt * case d #>> '{b,consigne}' when 'pression' then .22 when 'prudent' then .06 else .1 end, dt * .15),
+    'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t');
 end $$;
 -- ce que le jeu voit d'un match en cours : tout, sauf l'attaque adverse (à deviner) et les forces exactes
 create or replace function match_vue(e jsonb, p_depuis int default 0) returns jsonb language sql stable security definer set search_path = public as $$
@@ -2260,9 +2315,10 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat; n := jsonb_array_length(e -> 'ev');
+  -- la dernière tranche jouée, le jeu la raconte (on peut encore faire des changements) ; le résultat vient à l'appel suivant
+  if (e ->> 'bloc')::int >= 12 then return match_conclure(p.user_id, e, 1) || jsonb_build_object('vue', match_vue(e, n)); end if;
   e := match_regler(e, p_tactique, p_consigne, p_temps_mort);
   e := match_bloc_jouer(e);
-  if (e ->> 'bloc')::int >= 12 then return match_conclure(p.user_id, e, 1) || jsonb_build_object('vue', match_vue(e, n)); end if;
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
   return jsonb_build_object('direct', true, 'vue', match_vue(e, n));
 end $$;
@@ -2283,20 +2339,41 @@ begin
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
   return jsonb_build_object('vue', match_vue(e, n), 'adverse', jsonb_build_object('attaque', e #>> '{b,attaque}', 'defense', e #>> '{b,defense}'));
 end $$;
--- changements demandés par le jeu, à la fin de la tranche racontée (autant qu'on veut, comme au handball) : p_postes = liste de postes
-create or replace function match_changer(p_postes jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); cur matchs_direct; e jsonb; n int; ps text[];
+-- changements demandés par le jeu, tout de suite (demande de Maël, 20 nov. 2026 : « dès qu'on appuie, et le temps ne s'arrête pas ») :
+-- p_seconde = la seconde que le récit montre. Le serveur a déjà joué la tranche jusqu'au bout : il revient à cette seconde (ce qui
+-- est déjà raconté ne change pas), fait entrer les remplaçants et rejoue la fin de la tranche. Le jeu ne peut pas revenir plus tôt
+-- que ce que le récit a montré à la vitesse ×1 (25 secondes de match par seconde depuis que la tranche est servie : un téléphone
+-- lent prend du retard, même en ×4), sinon il pourrait rejouer une tranche entière dont il connaît déjà la fin. Renvoie les nouveaux événements et « reprise » : le jeu garde
+-- ceux qu'il avait jusqu'à cette seconde et remplace la suite.
+create or replace function match_changer(p_postes jsonb, p_seconde int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; n int; ps text[]; h int; hmin int; fin int; b int;
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
-  e := cur.etat; n := jsonb_array_length(e -> 'ev');
-  if (e ->> 'bloc')::int >= 12 then raise exception 'Le match est fini'; end if;
+  e := cur.etat; fin := (e ->> 't')::int; b := (e ->> 'bloc')::int;
   if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) = 0 or jsonb_array_length(p_postes) > 7 then raise exception 'Changements invalides'; end if;
   select array_agg(x) into ps from jsonb_array_elements_text(p_postes) x;
   if exists (select 1 from unnest(ps) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then raise exception 'Poste inconnu'; end if;
-  e := match_changer_e(e, p.user_id, ps);
+  h := least(fin, greatest(0, coalesce(p_seconde, fin)));
+  if e ? 'debut' and b >= 1 then
+    hmin := (e ->> 'servi_t')::int + floor((extract(epoch from clock_timestamp()) - (e ->> 'servi')::numeric) * 25)::int;
+    h := least(fin, greatest(h, hmin, (e #>> '{debut,t}')::int));
+  else
+    h := fin;
+  end if;
+  if b >= 12 and h >= fin then raise exception 'Le match est fini'; end if;
+  if h < fin then
+    -- au milieu de la tranche : retour à la seconde h, changements, puis la fin de la tranche rejouée
+    e := match_rembobiner(e, h); n := jsonb_array_length(e -> 'ev');
+    e := match_changer_e(e, p.user_id, ps);
+    e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'));
+    e := match_bloc_suite(e);
+  else
+    n := jsonb_array_length(e -> 'ev');
+    e := match_changer_e(e, p.user_id, ps);
+  end if;
   update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
-  return jsonb_build_object('vue', match_vue(e, n));
+  return jsonb_build_object('vue', match_vue(e, n), 'reprise', h);
 end $$;
 create or replace function match_simuler_fin() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); cur matchs_direct;
@@ -3866,7 +3943,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(), match_changer(jsonb), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

@@ -6,10 +6,14 @@ const UMD = __dirname + '/node_modules/@supabase/supabase-js/dist/umd/supabase.j
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 // Signatures des fonctions : lues dans la base au démarrage (celles accordées aux joueurs), rien à tenir à jour à la main.
 async function signatures(db) {
-  const r = await db.query(`select p.proname nom, coalesce(p.proargnames, '{}') noms, array(select format_type(t, null) from unnest(p.proargtypes) t) types
+  const r = await db.query(`select p.proname nom, coalesce(p.proargnames, '{}') noms, array(select format_type(t, null) from unnest(p.proargtypes) t) types, p.pronargs - p.pronargdefaults requis
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')`);
   const court = {integer: 'int', 'character varying': 'text'};
-  return Object.fromEntries(r.rows.map(f => [f.nom, Object.fromEntries(f.types.map((t, k) => [f.noms[k], court[t] || t]))]));
+  const sig = Object.fromEntries(r.rows.map(f => [f.nom, Object.fromEntries(f.types.map((t, k) => [f.noms[k], court[t] || t]))]));
+  // comme Supabase (PostgREST) : un appel qui ne donne pas un paramètre sans valeur par défaut ne trouve pas la fonction
+  // (supabase-js n'envoie pas une valeur undefined ; null, lui, est envoyé)
+  Object.defineProperty(sig, 'requis', {value: Object.fromEntries(r.rows.map(f => [f.nom, f.noms.slice(0, f.requis)])), enumerable: false});
+  return sig;
 }
 const VIDES = ['supprimer_mon_compte'];   // fonctions sans résultat
 
@@ -74,6 +78,8 @@ async function demarrer(options = {}) {
       const fn = url.pathname.split('/').pop(), sig = SIG[fn];
       if (!sig) return json(404, {message: 'not found'});
       const noms = Object.keys(sig), args = corps || {};
+      const manque = (SIG.requis[fn] || []).filter(n => !(n in args));
+      if (manque.length) return json(404, {code: 'PGRST202', message: `Could not find the function public.${fn} without ${manque.join(', ')}`, details: null, hint: null});
       const vals = noms.map(n => args[n] === undefined || args[n] === null ? null
         : (sig[n] === 'jsonb' || sig[n].endsWith('[]')) ? JSON.stringify(args[n]) : sig[n] === 'boolean' ? !!args[n] : sig[n] === 'int' || sig[n] === 'bigint' ? Number(args[n]) : String(args[n]));
       const exprs = noms.map((n, i) => `${n} => ${sig[n].endsWith('[]') ? `(select array_agg(x::${sig[n].slice(0, -2)}) from jsonb_array_elements_text($${i + 1}::jsonb) x)` : `$${i + 1}::${sig[n]}`}`);
