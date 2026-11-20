@@ -1108,11 +1108,17 @@ end $$;
 
 -- Supprime le compte, ses cartes et son journal (droit à l'effacement)
 create or replace function supprimer_mon_compte() returns void language plpgsql security definer set search_path = public as $$
-declare u uuid := auth.uid();
+declare u uuid := auth.uid(); v_pseudo text;
 begin
   if u is null then raise exception 'Connecte-toi d’abord'; end if;
+  select pseudo into v_pseudo from profils where user_id = u;
   perform club_partir(u);   -- son club ne reste ni sans président(e), ni vide dans le classement
   delete from mouvements where user_id = u;
+  -- son pseudo ne reste pas dans l'historique des matchs des autres (défis entre ami(e)s, ligue) : page de confidentialité
+  if v_pseudo is not null then
+    update rencontres set adversaire = 'Joueur supprimé'
+      where user_id <> u and adversaire = v_pseudo and type in ('defi', 'defense', 'defi_ami', 'defense_ami', 'defense_ligue');
+  end if;
   delete from auth.users where id = u;   -- efface aussi le profil, les cartes et les quêtes (en cascade)
 end $$;
 

@@ -10,15 +10,18 @@
 <style>
   main { padding-bottom: 40px; line-height: 1.55; }
   main p, main li { color: #c9ccd2; font-size: .95rem; }
+  main li { margin-bottom: 6px; }
   main h2 { margin-top: 24px; }
   main a { color: var(--accent); }
+  .maj { font-size: .8rem; color: var(--muted); }
 </style>
 </head>
 <body>
 <header class="top"><a class="brand" href="./" style="color:inherit;text-decoration:none"><img src="assets/logo.png" alt=""><span>Médoc <b>Hand Cards</b></span></a></header>
 <main>
 <h1>Données personnelles</h1>
-<p class="sub">Ce que le jeu garde sur toi, pourquoi, et comment tout effacer.</p>
+<p class="sub">Ce que le jeu garde sur toi, qui peut le voir, où c’est rangé, et comment tout effacer.</p>
+<p class="maj">Mise à jour le 20 novembre 2026.</p>
 
 <h2>Qui s’en occupe</h2>
 <p>Médoc Hand Cards est un jeu gratuit, sans publicité, fait par Maël Benharoun pour les licenciés et les supporters du Médoc Handball.
@@ -27,25 +30,49 @@ Pour toute question ou demande sur tes données : <a href="mailto:maelbenharoun@
 <h2>Ce que le jeu garde</h2>
 <ul>
   <li><b>Ton adresse e-mail</b> (ou ton compte Google) : seulement pour te connecter. Elle n’est jamais montrée aux autres joueurs.</li>
-  <li><b>Ton pseudo</b> : visible par les autres joueurs, pour les échanges et le classement (avec ton niveau de poule). Ce n’est pas forcément ton vrai nom.</li>
-  <li><b>Ta partie</b> : pièces, niveau, cartes, ton équipe et ta tactique, tes matchs et défis, tes paris, tes annonces au marché, et l’historique de ces actions (pour régler un litige ou repérer une triche).</li>
-  <li><b>Tes ami(e)s</b> : la liste de tes ami(e)s et des demandes, les échanges de cartes proposés entre vous, et les <b>messages</b> que vous vous envoyez. Seuls toi et l’ami(e) concerné(e) peuvent lire vos messages ; ne partage pas d’informations personnelles (adresse, téléphone…).</li>
-  <li>Les paris se font uniquement avec les pièces du jeu : on ne peut ni acheter de pièces, ni gagner quoi que ce soit en vrai.</li>
-  <li>Sur ton téléphone, le navigateur garde ta session et une copie de ta partie pour l’afficher hors ligne.</li>
+  <li><b>Ton pseudo</b>. Ce n’est pas forcément ton vrai nom : évite d’y mettre ton nom complet.</li>
+  <li><b>Ta partie</b> : pièces, niveau, cartes (avec leurs blessures en match), ton équipe, tes remplaçants, ta tactique, ta carte staff, ta personnalisation (avatar, cadre, fond),
+    tes matchs (championnat, ligue de la semaine, défis), tes mini-jeux, quêtes et passe de saison, tes paris et pronostics, tes défis de composition, tes listes de transferts,
+    ton club de joueurs, et l’historique de ces actions (pour régler un litige ou repérer une triche).</li>
+  <li><b>Tes ami(e)s</b> : la liste de tes ami(e)s et des demandes, les échanges de cartes proposés entre vous, et les <b>messages</b> que vous vous envoyez.
+    Seuls toi et l’ami(e) concerné(e) peuvent lire vos messages ; ne partage pas d’informations personnelles (adresse, téléphone…).</li>
+  <li>Les paris et pronostics se font uniquement avec les pièces du jeu : on ne peut ni acheter de pièces, ni gagner quoi que ce soit en vrai.</li>
 </ul>
-<p>Pas de publicité, pas de revente, pas de suivi de navigation. Les données sont hébergées par Supabase (base de données en Europe).</p>
+
+<h2>Ce que les autres joueurs voient</h2>
+<ul>
+  <li>Dans le <b>classement</b> : ton pseudo, ton niveau dans le parcours et ta personnalisation. En touchant ta ligne, ils voient <b>ton équipe</b> : tes 7 cartes alignées, ta note d’équipe, ta tactique et ta carte staff.</li>
+  <li>Dans la <b>ligue de la semaine</b> et les <b>clubs de joueurs</b> : ton pseudo, tes points ou tes victoires de la semaine.</li>
+  <li>Aux <b>transferts</b> : les joueurs que tu cherches et ceux que tu proposes, pour faire les échanges qui vous conviennent à tous les deux.</li>
+  <li>Tes <b>ami(e)s</b> voient en plus tes cartes libres (pour les échanges) et peuvent te défier.</li>
+</ul>
+
+<h2>Où c’est rangé, et qui d’autre intervient</h2>
+<ul>
+  <li><b>Supabase</b> : la base de données et les comptes. Les serveurs sont à Londres (Royaume-Uni), un pays reconnu par l’Union européenne comme protégeant les données au même niveau qu’elle.</li>
+  <li><b>GitHub Pages</b> (GitHub, États-Unis) : envoie les fichiers du jeu à ton téléphone. Comme tout hébergeur de site, il voit ton adresse IP.</li>
+  <li><b>jsDelivr</b> (bibliothèques du jeu : connexion au serveur, 3D des mini-jeux) et <b>Google Fonts</b> (polices d’écriture) : ils reçoivent ton adresse IP quand le jeu charge ces fichiers.</li>
+  <li><b>Google</b> : seulement si tu choisis de te connecter avec ton compte Google.</li>
+</ul>
+<p>Pas de publicité, pas de revente, pas de mesure d’audience, pas de suivi de navigation.</p>
+
+<h2>Sur ton téléphone</h2>
+<p>Le navigateur garde ta session, une copie de ta partie pour l’afficher hors ligne, et tes réglages (son, vitesse des matchs, tutoriels déjà vus, intro du jour).
+Ce n’est pas un cookie publicitaire : tout reste sur ton téléphone et part avec les données du site si tu les effaces.</p>
 
 <h2>Les cartes</h2>
 <p>Les cartes portent le nom, l’équipe et les statistiques sportives des joueurs et joueuses du club, issus des feuilles de match (medochandballstats.com).
 Une photo n’est ajoutée qu’avec l’accord de la personne, et de ses parents si elle est mineure. Pour faire retirer sa carte ou sa photo : écris à l’adresse ci-dessus.</p>
+<p>Les adversaires du parcours portent des noms de vrais clubs ou de sélections, et les équipes de Légendes ceux de joueurs et joueuses célèbres : seulement leur nom, aucune autre donnée.</p>
 
 <h2>Moins de 15 ans</h2>
 <p>Pour créer un compte avant 15 ans, il faut l’accord de tes parents. En cochant la case à la création du profil, tu confirmes que tu as 15 ans ou plus, ou que tes parents sont d’accord.</p>
 
 <h2>Combien de temps, et comment tout effacer</h2>
-<p>Tes données sont gardées tant que ton compte existe. Tu peux le supprimer à tout moment dans le jeu : touche la pastille de ton compte en haut à droite, puis « Supprimer mon compte ».
-Ton profil, tes cartes, tes matchs, tes paris, tes annonces, tes ami(e)s, tes échanges, tes messages et ton historique sont alors effacés tout de suite.</p>
-<p>Tu as aussi le droit de demander une copie de tes données ou leur correction, en écrivant à l’adresse ci-dessus.
+<p>Tes données sont gardées tant que ton compte existe. Tu peux le supprimer à tout moment dans le jeu : touche la pastille de ton compte en haut à gauche, puis « Supprimer mon compte ».
+Ton profil, tes cartes, tes matchs, tes paris et pronostics, tes listes de transferts, tes ami(e)s, tes échanges, tes messages, ta place en ligue et dans ton club, et ton historique sont alors effacés tout de suite.
+Dans l’historique des matchs des joueurs que tu as affrontés, ton pseudo est remplacé par « Joueur supprimé » ; les transferts faits avec toi restent chez les autres, sans aucun lien vers toi.</p>
+<p>Tu as aussi le droit de demander une copie de tes données, leur correction ou leur effacement, en écrivant à l’adresse ci-dessus.
 En cas de problème, tu peux t’adresser à la CNIL (<a href="https://www.cnil.fr" rel="noopener">cnil.fr</a>).</p>
 
 <p style="margin-top:28px"><a class="btn ghost" href="./">Retour au jeu</a></p>
