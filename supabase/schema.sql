@@ -2762,13 +2762,14 @@ begin
     else
       -- tir en suspension (demande de Maël) : plus de trajectoire, on tire au bon moment. vitesse = remplissage de la barre
       -- de course (0-1), hauteur = où en est le saut au moment du tir (1 = sommet). Élan = barre × hauteur (chacune comptée
-      -- pleine à partir de 95 %) : au sommet du saut avec une barre pleine, toujours but ; sinon but avec une chance de élan².
+      -- pleine à partir de 99 %) : au sommet du saut avec une barre pleine, toujours but ; sinon but avec une chance de élan³
+      -- (20 nov. 2026, Maël : « trop facile » ; avant : 95 % et élan²).
       -- Raté : contré si le tir part bas dans le saut (ou une fois sur deux), sinon arrêté. reponse = le côté du gardien.
       if (p_entrees ->> 'vitesse') is null or (p_entrees ->> 'hauteur') is null then raise exception 'Essai invalide'; end if;
       declare vit numeric := least(1, greatest(0, (p_entrees ->> 'vitesse')::numeric)); hau numeric := least(1, greatest(0, (p_entrees ->> 'hauteur')::numeric)); elan numeric;
       begin
-        elan := least(1, vit / .95) * least(1, hau / .95);
-        if elan >= 1 or random() < elan * elan then res := 'but';
+        elan := least(1, vit / .99) * least(1, hau / .99);
+        if elan >= 1 or random() < elan ^ 3 then res := 'but';
         elsif hau < .6 or random() < .5 then res := 'contre';
         else res := 'arret';
         end if;

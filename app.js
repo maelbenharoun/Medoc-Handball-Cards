@@ -3419,9 +3419,9 @@ const JEUX = {
   suspension: {
     scene: () => '<div class="t3"><div class="s3-vitesse"><i></i><small>Vitesse</small></div></div>',
     essai: essai3d('suspension'),
-    demo(ent) {   // mêmes règles que mini_jouer : élan = barre × hauteur au tir ; au sommet avec une barre pleine, toujours but
-      const vit = Math.min(1, Math.max(0, ent.vitesse || 0)), hau = Math.min(1, Math.max(0, ent.hauteur || 0)), elan = Math.min(1, vit / .95) * Math.min(1, hau / .95);
-      const resultat = elan >= 1 || Math.random() < elan * elan ? 'but' : hau < .6 || Math.random() < .5 ? 'contre' : 'arret';
+    demo(ent) {   // mêmes règles que mini_jouer : élan = barre × hauteur au tir (pleines à 99 %) ; au sommet avec une barre pleine, toujours but ; sinon élan³
+      const vit = Math.min(1, Math.max(0, ent.vitesse || 0)), hau = Math.min(1, Math.max(0, ent.hauteur || 0)), elan = Math.min(1, vit / .99) * Math.min(1, hau / .99);
+      const resultat = elan >= 1 || Math.random() < elan ** 3 ? 'but' : hau < .6 || Math.random() < .5 ? 'contre' : 'arret';
       return {resultat, reponse: {x: Math.random() < .5 ? .2 : .8, y: Math.random() < .5 ? .3 : .75}};
     },
   },

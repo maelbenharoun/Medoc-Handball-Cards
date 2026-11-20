@@ -787,7 +787,9 @@ export async function suspension(sc, n) {
     if (!MJ.el) return;
     const dt = S.pas();
     if (phase === 'course') {
-      v = Math.max(1.2, v - 1.5 * dt); jo.z += v * dt;
+      // la barre redescend d'autant plus vite qu'on court vite (Maël, 20 nov. 2026 : « trop facile ») : il faut tenir le rythme
+      // jusqu'au bout (≈ 3,4 touchers par seconde pour rester au maximum, contre 2 avant)
+      v = Math.max(1.2, v - (1 + .2 * v) * dt); jo.z += v * dt;
       if (v > 3.6) moi.jouer('course', .25, v / 6.5); else moi.jouer('trot', .25, v / 3.4);
       // le dribble : le ballon descend au sol devant sa main droite et remonte, un peu plus vite quand il court vite
       tCourse += dt * 1000 * (.8 + v / VMAX * .5);
@@ -799,8 +801,8 @@ export async function suspension(sc, n) {
         phase = 'appel'; tAppel = now; vAppel = Math.max(2, v * .55); moi.jouer('trot', .3, vAppel / 3.4);
         moi.pose('dribble', 0); moi.pose('porte', 1); balleDribble = null;   // il prend la balle à deux mains
         const pc = Math.min(1, v / VMAX);
-        barre.dataset.valeur = pc >= .95 ? 'Parfait !' : Math.round(pc * 100) + ' %';
-        barre.classList.toggle('parfaite', pc >= .95); barre.classList.add('bloquee'); vibrer(pc >= .95 ? [20, 30, 20] : 15);
+        barre.dataset.valeur = pc >= .99 ? 'Parfait !' : Math.round(pc * 100) + ' %';
+        barre.classList.toggle('parfaite', pc >= .99); barre.classList.add('bloquee'); vibrer(pc >= .99 ? [20, 30, 20] : 15);
         MJ.timers.push(setTimeout(() => barre.classList.add('partie'), 650));
         miniAide('Appel…');
       }
