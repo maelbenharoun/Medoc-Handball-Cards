@@ -2195,7 +2195,7 @@ function vueCompte() {
     </form>
     ${Compte.googleActif ? `<div class="ou"><span>ou</span></div>
     <button class="btn ghost large" data-act="google">Continuer avec Google</button>` : ''}
-    <p class="sub petit centre"><a href="confidentialite.html">Données personnelles et confidentialité</a></p>`;
+    <p class="sub petit centre"><a href="confidentialite.html">Données personnelles et confidentialité</a> · <a href="mentions-legales.html">Mentions légales</a></p>`;
   return `<h1>Ton profil</h1>${msg}
     <p class="sub">Connecté avec ${esc(Compte.email)}. Choisis le pseudo que verront les autres joueurs (pas forcément ton vrai nom).</p>
     <form class="form" data-form="profil">
@@ -2223,6 +2223,7 @@ function fenetreCompte() {
       `<button class="son-b${Son.reglages[k] ? ' on' : ''}" data-act="son-${k}" aria-pressed="${Son.reglages[k]}"><span aria-hidden="true">${ic}</span>${l}<b>${Son.reglages[k] ? 'Oui' : 'Non'}</b></button>`).join('')}</div>
     <button class="btn ghost" data-act="deconnexion">Se déconnecter</button>
     <a class="btn ghost" href="confidentialite.html">Données personnelles</a>
+    <a class="btn ghost" href="mentions-legales.html">Mentions légales</a>
     <button class="btn ghost danger" data-act="supprimer">Supprimer mon compte</button>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
@@ -3300,7 +3301,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=74').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=75').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
