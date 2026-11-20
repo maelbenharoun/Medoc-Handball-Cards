@@ -137,9 +137,14 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'pression', true]);
   verif('ensuite, la carte peut se blesser comme les autres', (r.match?.evenements || []).some(y => y.ty === 'blessure'));
   verif('la protection n’est jamais envoyée au jeu', !JSON.stringify(r.etat.exemplaires).includes('protection'));
-  const neuve = (await q("select protection from exemplaires where id = (select id from exemplaires where proprietaire = $1 order by obtenu_le desc limit 1)", [al]))[0];
-  r = await rpcJoueur(db, al, 'ouvrir_booster', ['gratuit']).catch(() => null);
-  const nv = (await q("select protection from exemplaires where proprietaire = $1 order by obtenu_le desc limit 1", [al]))[0];
-  verif('une carte tirée d’un booster arrive protégée (5 matchs)', nv.protection === 5, {avant: neuve, nv});
+  // un booster gratuit peut donner une carte staff (pas d'exemplaire) : on en ouvre jusqu'à obtenir un joueur
+  const ids0 = new Set((await q('select id from exemplaires where proprietaire = $1', [al])).map(x => x.id));
+  let nv = null;
+  for (let i = 0; i < 8 && !nv; i++) {
+    await q('update profils set boosters = 5 where user_id = $1', [al]);
+    await rpcJoueur(db, al, 'ouvrir_booster', ['gratuit']);
+    nv = (await q('select id, protection from exemplaires where proprietaire = $1', [al])).find(x => !ids0.has(x.id)) || null;
+  }
+  verif('une carte tirée d’un booster arrive protégée (5 matchs)', nv?.protection === 5, nv);
   process.exit(bilan() ? 1 : 0);
 })();

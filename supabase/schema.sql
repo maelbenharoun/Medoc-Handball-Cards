@@ -1397,7 +1397,7 @@ language plpgsql stable security definer set search_path = public as $$
 declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes numeric := 0; n int := 0;
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
-  s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; ne int;
+  s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; s_rel numeric; ne int;
   proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}';
 begin
   -- l'équipe d'un joueur : son capitaine et son staff comptent
@@ -1418,17 +1418,22 @@ begin
     eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
     s_phy := stat_note(ne, (l.ecarts ->> 'phy')::numeric);
+    s_vit := stat_note(ne, (l.ecarts ->> 'vit')::numeric);
+    -- chaque stat compte en attaque ET en défense (demande de Maël, 20 nov. 2026 : avant, l'attaque ne venait que de TIR, PAS,
+    -- VIT et la défense que de DÉF, PHY, MEN ; un joueur au profil extrême valait bien plus qu'un autre de même note). Les stats
+    -- « d'attaque » pèsent un peu plus en attaque, celles « de défense » un peu plus en défense ; sur attaque + défense, chaque stat
+    -- pèse presque autant (0,30 à 0,35) : à note égale, les joueurs se valent beaucoup plus (écart entre cartes divisé par 2 à 4)
     if l.slot = 'GB' then
       s_ref := stat_note(ne, (l.ecarts ->> 'ref')::numeric);
       s_pla := stat_note(ne, (l.ecarts ->> 'pla')::numeric);
-      arr := .5 * s_ref + .3 * s_pla + .2 * s_men;
+      s_rel := stat_note(ne, (l.ecarts ->> 'rel')::numeric);
+      arr := .30 * s_ref + .20 * s_pla + .15 * s_men + .15 * s_rel + .10 * s_phy + .10 * s_vit;
     else
       s_tir := stat_note(ne, (l.ecarts ->> 'tir')::numeric);
       s_pas := stat_note(ne, (l.ecarts ->> 'pas')::numeric);
-      s_vit := stat_note(ne, (l.ecarts ->> 'vit')::numeric);
       s_def := stat_note(ne, (l.ecarts ->> 'def')::numeric);
-      att := att + (.5 * s_tir + .3 * s_pas + .2 * s_vit) / 6;
-      def := def + (.5 * s_def + .3 * s_phy + .2 * s_men) / 6;
+      att := att + (.25 * s_tir + .20 * s_pas + .15 * s_vit + .15 * s_men + .15 * s_phy + .10 * s_def) / 6;
+      def := def + (.25 * s_def + .20 * s_phy + .15 * s_men + .15 * s_vit + .15 * s_pas + .10 * s_tir) / 6;
       m_tir := m_tir + s_tir / 6; m_pas := m_pas + s_pas / 6; m_def := m_def + s_def / 6;
       m_men := m_men + s_men / 6; m_phy := m_phy + s_phy / 6; m_vit := m_vit + s_vit / 6;
       tireurs := tireurs || jsonb_build_object('n', l.nom, 'p', greatest(1, s_tir - 25));
