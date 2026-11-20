@@ -2006,6 +2006,8 @@ $$;
 -- redescend (repos) ; la mi-temps et un temps mort en retirent à tous (p_tous). Au-delà du seuil, chaque joueur sur le terrain perd
 -- malus × (fatigue − seuil)² points de note, ramenés sur l'attaque et la défense comme une blessure (fma, fmd). Ancienne fatigue
 -- (sans fcfg) : un match commencé avant, et l'équipe de l'ordinateur (fatigue d'équipe, sans fp).
+-- l'ancienne version (4 paramètres) rendrait les appels ambigus : on la retire avant (aucune donnée ne dépend d'une fonction)
+drop function if exists match_fat(jsonb, numeric, numeric, numeric);
 create or replace function match_fat(eq jsonb, p_terrain numeric, p_banc numeric, p_fois numeric default 1, p_tous numeric default 0) returns jsonb
 language plpgsql immutable as $$
 declare fp jsonb := '{}'; s numeric := 0; n int := 0; l record; v numeric; sur boolean; fe numeric; w numeric := coalesce((eq ->> 'fw')::numeric, 1);
