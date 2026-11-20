@@ -1846,10 +1846,10 @@ end $$;
 create or replace function match_ia(p_style text) returns jsonb language sql stable security definer set search_path = public as $$
   select (case p_style
     when 'hasard' then '{"style": "hasard", "nom": "imprévisible", "reac": 0.15, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0, "hasard": true}'
-    when 'lent' then '{"style": "lent", "nom": "lent à réagir", "reac": 0.2, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0}'
-    when 'rapide' then '{"style": "rapide", "nom": "rapide", "reac": 0.75, "neutre": 1, "mi": [1, 0.9], "anticipe": 0}'
-    when 'legende' then '{"style": "legende", "nom": "légendaire", "reac": 1, "neutre": 1, "mi": [1, 1], "anticipe": 0.7, "continu": true}'
-    else '{"style": "reflechi", "nom": "réfléchi", "reac": 0.4, "neutre": 0.5, "mi": [0.8, 0.7], "anticipe": 0}' end)::jsonb
+    when 'lent' then '{"style": "lent", "nom": "lent à réagir", "reac": 0.2, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0, "lecture": 0.5}'
+    when 'rapide' then '{"style": "rapide", "nom": "rapide", "reac": 0.75, "neutre": 1, "mi": [1, 0.9], "anticipe": 0, "lecture": 0.8}'
+    when 'legende' then '{"style": "legende", "nom": "légendaire", "reac": 1, "neutre": 1, "mi": [1, 1], "anticipe": 0.7, "continu": true, "lecture": 0.9}'
+    else '{"style": "reflechi", "nom": "réfléchi", "reac": 0.4, "neutre": 0.5, "mi": [0.8, 0.7], "anticipe": 0, "lecture": 0.65}' end)::jsonb
     || case when p_style in ('hasard', 'lent', 'rapide', 'legende') then '{}'::jsonb
       else jsonb_build_object('reac', coalesce((param('match_ordi_reaction') #>> '{}')::numeric, .4)) end
 $$;
@@ -1922,14 +1922,30 @@ begin
       if u < 1 then u := u * case when (ia ->> 'neutre')::numeric >= 1 then 1 when (ia ->> 'neutre')::numeric > 0 and ecart < 0 then 1 else 0 end; end if;
       u := greatest(u, case when ncons <> cons then .8 else 0 end);
       if ia ? 'continu' then
-        if u <= 0 or random() >= reac then return e; end if;   -- Légendes : à chaque tranche, sans temps mort
+        if u <= 0 or random() >= reac then natt := att; ndef := def; ncons := cons; end if;   -- Légendes : à chaque tranche, sans temps mort
       elsif random() < reac * u then
         tm := ecart <= -3 and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2;   -- mené : il prend aussi un temps mort, pour l'élan
       else
-        return e;
+        natt := att; ndef := def; ncons := cons;   -- pas de changement (sauf s'il varie son attaque, plus bas)
       end if;
       if ud <= 0 or (ud < 1 and (ia ->> 'neutre')::numeric = 0) then ndef := def; end if;
       if ua <= 0 or (ua < 1 and (ia ->> 'neutre')::numeric = 0) then natt := att; end if;
+      -- il varie aussi son attaque de lui-même, même quand elle marche (sinon elle se devinait d'après notre défense)
+      if natt = att and not tm and random() < (1 - coalesce((ia ->> 'lecture')::numeric, 1)) * .6 then
+        natt := case when random() < .5 and b ? 'pref_att' and b ->> 'pref_att' <> att then b ->> 'pref_att'
+          else (select y from unnest(array['duels', 'enclenchement', 'rapide']) y where y <> att order by random() limit 1) end;
+      end if;
+    end if;
+    -- Pas toujours le contre exact (retour d'un joueur, 20 nov. 2026 : son attaque se devinait à coup sûr d'après notre défense,
+    -- et allait toujours avec la même défense). Quand il change, il prend le contre avec la chance « lecture » de son style,
+    -- sinon son jeu préféré (celui du coup d'envoi) ou un autre au hasard ; attaque et défense tirées chacune de leur côté.
+    if natt <> att and random() >= coalesce((ia ->> 'lecture')::numeric, 1) then
+      natt := case when random() < .5 and b ? 'pref_att' and b ->> 'pref_att' <> att then b ->> 'pref_att'
+        else (select y from unnest(array['duels', 'enclenchement', 'rapide']) y where y <> att order by random() limit 1) end;
+    end if;
+    if ndef <> def and random() >= coalesce((ia ->> 'lecture')::numeric, 1) then
+      ndef := case when random() < .5 and b ? 'pref_def' and b ->> 'pref_def' <> def then b ->> 'pref_def'
+        else (select y from unnest(array['06', '15', '33']) y where y <> def order by random() limit 1) end;
     end if;
   end if;
   if natt = att and ndef = def and ncons = cons then return e; end if;
@@ -1951,7 +1967,8 @@ returns jsonb language sql volatile security definer set search_path = public as
     'balle', case when random() < .5 then 'a' else 'b' end, 'ev', '[]'::jsonb, 'tm', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0), 'simules', 0,
     'a', fa || jsonb_build_object('tactique', p_tactique, 'attaque', tac_attaque(p_tactique), 'defense', tac_defense(p_tactique), 'consigne', p_consigne,
       'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
-    'b', match_tactique(fb, p_b_attaque, p_b_defense) || jsonb_build_object('consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
+    'b', match_tactique(fb, p_b_attaque, p_b_defense) || jsonb_build_object('consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides(),
+      'pref_att', p_b_attaque, 'pref_def', p_b_defense),
     'tmb', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0))
 $$;
 -- Remplaçants en match (demande de Maël, 19 nov. 2026) : chaque joueur a sa fatigue (fp : {exemplaire: fatigue}). Sur le terrain,
