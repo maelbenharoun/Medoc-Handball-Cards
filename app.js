@@ -625,7 +625,7 @@ function vueClubs() {
     <div class="cl-liste">${liste || '<p class="sub">Aucun club pour l’instant : crée le premier !</p>'}</div>`;
   const c = d.club;
   return `${retour('social', 'Social')}<h1>${esc(c.nom)}</h1>
-    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, ligue, défis)</p>
+    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, ligue, défis que tu lances, depuis ton arrivée dans le club)</p>
     <div class="cl-pal">${c.paliers.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * c.victoires / p.objectif)}%"></i></span>
       ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>
     <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${esc(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
@@ -2231,6 +2231,16 @@ const coucheOverlay = () => { SOC.panneau = null; fermerOverlay(true); };
 function ouvrirOverlay(html) { const o = $('#overlay'); if (o.hidden) ouvrirCouche(coucheOverlay); o.innerHTML = html; o.hidden = false; document.body.style.overflow = 'hidden'; }
 function cacherOverlay(parRetour) { const o = $('#overlay'); if (!parRetour) quitterCouche(coucheOverlay); o.hidden = true; o.innerHTML = ''; document.body.style.overflow = ''; }
 function fermerOverlay(parRetour) { cacherOverlay(parRetour); route(true); }
+// quitter une fenêtre pour une autre page (#staff…) : la place de la fenêtre dans l'historique devient cette page. Fermer avec
+// history.back() puis changer location.hash ne marchait pas : le retour, qui arrive après, ramenait à la page d'avant (bug « Voir
+// toutes les cartes staff » depuis l'onglet Équipe, 20 nov. 2026)
+function fenetreVers(hash) {
+  const i = COUCHES.lastIndexOf(coucheOverlay);
+  if (i < 0) { cacherOverlay(true); location.hash = hash; return; }
+  COUCHES.splice(i, 1); cacherOverlay(true);
+  try { history.replaceState(null, '', hash); } catch (e) { location.hash = hash; return; }
+  route();
+}
 
 // ── ouverture des boosters ──────────────────────────────────────────────────────
 // Mise en scène (même esprit que l'intro) : le booster flotte et brille ; au toucher, une découpe lumineuse court le long
@@ -2931,7 +2941,7 @@ document.addEventListener('click', e => {
   if (a === 'retirer') return action(Compte.aligner(d.poste, null), fermerOverlay);
   if (a === 'auto') return autoEquipe();
   if (a === 'staff-place') return fenetreStaffEquipe();
-  if (a === 'staff-boutique') { cacherOverlay(); location.hash = '#staff'; return; }
+  if (a === 'staff-boutique') return fenetreVers('#staff');
   if (d.entrainer) {
     const carte = exParId(d.entrainer).carte;
     return action(Compte.entrainer(d.entrainer), r => { toast(r.apres > r.avant ? `+1 ! Note ${r.apres}` : '+XP : encore un peu d’entraînement'); fiche(carte); });

@@ -53,6 +53,13 @@ const SP = process.argv[2];
   verif('« ⇄ Titulaire » : le remplaçant devient titulaire, le titulaire va sur le banc', (await prof()).equipe.PIV === avant.remplacants.PIV && (await prof()).remplacants.PIV === avant.equipe.PIV);
   // la carte du banc n'est plus vendable (Club)
   verif('un remplaçant n’a pas de bouton « Vendre »', await p.evaluate(() => typeof dansEquipe === 'function' && dansEquipe(S().remplacants.PIV)));
+  // « Voir toutes les cartes staff » depuis la place staff (bug signalé le 20 nov. 2026 : on restait sur l'Équipe)
+  await p.goto(web.url + '#equipe'); await p.waitForSelector('[data-act=staff-place]');
+  await p.click('[data-act=staff-place]'); await p.waitForSelector('[data-act=staff-boutique]');
+  await p.click('[data-act=staff-boutique]'); await p.waitForTimeout(600);
+  verif('« Voir toutes les cartes staff » : la page Staff s’ouvre et y reste', (await p.evaluate(() => location.hash)) === '#staff' && /Staff/.test(await p.textContent('#view h1')) && await p.evaluate(() => $('#overlay').hidden));
+  await p.goBack(); await p.waitForTimeout(500);
+  verif('le retour du téléphone ramène à l’Équipe', (await p.evaluate(() => location.hash)) === '#equipe' && !!(await p.$('.pitch')));
   // aligner automatiquement : l'équipe et le banc
   await p.goto(web.url + '#equipe'); await p.waitForSelector('[data-act=auto]');
   await p.click('[data-act=auto]');
