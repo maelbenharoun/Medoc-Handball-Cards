@@ -67,7 +67,7 @@ insert into parametres values (1, '{
   "legendes": [{"n": "Amandine Leynaud", "p": 1}, {"n": "Uwe Gensheimer", "p": 15}, {"n": "Mikkel Hansen", "p": 18},
                {"n": "Stine Oftedal", "p": 13}, {"n": "Kiril Lazarov", "p": 17}, {"n": "Luc Abalo", "p": 14}, {"n": "Pauletta Foppa", "p": 13}],
   "poule_equipes": 8, "poule_equipes_depart": 4, "poule_equipes_pas": 1, "poule_petite": 5, "poule_descente_petite": 1, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
-  "tournoi_ecart": 2, "legendes_manches": 5,
+  "tournoi_ecart": 2, "legendes_manches": 5, "tournoi_poule_equipes": 6, "tournoi_poule_tours": 1, "tournoi_poule_qualifies": 2,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
   "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
   "synchro_matchs_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/matchs.json", "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
@@ -901,21 +901,23 @@ begin
   v := jsonb_build_object('niveau', pc -> 'niveau', 'nom', nv ->> 'nom', 'groupe', nv ->> 'groupe', 'type', pc ->> 'type',
     'saison', pc -> 'saison', 'international', pc -> 'international', 'meilleur', pc -> 'meilleur', 'palmares', pc -> 'palmares',
     'legendesBattues', pc -> 'legendes_battues', 'niveaux', jsonb_array_length(param('parcours')));
-  if pc ->> 'type' = 'poule' then
+  if pc ->> 'type' = 'poule' or (pc ->> 'type' = 'tournoi' and pc ->> 'phase' = 'poule') then
     j := (pc ->> 'journee')::int;
     if j < jsonb_array_length(pc -> 'calendrier') then
       select x into m from jsonb_array_elements(pc -> 'calendrier' -> j) x where (x ->> 0)::int = 0 or (x ->> 1)::int = 0;
       dom := (m ->> 0)::int = 0; adv := case when dom then (m ->> 1)::int else (m ->> 0)::int end;
     end if;
     v := v || jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'),
-      'montee', parami('poule_montee'), 'descente', case when (pc ->> 'niveau')::int > 1 then poule_descentes(jsonb_array_length(pc -> 'equipes')) else 0 end,
+      'phase', pc -> 'phase',
+      'montee', case when pc ->> 'type' = 'tournoi' then parami('tournoi_poule_qualifies') else parami('poule_montee') end,
+      'descente', case when pc ->> 'type' = 'tournoi' or (pc ->> 'niveau')::int <= 1 then 0 else poule_descentes(jsonb_array_length(pc -> 'equipes')) end,
       'classement', (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'moi', coalesce((x ->> 'moi')::boolean, false),
           'j', x -> 'j', 'v', x -> 'v', 'n', x -> 'n', 'd', x -> 'd', 'bp', x -> 'bp', 'bc', x -> 'bc', 'pts', x -> 'pts',
           'force', round((x ->> 'f')::numeric)) order by o) from jsonb_array_elements(poule_classement(pc -> 'equipes')) with ordinality a(x, o)),
       'prochain', case when adv is null then null else jsonb_build_object('nom', pc -> 'equipes' -> adv ->> 'nom',
           'force', round((pc -> 'equipes' -> adv ->> 'f')::numeric), 'domicile', dom) end);
   elsif pc ->> 'type' = 'tournoi' then
-    v := v || jsonb_build_object('tour', pc -> 'tour', 'adversaires',
+    v := v || jsonb_build_object('phase', coalesce(pc ->> 'phase', 'finale'), 'tour', pc -> 'tour', 'adversaires',
       (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'force', round((x ->> 'f')::numeric)) order by o)
        from jsonb_array_elements(pc -> 'adversaires') with ordinality a(x, o)));
   else
@@ -1477,10 +1479,11 @@ $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Parcours contre l'ordinateur : Départemental → Régional → National (poules à classement),
--- puis International (tournois à élimination directe) et enfin les Légendes du handball.
+-- puis International (une phase de poule, puis élimination directe) et enfin les Légendes du handball.
 -- profils.parcours garde la saison en cours :
 --   poule    {niveau, type, saison, journee, equipes: [{nom, f, j, v, n, d, bp, bc, pts, moi?}], calendrier: [[[dom, ext], …], …]}
---   tournoi  {niveau, type, saison, tour (0 quart, 1 demie, 2 finale), adversaires: [{nom, f}]}
+--   tournoi  {niveau, type, saison, phase 'poule' (comme une poule : journee, equipes, calendrier) puis 'finale' :
+--             tour (0 quart, 1 demie, 2 finale), adversaires: [{nom, f}]} ; sans phase (tirés avant le 20 nov. 2026) = élimination directe
 --   legendes {niveau, type, saison, v, d}
 -- et toujours : international (plus de descente une fois sorti de Nationale 1), meilleur (plus haut niveau atteint),
 -- palmares [{titre, saison}], legendes_battues.
@@ -1552,14 +1555,28 @@ begin
     end loop;
     return pc || jsonb_build_object('journee', 0, 'equipes', eqs, 'calendrier', calendrier(n, parami('poule_tours')));
   elsif typ = 'tournoi' then
-    ec := parami('tournoi_ecart');
-    return pc || jsonb_build_object('tour', 0, 'adversaires', (select jsonb_agg(jsonb_build_object('nom', z.x, 'f', base + ec * (z.rg - 2)) order by z.rg)
-      from (select y.x, row_number() over () rg from (select x from jsonb_array_elements_text(nv -> 'equipes') x order by random() limit 3) y) z));
+    -- phase de poule (demande de Maël, 20 nov. 2026 : « le jeu se fait trop rapidement ») : tournoi_poule_equipes équipes, chacun
+    -- rencontre les autres (tournoi_poule_tours fois), les tournoi_poule_qualifies premiers vont en quart de finale
+    n := parami('tournoi_poule_equipes'); ec := parami('poule_ecart');
+    select array_agg(x) into noms from (select x from jsonb_array_elements_text(nv -> 'equipes') x order by random() limit n - 1) y;
+    eqs := jsonb_build_array(jsonb_build_object('nom', p_pseudo, 'moi', true, 'j', 0, 'v', 0, 'n', 0, 'd', 0, 'bp', 0, 'bc', 0, 'pts', 0));
+    for i in 1..n - 1 loop
+      eqs := eqs || jsonb_build_array(jsonb_build_object('nom', coalesce(noms[i], 'Sélection ' || i),
+        'f', round((base - ec + 2 * ec * (i - 1) / greatest(1, n - 2) + random() - .5)::numeric, 1),
+        'j', 0, 'v', 0, 'n', 0, 'd', 0, 'bp', 0, 'bc', 0, 'pts', 0));
+    end loop;
+    return pc || jsonb_build_object('phase', 'poule', 'tour', 0, 'journee', 0, 'equipes', eqs, 'calendrier', calendrier(n, parami('tournoi_poule_tours')));
   else
     return pc || jsonb_build_object('v', 0, 'd', 0);
   end if;
 end $$;
 
+-- le tableau final d'un tournoi (quart, demie, finale) : des équipes de la compétition, de préférence hors de la poule
+create or replace function tournoi_tableau(nv jsonb, p_exclure jsonb) returns jsonb language sql volatile security definer set search_path = public as $$
+  select jsonb_agg(jsonb_build_object('nom', z.x, 'f', (nv ->> 'base')::numeric + parami('tournoi_ecart') * (z.rg - 2)) order by z.rg)
+  from (select y.x, row_number() over () rg from (select x from jsonb_array_elements_text(nv -> 'equipes') x
+    order by (select count(*) from jsonb_array_elements(coalesce(p_exclure, '[]')) e where e ->> 'nom' = x), random() limit 3) y) z
+$$;
 -- Une ligne du classement après un match (points FFHB : 3 victoire, 2 nul, 1 défaite)
 create or replace function poule_ligne(l jsonb, pour int, contre int) returns jsonb language sql stable security definer set search_path = public as $$
   select l || jsonb_build_object('j', (l ->> 'j')::int + 1,
@@ -1615,7 +1632,7 @@ begin
   niv := (pc ->> 'niveau')::int; nv := param('parcours') -> (niv - 1); typ := pc ->> 'type';
   mult := 1 + (niv - 1) / 4.0;   -- les gains grandissent avec le niveau : ×1 en Promotion, ×4 contre les Légendes
 
-  if typ = 'poule' then
+  if typ = 'poule' or (typ = 'tournoi' and pc ->> 'phase' = 'poule') then
     j := (pc ->> 'journee')::int; eqs := pc -> 'equipes';
     for m in select x from jsonb_array_elements(pc -> 'calendrier' -> j) x loop
       a := (m ->> 0)::int; b := (m ->> 1)::int;
@@ -1635,8 +1652,18 @@ begin
     pts := (param('points_match') ->> res)::int;
     tab := poule_classement(eqs); n := jsonb_array_length(tab);
     select o into rang from jsonb_array_elements(tab) with ordinality x(e, o) where (e ->> 'i')::int = 0;
-    etape := jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'), 'rang', rang, 'domicile', dom);
-    if j >= jsonb_array_length(pc -> 'calendrier') then   -- fin de saison
+    etape := jsonb_build_object('journee', j, 'journees', jsonb_array_length(pc -> 'calendrier'), 'rang', rang, 'domicile', dom)
+      || case when typ = 'tournoi' then jsonb_build_object('phase', 'poule') else '{}' end;
+    if typ = 'tournoi' and j >= jsonb_array_length(pc -> 'calendrier') then   -- fin de la phase de poule du tournoi
+      if rang <= parami('tournoi_poule_qualifies') then
+        etape := etape || jsonb_build_object('qualifie', true);
+        pc := (pc - 'journee' - 'calendrier' - 'equipes') || jsonb_build_object('phase', 'finale', 'tour', 0, 'adversaires', tournoi_tableau(nv, eqs));
+      else
+        etape := etape || jsonb_build_object('qualifie', false);
+        fin := jsonb_build_object('type', 'tournoi', 'gagne', false, 'phase', 'poule', 'rang', rang, 'equipes', n, 'niveau', niv, 'nom', nv ->> 'nom');
+        pc := parcours_nouveau(niv, pc, p.pseudo);
+      end if;
+    elsif typ = 'poule' and j >= jsonb_array_length(pc -> 'calendrier') then   -- fin de saison
       montee := rang <= parami('poule_montee');
       descente := not montee and rang > n - poule_descentes(n) and niv > 1 and not coalesce((pc ->> 'international')::boolean, false);
       nouveau := niv + case when montee then 1 when descente then -1 else 0 end;
@@ -2207,7 +2234,7 @@ create or replace function championnat_adversaire(pc jsonb) returns jsonb langua
 declare typ text := pc ->> 'type'; niv int := (pc ->> 'niveau')::int; nv jsonb := param('parcours') -> (niv - 1);
   m jsonb; a int; b int; fadv numeric; adv text; fb jsonb; dom boolean := true; t int;
 begin
-  if typ = 'poule' then
+  if typ = 'poule' or (typ = 'tournoi' and pc ->> 'phase' = 'poule') then
     for m in select x from jsonb_array_elements(pc -> 'calendrier' -> (pc ->> 'journee')::int) x loop
       a := (m ->> 0)::int; b := (m ->> 1)::int;
       if a = 0 or b = 0 then dom := a = 0; fadv := (pc -> 'equipes' -> (a + b) ->> 'f')::numeric; adv := pc -> 'equipes' -> (a + b) ->> 'nom'; end if;

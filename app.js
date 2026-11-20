@@ -1207,19 +1207,21 @@ function blocParcours(e, peut, note, reste) {
     : `<p class="sub petit centre">${reste} match${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''} aujourd’hui</p>`;
   const titre = pc.type === 'legendes' ? esc(pc.nom) : `${esc(pc.groupe)} · ${esc(pc.nom)}`;
   let corps = '';
-  if (pc.type === 'poule') {
-    const cl = pc.classement || [], n = cl.length, pr = pc.prochain;
+  // une poule : championnat (montées, descentes) ou phase de poule d'un tournoi international (les premiers vont en quart de finale)
+  if (pc.type === 'poule' || pc.type === 'tournoi' && pc.phase === 'poule') {
+    const cl = pc.classement || [], n = cl.length, pr = pc.prochain, tournoi = pc.type === 'tournoi';
     const lignes = cl.map((x, i) => `<div class="${x.moi ? 'moi-l ' : ''}${i < pc.montee ? 'zm' : i >= n - pc.descente ? 'zd' : ''}">
       <span>${i + 1}</span><b>${esc(x.nom)}</b><small>${x.j}</small><small>${x.bp - x.bc > 0 ? '+' : ''}${x.bp - x.bc}</small><em>${x.pts}</em></div>`).join('');
-    corps = `<p class="sub petit">Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. ${pc.classement.length} équipes : les ${pc.montee} premiers montent${
-        pc.descente ? (pc.descente > 1 ? `, les ${pc.descente} derniers descendent` : ', le dernier descend') : ''}. Victoire 3 pts, nul 2, défaite 1.</p>
-      ${pr ? `<div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
+    corps = `<p class="sub petit">${tournoi ? `Phase de poule · match ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. ${n} équipes : les ${pc.montee} premiers vont en quart de finale, puis élimination directe. Éliminé ? Nouveau tirage, même tournoi.`
+        : `Saison ${pc.saison} · journée ${Math.min(pc.journee + 1, pc.journees)}/${pc.journees}. ${n} équipes : les ${pc.montee} premiers montent${
+        pc.descente ? (pc.descente > 1 ? `, les ${pc.descente} derniers descendent` : ', le dernier descend') : ''}.`} Victoire 3 pts, nul 2, défaite 1.</p>
+      ${pr ? `<div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${tournoi ? 'poule' : pr.domicile ? 'à domicile' : 'à l’extérieur'}</span>
         <div><small>${esc(pr.nom)}</small><b>≈ ${pr.force}</b></div></div>` : ''}
-      ${boutonsMatch(`Jouer la journée ${pc.journee + 1}`, peut)}${resteTxt}
+      ${boutonsMatch(tournoi ? `Match de poule ${pc.journee + 1}/${pc.journees}` : `Jouer la journée ${pc.journee + 1}`, peut)}${resteTxt}
       <div class="classe poule"><div class="tete"><span>#</span><b>Équipe</b><small>J</small><small>Diff.</small><em>Pts</em></div>${lignes}</div>`;
   } else if (pc.type === 'tournoi') {
     const adv = pc.adversaires || [], a = adv[pc.tour] || {};
-    corps = `<p class="sub petit">Élimination directe : 3 victoires pour le titre. Un nul se joue aux tirs au but. Éliminé ? Nouveau tirage, même tournoi.</p>
+    corps = `<p class="sub petit">Élimination directe : 3 victoires pour le titre. Un nul se joue aux tirs au but. Éliminé ? Nouveau tirage, même tournoi (avec sa phase de poule).</p>
       <div class="chemin">${adv.map((x, i) => `<div class="${i < pc.tour ? 'fait' : i === pc.tour ? 'ici' : ''}"><small>${TOURS[i] || 'Tour ' + (i + 1)}</small><b>${esc(x.nom)}</b><span>≈ ${x.force}</span></div>`).join('')}</div>
       <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
       ${boutonsMatch(`Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}`, peut)}${resteTxt}`;
@@ -1244,7 +1246,7 @@ function texteFin(fin) {
       : fin.descente ? `Relégation en ${fin.nouveauNom}` : 'Maintien';
     s = `Fin de saison : ${ordinal(fin.rang)} sur ${fin.equipes}${fin.rang === 1 ? ', champion' : ''}.`;
   } else if (fin.type === 'tournoi') {
-    t = fin.gagne ? `${fin.titre} !` : `Éliminé en ${(TOURS[fin.tour] || '').toLowerCase()}`;
+    t = fin.gagne ? `${fin.titre} !` : fin.phase === 'poule' ? `Éliminé en phase de poule (${ordinal(fin.rang)} sur ${fin.equipes})` : `Éliminé en ${(TOURS[fin.tour] || '').toLowerCase()}`;
     s = fin.gagne ? (fin.nouveau > fin.niveau ? `Prochaine étape : ${fin.nouveauNom}.` : '') : 'Nouveau tirage : retente ta chance.';
   } else {
     t = fin.gagne ? 'Tu as battu les Légendes du handball !' : 'Les Légendes gagnent la série';
@@ -1256,6 +1258,8 @@ function texteEtape(r) {
   const x = r.etape || {};
   if (r.fin) return '';
   if (r.type === 'poule') return `${ordinal(x.rang)} du classement après ${x.journee} journée${x.journee > 1 ? 's' : ''}`;
+  if (r.type === 'tournoi' && x.phase === 'poule') return x.qualifie ? `Qualifié pour les quarts de finale (${ordinal(x.rang)} de la poule) !`
+    : `${ordinal(x.rang)} de la poule après ${x.journee} match${x.journee > 1 ? 's' : ''} sur ${x.journees}`;
   if (r.type === 'tournoi') return x.passe ? `Qualifié pour la ${(TOURS[x.tour + 1] || '').toLowerCase()}` : '';
   return `Série ${x.v} – ${x.d}`;
 }
