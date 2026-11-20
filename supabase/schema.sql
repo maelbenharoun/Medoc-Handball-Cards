@@ -23,6 +23,7 @@ insert into parametres values (1, '{
   "booster_chances": {"bronze": 80, "argent": 12, "or": 7, "ultime": 1},
   "booster_or_chances": {"or": 90, "ultime": 10},
   "fusion_nombre": 3,
+  "fusion_report": 0.5,
   "fusion_cout": {"bronze": 200, "argent": 600, "or": 2000},
   "entrainement_cout": {"bronze": 40, "argent": 80, "or": 150, "ultime": 300},
   "entrainement_xp": 50,
@@ -1210,6 +1211,11 @@ begin
 end $$;
 
 -- Fusion : 3 exemplaires du même joueur au même palier (les moins entraînés) → 1 au palier suivant
+-- Report de l'entraînement (demande de Maël, 20 nov. 2026 : « si on entraîne un joueur jusqu'à 89 puis qu'on le fusionne, on perd tout
+-- le bénéfice de l'entraînement ») : l'XP mise dans les cartes fusionnées (lue dans leur note : points au-dessus du bas du palier × XP
+-- par point, plus l'XP en cours) est additionnée, et fusion_report (la moitié) passe à la nouvelle carte, au coût du palier suivant,
+-- sans dépasser son plafond. À la moitié, monter des cartes basses pour les fusionner ne coûte jamais moins cher que d'entraîner
+-- directement au palier du dessus (Or 89 + deux Or 75 → Ultime 94 ; Argent 74 → Or 80 ; Bronze 59 → Argent 63)
 -- Listes de transferts : une ligne « à donner » dont le joueur n'a plus de carte libre (fusionnée, vendue, échangée, alignée dans
 -- l'équipe) s'en va d'elle-même. Avant (bug signalé par un joueur, 19 nov. 2026), elle restait, et l'enregistrement des listes,
 -- qui revérifie chaque ligne, refusait toute modification : avec deux lignes mortes, on ne pouvait même plus les retirer.
@@ -1219,7 +1225,7 @@ begin
 end $$;
 create or replace function fusionner(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); suivant text := palier_suivant(p_palier); n int := parami('fusion_nombre'); cout int;
-  pris uuid[]; ex uuid; e jsonb; niveaux jsonb;
+  pris uuid[]; ex uuid; e jsonb; niveaux jsonb; report int;
 begin
   if suivant is null then raise exception 'Une carte Ultime ne peut plus fusionner : entraîne-la jusqu’à 99'; end if;
   cout := (param('fusion_cout') ->> p_palier)::int;
@@ -1229,7 +1235,11 @@ begin
     select e2.id from exemplaires e2 where e2.proprietaire = p.user_id and e2.carte_id = p_carte and e2.palier = p_palier and e2.verrou is null
     order by e2.note, e2.xp, en_equipe(p.user_id, e2.id::text) limit n) t;
   if coalesce(cardinality(pris), 0) < n then raise exception 'Il faut % exemplaires libres de ce joueur au même palier', n; end if;
+  select floor(coalesce((param('fusion_report') #>> '{}')::numeric, 0)
+      * sum(greatest(0, x.note - palier_min(x.palier)) * (param('xp_par_point') ->> x.palier)::int + x.xp))::int
+    into report from exemplaires x where x.id = any(pris);
   ex := creer_exemplaire(p.user_id, p_carte, suivant, 'fusion');
+  if coalesce(report, 0) > 0 then perform xp_carte(ex, report); end if;
   -- si un des exemplaires fusionnés jouait dans l'équipe (ou sur le banc), le nouveau prend sa place
   select coalesce(jsonb_object_agg(j.key, case when j.value #>> '{}' = any(pris::text[]) then to_jsonb(ex::text) else j.value end), '{}')
     into e from jsonb_each(p.equipe) j;
@@ -1241,8 +1251,8 @@ begin
   perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'fusion');
   niveaux := gagner_xp(p.user_id, parami('xp_fusion'));
-  perform noter(p.user_id, 'fusion', jsonb_build_object('carte', p_carte, 'de', p_palier, 'vers', suivant, 'cout', cout, 'exemplaire', ex));
-  return jsonb_build_object('id', ex, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+  perform noter(p.user_id, 'fusion', jsonb_build_object('carte', p_carte, 'de', p_palier, 'vers', suivant, 'cout', cout, 'exemplaire', ex, 'report', report));
+  return jsonb_build_object('id', ex, 'report', report, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
 -- Séance d'entraînement payée en pièces pour un exemplaire

@@ -50,6 +50,30 @@ const SP = process.argv[2];
   // 3. le bouton retour du téléphone ferme la fiche (une seule couche, pas de couche fantôme)
   await p.goBack(); await p.waitForSelector('#overlay', {state: 'hidden'});
   verif('retour du téléphone : la fiche se ferme, on reste dans le jeu', !(await p.$('.sheet.fiche')) && !!(await p.$('.tabs')));
+  // 4. report de l'entraînement (demande de Maël, 20 nov. 2026) : Or 89 + deux Or 75 → Ultime 94 (moitié de 14 × 200 XP, à 300 XP le point)
+  const c3 = (await q("select id from cartes where actif and poste <> 'GB' and id <> all($1) order by id limit 1", [cartes]))[0].id;
+  await q("delete from exemplaires where proprietaire = $1 and carte_id = $2", [al.id, c3]);
+  await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, 'or', 89), ($1, $2, 'or', 75), ($1, $2, 'or', 75)", [al.id, c3]);
+  await p.evaluate(() => Compte.rafraichir()); await p.waitForTimeout(300);
+  await p.evaluate(c => fiche(c), c3); await p.waitForSelector(`[data-fusion="${c3}:or"]`);
+  const txt = await p.textContent(`[data-fusion="${c3}:or"]`);
+  verif('le bouton annonce la note gardée : Ultime 94', txt.includes('Ultime 94'), txt);
+  await p.click(`[data-fusion="${c3}:or"]`); await p.waitForSelector('.mt-bas button', {timeout: 15000}); await p.waitForTimeout(400); await p.click('.mt-bas button');
+  const u = await q("select note, xp from exemplaires where proprietaire = $1 and carte_id = $2 and palier = 'ultime'", [al.id, c3]);
+  verif('serveur : la carte fusionnée garde la moitié de l’entraînement (Ultime 94, 200 XP)', u.length === 1 && u[0].note === 94 && u[0].xp === 200, u);
+  await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, 'bronze', 50), ($1, $2, 'bronze', 50), ($1, $2, 'bronze', 50)", [al.id, c3]);
+  const r0 = await rpc(db, al.id, 'fusionner', [c3, 'bronze']);
+  verif('sans entraînement, rien ne change : Argent 60', (await q('select note from exemplaires where id = $1', [r0.id]))[0].note === 60);
+  // 5. Club : filtre par poste, combiné avec l'équipe
+  await p.click('[data-act=fermer]').catch(() => {}); await p.goto(web.url + '#club'); await p.waitForSelector('[data-fposte="PIV"]');
+  await p.click('[data-fposte="PIV"]'); await p.waitForTimeout(200);
+  const filtreOk = await p.evaluate(() => [...document.querySelectorAll('.grid .card')].length > 0 && CARTES.filter(c => (c.postes?.length ? c.postes : [c.poste]).includes('PIV') && c.actif !== false).length >= document.querySelectorAll('.grid > .cg, .grid > .card').length);
+  const larges = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+  verif('Club : le filtre PIV ne garde que des pivots, sans déborder à 390 px', filtreOk && larges);
+  await p.click('[data-filtre="SF1"]'); await p.waitForTimeout(200);
+  const combine = await p.evaluate(() => document.querySelector('[data-fposte="PIV"]').classList.contains('on') && document.querySelector('[data-filtre="SF1"]').classList.contains('on'));
+  verif('le filtre de poste reste quand on change d’équipe', combine);
+  if (SP) await p.screenshot({path: SP + '/club-postes.png'});
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();
   process.exit(bilan() ? 1 : 0);

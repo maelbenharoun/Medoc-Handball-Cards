@@ -25,7 +25,7 @@ const TERRAIN_H = 14.8, TERRAIN_B = 2;
 // ── état ────────────────────────────────────────────────────────────────────────
 let CARTES = [], PAR_ID = {}, MAJ = '';
 const S = () => Compte.etat;   // état du joueur, en lecture seule ici : les changements passent par Compte
-let filtre = 'tous', occupe = false;
+let filtre = 'tous', filtrePoste = 'tous', occupe = false;
 
 const $ = s => document.querySelector(s);
 const nb = n => (n || 0).toLocaleString('fr-FR');
@@ -39,6 +39,19 @@ const remplacantEx = id => Object.values(S().remplacants || {}).includes(id);
 const dansEquipe = id => titulaireEx(id) || remplacantEx(id);   // titulaires et remplaçants : ni vendus, ni échangés, ni donnés
 const fusionsPossibles = carte => RARETES.filter(r => palierSuivant(r)
   && EX().filter(e => e.carte === carte && e.palier === r && !e.verrou).length >= (PARAMS.fusion_nombre || 3));
+// note de la carte née d'une fusion (demande de Maël : ne plus perdre l'entraînement) : la moitié de l'XP mise dans les cartes
+// fusionnées (les moins entraînées, comme le serveur les choisit) passe à la nouvelle, au coût du palier suivant (fusionner, schema.sql)
+function noteApresFusion(carte, palier) {
+  const n = PARAMS.fusion_nombre || 3, suiv = palierSuivant(palier), xpp = PARAMS.xp_par_point || {};
+  const pris = EX().filter(e => e.carte === carte && e.palier === palier && !e.verrou)
+    .sort((a, b) => a.note - b.note || a.xp - b.xp || dansEquipe(a.id) - dansEquipe(b.id)).slice(0, n);
+  let xp = Math.floor((PARAMS.fusion_report ?? 0) * pris.reduce((t, e) =>
+    t + Math.max(0, e.note - PALIER[palier].min) * (xpp[palier] || 100) + (e.xp || 0), 0));
+  let note = PALIER[suiv].min;
+  const cout = xpp[suiv] || 100;
+  while (xp >= cout && note < PALIER[suiv].max) { xp -= cout; note++; }
+  return note;
+}
 
 // Postes : au but seulement si GB fait partie de ses postes ; sur le terrain s'il a un poste de champ (ou aucun).
 // Hors de ses postes, une carte perd MALUS_HORS_POSTE points (sans poste renseigné, elle joue partout sans malus).
@@ -733,7 +746,8 @@ const enJeu = () => CARTES.filter(c => c.actif !== false);   // cartes encore ti
 function vueClub() {
   const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2', 'fusion'];
   const vus = CARTES.filter(c => (c.actif !== false || mesEx(c.id).length)
-    && (filtre === 'tous' || c.equipe === filtre || (filtre === 'fusion' && fusionsPossibles(c.id).length)));
+    && (filtre === 'tous' || c.equipe === filtre || (filtre === 'fusion' && fusionsPossibles(c.id).length))
+    && (filtrePoste === 'tous' || (c.postes?.length ? c.postes : [c.poste]).includes(filtrePoste)));   // un joueur à plusieurs postes est sous chacun
   const mes = vus.filter(c => mesEx(c.id).length).sort((a, b) => rangEx(mesEx(a.id)[0], mesEx(b.id)[0]));
   const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
   const nf = CARTES.filter(c => fusionsPossibles(c.id).length).length;
@@ -750,6 +764,8 @@ function vueClub() {
     <div class="bar"><i style="width:${vus.length ? 100 * mes.length / vus.length : 0}%"></i></div>
     <div class="filters" style="margin-top:14px">${eqs.map(e => `<button data-filtre="${e}" class="${filtre === e ? 'on' : ''}">${
       e === 'tous' ? 'Toutes' : e === 'fusion' ? `Fusions (${nf})` : e}</button>`).join('')}</div>
+    <div class="filters f-postes" role="group" aria-label="Poste">${['tous', ...POSTES.map(p => p.id)].map(p =>
+      `<button data-fposte="${p}" class="${filtrePoste === p ? 'on' : ''}" aria-pressed="${filtrePoste === p}">${p === 'tous' ? 'Tous postes' : p}</button>`).join('')}</div>
     <div class="grid">${mes.map(c => {
       // demande de Maël : bien voir combien on a de chaque carte (au total et par palier ; 3 au même palier = fusion)
       const ex = mesEx(c.id), best = ex[0], n = ex.length, nf = PARAMS.fusion_nombre || 3;
@@ -759,7 +775,8 @@ function vueClub() {
         <div class="cg-q" aria-label="${n} exemplaire${n > 1 ? 's' : ''}">${par.map(([p, k]) =>
           `<span class="pq t-${p.id}${k >= nf && p.id !== 'ultime' ? ' plein' : ''}" title="${p.nom}">${p.nom[0]}<b>×${k}</b></span>`).join('')}</div></div>`;
     }).join('')}${autres.map(c => carteHTML(c, {cache: true})).join('')}</div>
-    ${!mes.length && filtre === 'fusion' ? '<p class="sub">Aucune fusion possible : il faut 3 fois le même joueur au même palier.</p>' : ''}`;
+    ${!mes.length && filtre === 'fusion' ? '<p class="sub">Aucune fusion possible : il faut 3 fois le même joueur au même palier.</p>'
+      : !vus.length ? '<p class="sub">Aucun joueur à ce poste dans cette équipe.</p>' : ''}`;
 }
 
 // ── hexagone des stats, façon jeu (demande de Maël : fiche du joueur et stats de l'équipe) ──────────────────────────
@@ -846,7 +863,9 @@ function fiche(carte, poste, de) {
     const k = mes.filter(e => e.palier === r && !e.verrou).length;
     if (!k) return '';
     const cout = PARAMS.fusion_cout?.[r];
-    return k >= n ? `<button class="btn gold large" data-fusion="${carte}:${r}">Fusionner ${n} ${R_LABEL[r]} → 1 ${R_LABEL[palierSuivant(r)]} ${PALIER[palierSuivant(r)].min} · ${nb(cout)} pièces</button>`
+    const s = palierSuivant(r), apres = k >= n ? noteApresFusion(carte, r) : 0;
+    return k >= n ? `<button class="btn gold large" data-fusion="${carte}:${r}">Fusionner ${n} ${R_LABEL[r]} → 1 ${R_LABEL[s]} ${apres} · ${nb(cout)} pièces</button>
+      ${apres > PALIER[s].min ? `<p class="sub petit">Ton entraînement compte : la moitié passe à la nouvelle carte (${R_LABEL[s]} ${apres} au lieu de ${PALIER[s].min}).</p>` : ''}`
       : `<p class="sub petit">${R_LABEL[r]} : ${k}/${n} pour fusionner vers ${R_LABEL[palierSuivant(r)]}</p>`;
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">${de ? `<button class="retour" data-retour-equipe="${esc(de)}">‹ Équipe de ${esc(de)}</button>`
@@ -2850,10 +2869,11 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
+  if (d.fposte) { filtrePoste = d.fposte; return route(true); }
   if (d.slot) return choisir(d.slot);
   if (t.classList.contains('card') && !t.classList.contains('locked')) return fiche(t.dataset.id);
   if (a === 'fermer') { SOC.panneau = null; return fermerOverlay(); }
@@ -3301,7 +3321,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=76').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=77').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

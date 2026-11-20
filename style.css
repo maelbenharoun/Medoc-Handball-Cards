@@ -184,6 +184,8 @@ h2 { font-size: 1.05rem; font-weight: 800; margin: 26px 0 10px; letter-spacing: 
 .filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
 .filters button { flex: none; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); font-weight: 700; font-size: .85rem; color: var(--muted); }
 .filters button.on { background: var(--ink); color: #0b0d10; border-color: var(--ink); }
+.filters.f-postes { margin-top: -6px; }
+.filters.f-postes button { padding: 6px 11px; font-size: .78rem; }
 .bar { height: 8px; border-radius: 99px; background: var(--bg2); overflow: hidden; margin: 6px 0 4px; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, #e3b23c, #ffe08a); border-radius: inherit; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 10px; justify-items: center; }
