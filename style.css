@@ -1776,7 +1776,7 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .stf-p i.ok { color: #0d1117; background: var(--pc, #d48c58); }
 .staff-place .card { --w: 46px; }
 .stf-p i.on { box-shadow: 0 0 0 2px #fff; }
-.stf-x i { color: var(--pc, #d48c58); box-shadow: inset 0 0 0 1px currentColor; background: none; } .stf-x i.fus { color: #ffd257; background: rgba(255, 210, 87, .15); }
+.stf-x i { color: var(--pc, #d48c58); box-shadow: inset 0 0 0 1px currentColor; background: none; } .stf-x i.fus { color: #0b0d10; background: var(--pc, #d48c58); }   /* fusion possible : rempli à la couleur du palier, comme dans le Club (pas en doré : on le prenait pour de l’Or) */
 .p-bronze { --pc: #d48c58; } .p-argent { --pc: #dfe7ef; } .p-or { --pc: #ffd257; } .p-ultime { --pc: #7fd34e; }
 .stf-i { margin: 0; font-size: .72rem; font-style: italic; color: var(--muted); line-height: 1.3; }
 /* place staff de l'onglet Équipe */
