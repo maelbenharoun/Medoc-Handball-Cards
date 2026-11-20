@@ -2162,16 +2162,27 @@ function fenetreDefi(pseudo) {
     <div class="jouer-2"><button class="btn gold large" data-act="defi-direct">Jouer le match</button>
       <button class="btn ghost" data-act="defi-simuler">Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div></div>`);
 }
+const filMsgHTML = C => C ? C.messages.map(m => `<p class="msg${m.moi ? ' moi' : ''}"><span>${esc(m.texte)}</span>
+      <small>${new Date(m.le).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'})}</small></p>`).join('') || '<p class="sub petit centre">Pas encore de message : dis bonjour !</p>' : '<p class="sub">Chargement…</p>';
 function conversationAmi(pseudo) {
   SOC.panneau = 'conv'; SOC.ami = pseudo;
   const C = SOC.conv?.pseudo === pseudo ? SOC.conv : null;
   ouvrirOverlay(`<div class="sheet amis-p conv"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button><h3>Messages</h3>
-    <div class="fil-msg" id="fil-msg">${C ? C.messages.map(m => `<p class="msg${m.moi ? ' moi' : ''}"><span>${esc(m.texte)}</span>
-      <small>${new Date(m.le).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'})}</small></p>`).join('') || '<p class="sub petit centre">Pas encore de message : dis bonjour !</p>' : '<p class="sub">Chargement…</p>'}</div>
+    <div class="fil-msg" id="fil-msg" data-ami="${esc(pseudo)}">${filMsgHTML(C)}</div>
     <form class="ajout-ami" data-form="message"><input class="champ" name="texte" maxlength="${PARAMS.message_longueur || 300}" placeholder="Ton message" autocomplete="off" required>
       <button class="btn gold" type="submit">Envoyer</button></form></div>`);
   const f = $('#fil-msg'); if (f) f.scrollTop = f.scrollHeight;
-  if (!C) Compte.conversation(pseudo).then(c => { SOC.conv = c; if (SOC.panneau === 'conv' && SOC.ami === pseudo) conversationAmi(pseudo); majEntete(); }).catch(e => toast(e.message));
+  if (!C) Compte.conversation(pseudo).then(c => { SOC.conv = c; if (SOC.panneau === 'conv' && SOC.ami === pseudo) majConversation(); majEntete(); }).catch(e => toast(e.message));
+}
+// nouveaux messages arrivés (relève toutes les 40 s, premier chargement) : seul le fil est redessiné. Avant, toute la fenêtre l'était
+// et le message en cours d'écriture disparaissait (retour de Rémi, iPhone : « t'as 30 s pour envoyer un message sinon ça reset »)
+function majConversation() {
+  const f = $('#fil-msg');
+  if (!f || f.dataset.ami !== SOC.ami) return conversationAmi(SOC.ami);
+  const enBas = f.scrollHeight - f.scrollTop - f.clientHeight < 40, html = filMsgHTML(SOC.conv);
+  if (f.innerHTML === html) return;
+  f.innerHTML = html;
+  if (enBas) f.scrollTop = f.scrollHeight;
 }
 // après une action d'ami(e)s : on remet à jour ce qui est affiché dans la bulle
 function revoirAmis() { if (SOC.panneau === 'ami') ficheAmi(SOC.ami); else if (SOC.panneau === 'liste') panneauAmis(); }
@@ -3032,7 +3043,8 @@ document.addEventListener('submit', e => {
   if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
   if (quoi === 'ami') return action(Compte.ajouterAmi(d.pseudo), r => { SOC.amis = r; SOC.ajout = '';
     toast(r.amis.some(x => x.pseudo.toLowerCase() === d.pseudo.trim().toLowerCase()) ? 'Vous êtes ami(e)s !' : 'Demande envoyée'); panneauAmis(); });
-  if (quoi === 'message') return action(Compte.envoyerMessage(SOC.ami, d.texte), c => { SOC.conv = c; conversationAmi(SOC.ami); });
+  if (quoi === 'message') return action(Compte.envoyerMessage(SOC.ami, d.texte), c => {   // le clavier reste ouvert : on vide le champ, seul le fil change
+    SOC.conv = c; f.reset(); majConversation(); const fil = $('#fil-msg'); if (fil) fil.scrollTop = fil.scrollHeight; });
 });
 // annonce : recherche du joueur voulu ; pari : mise et gain possible
 document.addEventListener('input', e => {
@@ -3085,7 +3097,8 @@ setInterval(() => {
   if (document.visibilityState !== 'visible' || !Compte.pret || Compte.horsLigne || occupe || document.body.classList.contains('avec-intro')) return;
   if (!SOC.panneau && ++tourAmis % 5) return;
   Compte.rafraichir().then(() => { majEntete();
-    if (SOC.panneau === 'conv' && SOC.ami) Compte.conversation(SOC.ami).then(c => { if (SOC.panneau === 'conv') { SOC.conv = c; conversationAmi(SOC.ami); majEntete(); } }).catch(() => {});
+    const ami = SOC.ami;
+    if (SOC.panneau === 'conv' && ami) Compte.conversation(ami).then(c => { if (SOC.panneau === 'conv' && SOC.ami === ami) { SOC.conv = c; majConversation(); majEntete(); } }).catch(() => {});
   }).catch(() => {});
 }, 40000);
 // retour sur l'appli après un moment : boosters et quêtes à jour
@@ -3321,7 +3334,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=77').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=78').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

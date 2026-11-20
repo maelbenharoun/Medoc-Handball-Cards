@@ -55,3 +55,4 @@ Les hypothèses du modèle (rythme de jeu, adresse aux mini-jeux, taux de victoi
 ## Ce qui manque encore
 
 Une cinquantaine de tests plus anciens (boosters, matchs en direct, mini-jeux, outil admin…) n'existent que dans le dossier temporaire des sessions Claude. Ils utilisent déjà ce harnais ; il reste à les copier ici et à les faire lancer par une action GitHub.
+- `test_chat.js` : messages entre ami(e)s, la relève des nouveaux messages ne doit pas effacer le message en cours d'écriture (retour de Rémi, iPhone).
