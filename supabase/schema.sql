@@ -2104,7 +2104,7 @@ begin
     perte := case cx when 'prudent' then .08 when 'pression' then .13 else .11 end;
     pen := least(.88, greatest(.55, .75 + .01 * ((eqx ->> 'att')::numeric - (eqy ->> 'def')::numeric)));
     gb := coalesce(eqy -> 'joueurs' ->> 'GB', 'le gardien');
-    -- régularité (retour de Maël, 21 nov. 2026 : trop d'aléatoire, la même équipe face au même adversaire avait des résultats trop
+    -- régularité (retour de Maël, 20 nov. 2026 : trop d'aléatoire, la même équipe face au même adversaire avait des résultats trop
     -- différents) : xg = les buts que l'équipe « méritait » jusque-là (somme des chances de marquer de ses possessions) ; une équipe en
     -- dessous marque un peu plus facilement ses tirs, une équipe au-dessus un peu moins (match_regularite par but d'écart). La force et la
     -- tactique gardent tout leur effet (elles font le xg) : seule la chance pèse moins sur un match entier
@@ -3745,10 +3745,10 @@ update parametres set valeurs = valeurs || '{"booster_equipe_prix": 500}' where 
 -- championnat (demande de Maël, 14 nov. 2026) : un match toutes les heures au lieu de 2 h, et des gains par match divisés par 2
 -- (championnat_gain = 0,5, pièces et XP des matchs de championnat seulement ; la ligue garde les siens)
 update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeurs ->> 'match_minutes')::int = 120;
--- l'adjoint de « Simuler » lit moins bien le jeu adverse (retour d'un joueur, 21 nov. 2026 : simuler faisait mieux que jouer soi-même) :
+-- l'adjoint de « Simuler » lit moins bien le jeu adverse (retour d'un joueur, 20 nov. 2026 : simuler faisait mieux que jouer soi-même) :
 -- mesure à force égale, simuler gagnait 34 à 51 % des matchs, autant qu'un joueur actif contre l'entraîneur réfléchi ; à 0,2, juste
 -- au-dessus de qui garde sa tactique (33 à 53 %), nettement sous qui contre leur défense à chaque tranche (44 à 62 %)
--- 21 nov. 2026 (même jour) : avec la régularité des matchs (match_regularite = 0,04), la tactique compte bien plus et un adjoint à 0,2
+-- 20 nov. 2026 (même jour) : avec la régularité des matchs (match_regularite = 0,04), la tactique compte bien plus et un adjoint à 0,2
 -- ne gagnait plus que 22 à 30 % des matchs à force égale : 0,35 le remet entre qui garde sa tactique et qui joue activement
 update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' where (valeurs ->> 'match_simule_lecture')::numeric in (0.5, 0.2);
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
