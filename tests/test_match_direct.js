@@ -85,8 +85,9 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
     essais++; if (y.a.attaque === 'rapide') contres++;   // rapide bat la 1-5
     adjTm += y.tm.restants !== 3 ? 1 : 0; adjEv += y.ev.some(v => v.ty === 'tactique' && v.adj) ? 1 : 0;
   }
-  verif(`adjoint de « Simuler » : il contre leur défense environ une fois sur deux (${contres}/${essais}), raconté au fil, sans temps mort`,
-    contres >= 10 && contres <= 30 && adjEv === contres && adjTm === 0, {contres, adjEv, adjTm});
+  const lec = +(await q('select valeurs v from parametres'))[0].v.match_simule_lecture;
+  verif(`adjoint de « Simuler » : il contre leur défense avec la chance match_simule_lecture (${lec} : ${contres}/${essais}), raconté au fil, sans temps mort`,
+    Math.abs(contres - lec * essais) <= 9 && contres > 0 && adjEv === contres && adjTm === 0, {contres, attendu: lec * essais, adjEv, adjTm});
   // l'adjoint ne touche pas à la tactique choisie (enregistrée dans l'onglet Équipe en fin de match) : bug de la v71
   await q("update profils set tactique = 'duels:06', matchs = 5 where user_id = $1", [al.id]);
   let changee = 0;

@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.5, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.2, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -3737,6 +3737,10 @@ update parametres set valeurs = valeurs || '{"booster_equipe_prix": 500}' where 
 -- championnat (demande de Maël, 14 nov. 2026) : un match toutes les heures au lieu de 2 h, et des gains par match divisés par 2
 -- (championnat_gain = 0,5, pièces et XP des matchs de championnat seulement ; la ligue garde les siens)
 update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeurs ->> 'match_minutes')::int = 120;
+-- l'adjoint de « Simuler » lit moins bien le jeu adverse (retour d'un joueur, 21 nov. 2026 : simuler faisait mieux que jouer soi-même) :
+-- mesure à force égale, simuler gagnait 34 à 51 % des matchs, autant qu'un joueur actif contre l'entraîneur réfléchi ; à 0,2, juste
+-- au-dessus de qui garde sa tactique (33 à 53 %), nettement sous qui contre leur défense à chaque tranche (44 à 62 %)
+update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.2}' where (valeurs ->> 'match_simule_lecture')::numeric = 0.5;
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case
