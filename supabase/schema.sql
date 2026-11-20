@@ -31,7 +31,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.2, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 2, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -1830,7 +1830,7 @@ create or replace function joueur_zone(p_joueurs jsonb, p_zone text) returns tex
       else (array['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV'])[1 + floor(random() * 6)::int] end), 'un joueur')
 $$;
 create or replace function stats_vides() returns jsonb language sql immutable as $$
-  select '{"tirs": 0, "buts": 0, "arrets": 0, "pertes": 0, "excl": 0, "sept": 0, "zones": {"ailes": 0, "arrieres": 0, "pivot": 0, "contre": 0, "7m": 0}}'::jsonb
+  select '{"tirs": 0, "buts": 0, "arrets": 0, "pertes": 0, "excl": 0, "sept": 0, "xg": 0, "zones": {"ailes": 0, "arrieres": 0, "pivot": 0, "contre": 0, "7m": 0}}'::jsonb
 $$;
 -- tactique d'une équipe en match : le bonus de l'onglet Équipe suit la tactique jouée (recalculé depuis les moyennes
 -- des stats de l'équipe ; l'ordinateur n'en a pas). Changer pour contrer l'adversaire peut donc coûter son bonus.
@@ -2077,7 +2077,8 @@ end $$;
 -- joue les possessions jusqu'à la seconde p_fin
 create or replace function match_avancer(e jsonb, p_fin int) returns jsonb language plpgsql volatile as $$
 declare x text; y text; eqx jsonb; eqy jsonb; t int; duree int; p numeric; ps numeric; pen numeric; perte numeric; r numeric; zn text;
-  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric; ea jsonb; kb text;
+  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric; ea jsonb; kb text; dev numeric;
+  reg numeric := coalesce((param('match_regularite') #>> '{}')::numeric, 0);
   pbl numeric := coalesce((param('blessure_chance') #>> '{}')::numeric, 0); bmax int := coalesce(parami('blessures_max'), 2);
   m numeric := (param('match_contre') #>> '{}')::numeric; base numeric := parami('match_base');
   k numeric := (param('match_coef') #>> '{}')::numeric; POSS constant numeric := 55;
@@ -2103,6 +2104,12 @@ begin
     perte := case cx when 'prudent' then .08 when 'pression' then .13 else .11 end;
     pen := least(.88, greatest(.55, .75 + .01 * ((eqx ->> 'att')::numeric - (eqy ->> 'def')::numeric)));
     gb := coalesce(eqy -> 'joueurs' ->> 'GB', 'le gardien');
+    -- régularité (retour de Maël, 21 nov. 2026 : trop d'aléatoire, la même équipe face au même adversaire avait des résultats trop
+    -- différents) : xg = les buts que l'équipe « méritait » jusque-là (somme des chances de marquer de ses possessions) ; une équipe en
+    -- dessous marque un peu plus facilement ses tirs, une équipe au-dessus un peu moins (match_regularite par but d'écart). La force et la
+    -- tactique gardent tout leur effet (elles font le xg) : seule la chance pèse moins sur un match entier
+    dev := coalesce((eqx #>> '{stats,xg}')::numeric, 0) - (eqx #>> '{stats,buts}')::int;
+    eqx := jsonb_set(eqx, '{stats,xg}', to_jsonb(round(coalesce((eqx #>> '{stats,xg}')::numeric, 0) + p, 3)));
     r := random();
     if r < perte then
       ty := 'perte'; nom := joueur_zone(eqx -> 'joueurs', 'champ'); zn := null;
@@ -2112,10 +2119,10 @@ begin
       zn := '7m'; nom := joueur_zone(eqx -> 'joueurs', '7m');
       eqx := jsonb_set(eqx, '{stats,sept}', to_jsonb((eqx #>> '{stats,sept}')::int + 1));
       eqx := jsonb_set(eqx, '{stats,tirs}', to_jsonb((eqx #>> '{stats,tirs}')::int + 1));
-      if random() < pen then ty := '7m-but'; else ty := '7m-arret'; eqy := jsonb_set(eqy, '{stats,arrets}', to_jsonb((eqy #>> '{stats,arrets}')::int + 1)); end if;
+      if random() < least(.95, greatest(.4, pen + reg * dev)) then ty := '7m-but'; else ty := '7m-arret'; eqy := jsonb_set(eqy, '{stats,arrets}', to_jsonb((eqy #>> '{stats,arrets}')::int + 1)); end if;
     else
       nom := joueur_zone(eqx -> 'joueurs', zn);
-      ps := least(.92, greatest(.1, (p - .06 * pen) / (1 - perte - .06)));
+      ps := least(.92, greatest(.1, (p - .06 * pen) / (1 - perte - .06) + reg * dev));
       eqx := jsonb_set(eqx, '{stats,tirs}', to_jsonb((eqx #>> '{stats,tirs}')::int + 1));
       if random() < ps then ty := 'but';
       elsif random() < .65 then ty := 'arret'; eqy := jsonb_set(eqy, '{stats,arrets}', to_jsonb((eqy #>> '{stats,arrets}')::int + 1));
@@ -2126,7 +2133,7 @@ begin
       eqx := jsonb_set(eqx, '{stats,buts}', to_jsonb((eqx #>> '{stats,buts}')::int + 1));
       eqx := jsonb_set(eqx, array['stats', 'zones', zn], to_jsonb((eqx -> 'stats' -> 'zones' ->> zn)::int + 1));
     end if;
-    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', x, 'ty', ty, 'n', nom, 'g', gb, 'z', zn, 's', sc));
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', x, 'ty', ty, 'n', nom, 'g', gb, 'z', zn, 's', sc, 'x', eqx #> '{stats,xg}'));
     -- faute en défense : 2 minutes (plus souvent sous pression, moins en jouant prudent)
     if ty <> 'perte' and random() < .045 * (case cy when 'pression' then 1.6 when 'prudent' then .6 else 1 end) and (eqy ->> 'exclu')::int <= t then
       eqy := jsonb_set(eqy, '{exclu}', to_jsonb(t + 120)); eqy := jsonb_set(eqy, '{stats,excl}', to_jsonb((eqy #>> '{stats,excl}')::int + 1));
@@ -2215,6 +2222,7 @@ begin
     end if;
     if x ->> 'ty' = any(POSS) then der := x; end if;
     if x ->> 'ty' = 'blessure' then bl := bl || to_jsonb(x ->> 'p'); end if;
+    if x ? 'x' and c in ('a', 'b') then st := jsonb_set(st, array[c, 'xg'], x -> 'x'); end if;
   end loop;
   if der is not null then
     balle := case der ->> 'c' when 'a' then 'b' else 'a' end;
@@ -3740,7 +3748,9 @@ update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeur
 -- l'adjoint de « Simuler » lit moins bien le jeu adverse (retour d'un joueur, 21 nov. 2026 : simuler faisait mieux que jouer soi-même) :
 -- mesure à force égale, simuler gagnait 34 à 51 % des matchs, autant qu'un joueur actif contre l'entraîneur réfléchi ; à 0,2, juste
 -- au-dessus de qui garde sa tactique (33 à 53 %), nettement sous qui contre leur défense à chaque tranche (44 à 62 %)
-update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.2}' where (valeurs ->> 'match_simule_lecture')::numeric = 0.5;
+-- 21 nov. 2026 (même jour) : avec la régularité des matchs (match_regularite = 0,04), la tactique compte bien plus et un adjoint à 0,2
+-- ne gagnait plus que 22 à 30 % des matchs à force égale : 0,35 le remet entre qui garde sa tactique et qui joue activement
+update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' where (valeurs ->> 'match_simule_lecture')::numeric in (0.5, 0.2);
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case
