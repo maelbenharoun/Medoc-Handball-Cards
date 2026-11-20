@@ -48,24 +48,26 @@ insert into parametres values (1, '{
     {"nom": "Promotion", "groupe": "Départemental", "type": "poule", "base": 50},
     {"nom": "Honneur", "groupe": "Départemental", "type": "poule", "base": 53},
     {"nom": "Excellence", "groupe": "Départemental", "type": "poule", "base": 56},
-    {"nom": "Honneur", "groupe": "Régional", "type": "poule", "base": 60},
-    {"nom": "Excellence", "groupe": "Régional", "type": "poule", "base": 64},
-    {"nom": "Pré-nationale", "groupe": "Régional", "type": "poule", "base": 68},
-    {"nom": "Nationale 3", "groupe": "National", "type": "poule", "base": 72},
-    {"nom": "Nationale 2", "groupe": "National", "type": "poule", "base": 76},
-    {"nom": "Nationale 1", "groupe": "National", "type": "poule", "base": 80},
-    {"nom": "Championnat d’Europe", "groupe": "International", "type": "tournoi", "base": 84,
+    {"nom": "Honneur", "groupe": "Régional", "type": "poule", "base": 62},
+    {"nom": "Excellence", "groupe": "Régional", "type": "poule", "base": 67},
+    {"nom": "Pré-nationale", "groupe": "Régional", "type": "poule", "base": 72},
+    {"nom": "Nationale 3", "groupe": "National", "type": "poule", "base": 77},
+    {"nom": "Nationale 2", "groupe": "National", "type": "poule", "base": 82},
+    {"nom": "Nationale 1", "groupe": "National", "type": "poule", "base": 87},
+    {"nom": "Championnat d’Europe", "groupe": "International", "type": "tournoi", "base": 90,
      "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Islande", "Portugal",
                  "Slovénie", "Monténégro", "Serbie", "Pologne", "Autriche", "Suisse"]},
-    {"nom": "Championnat du monde", "groupe": "International", "type": "tournoi", "base": 88,
+    {"nom": "Championnat du monde", "groupe": "International", "type": "tournoi", "base": 93,
      "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Égypte", "Brésil",
                  "Japon", "Corée du Sud", "Argentine", "Tunisie", "Qatar", "Portugal"]},
-    {"nom": "Jeux olympiques", "groupe": "International", "type": "tournoi", "base": 91,
+    {"nom": "Jeux olympiques", "groupe": "International", "type": "tournoi", "base": 96,
      "equipes": ["Danemark", "Norvège", "Suède", "Espagne", "Allemagne", "Hongrie", "Pays-Bas", "Croatie", "Égypte", "Slovénie",
                  "Monténégro", "Brésil"]},
     {"nom": "Légendes du handball", "groupe": "Légendes", "type": "legendes", "base": 99}],
   "legendes": [{"n": "Amandine Leynaud", "p": 1}, {"n": "Uwe Gensheimer", "p": 15}, {"n": "Mikkel Hansen", "p": 18},
                {"n": "Stine Oftedal", "p": 13}, {"n": "Kiril Lazarov", "p": 17}, {"n": "Luc Abalo", "p": 14}, {"n": "Pauletta Foppa", "p": 13}],
+  "legendes_equipes": [{"nom": "Les Bleues championnes du monde", "f": 99, "joueurs": [{"n": "Cléopâtre Darleux", "p": 1, "poste": "GB"}, {"n": "Manon Houette", "p": 14, "poste": "AG"}, {"n": "Allison Pineau", "p": 16, "poste": "ARG"}, {"n": "Grace Zaadi", "p": 15, "poste": "DC"}, {"n": "Alexandra Lacrabère", "p": 16, "poste": "ARD"}, {"n": "Pauline Coatanea", "p": 13, "poste": "AD"}, {"n": "Béatrice Edwige", "p": 13, "poste": "PIV"}]}, {"nom": "Allemagne", "f": 100, "joueurs": [{"n": "Andreas Wolff", "p": 1, "poste": "GB"}, {"n": "Dominik Klein", "p": 14, "poste": "AG"}, {"n": "Pascal Hens", "p": 16, "poste": "ARG"}, {"n": "Daniel Stephan", "p": 15, "poste": "DC"}, {"n": "Kai Häfner", "p": 16, "poste": "ARD"}, {"n": "Patrick Groetzki", "p": 13, "poste": "AD"}, {"n": "Christian Schwarzer", "p": 13, "poste": "PIV"}]}, {"nom": "Croatie", "f": 101, "joueurs": [{"n": "Vlado Šola", "p": 1, "poste": "GB"}, {"n": "Manuel Štrlek", "p": 14, "poste": "AG"}, {"n": "Domagoj Duvnjak", "p": 16, "poste": "ARG"}, {"n": "Ivano Balić", "p": 15, "poste": "DC"}, {"n": "Petar Metličić", "p": 16, "poste": "ARD"}, {"n": "Ivan Čupić", "p": 13, "poste": "AD"}, {"n": "Igor Vori", "p": 13, "poste": "PIV"}]}, {"nom": "Les reines d’Europe", "f": 102, "joueurs": [{"n": "Sandra Toft", "p": 1, "poste": "GB"}, {"n": "Camilla Herrem", "p": 14, "poste": "AG"}, {"n": "Cristina Neagu", "p": 16, "poste": "ARG"}, {"n": "Andrea Lekić", "p": 15, "poste": "DC"}, {"n": "Katarina Bulatović", "p": 16, "poste": "ARD"}, {"n": "Jovanka Radičević", "p": 13, "poste": "AD"}, {"n": "Heidi Løke", "p": 13, "poste": "PIV"}]}, {"nom": "Norvège", "f": 103, "joueurs": [{"n": "Katrine Lunde", "p": 1, "poste": "GB"}, {"n": "Magnus Jøndal", "p": 14, "poste": "AG"}, {"n": "Henny Reistad", "p": 16, "poste": "ARG"}, {"n": "Sander Sagosen", "p": 15, "poste": "DC"}, {"n": "Nora Mørk", "p": 16, "poste": "ARD"}, {"n": "Kristian Bjørnsen", "p": 13, "poste": "AD"}, {"n": "Bjarte Myrhol", "p": 13, "poste": "PIV"}]}, {"nom": "Danemark", "f": 104, "joueurs": [{"n": "Niklas Landin", "p": 1, "poste": "GB"}, {"n": "Magnus Landin", "p": 14, "poste": "AG"}, {"n": "Mads Mensah Larsen", "p": 16, "poste": "ARG"}, {"n": "Rasmus Lauge", "p": 15, "poste": "DC"}, {"n": "Mathias Gidsel", "p": 16, "poste": "ARD"}, {"n": "Hans Lindberg", "p": 13, "poste": "AD"}, {"n": "Henrik Toft Hansen", "p": 13, "poste": "PIV"}]}, {"nom": "Les Experts", "f": 105, "joueurs": [{"n": "Thierry Omeyer", "p": 1, "poste": "GB"}, {"n": "Michaël Guigou", "p": 14, "poste": "AG"}, {"n": "Jérôme Fernandez", "p": 16, "poste": "ARG"}, {"n": "Daniel Narcisse", "p": 15, "poste": "DC"}, {"n": "Xavier Barachet", "p": 16, "poste": "ARD"}, {"n": "Guillaume Joli", "p": 13, "poste": "AD"}, {"n": "Bertrand Gille", "p": 13, "poste": "PIV"}]}, {"nom": "Les grands clubs", "f": 106, "joueurs": [{"n": "Arpad Sterbik", "p": 1, "poste": "GB"}, {"n": "Aitor Ariño", "p": 14, "poste": "AG"}, {"n": "Aron Pálmarsson", "p": 16, "poste": "ARG"}, {"n": "Nikola Karabatic", "p": 15, "poste": "DC"}, {"n": "Ólafur Stefánsson", "p": 16, "poste": "ARD"}, {"n": "Víctor Tomás", "p": 13, "poste": "AD"}, {"n": "Julen Aguinagalde", "p": 13, "poste": "PIV"}]}, {"nom": "Les géants", "f": 107, "joueurs": [{"n": "Kari Aalvik Grimsbø", "p": 1, "poste": "GB"}, {"n": "Guðjón Valur Sigurðsson", "p": 14, "poste": "AG"}, {"n": "Anja Andersen", "p": 16, "poste": "ARG"}, {"n": "Jackson Richardson", "p": 15, "poste": "DC"}, {"n": "Dika Mem", "p": 16, "poste": "ARD"}, {"n": "Linn Jørum Sulland", "p": 13, "poste": "AD"}, {"n": "Ludovic Fabregas", "p": 13, "poste": "PIV"}]}, {"nom": "Le 7 de rêve", "f": 108, "joueurs": [{"n": "Amandine Leynaud", "p": 1, "poste": "GB"}, {"n": "Uwe Gensheimer", "p": 14, "poste": "AG"}, {"n": "Mikkel Hansen", "p": 16, "poste": "ARG"}, {"n": "Stine Oftedal", "p": 15, "poste": "DC"}, {"n": "Kiril Lazarov", "p": 16, "poste": "ARD"}, {"n": "Luc Abalo", "p": 13, "poste": "AD"}, {"n": "Pauletta Foppa", "p": 13, "poste": "PIV"}]}],
+  "parcours_legendes_rejouer_pieces": 1000,
   "poule_equipes": 8, "poule_equipes_depart": 4, "poule_equipes_pas": 1, "poule_petite": 5, "poule_descente_petite": 1, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
   "tournoi_ecart": 2, "legendes_manches": 5, "tournoi_poule_equipes": 6, "tournoi_poule_tours": 1, "tournoi_poule_qualifies": 2,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
@@ -893,8 +895,16 @@ create or replace function poule_descentes(p_n int) returns int language sql sta
   select case when p_n <= parami('poule_petite') then parami('poule_descente_petite') else parami('poule_descente') end
 $$;
 -- Ce que le jeu affiche du parcours (forces des équipes arrondies ; voir match_championnat)
+-- la plus forte Légende déjà battue (0 à 10) ; avant les 10 équipes, battre « les Légendes » (force 99) vaut la Légende 1
+create or replace function legendes_max(pc jsonb) returns int language sql stable as $$
+  select coalesce((pc ->> 'legendes_max')::int, case when coalesce((pc ->> 'legendes_battues')::int, 0) > 0 then 1 else 0 end)
+$$;
+-- la Légende à affronter : la suivante de la plus forte battue (de 1 à 10 ; après la 10e, on rejoue la 10e)
+create or replace function legende_rang(pc jsonb) returns int language sql stable security definer set search_path = public as $$
+  select greatest(1, least(coalesce((pc ->> 'legende')::int, legendes_max(pc) + 1), jsonb_array_length(param('legendes_equipes'))))
+$$;
 create or replace function parcours_vue(pc jsonb) returns jsonb language plpgsql stable security definer set search_path = public as $$
-declare nv jsonb; v jsonb; j int; m jsonb; adv int; dom boolean;
+declare nv jsonb; v jsonb; j int; m jsonb; adv int; dom boolean; rg int; le jsonb;
 begin
   if pc is null then return null; end if;
   nv := param('parcours') -> ((pc ->> 'niveau')::int - 1);
@@ -921,8 +931,11 @@ begin
       (select jsonb_agg(jsonb_build_object('nom', x ->> 'nom', 'force', round((x ->> 'f')::numeric)) order by o)
        from jsonb_array_elements(pc -> 'adversaires') with ordinality a(x, o)));
   else
-    v := v || jsonb_build_object('v', pc -> 'v', 'd', pc -> 'd', 'manches', parami('legendes_manches'),
-      'force', nv -> 'base', 'joueurs', (select jsonb_agg(x ->> 'n') from jsonb_array_elements(param('legendes')) x));
+    -- les 10 équipes de Légendes (demande de Maël, 20 nov. 2026) : Légende 1 à 99, puis +1 à chaque équipe, Légende 10 = le 7 de rêve
+    rg := legende_rang(pc); le := param('legendes_equipes') -> (rg - 1);
+    v := v || jsonb_build_object('v', pc -> 'v', 'd', pc -> 'd', 'manches', parami('legendes_manches'), 'nom', 'Légende ' || rg,
+      'rang', rg, 'rangs', jsonb_array_length(param('legendes_equipes')), 'equipe', le ->> 'nom', 'max', legendes_max(pc),
+      'force', le -> 'f', 'joueurs', (select jsonb_agg(x ->> 'n') from jsonb_array_elements(le -> 'joueurs') x));
   end if;
   return v;
 end $$;
@@ -1567,7 +1580,7 @@ begin
     end loop;
     return pc || jsonb_build_object('phase', 'poule', 'tour', 0, 'journee', 0, 'equipes', eqs, 'calendrier', calendrier(n, parami('tournoi_poule_tours')));
   else
-    return pc || jsonb_build_object('v', 0, 'd', 0);
+    return pc || jsonb_build_object('v', 0, 'd', 0, 'legende', legende_rang(p_ancien), 'legendes_max', legendes_max(p_ancien));
   end if;
 end $$;
 
@@ -1625,7 +1638,7 @@ declare p profils; pc jsonb; nv jsonb; niv int; typ text; mult numeric; fb jsonb
   adv text; fadv numeric; dom boolean; eqs jsonb; m jsonb; a int; b int; sc int[]; j int; t int; tab jsonb; rang int; n int;
   montee boolean; descente boolean; nouveau int; passe boolean; etape jsonb; v int; d int; gagnes int;
   xp int; xpc int; v_pieces int; pts int := null; recompense int := 0; bonus_b int := 0; bonus_o int := 0;
-  progres jsonb; niveaux jsonb; fin jsonb := null; titre text;
+  progres jsonb; niveaux jsonb; fin jsonb := null; titre text; rg int; le jsonb; premiere boolean;
 begin
   select * into p from profils where user_id = p_uid;
   pc := coalesce(p.parcours, parcours_nouveau(1, null, p.pseudo));
@@ -1706,8 +1719,9 @@ begin
       pc := parcours_nouveau(niv, pc, p.pseudo);
     end if;
 
-  else   -- Légendes du handball : une série au meilleur des 5 manches (3 victoires)
-    adv := nv ->> 'nom'; fadv := (nv ->> 'base')::numeric;
+  else   -- Légendes du handball : une série au meilleur des 5 manches (3 victoires) contre la Légende du moment (1 à 10)
+    rg := legende_rang(pc); le := param('legendes_equipes') -> (rg - 1);
+    adv := 'Légende ' || rg || ' · ' || (le ->> 'nom'); fadv := (le ->> 'f')::numeric;
     fb := fb_m;
     res := r ->> 'resultat';
     if res = 'nul' then r := r || jsonb_build_object('tab', tirs_au_but(fa, fb)); end if;
@@ -1716,17 +1730,23 @@ begin
     gagnes := parami('legendes_manches') / 2 + 1;
     etape := jsonb_build_object('v', v, 'd', d, 'manches', parami('legendes_manches'), 'passe', passe);
     if v >= gagnes then
-      recompense := round(parami('parcours_legendes_pieces') * case when (pc ->> 'legendes_battues')::int = 0 then 2 else 1 end);
-      bonus_o := parami('parcours_legendes_bonus_or');
-      pc := pc || jsonb_build_object('legendes_battues', (pc ->> 'legendes_battues')::int + 1);
-      if (pc ->> 'legendes_battues')::int = 1 then
-        pc := jsonb_set(pc, '{palmares}', (pc -> 'palmares') || jsonb_build_array(jsonb_build_object('titre', 'Vainqueur des Légendes du handball', 'saison', pc -> 'saison')));
+      -- une Légende battue pour la première fois : la grosse récompense, un titre, et la Légende suivante ; la 10e se rejoue
+      -- ensuite pour une petite récompense (analyse du 20 nov. 2026 : une seule équipe de Légendes rejouée sans fin faisait
+      -- l'essentiel des pièces des meilleurs joueurs)
+      premiere := rg > legendes_max(pc);
+      recompense := case when premiere then round(parami('parcours_legendes_pieces') * (1 + (rg - 1) / 9.0)) else parami('parcours_legendes_rejouer_pieces') end;
+      bonus_o := case when premiere then parami('parcours_legendes_bonus_or') else 0 end;
+      pc := pc || jsonb_build_object('legendes_battues', (pc ->> 'legendes_battues')::int + 1,
+        'legendes_max', greatest(rg, legendes_max(pc)), 'legende', least(rg + 1, jsonb_array_length(param('legendes_equipes'))));
+      if premiere then
+        pc := jsonb_set(pc, '{palmares}', (pc -> 'palmares') || jsonb_build_array(jsonb_build_object('titre', 'Vainqueur de Légende ' || rg || ' (' || (le ->> 'nom') || ')', 'saison', pc -> 'saison')));
       end if;
-      fin := jsonb_build_object('type', 'legendes', 'gagne', true, 'v', v, 'd', d, 'fois', (pc ->> 'legendes_battues')::int,
+      fin := jsonb_build_object('type', 'legendes', 'gagne', true, 'v', v, 'd', d, 'fois', (pc ->> 'legendes_battues')::int, 'rang', rg, 'equipe', le ->> 'nom',
+        'premiere', premiere, 'suivante', case when premiere and rg < jsonb_array_length(param('legendes_equipes')) then rg + 1 end,
         'pieces', recompense, 'boosterOr', bonus_o);
       pc := parcours_nouveau(niv, pc, p.pseudo);
     elsif d >= gagnes then
-      fin := jsonb_build_object('type', 'legendes', 'gagne', false, 'v', v, 'd', d);
+      fin := jsonb_build_object('type', 'legendes', 'gagne', false, 'v', v, 'd', d, 'rang', rg, 'equipe', le ->> 'nom');
       pc := parcours_nouveau(niv, pc, p.pseudo);
     else
       pc := pc || jsonb_build_object('v', v, 'd', d);
@@ -2232,7 +2252,7 @@ $$;
 -- l'adversaire du prochain match du parcours (sans rien changer)
 create or replace function championnat_adversaire(pc jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare typ text := pc ->> 'type'; niv int := (pc ->> 'niveau')::int; nv jsonb := param('parcours') -> (niv - 1);
-  m jsonb; a int; b int; fadv numeric; adv text; fb jsonb; dom boolean := true; t int;
+  m jsonb; a int; b int; fadv numeric; adv text; fb jsonb; dom boolean := true; t int; le jsonb;
 begin
   if typ = 'poule' or (typ = 'tournoi' and pc ->> 'phase' = 'poule') then
     for m in select x from jsonb_array_elements(pc -> 'calendrier' -> (pc ->> 'journee')::int) x loop
@@ -2244,10 +2264,11 @@ begin
     t := (pc ->> 'tour')::int; adv := pc -> 'adversaires' -> t ->> 'nom'; fadv := (pc -> 'adversaires' -> t ->> 'f')::numeric;
     fb := equipe_ordi(fadv);
   else
-    adv := nv ->> 'nom'; fadv := (nv ->> 'base')::numeric;
+    le := param('legendes_equipes') -> (legende_rang(pc) - 1);
+    adv := 'Légende ' || legende_rang(pc) || ' · ' || (le ->> 'nom'); fadv := (le ->> 'f')::numeric;
     fb := jsonb_build_object('att', round((fadv + random() * 2 - 1)::numeric, 1), 'def', round((fadv + random() * 2 - 1)::numeric, 1), 'note', fadv,
-      'tireurs', (select jsonb_agg(jsonb_build_object('n', x ->> 'n', 'p', (x ->> 'p')::int)) from jsonb_array_elements(param('legendes')) x),
-      'joueurs', (select jsonb_object_agg((array['GB', 'AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV'])[i], x ->> 'n') from jsonb_array_elements(param('legendes')) with ordinality z(x, i) where i <= 7));
+      'tireurs', (select jsonb_agg(jsonb_build_object('n', x ->> 'n', 'p', (x ->> 'p')::int)) from jsonb_array_elements(le -> 'joueurs') x where x ->> 'poste' <> 'GB'),
+      'joueurs', (select jsonb_object_agg(x ->> 'poste', x ->> 'n') from jsonb_array_elements(le -> 'joueurs') x));
   end if;
   return jsonb_build_object('nom', adv, 'f', fadv, 'equipe', fb || jsonb_build_object('nom', adv), 'domicile', dom);
 end $$;
@@ -3693,6 +3714,12 @@ update parametres set valeurs = valeurs || '{"booster_equipe_prix": 500}' where 
 -- championnat (demande de Maël, 14 nov. 2026) : un match toutes les heures au lieu de 2 h, et des gains par match divisés par 2
 -- (championnat_gain = 0,5, pièces et XP des matchs de championnat seulement ; la ligue garde les siens)
 update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeurs ->> 'match_minutes')::int = 120;
+-- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
+-- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
+update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case
+    when (x ->> 'base')::int = (array[0, 0, 0, 60, 64, 68, 72, 76, 80, 84, 88, 91, 0])[i] then x || jsonb_build_object('base', (array[0, 0, 0, 62, 67, 72, 77, 82, 87, 90, 93, 96, 0])[i])
+    else x end order by i) from jsonb_array_elements(valeurs -> 'parcours') with ordinality z(x, i)))
+  where jsonb_array_length(valeurs -> 'parcours') = 13 and (valeurs #>> '{parcours,3,base}')::int = 60 and (valeurs #>> '{parcours,8,base}')::int = 80;
 update exemplaires e set note = least(100, parami('legende_note')) from cartes c
   where c.id = e.carte_id and c.legende and e.note < least(100, parami('legende_note'));
 

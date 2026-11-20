@@ -1959,3 +1959,10 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .vig-b { position: absolute; top: -6px; left: calc(50% - min(36px, 10cqw)); font-style: normal; font-size: .9rem; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8)); }
 .banc-s .vig-b { left: -2px; font-size: .75rem; }
 .md-l.t-absent span { color: #ffb4b4; }
+
+/* les 10 Légendes (demande de Maël, 20 nov. 2026) */
+.leg-echelle { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin: 8px 0 6px; }
+.leg-echelle i { display: grid; place-items: center; height: 26px; border-radius: 8px; font-style: normal; font-size: .72rem; font-weight: 900;
+  color: var(--muted); background: #18202c; border: 1px solid #26354b; }
+.leg-echelle i.fait { color: #2a1d02; background: linear-gradient(180deg, #ffe08a, #e3b23c); border-color: #e3b23c; }
+.leg-echelle i.ici { color: #fff; background: #2a2a1c; border: 2px solid var(--accent); transform: translateY(-2px); }

@@ -1205,7 +1205,7 @@ function blocParcours(e, peut, note, reste) {
   const pm = secondesAvantMatch(), max = e.matchMax;
   const resteTxt = max ? `<p class="sub petit centre recharge-m"><b>${reste}/${max}</b> match${reste > 1 ? 's' : ''} en réserve${pm != null ? ` · prochain dans <b id="minuteur-match">${mmss(pm)}</b>` : ' · réserve pleine'}</p>`
     : `<p class="sub petit centre">${reste} match${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''} aujourd’hui</p>`;
-  const titre = pc.type === 'legendes' ? esc(pc.nom) : `${esc(pc.groupe)} · ${esc(pc.nom)}`;
+  const titre = pc.type === 'legendes' ? `Légendes du handball · ${esc(pc.nom)}` : `${esc(pc.groupe)} · ${esc(pc.nom)}`;
   let corps = '';
   // une poule : championnat (montées, descentes) ou phase de poule d'un tournoi international (les premiers vont en quart de finale)
   if (pc.type === 'poule' || pc.type === 'tournoi' && pc.phase === 'poule') {
@@ -1226,10 +1226,13 @@ function blocParcours(e, peut, note, reste) {
       <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>${TOURS[pc.tour] || ''}</span><div><small>${esc(a.nom || '')}</small><b>≈ ${a.force ?? '–'}</b></div></div>
       ${boutonsMatch(`Jouer ${pc.tour === 2 ? 'la finale' : pc.tour === 1 ? 'la demi-finale' : 'le quart de finale'}`, peut)}${resteTxt}`;
   } else {
-    const besoin = Math.floor(pc.manches / 2) + 1;
-    corps = `<p class="sub petit">Le 7 de rêve : ${(pc.joueurs || []).map(esc).join(', ')}. Série au meilleur des ${pc.manches} manches (${besoin} victoires).
-        Il faut une équipe de cartes Ultime bien entraînées.${pc.legendesBattues ? ` Déjà battues ${pc.legendesBattues} fois.` : ''}</p>
-      <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légendes</small><b>≈ ${pc.force}</b></div></div>
+    // 10 équipes de Légendes (demande de Maël, 20 nov. 2026) : chacune battue ouvre la suivante, plus forte d'un point
+    const besoin = Math.floor(pc.manches / 2) + 1, rg = pc.rang || 1, nl = pc.rangs || 10, toutes = (pc.max || 0) >= nl;
+    corps = `<div class="leg-echelle" aria-label="Légende ${rg} sur ${nl}">${Array.from({length: nl}, (_, i) =>
+        `<i class="${i + 1 === rg ? 'ici' : i + 1 <= (pc.max || 0) ? 'fait' : ''}">${i + 1}</i>`).join('')}</div>
+      <p class="sub petit"><b>${esc(pc.equipe || '')}</b> : ${(pc.joueurs || []).map(esc).join(', ')}. Série au meilleur des ${pc.manches} manches (${besoin} victoires).
+        ${toutes ? 'Tu as battu les 10 Légendes : la dernière se rejoue pour une petite récompense.' : 'Chaque Légende battue ouvre la suivante, plus forte d’un point.'}</p>
+      <div class="affiche"><div><small>Ton équipe</small><b>${note || '–'}</b></div><span>série ${pc.v} – ${pc.d}</span><div><small>Légende ${rg}</small><b>≈ ${pc.force}</b></div></div>
       ${boutonsMatch(`Jouer la manche ${pc.v + pc.d + 1}`, peut)}${resteTxt}`;
   }
   const palm = (pc.palmares || []).slice(-4).reverse().map(x => `<li>🏆 ${esc(x.titre)} <small>saison ${x.saison}</small></li>`).join('');
@@ -1249,8 +1252,9 @@ function texteFin(fin) {
     t = fin.gagne ? `${fin.titre} !` : fin.phase === 'poule' ? `Éliminé en phase de poule (${ordinal(fin.rang)} sur ${fin.equipes})` : `Éliminé en ${(TOURS[fin.tour] || '').toLowerCase()}`;
     s = fin.gagne ? (fin.nouveau > fin.niveau ? `Prochaine étape : ${fin.nouveauNom}.` : '') : 'Nouveau tirage : retente ta chance.';
   } else {
-    t = fin.gagne ? 'Tu as battu les Légendes du handball !' : 'Les Légendes gagnent la série';
-    s = `Série ${fin.v} – ${fin.d}.${fin.gagne ? '' : ' Entraîne tes cartes Ultime et reviens.'}`;
+    t = !fin.gagne ? `Légende ${fin.rang || ''} gagne la série` : !fin.premiere ? `Légende ${fin.rang || ''} battue de nouveau`
+      : fin.suivante ? `Légende ${fin.rang} battue (${fin.equipe}) !` : 'Tu as battu toutes les Légendes du handball !';
+    s = `Série ${fin.v} – ${fin.d}.${fin.gagne ? (fin.suivante ? ` Prochaine : Légende ${fin.suivante}.` : '') : ' Entraîne tes cartes Ultime et reviens.'}`;
   }
   return `<div class="daily depart"><p><b>${t}</b>${s}${gains ? ' ' + gains : ''}</p></div>`;
 }
