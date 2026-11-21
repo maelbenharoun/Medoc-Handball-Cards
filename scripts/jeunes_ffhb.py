@@ -4,6 +4,9 @@ Les -15 ne sont pas sur medochandballstats.com : on lit directement les pages pu
 - Compétitions U15 du comité de Gironde (filles → -15F, garçons → -15G), toutes les poules (phases comprises) où joue une équipe
   « MEDOC » ; pour chaque match joué, la liste des joueurs de la page du match (composant « rencontre-liste-joueurs » : nom,
   prénom, numéro, buts ; ni tirs, ni arrêts, ni licence).
+  Pour les jeunes, le site de la FFHB n'affiche pas les buts (« hideButs ») mais la page les contient : ce sont ceux de la feuille de
+  match officielle (vérifié le 21 nov. 2026 : 11 matchs sur 11, buts des joueurs = score du club). Un match dont les buts ne font pas
+  le score n'est pas gardé (relu au passage suivant).
 - Seuls les joueurs qui ont une carte dans le jeu sont gardés (nom, numéro, buts) : data/jeunes.json ne contient pas les autres.
 - Format proche de site_data.json du site ({club, teams, played_club}), relu par scripts/semaine.py avec les équipes du site.
 - Un match déjà lu n'est pas relu (une liste pas encore publiée ou aux buts cachés l'est au passage suivant).
@@ -129,8 +132,7 @@ def main():
                 hp = page(pu + f"rencontre-{rid}/") or ""
                 lj = composant(hp, "competitions---rencontre-liste-joueurs")
                 if essai:   # diagnostic (sans nom) : la page, ses composants, la liste des joueurs
-                    import re as _re
-                    print("  page", rid, len(hp), "car.", sorted(set(_re.findall(r'name="(competitions---[a-z-]+)"', hp)))[:12],
+                    print("  page", rid,
                           "| hideButs", lj.get("hideButs"), "| joueurs", len(lj.get("statsJoueurs") or []),
                           "| du club", sum(1 for j in lj.get("statsJoueurs") or [] if str(j.get("equipeId")) in club), "| ids club", sorted(club),
                           "| fdm", bool(r.get("fdmCode")),
@@ -144,7 +146,10 @@ def main():
                     n = nom_joueur(j)
                     if essai or semaine.carte_de(n, de_eq):   # seulement les joueurs qui ont une carte (essai : tous)
                         lignes.append([n, str(j.get("numero") or ""), score(j.get("buts")) or 0])
-                if lj.get("statsJoueurs") and not lj.get("hideButs"):   # buts cachés ou liste pas encore publiée : relu la prochaine fois
+                # Jeunes : la FFHB n'affiche pas les buts (hideButs) mais la page les contient, comme la feuille de match officielle.
+                # Contrôle : les buts des joueurs du club doivent faire le score du club, sinon le match est relu la prochaine fois
+                total = sum(score(j.get("buts")) or 0 for j in lj.get("statsJoueurs") or [] if str(j.get("equipeId")) in club)
+                if lj.get("statsJoueurs") and total == (hs if e1 in club else as_):
                     e["sheet"] = {cote: lignes, "a" if cote == "h" else "h": []}
             d["played_club"].append(e)
         print(f"{eq} : {len(d['played_club'])} matchs, {sum(1 for e in d['played_club'] if e.get('sheet'))} avec la liste des joueurs")
