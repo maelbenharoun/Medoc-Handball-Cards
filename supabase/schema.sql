@@ -1786,7 +1786,10 @@ begin
   v_pieces := round((param('pve_pieces') ->> res)::int * mult * p_gain * (1 + staff_val(p_uid, 'manager') / 100.0));   -- manager
   update profils set tactique = p_tactique, parcours = pc, pieces = pieces + v_pieces + recompense,
     bonus = bonus + bonus_b, bonus_or = bonus_or + bonus_o where user_id = p.user_id;
-  progres := xp_equipe(p.equipe, xpc);
+  -- les remplaçants gagnent la même expérience que les titulaires (retour de Guilhem, 21 nov. 2026 : « les remplaçants ne prennent
+  -- pas d'XP »)
+  progres := xp_equipe(p.equipe || coalesce((select jsonb_object_agg('banc_' || r.key, r.value) from jsonb_each(coalesce(p.remplacants, '{}')) r
+    where r.value #>> '{}' <> all (array(select jsonb_array_elements_text(jsonb_path_query_array(p.equipe, '$.*'))))), '{}'), xpc);
   niveaux := gagner_xp(p.user_id, xp);
   perform progresser(p.user_id, 'championnat');
   if res = 'gagne' then perform progresser(p.user_id, 'victoire'); end if;

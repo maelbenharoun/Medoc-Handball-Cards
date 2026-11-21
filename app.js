@@ -1566,9 +1566,9 @@ function animerMD(x, D) {
     else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
     else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
     else if (x.ty === 'changement') flashMD(`Changement<small>${esc(nomCourt(x.n))} entre</small>`, 'tm');
-    else if (x.ty === 'blessure') {   // le banc s'ouvre : il faut le remplacer (il joue diminué en attendant)
+    else if (x.ty === 'blessure') {   // le match s'arrête et le banc s'ouvre : il faut le remplacer (il joue diminué en attendant)
       flashMD(`Blessure !<small>${esc(nomCourt(x.n))}</small>`, 'ex'); Son.jouer('sifflet'); vibrer([60, 40, 60]);
-      if (x.r && !MD.fin) { MD.blessePoste = x.p; panneauBanc(); }
+      if (x.r && !MD.fin) { MD.blessePoste = x.p; MD.blesseNom = x.n; panneauMD('blessure'); panneauBanc(); }
     }
     return;
   }
@@ -1601,12 +1601,12 @@ function boucleMD(ts) {
   const dt = MD.ts ? Math.min(120, ts - MD.ts) : 0; MD.ts = ts;
   if (!MD.attente) {
     MD.h = Math.min(MD.h + dt * MD.vitesse / MS_SEC, MD.finBloc);
-    while (MD.file.length && MD.file[0].t <= MD.h) {
+    while (MD.file.length && MD.file[0].t <= MD.h && !MD.attente) {
       const x = MD.file.shift(), suivant = MD.file[0]?.t ?? x.t + 30;
       animerMD(x, Math.max(120, Math.min(1500, (suivant - x.t) * MS_SEC / MD.vitesse * .95)));
     }
     majHorlogeMD();
-    if (!MD.file.length && MD.h >= MD.finBloc) finBlocMD();
+    if (!MD.attente && !MD.file.length && MD.h >= MD.finBloc) finBlocMD();
   }
   MD.raf = requestAnimationFrame(boucleMD);
 }
@@ -1693,15 +1693,16 @@ function panneauMD(type) {
   MD.choix = {att, def, cons: MD.cons};
   const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
   const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, tactique: 'Tactique',
-    pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
-  const change = ['envoi', 'mi-temps', 'tm', 'tactique', 'pause'].includes(type), A = MD.adverse;
+    pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, blessure: `Blessure · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
+  const change = ['envoi', 'mi-temps', 'tm', 'tactique', 'pause', 'blessure'].includes(type), A = MD.adverse;
   const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 && type === 'tactique' ? ` Ton choix s’applique à <b>${Math.min(60, MD.finBloc / 60)}'</b>.` : '';
   const intro = {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer ! Tu pourras changer de tactique toutes les 5 minutes.`,
     'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
     tm: A ? `🕵️ Leur jeu dévoilé : ils attaquent en <b>${NOM_ATT[A.attaque]}</b> et défendent en <b>${NOM_DEF[A.defense]}</b>. Bonus : élan pendant 3 minutes ⚡`
       : `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>.`,
     tactique: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b> ; leur attaque reste cachée (un temps mort la dévoile).${quand}`,
-    pause: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux, puis reprends.`, erreur: 'Oups, la connexion a coupé.'}[type];
+    pause: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux, puis reprends.`,
+    blessure: `🚑 <b>${esc(nomCourt(MD.blesseNom || ''))}</b> est blessé(e) et joue diminué(e) : fais entrer son remplaçant, puis reprends.`, erreur: 'Oups, la connexion a coupé.'}[type];
   // la mi-temps : le bilan de la 1re période (ce qui a été raconté jusqu'ici)
   const st = type === 'mi-temps' ? statsMD(MD.evs) : null, reu = x => x.tirs ? Math.round(x.buts / x.tirs * 100) + ' %' : '–';
   const zoneB = st && ZONES_MD.filter(([k]) => k !== '7m').sort((x, y) => st.b.zones[y[0]] - st.b.zones[x[0]])[0];
@@ -1717,7 +1718,7 @@ function panneauMD(type) {
     ${change && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
     <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
         : type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
-      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
+      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', blessure: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
   p.hidden = false; MD.el.classList.add('en-pause');
   choixMD();
   majMD();
@@ -1764,6 +1765,8 @@ function changerMD(poste) {
     // ce qui est déjà raconté (jusqu'à « reprise ») reste ; la suite de la tranche est rejouée avec le remplaçant
     MD.vue = r.vue; MD.file = MD.file.filter(x => x.t <= r.reprise).concat(r.vue.evenements || []);
     // récit à l'arrêt (mi-temps, temps mort, pause) : le changement s'écrit tout de suite au fil
+    // (le serveur a pu le placer quelques secondes plus loin que le récit en pause : le fil va jusqu'à son entrée)
+    if (MD.attente && r.reprise > MD.h) { MD.h = Math.min(r.reprise, MD.finBloc); majHorlogeMD(); }
     if (MD.attente) while (MD.file.length && MD.file[0].t <= MD.h) animerMD(MD.file.shift(), 300);
     Son.jouer('sifflet');
     if (r.reprise > MD.h + 30) toast(`Il entre à ${Math.floor(r.reprise / 60)}'`);
@@ -1813,7 +1816,7 @@ function clicMD(e) {
     if (type !== 'erreur') { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
     fermerPanneauMD(); majMD();
     if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
-    if (type === 'tactique') return reprendreMD();   // le récit reprend ; le changement part avec la tranche suivante
+    if (type === 'tactique' || type === 'blessure') return reprendreMD();   // le récit reprend ; le changement de tactique part avec la tranche suivante
     return blocMD();
   }
   if (d.act === 'fin-direct') return fermerDirect();

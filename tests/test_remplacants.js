@@ -139,5 +139,21 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   verif('ancien match en cours : il continue (fatigue d’équipe)', !r.erreur && +(await etat()).a.fatigue > 0, r.erreur);
   r = await rpcJoueur(db, al, 'match_simuler_fin');
   verif('et se termine', !r.erreur && !!r.match, r.erreur);
+  // les remplaçants gagnent la même XP que les titulaires à chaque match de championnat (retour de Guilhem, 21 nov. 2026)
+  // (un banc neuf : les essais d'avant ont fusionné ou déplacé des cartes)
+  const eqN = (await prof()).equipe, prisN = (await q('select carte_id from exemplaires where proprietaire = $1', [al])).map(x => x.carte_id), bancN = {};
+  for (const po of POSTES) {
+    const c = (await q('select id from cartes where actif and not legende and poste = $1 and not (id = any($2)) order by id desc limit 1', [po, prisN]))[0].id; prisN.push(c);
+    bancN[po] = (await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, 'argent', 70) returning id", [al, c]))[0].id;
+  }
+  r = await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eqN), JSON.stringify(bancN)]);
+  await q('update profils set matchs = 10 where user_id = $1', [al]);
+  const xpDe = async ids => (await q('select id, note, xp from exemplaires where id = any($1)', [ids])).reduce((o, x) => (o[x.id] = x.note * 1000 + x.xp, o), {});
+  const bancIds = Object.values(bancN), titIds = Object.values(eqN);
+  const avantB = await xpDe(bancIds), avantT = await xpDe(titIds);
+  const rm = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', true]);
+  const apresB = await xpDe(bancIds), apresT = await xpDe(titIds);
+  verif('fin de match : les 7 remplaçants gagnent de l’XP comme les titulaires', !r.erreur && !rm.erreur && bancIds.every(id => apresB[id] > avantB[id]) && titIds.every(id => apresT[id] > avantT[id]),
+    r.erreur || rm.erreur || {avantB, apresB});
   process.exit(bilan() ? 1 : 0);
 })();
