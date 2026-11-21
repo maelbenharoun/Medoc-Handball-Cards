@@ -149,6 +149,12 @@ alter table cartes add column if not exists equipes text[] not null default '{}'
 create or replace function equipes_de(p_equipe text, p_equipes text[]) returns text[] language sql immutable as $$
   select case when cardinality(coalesce(p_equipes, '{}')) > 0 then p_equipes else array[p_equipe] end
 $$;
+-- genre d'une équipe d'après son code (SG1, -18G, -15G : garçons ; SF1, -18F1, -15F : filles ; autre : aucun) ; une légende ne
+-- compte que pour les équipes de son genre (demande de Maël, 21 nov. 2026 : Dono avec les garçons, Annette avec les filles),
+-- son genre = site.genre de sa carte (« M » / « F » ; autre = toutes les équipes). Même règle que genreEquipe dans cartes.js
+create or replace function equipe_genre(p_equipe text) returns text language sql immutable as $$
+  select case when p_equipe ~ 'G' then 'M' when p_equipe ~ 'F' then 'F' end
+$$;
 alter table cartes add column if not exists photos jsonb not null default '{}';   -- une photo par palier
 alter table cartes add column if not exists photo text;
 -- tous les postes du joueur (le premier = principal, celui de la colonne poste) : il joue sans malus à chacun
@@ -1405,7 +1411,7 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; s_rel numeric; ne int;
-  proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}'; nleg int := 0; t text;
+  proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}'; nleg_m int := 0; nleg_f int := 0; nleg_x int := 0; t text;
 begin
   -- l'équipe d'un joueur : son capitaine et son staff comptent
   select e.proprietaire into proprio from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value limit 1;
@@ -1413,7 +1419,7 @@ begin
     select capitaine into cap from profils where user_id = proprio;
     st := staff_actif(proprio); sv := staff_val(proprio, st);
   end if;
-  for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.equipes, c.legende, c.ecarts, en_forme(c.id) forme
+  for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.equipes, c.legende, c.ecarts, en_forme(c.id) forme, c.site ->> 'genre' genre
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
     -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then case when st = 'polyvalent' then sv else 5 end else 0 end;
@@ -1422,8 +1428,9 @@ begin
     -- carte staff : entraîneur des gardiens, coach des ailiers, coach de la base arrière
     ne := ne + case when st = 'gardiens' and l.slot = 'GB' or st = 'ailiers' and l.slot in ('AG', 'AD') or st = 'base' and l.slot in ('ARG', 'DC', 'ARD') then sv else 0 end;
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom); nts := nts || jsonb_build_object(l.slot, ne);
-    -- coéquipier(e)s : un joueur compte pour chacune de ses équipes, une légende pour toutes
-    if l.legende then nleg := nleg + 1;
+    -- coéquipier(e)s : un joueur compte pour chacune de ses équipes, une légende pour toutes celles de son genre
+    if l.legende then
+      if l.genre = 'M' then nleg_m := nleg_m + 1; elsif l.genre = 'F' then nleg_f := nleg_f + 1; else nleg_x := nleg_x + 1; end if;
     else foreach t in array equipes_de(l.equipe, l.equipes) loop eqs := jsonb_set(eqs, array[t], to_jsonb(coalesce((eqs ->> t)::int, 0) + 1)); end loop;
     end if;
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
@@ -1450,7 +1457,8 @@ begin
     end if;
   end loop;
   if n < 7 then raise exception 'Il faut 7 joueurs alignés dans ton équipe pour jouer'; end if;
-  select coalesce(max(value::int), 0) + nleg into maxi from jsonb_each_text(eqs);
+  select greatest(coalesce(max(value::int + case equipe_genre(key) when 'M' then nleg_m when 'F' then nleg_f else nleg_m + nleg_f end), 0),
+      nleg_m, nleg_f) + nleg_x into maxi from jsonb_each_text(eqs);
   coll := case when maxi >= 7 then 3 when maxi >= 5 then 2 when maxi >= 3 then 1 else 0 end;   -- coéquipier(e)s
   moy := jsonb_build_object('tir', round(m_tir, 1), 'pas', round(m_pas, 1), 'def', round(m_def, 1), 'men', round(m_men, 1), 'phy', round(m_phy, 1), 'vit', round(m_vit, 1));
   b_att := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 1));

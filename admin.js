@@ -260,7 +260,7 @@ function majListe() {
       const etat = (c.legende ? '<span class="tag leg">légende</span>' : '') + (c.cree ? '<span class="tag cree">créée</span>' : '')
         + (c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '');
       return `${titre}<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
-        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.legende ? 'toutes les équipes' : libelleEquipes(c)}</small>
+        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.legende ? 'équipes ' + libelleEquipes(c).toLowerCase() : libelleEquipes(c)}</small>
         <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat ? `<span class="tags">${etat}</span>` : ''}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
@@ -413,9 +413,9 @@ function majEditeur() {
   $('#paliers').innerHTML = PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${ed.legende ? 'Légende' : p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
   // 1 ou 2 équipes : on touche pour ajouter ou retirer, la première est la principale (★) ; une légende est de toutes les équipes
   const eqs = [...new Set([...EQUIPES_CARTES, ...ed.equipes].filter(Boolean))];
-  $('#equipes').innerHTML = ed.legende ? '<p class="sub petit">Une légende fait partie de toutes les équipes.</p>'
+  $('#equipes').innerHTML = ed.legende ? `<p class="sub petit">Une légende fait partie de toutes les équipes ${ed.genre === 'M' ? 'garçons' : 'filles'} (son genre) : elle compte dans leur collectif.</p>`
     : eqs.map(e => `<button data-equipe="${esc(e)}" class="${ed.equipes.includes(e) ? 'on' : ''}">${ed.equipes[0] === e && ed.equipes.length > 1 ? '★ ' : ''}${esc(e)}</button>`).join('');
-  $('#ed-titre').innerHTML = `${esc(c.nom)} <small>${c.legende ? 'toutes les équipes · légende' : esc(libelleEquipes(c))}</small>`;
+  $('#ed-titre').innerHTML = `${esc(c.nom)} <small>${c.legende ? 'équipes ' + libelleEquipes(c).toLowerCase() + ' · légende' : esc(libelleEquipes(c))}</small>`;
   $('#desc-n').textContent = `${(ed.fiche.intro || '').length}/160`;
   // plusieurs postes possibles : on touche pour ajouter ou retirer, le premier choisi est le principal (★)
   $('#postes').innerHTML = POSTES_JEU.map(p => {

@@ -897,7 +897,7 @@ function fiche(carte, poste, de) {
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">${de ? `<button class="retour" data-retour-equipe="${esc(de)}">‹ Équipe de ${esc(de)}</button>`
     : poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
-    <h3>${esc(c.nom)} <small>${c.legende ? 'Légende du club · toutes les équipes' : libelleEquipes(c).replace('/', ' / ')} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
+    <h3>${esc(c.nom)} <small>${c.legende ? `Légende du club · équipes ${libelleEquipes(c).toLowerCase()}` : libelleEquipes(c).replace('/', ' / ')} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
     ${c.fiche?.intro ? `<p class="f-desc">${esc(c.fiche.intro)}</p>` : ''}
     ${hex}
     ${paliers ? `<div class="paliers">${paliers}</div>` : ''}
@@ -914,7 +914,7 @@ function noteEquipe() {
   const cs = places.map(p => aligne(p.id));
   const moy = places.reduce((a, p) => a + noteAuPoste(aligne(p.id), p.id), 0) / 7;   // une place vide compte 0
   const hors = places.filter(p => horsPoste(aligne(p.id), p.id)).length;
-  const collectif = collectifDe(cs);   // bonus quand on aligne des coéquipier(e)s (2 équipes possibles, une légende est de toutes)
+  const collectif = collectifDe(cs);   // bonus quand on aligne des coéquipier(e)s (2 équipes possibles, une légende est de toutes celles de son genre)
   return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length, hors};
 }
 // Tactiques (même calcul que tactique_bonus dans schema.sql) : chaque choix s'appuie sur deux stats ; bonus de 2 % pour une
@@ -2595,7 +2595,7 @@ function attendreRetournement() {
 function indiceSuivant() {
   const c = OB.res[0].c, box = OB.el.querySelector('.ob-indice');
   const etapes = c.staff ? [['Carte', 'Staff'], ['Poste', OB.res[0].staff.nom], ['Palier', R_LABEL[c.rarete]]]
-    : [['Équipe', c.legende ? 'Toutes' : libelleEquipes(c)], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
+    : [['Équipe', libelleEquipes(c)], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
   if (OB.indice >= etapes.length) { box.hidden = true; return attendreRetournement(); }
   const [l, v] = etapes[OB.indice++];
   box.hidden = false;
@@ -3411,7 +3411,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=82').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=83').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

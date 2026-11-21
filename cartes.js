@@ -175,15 +175,23 @@ function equipesCarte(p, c0) {
   return {equipe, equipes: [equipe].filter(Boolean)};
 }
 const equipesDe = c => c.legende ? ['*'] : c.equipes?.length ? c.equipes : [c.equipe].filter(Boolean);
-const deLEquipe = (c, eq) => !!c.legende || equipesDe(c).includes(eq);
-const coequipiers = (a, b) => !!a.legende || !!b.legende || equipesDe(a).some(e => equipesDe(b).includes(e));
-const libelleEquipes = c => c.legende ? 'Toutes' : equipesDe(c).join('/');
+// Une légende est de toutes les équipes de son genre (demande de Maël, 21 nov. 2026 : Dono avec les garçons, Annette avec les
+// filles) : genre de l'équipe d'après son code (SG1, -18G : garçons ; SF1, -18F1 : filles), genre de la légende = celui de sa carte
+// (« M » / « F » ; sinon toutes les équipes). Même règle que equipe_genre et force_equipe dans schema.sql
+const genreEquipe = eq => /G/.test(eq || '') ? 'M' : /F/.test(eq || '') ? 'F' : null;
+const genreLegende = c => c.genre === 'M' || c.genre === 'F' ? c.genre : null;
+const legendeDe = (c, eq) => { const g = genreLegende(c), ge = genreEquipe(eq); return !g || !ge || g === ge; };
+const deLEquipe = (c, eq) => c.legende ? legendeDe(c, eq) : equipesDe(c).includes(eq);
+const coequipiers = (a, b) => a.legende && b.legende ? !genreLegende(a) || !genreLegende(b) || genreLegende(a) === genreLegende(b)
+  : a.legende ? equipesDe(b).some(e => legendeDe(a, e)) : b.legende ? equipesDe(a).some(e => legendeDe(b, e))
+  : equipesDe(a).some(e => equipesDe(b).includes(e));
+const libelleEquipes = c => c.legende ? ({M: 'Garçons', F: 'Filles'}[genreLegende(c)] || 'Toutes') : equipesDe(c).join('/');
 // bonus collectif : le plus grand nombre de coéquipier(e)s d'une même équipe (un joueur compte pour chacune de ses équipes, une
-// légende pour toutes) : 3 → +1, 5 → +2, 7 → +3 (même calcul que force_equipe dans schema.sql)
+// légende pour toutes celles de son genre) : 3 → +1, 5 → +2, 7 → +3 (même calcul que force_equipe dans schema.sql)
 function collectifDe(cs) {
-  const n = {}; let leg = 0;
-  for (const c of cs) { if (c.legende) leg++; else for (const e of equipesDe(c)) n[e] = (n[e] || 0) + 1; }
-  const max = Math.max(0, ...Object.values(n)) + leg;
+  const n = {}, leg = {M: 0, F: 0, x: 0};
+  for (const c of cs) { if (c.legende) leg[genreLegende(c) || 'x']++; else for (const e of equipesDe(c)) n[e] = (n[e] || 0) + 1; }
+  const max = Math.max(0, leg.M, leg.F, ...Object.entries(n).map(([e, k]) => k + ({M: leg.M, F: leg.F}[genreEquipe(e)] ?? leg.M + leg.F))) + leg.x;
   return max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;
 }
 // Une carte créée dans l'outil (pas sur le site) : le minimum que le jeu attend d'une carte du site
@@ -250,7 +258,7 @@ function carteHTML(c, o = {}) {
   const visage = c.photo ? `<img class="c-photo" src="${esc(c.photo)}" alt="" loading="lazy">`
     : `<div class="c-face">${silhouette(c.rarete)}</div><div class="c-mono">${initiales(c.nom)}</div>`;
   const pal = c.legende ? 'Légende' : R_LABEL[c.rarete] || '';
-  return `<div class="card r-${c.rarete}${c.legende ? ' legende' : ''}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.legende ? 'toutes les équipes' : libelleEquipes(c)}, ${posteAffiche(c)}, ${pal} ${note}">
+  return `<div class="card r-${c.rarete}${c.legende ? ' legende' : ''}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.legende ? 'légende, équipes ' + libelleEquipes(c).toLowerCase() : libelleEquipes(c)}, ${posteAffiche(c)}, ${pal} ${note}">
     <i class="c-eclat"></i>${c.legende ? '<i class="c-holo"></i><i class="c-couronne" aria-hidden="true">♛</i>' : ''}${visage}
     <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pal">${pal}</span><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
     <div class="c-name">${esc(c.nom)}</div>
