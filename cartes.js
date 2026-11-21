@@ -165,9 +165,14 @@ function statsAuNiveau(c, note) {
 // Équipes (demande de Maël, 21 nov. 2026) : un joueur peut en avoir 2 (equipes, la première = la principale, aussi dans equipe) ;
 // une légende fait partie de toutes les équipes. Réglages de l'outil : equipes (sinon equipe, sinon celle du site)
 function equipesCarte(p, c0) {
-  const l = (Array.isArray(p.equipes) ? p.equipes : []).filter((x, i, t) => x && t.indexOf(x) === i).slice(0, 2);
+  const propre = l => (Array.isArray(l) ? l : []).filter((x, i, t) => x && t.indexOf(x) === i).slice(0, 2);
+  const l = propre(p.equipes);
   const equipe = l[0] || p.equipe || c0.equipe;
-  return {equipe, equipes: l.length ? l : [equipe].filter(Boolean)};
+  if (l.length) return {equipe, equipes: l};
+  // les 2 équipes du site (joué pour les deux cette saison, export_cartes.py), si l'outil n'a pas mis le joueur dans une autre équipe
+  const site = propre(c0.equipes);
+  if (site.includes(equipe)) return {equipe, equipes: [equipe, ...site.filter(e => e !== equipe)]};
+  return {equipe, equipes: [equipe].filter(Boolean)};
 }
 const equipesDe = c => c.legende ? ['*'] : c.equipes?.length ? c.equipes : [c.equipe].filter(Boolean);
 const deLEquipe = (c, eq) => !!c.legende || equipesDe(c).includes(eq);

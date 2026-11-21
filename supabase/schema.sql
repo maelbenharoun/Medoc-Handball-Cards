@@ -3877,6 +3877,17 @@ update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs
 -- 21 nov. 2026 (Maël) : prendre le dessus compte double, 10 % de chances de marquer en plus ou en moins (match_contre 0,05 → 0,10) :
 -- il doit compter plus que le plus gros bonus de tactique (10 % d'attaque ≈ +7 à 8 % de chances) ; seulement si encore à 0,05
 update parametres set valeurs = valeurs || '{"match_contre": 0.10}' where (valeurs ->> 'match_contre')::numeric = 0.05;
+-- 21 nov. 2026 (Maël) : les joueurs qui ont joué cette saison pour 2 équipes du jeu (feuilles de match du site, scripts/export_cartes.py)
+-- sont dans les deux ; seulement si la carte n'a pas encore de 2e équipe et a toujours la même équipe principale (l'outil peut la changer)
+update cartes c set equipes = v.eqs from (values
+  ('annaele-bibey', array['SF1', 'SF2']),
+  ('caroline-franchini', array['SF1', 'SF2']),
+  ('celia-ait-ininou', array['SF2', 'SF1']),
+  ('hugo-estrade', array['SG1', 'SG2']),
+  ('leonie-celhay', array['SF1', 'SF2']),
+  ('norah-de-wilde', array['SF1', 'SF2']),
+  ('sohen-abadie', array['SG1', 'SG2'])) v(id, eqs)
+  where c.id = v.id and cardinality(c.equipes) = 0 and c.equipe = v.eqs[1];
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case

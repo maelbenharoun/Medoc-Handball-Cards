@@ -222,6 +222,7 @@ def main(src):
     sites = []
     rids = {}   # matchs joués par les équipes du club cette saison → date (pour les numéros de maillot)
     par_nom = {}
+    mj_eq = {}   # matchs joués par équipe, pour chaque joueur
     for key in EQUIPES:
         d = json.loads((src / key / "site_data.json").read_text(encoding="utf-8"))
         sites.append(d)
@@ -254,11 +255,17 @@ def main(src):
                 "recrue": bool(p.get("recrue")),
                 "_p": p,
             }
-            # Une seule carte par personne : l'équipe où elle a le plus joué
+            # Une seule carte par personne : l'équipe où elle a le plus joué ; si elle a joué pour 2 équipes (ou plus), « equipes » = les
+            # 2 où elle a le plus joué, la principale d'abord (demande de Maël, 21 nov. 2026 : un joueur peut avoir 2 équipes dans le jeu)
+            mj_eq.setdefault(carte["id"], {})[carte["equipe"]] = carte["mj"]
             old = par_nom.get(carte["id"])
             if old is None or carte["mj"] > old["mj"]:
                 par_nom[carte["id"]] = carte
 
+    for k, c in list(par_nom.items()):
+        eqs = sorted(mj_eq[k], key=lambda e: (e != c["equipe"], -mj_eq[k][e]))
+        if len(eqs) > 1:   # « equipes » juste après « equipe »
+            par_nom[k] = {kk: v for kk0, v0 in c.items() for kk, v in ([(kk0, v0), ("equipes", eqs[:2])] if kk0 == "equipe" else [(kk0, v0)])}
     cartes = sorted(par_nom.values(), key=lambda c: (-c["ovr"], c["nom"]))
     # fiche de chaque joueur (stats du site, toutes ses saisons au club, stats rigolotes)
     jf = src.parent / "joueurs.json"

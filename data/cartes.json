@@ -313,6 +313,10 @@
    "id": "leonie-celhay",
    "nom": "Leonie Celhay",
    "equipe": "SF1",
+   "equipes": [
+    "SF1",
+    "SF2"
+   ],
    "genre": "F",
    "poste": "GB",
    "ovr": 92,
@@ -2056,6 +2060,10 @@
    "id": "norah-de-wilde",
    "nom": "Norah De Wilde",
    "equipe": "SF1",
+   "equipes": [
+    "SF1",
+    "SF2"
+   ],
    "genre": "F",
    "poste": "JDC",
    "ovr": 73,
@@ -2904,6 +2912,10 @@
    "id": "annaele-bibey",
    "nom": "Annaele Bibey",
    "equipe": "SF1",
+   "equipes": [
+    "SF1",
+    "SF2"
+   ],
    "genre": "F",
    "poste": "JDC",
    "ovr": 65,
@@ -3207,6 +3219,10 @@
    "id": "sohen-abadie",
    "nom": "Sohen Abadie",
    "equipe": "SG1",
+   "equipes": [
+    "SG1",
+    "SG2"
+   ],
    "genre": "M",
    "poste": "JDC",
    "ovr": 65,
@@ -3808,6 +3824,10 @@
    "id": "celia-ait-ininou",
    "nom": "Celia Ait Ininou",
    "equipe": "SF2",
+   "equipes": [
+    "SF2",
+    "SF1"
+   ],
    "genre": "F",
    "poste": "JDC",
    "ovr": 61,
@@ -4121,6 +4141,10 @@
    "id": "caroline-franchini",
    "nom": "Caroline Franchini",
    "equipe": "SF1",
+   "equipes": [
+    "SF1",
+    "SF2"
+   ],
    "genre": "F",
    "poste": "GB",
    "ovr": 60,
@@ -4494,6 +4518,10 @@
    "id": "hugo-estrade",
    "nom": "Hugo Estrade",
    "equipe": "SG1",
+   "equipes": [
+    "SG1",
+    "SG2"
+   ],
    "genre": "M",
    "poste": "JDC",
    "ovr": 57,
