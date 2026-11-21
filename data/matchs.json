@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-19",
+ "maj": "2026-11-21",
  "matchs": [
   {
    "equipe": "SF1",
@@ -3436,23 +3436,6 @@
    "score": null
   },
   {
-   "equipe": "SF2",
-   "competition": "+16 Féminines Honneur · Poule Unique",
-   "rid": "2636312",
-   "j": 10,
-   "date": "2026-12-12",
-   "heure": null,
-   "dom": "Avenir Pailleton 2",
-   "ext": "Pe2M 2",
-   "medoc": null,
-   "p": [
-    0.389,
-    0.053,
-    0.558
-   ],
-   "score": null
-  },
-  {
    "equipe": "SG1",
    "competition": "Excellence Régionale Masculine · Poule B",
    "rid": "2645787",
@@ -3534,6 +3517,23 @@
     0.655,
     0.049,
     0.296
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF2",
+   "competition": "+16 Féminines Honneur · Poule Unique",
+   "rid": "2636312",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "19:00",
+   "dom": "Avenir Pailleton 2",
+   "ext": "Pe2M 2",
+   "medoc": null,
+   "p": [
+    0.389,
+    0.053,
+    0.558
    ],
    "score": null
   },

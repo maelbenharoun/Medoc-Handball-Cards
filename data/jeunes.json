@@ -1,5 +1,735 @@
 {
  "maj": "2026-11-21",
  "saison": "2026-2027",
- "equipes": {}
+ "equipes": {
+  "-15F": {
+   "club": "medoc",
+   "teams": {
+    "1828749": {
+     "nom": "Ambares /carbon-blanc U15f"
+    },
+    "1828750": {
+     "nom": "Gazinet Cestas 1"
+    },
+    "1828753": {
+     "nom": "Merignac Gironde 2"
+    },
+    "1828754": {
+     "nom": "Parempuyre"
+    },
+    "1828751": {
+     "nom": "Girondins De Bordeaux Bastide"
+    }
+   },
+   "played_club": [
+    {
+     "rid": "2691901",
+     "date": "2026-09-13",
+     "home": "1828749",
+     "away": "medoc",
+     "hs": 20,
+     "as": 38,
+     "sheet": {
+      "a": [
+       [
+        "Melia Sajdak",
+        "2",
+        4
+       ],
+       [
+        "Paloma Boudaud",
+        "3",
+        10
+       ],
+       [
+        "Lola Dartois",
+        "4",
+        2
+       ],
+       [
+        "Joane Labeyrie",
+        "6",
+        8
+       ],
+       [
+        "Pauline Rautureau",
+        "7",
+        6
+       ],
+       [
+        "Camille Dezauzier",
+        "9",
+        7
+       ],
+       [
+        "Anah Mougnol",
+        "12",
+        0
+       ],
+       [
+        "Mae Bornes",
+        "13",
+        1
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2691904",
+     "date": "2026-09-20",
+     "home": "medoc",
+     "away": "1828750",
+     "hs": 24,
+     "as": 58,
+     "sheet": {
+      "h": [
+       [
+        "Paloma Boudaud",
+        "3",
+        13
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        1
+       ],
+       [
+        "Melia Sajdak",
+        "23",
+        2
+       ],
+       [
+        "Pauline Rautureau",
+        "24",
+        5
+       ],
+       [
+        "Camille Dezauzier",
+        "25",
+        2
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        1
+       ]
+      ],
+      "a": []
+     }
+    },
+    {
+     "rid": "2691906",
+     "date": "2026-10-03",
+     "home": "1828753",
+     "away": "medoc",
+     "hs": 46,
+     "as": 23,
+     "sheet": {
+      "a": [
+       [
+        "Paloma Boudaud",
+        "3",
+        5
+       ],
+       [
+        "Mae Bornes",
+        "14",
+        2
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ],
+       [
+        "Joane Labeyrie",
+        "18",
+        4
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        0
+       ],
+       [
+        "Camille Dezauzier",
+        "23",
+        6
+       ],
+       [
+        "Pauline Rautureau",
+        "24",
+        5
+       ],
+       [
+        "Melia Sajdak",
+        "25",
+        1
+       ],
+       [
+        "Edwyna Coudray",
+        "33",
+        0
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2691911",
+     "date": "2026-10-11",
+     "home": "1828754",
+     "away": "medoc",
+     "hs": 13,
+     "as": 24,
+     "sheet": {
+      "a": [
+       [
+        "Paloma Boudaud",
+        "3",
+        3
+       ],
+       [
+        "Mae Bornes",
+        "14",
+        1
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ],
+       [
+        "Joane Labeyrie",
+        "18",
+        5
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        1
+       ],
+       [
+        "Melia Sajdak",
+        "23",
+        3
+       ],
+       [
+        "Pauline Rautureau",
+        "24",
+        7
+       ],
+       [
+        "Camille Dezauzier",
+        "25",
+        4
+       ],
+       [
+        "Edwyna Coudray",
+        "33",
+        0
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2691913",
+     "date": "2026-11-07",
+     "home": "medoc",
+     "away": "1828751",
+     "hs": 26,
+     "as": 37,
+     "sheet": {
+      "h": [
+       [
+        "Mae Bornes",
+        "14",
+        2
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ],
+       [
+        "Joane Labeyrie",
+        "18",
+        3
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        0
+       ],
+       [
+        "Melia Sajdak",
+        "23",
+        6
+       ],
+       [
+        "Pauline Rautureau",
+        "24",
+        10
+       ],
+       [
+        "Camille Dezauzier",
+        "25",
+        3
+       ],
+       [
+        "Edwyna Coudray",
+        "33",
+        0
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        1
+       ]
+      ],
+      "a": []
+     }
+    },
+    {
+     "rid": "2691916",
+     "date": "2026-11-15",
+     "home": "medoc",
+     "away": "1828749",
+     "hs": 8,
+     "as": 43,
+     "sheet": {
+      "h": [
+       [
+        "Paloma Boudaud",
+        "3",
+        4
+       ],
+       [
+        "Mae Bornes",
+        "14",
+        1
+       ],
+       [
+        "Lena Besnard Coulloux",
+        "16",
+        0
+       ],
+       [
+        "Joane Labeyrie",
+        "18",
+        0
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        0
+       ],
+       [
+        "Melia Sajdak",
+        "23",
+        1
+       ],
+       [
+        "Camille Dezauzier",
+        "25",
+        2
+       ],
+       [
+        "Emma Quillaud Nicolle",
+        "26",
+        0
+       ],
+       [
+        "Edwyna Coudray",
+        "33",
+        0
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        0
+       ]
+      ],
+      "a": []
+     }
+    }
+   ]
+  },
+  "-15G": {
+   "club": "medoc",
+   "teams": {
+    "1829454": {
+     "nom": "Ambaresienne"
+    },
+    "1829455": {
+     "nom": "Girondins De Bordeaux Bastide 2"
+    },
+    "1829453": {
+     "nom": "Eysines 1"
+    },
+    "1829457": {
+     "nom": "Bruges 33 2"
+    }
+   },
+   "played_club": [
+    {
+     "rid": "2692254",
+     "date": "2026-09-12",
+     "home": "1829454",
+     "away": "medoc",
+     "hs": 31,
+     "as": 46,
+     "sheet": {
+      "a": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        15
+       ],
+       [
+        "Kais Jean-Alphonse",
+        "3",
+        3
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        4
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        13
+       ],
+       [
+        "Leo Fortinon Falliere",
+        "7",
+        2
+       ],
+       [
+        "Raphael Chevet",
+        "8",
+        2
+       ],
+       [
+        "Loris Benita",
+        "9",
+        6
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        1
+       ],
+       [
+        "Romeo Rouze Le Gall",
+        "11",
+        0
+       ],
+       [
+        "Camille Daroux Luca",
+        "12",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2692257",
+     "date": "2026-09-19",
+     "home": "medoc",
+     "away": "1829455",
+     "hs": 29,
+     "as": 31,
+     "sheet": {
+      "h": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        5
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        5
+       ],
+       [
+        "Ralph-Louis Epee Bokambe",
+        "5",
+        4
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        6
+       ],
+       [
+        "Loris Benita",
+        "9",
+        7
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        1
+       ],
+       [
+        "Raphael Chevet",
+        "11",
+        1
+       ],
+       [
+        "Romeo Rouze Le Gall",
+        "13",
+        0
+       ]
+      ],
+      "a": []
+     }
+    },
+    {
+     "rid": "2692261",
+     "date": "2026-10-03",
+     "home": "1829453",
+     "away": "medoc",
+     "hs": 42,
+     "as": 40,
+     "sheet": {
+      "a": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        10
+       ],
+       [
+        "Kais Jean-Alphonse",
+        "3",
+        3
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        5
+       ],
+       [
+        "Ralph-Louis Epee Bokambe",
+        "5",
+        7
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        6
+       ],
+       [
+        "Camille Daroux Luca",
+        "7",
+        1
+       ],
+       [
+        "Loris Benita",
+        "8",
+        5
+       ],
+       [
+        "Raphael Chevet",
+        "9",
+        2
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        1
+       ],
+       [
+        "Leo Fortinon Falliere",
+        "11",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2692268",
+     "date": "2026-11-08",
+     "home": "1829457",
+     "away": "medoc",
+     "hs": 37,
+     "as": 31,
+     "sheet": {
+      "a": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        11
+       ],
+       [
+        "Kais Jean-Alphonse",
+        "3",
+        4
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        2
+       ],
+       [
+        "Ralph-Louis Epee Bokambe",
+        "5",
+        5
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        5
+       ],
+       [
+        "Camille Daroux Luca",
+        "7",
+        0
+       ],
+       [
+        "Raphael Chevet",
+        "8",
+        2
+       ],
+       [
+        "Loris Benita",
+        "9",
+        2
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        0
+       ],
+       [
+        "Romeo Rouze Le Gall",
+        "11",
+        0
+       ]
+      ],
+      "h": []
+     }
+    },
+    {
+     "rid": "2692269",
+     "date": "2026-11-14",
+     "home": "medoc",
+     "away": "1829454",
+     "hs": 37,
+     "as": 26,
+     "sheet": {
+      "h": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        9
+       ],
+       [
+        "Kais Jean-Alphonse",
+        "3",
+        1
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        6
+       ],
+       [
+        "Ralph-Louis Epee Bokambe",
+        "5",
+        9
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        5
+       ],
+       [
+        "Camille Daroux Luca",
+        "7",
+        0
+       ],
+       [
+        "Raphael Chevet",
+        "8",
+        1
+       ],
+       [
+        "Loris Benita",
+        "9",
+        4
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        1
+       ],
+       [
+        "Romeo Rouze Le Gall",
+        "11",
+        0
+       ],
+       [
+        "Leo Fortinon Falliere",
+        "12",
+        1
+       ]
+      ],
+      "a": []
+     }
+    }
+   ]
+  }
+ }
 }
