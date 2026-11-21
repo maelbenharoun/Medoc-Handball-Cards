@@ -44,6 +44,11 @@ const SP = process.argv[2];
   await p.click('[data-banc-choix]'); await p.waitForFunction(() => S().remplacants?.PIV);
   await p.waitForSelector('.banc-s[data-banc=PIV]:not(.vide)');
   verif('remplaçant choisi : enregistré et affiché sur le banc', !!(await prof()).remplacants.PIV && !!(await p.$('.banc-s[data-banc=PIV] .vig')));
+  // le bonus de chaque tactique pour l'équipe des remplaçants (retour de Guilhem, 21 nov. 2026)
+  const tacR = await p.evaluate(() => ({n: document.querySelectorAll('.tac .tac-r').length, txt: document.querySelector('.tac .tac-r')?.textContent,
+    deborde: document.documentElement.scrollWidth > innerWidth}));
+  verif('tactiques : le bonus des remplaçants sous chacune des 6, sans déborder', tacR.n === 6 && /remplaçants \+\d+ %/.test(tacR.txt) && !tacR.deborde, tacR);
+  if (SP) { await p.evaluate(() => document.querySelector('.tacs').scrollIntoView()); await p.screenshot({path: SP + '/banc-tactiques.png'}); }
   // depuis le choix d'un titulaire : lien vers le remplaçant du poste
   await p.click('.slot[data-slot=PIV]'); await p.waitForSelector('.banc-lien');
   verif('choix du titulaire : « Remplaçant : … » au poste', /Remplaçant : /.test(await p.textContent('.banc-lien')) && !/aucun/.test(await p.textContent('.banc-lien')));
@@ -82,13 +87,14 @@ const SP = process.argv[2];
   const bas = await p.evaluate(() => { const l = [...document.querySelectorAll('.md-bas .btn')].filter(x => !x.hidden), r = document.querySelector('.md-bas').getBoundingClientRect();
     return {txt: l.map(x => x.firstChild.textContent.trim()), dedans: l.every(x => { const z = x.getBoundingClientRect(); return z.left >= r.left - 1 && z.right <= r.right + 1; }),
       haut: Math.max(...l.map(x => x.getBoundingClientRect().height)), deborde: document.documentElement.scrollWidth > innerWidth}; });
-  verif('en bas : Tactique, Banc, Temps mort, vitesse, Simuler, sans déborder', bas.txt.join() === 'Tactique,Banc,Temps mort,×4,Simuler' && bas.dedans && !bas.deborde && bas.haut < 70, bas);
+  // les changements se font depuis « Tactique » (retour de Guilhem, 21 nov. 2026) : plus de bouton « Banc » dans la barre
+  verif('en bas : Tactique, Temps mort, vitesse, Simuler (plus de « Banc »), sans déborder', bas.txt.join() === 'Tactique,Temps mort,×4,Simuler' && bas.dedans && !bas.deborde && bas.haut < 70, bas);
   if (SP) { await p.waitForTimeout(400); await p.screenshot({path: SP + '/banc-2-bas.png'}); }
   await p.waitForFunction(() => MD.h > 40 && MD.h < 150, null, {timeout: 15000});
-  await p.click('.md-chg'); await p.waitForSelector('.md-bancp:not([hidden]) .md-banc');
+  await p.click('.md-tac'); await p.waitForSelector('.md-panneau:not([hidden]) [data-md-go=banc]');
+  verif('« Tactique » : le panneau propose « 🔁 Changements »', /Changements/.test(await p.textContent('.md-panneau [data-md-go=banc]')));
+  await p.click('.md-panneau [data-md-go=banc]'); await p.waitForSelector('.md-bancp:not([hidden]) .md-banc');
   verif('panneau Changements : les 7 postes, titulaire ⇄ remplaçant, fraîcheur', (await p.$$('.md-bancp .md-bl')).length === 7 && (await p.$$('.md-bancp .md-fr')).length === 14);
-  const h0 = await p.evaluate(() => MD.h); await p.waitForTimeout(400);
-  verif('le temps ne s’arrête pas pendant le choix', (await p.evaluate(() => MD.h)) > h0);
   if (SP) await p.screenshot({path: SP + '/banc-3-changements.png'});
   const nomAG = (await prof()).remplacants.AG;
   const hClic = await p.evaluate(() => { const h = MD.h; document.querySelector('[data-md-chg=AG]').click(); return h; });
@@ -103,7 +109,10 @@ const SP = process.argv[2];
   e = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
   verif('un 2e changement, aussitôt fait', e.a.equipe.AD === pr.remplacants.AD);
   await p.click('[data-md-go=banc-fermer]');
-  verif('Fermer : le match continue', await p.evaluate(() => document.querySelector('.md-bancp').hidden && !MD.panneau));
+  verif('Fermer les changements : retour au panneau Tactique', await p.evaluate(() => document.querySelector('.md-bancp').hidden && MD.panneau === 'tactique'));
+  await p.click('[data-md-go=annuler]');
+  const h1 = await p.evaluate(() => MD.h); await p.waitForTimeout(600);
+  verif('on reprend : le match continue', await p.evaluate(h => !MD.panneau && MD.h > h, h1));
   // mi-temps : le panneau propose les changements, et on y revient après
   await p.waitForFunction(() => /Mi-temps/.test(document.querySelector('.md-panneau:not([hidden]) h3')?.textContent || ''), null, {timeout: 60000});
   await p.click('[data-md-go=banc]'); await p.waitForSelector('.md-bancp:not([hidden]) .md-banc');

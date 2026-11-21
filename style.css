@@ -950,6 +950,8 @@ body.avec-intro { overflow: hidden; }
 .tac small { font-size: .68rem; color: var(--muted); line-height: 1.2; }
 .tac em { font-style: normal; margin-top: 4px; font-weight: 900; font-size: .95rem; color: var(--ink); }
 .tac em.fort { color: #5bd68a; } .tac em.nul { color: #ff9b8f; }
+.tac .tac-r { font-style: normal; font-size: .66rem; font-weight: 700; color: var(--muted); }
+.tac .tac-r.fort { color: #5bd68a; } .tac .tac-r.nul { color: #ff9b8f; }
 .tac.on { border-color: var(--accent); background: linear-gradient(180deg, rgba(255, 210, 87, .16), rgba(255, 210, 87, .04)); box-shadow: 0 0 0 1px var(--accent) inset; }
 
 /* ── boosters : sachets métallisés (accueil et ouverture), fond animé, carrousel ── */
@@ -1946,7 +1948,7 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 .md-fr i { display: block; height: 100%; background: #3fcf8e; transform-origin: left; }
 .md-fr.bas i { background: #f2a33a; }
 .md-fr.rouge i { background: #ef5b4c; }
-.md-bas .md-chg.alerte { border-color: #ef5b4c; color: #ffb4ab; }
+.md-bas .md-tac.alerte { border-color: #ef5b4c; color: #ffb4ab; }
 .md-bfl { text-align: center; font-size: 1rem; color: var(--muted); transition: transform .2s; }
 .md-bl.on { border-color: #3fcf8e; background: #16291f; transform: translateY(-2px); }
 .md-bl.on .md-bfl { color: #3fcf8e; transform: rotate(180deg); }

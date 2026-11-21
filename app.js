@@ -921,8 +921,9 @@ function tactiqueActuelle() {
   return m ? {att: m[1], def: m[2], choisie: true} : {att: 'duels', def: '06', choisie: false};
 }
 // moyennes des 6 stats des joueurs de champ alignés (à la note de leur poste, comme le serveur)
-function moyennesEquipe() {
-  const champ = POSTES.filter(p => !p.gb).map(p => [p, aligne(p.id)]).filter(([, c]) => c);
+// qui : la carte à chaque poste (par défaut les titulaires ; l'équipe des remplaçants : le remplaçant, sinon le titulaire)
+function moyennesEquipe(qui = aligne) {
+  const champ = POSTES.filter(p => !p.gb).map(p => [p, qui(p.id)]).filter(([, c]) => c);
   if (!champ.length) return null;
   const m = Object.fromEntries(STATS_CHAMP.map(([k]) => [k, 0]));
   for (const [p, c] of champ) { const st = statsAuNiveau(c.estGB ? {...c, poste: null} : c, noteAuPoste(c, p.id)); for (const k in m) m[k] += (st[k] || 0) / 6; }
@@ -970,8 +971,12 @@ function vueEquipe() {
   const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
   const terrain = terrainSVG();
-  const bloc = (liste, cle) => liste.map(([k, nom, st]) => { const b = bonusTactique(m, st), on = T[cle] === k;
-    return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${b >= .06 ? 'fort' : b <= .005 ? 'nul' : ''}">+${pc100(b)}</em></button>`; }).join('');
+  // l'équipe des remplaçants (retour de Guilhem, 21 nov. 2026) : son bonus pour chaque tactique, quand elle est sur le terrain
+  // (le remplaçant de chaque poste, le titulaire là où il n'y en a pas)
+  const mR = POSTES.some(p => !p.gb && remplacant(p.id)) ? moyennesEquipe(id => remplacant(id) || aligne(id)) : null;
+  const cls = b => b >= .06 ? 'fort' : b <= .005 ? 'nul' : '';
+  const bloc = (liste, cle) => liste.map(([k, nom, st]) => { const b = bonusTactique(m, st), on = T[cle] === k, bR = mR && bonusTactique(mR, st);
+    return `<button class="tac${on ? ' on' : ''}" data-tac="${cle}:${k}"><b>${nom}</b><small>${NOM_STAT[st[0]]} · ${NOM_STAT[st[1]]}</small><em class="${cls(b)}">+${pc100(b)}</em>${mR ? `<i class="tac-r ${cls(bR)}">remplaçants +${pc100(bR)}</i>` : ''}</button>`; }).join('');
   const att = TACT_ATT.find(x => x[0] === T.att), def = TACT_DEF.find(x => x[0] === T.def);
   return `<h1>Équipe</h1>
     <p class="sub">Touche un poste pour aligner un joueur. Hors de son poste : −${malusHors()}. Des coéquipiers ensemble : bonus 🤝</p>
@@ -994,7 +999,7 @@ function vueEquipe() {
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
       <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
-      <p class="sub petit">Chaque tactique donne un bonus si ton équipe est forte dans ses deux stats (jusqu’à +${Math.round(100 * (PARAMS.tactique_bonus_max ?? .1))} %).</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
+      <p class="sub petit">Chaque tactique donne un bonus si ton équipe est forte dans ses deux stats (jusqu’à +${Math.round(100 * (PARAMS.tactique_bonus_max ?? .1))} %).${POSTES.some(p => !p.gb && remplacant(p.id)) ? ' En petit : le bonus quand tes remplaçants sont sur le terrain.' : ''}</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
     <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
     <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
     <p class="sub petit">${T.choisie ? `${att[1]} + ${def[1]} : ta tactique de départ.` : 'Choisis ton attaque et ta défense de départ.'} En match, contrer l’adversaire compte encore plus 😉</p>`;
@@ -1477,7 +1482,7 @@ function ouvrirDirect(vue, reprise) {
     <p class="md-info"></p>
     <div class="md-onglets" role="tablist"><button class="on" data-md-onglet="direct">Direct</button><button data-md-onglet="stats">Stats</button></div>
     <div class="md-corps"><div class="md-fil"></div><div class="md-stats" hidden></div></div>
-    <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-chg">Banc</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
+    <div class="md-bas"><button class="btn ghost md-tac">Tactique</button><button class="btn ghost md-tm">Temps mort</button><button class="btn ghost md-vit">×1</button><button class="btn ghost md-sim">Simuler</button></div>
     <div class="md-panneau" hidden></div><div class="md-panneau md-bancp" hidden></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
@@ -1654,11 +1659,10 @@ function majMD() {
   if (!MD.el) return;
   const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
   const tc = MD.el.querySelector('.md-tac');
-  tc.disabled = !!MD.fin; tc.innerHTML = `Tactique<small>${MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
-  const bc = MD.el.querySelector('.md-chg'), nbanc = bancMD().length;
-  const ef = MD.vue.nous.effectif || {}, rouges = POSTES_MD.filter(k => ef[k]?.n && fraicheur(ef[k].f) < 40).length;
-  bc.hidden = !nbanc; bc.disabled = !!MD.fin; bc.classList.toggle('alerte', !!rouges && !MD.fin);
-  bc.innerHTML = `Banc<small>${rouges ? `${rouges} dans le rouge` : `${nbanc} remplaçant${nbanc > 1 ? 's' : ''}`}</small>`;
+  // les changements se font depuis « Tactique » (retour de Guilhem, 21 nov. 2026) : le bouton prévient quand des joueurs sont dans le rouge
+  const ef = MD.vue.nous.effectif || {}, rouges = bancMD().length ? POSTES_MD.filter(k => ef[k]?.n && fraicheur(ef[k].f) < 40).length : 0;
+  tc.disabled = !!MD.fin; tc.classList.toggle('alerte', !!rouges && !MD.fin);
+  tc.innerHTML = `Tactique<small>${rouges ? `🔁 ${rouges} dans le rouge` : bancMD().length ? 'et changements' : MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
   const bt = MD.el.querySelector('.md-tm');
   bt.disabled = !tmPossible() || !!MD.fin || !!MD.enCours;
   bt.innerHTML = `Temps mort<small>${t.restants} · voir leur jeu</small>`;
@@ -1710,7 +1714,7 @@ function panneauMD(type) {
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
       <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
-    ${change && type !== 'tactique' && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
+    ${change && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
     <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
         : type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
       <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
@@ -3383,7 +3387,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=81').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=82').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
