@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_gardien": 0.33, "fatigue_ordi": 4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -1852,6 +1852,13 @@ create or replace function contre_tactique(p_att text, p_def text) returns int l
     when 'enclenchement' then case p_def when '33' then 1 when '06' then -1 else 0 end
     when 'rapide' then case p_def when '15' then 1 when '33' then -1 else 0 end else 0 end
 $$;
+-- l'attaque qui bat une défense, la défense qui bat une attaque
+create or replace function tactique_bat_def(p_def text) returns text language sql immutable as $$
+  select y from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, p_def) = 1
+$$;
+create or replace function tactique_bat_att(p_att text) returns text language sql immutable as $$
+  select y from unnest(array['06', '15', '33']) y where contre_tactique(p_att, y) = -1
+$$;
 -- d'où part le tir selon l'attaque : c'est ce qui permet de deviner l'attaque adverse
 create or replace function zone_tirage(p_att text) returns text language sql volatile as $$
   select case p_att
@@ -1895,7 +1902,7 @@ create or replace function match_ia(p_style text) returns jsonb language sql sta
     when 'hasard' then '{"style": "hasard", "nom": "imprévisible", "reac": 0.15, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0, "hasard": true}'
     when 'lent' then '{"style": "lent", "nom": "lent à réagir", "reac": 0.2, "neutre": 0, "mi": [0.5, 0.4], "anticipe": 0, "lecture": 0.5}'
     when 'rapide' then '{"style": "rapide", "nom": "rapide", "reac": 0.75, "neutre": 1, "mi": [1, 0.9], "anticipe": 0, "lecture": 0.8}'
-    when 'legende' then '{"style": "legende", "nom": "légendaire", "reac": 1, "neutre": 1, "mi": [1, 1], "anticipe": 0.7, "continu": true, "lecture": 0.9}'
+    when 'legende' then '{"style": "legende", "nom": "légendaire", "reac": 1, "neutre": 1, "mi": [1, 1], "anticipe": 0.6, "continu": true, "lecture": 0.9}'
     else '{"style": "reflechi", "nom": "réfléchi", "reac": 0.4, "neutre": 0.5, "mi": [0.8, 0.7], "anticipe": 0, "lecture": 0.65}' end)::jsonb
     || case when p_style in ('hasard', 'lent', 'rapide', 'legende') then '{}'::jsonb
       else jsonb_build_object('reac', coalesce((param('match_ordi_reaction') #>> '{}')::numeric, .4)) end
@@ -1935,28 +1942,46 @@ begin
       return e;
     end if;
   else
-    -- l'anticipation se règle sur ce qu'il a vu : un joueur qui change souvent sera anticipé, un joueur figé sera simplement contré
+    -- La tactique qu'il veut contrer (aa2 en attaque, ad2 en défense). Sans anticipation (p = 0) : la nôtre de la tranche jouée.
+    -- Légendes (demande de Maël, 21 nov. 2026 : avant, il supposait toujours que le joueur allait contrer la défense qu'il voyait,
+    -- le réflexe de tout le monde, et le contrait 10 tranches sur 12 ; un coup d'avance le battait 10 fois sur 12) : il apprend notre
+    -- façon de jouer. À chaque tranche passée, il note si on a gardé notre tactique, contré ce qu'on voyait, ou joué un coup d'avance
+    -- (contré son contre) ; il vise la façon la plus fréquente avec la chance « anticipe » (0,6), sinon une des trois au hasard.
+    -- Mesure (8 000 matchs) : une façon de jouer fixe, quelle qu'elle soit, a le dessus 1,5 à 2,5 tranches sur 12 et est contrée 8 fois ;
+    -- qui varie a le dessus 4 à 5 fois sur 12 (avant les temps morts)
+    aa2 := aa; ad2 := ad;
     if p > 0 then
-      select count(*) filter (where z.aa is distinct from z.paa or z.ad is distinct from z.pad), count(*) into nch, nb from (
-        select j ->> 'aa' aa, j ->> 'ad' ad, lag(j ->> 'aa') over (order by k) paa, lag(j ->> 'ad') over (order by k) pad, k
-        from jsonb_array_elements(coalesce(e -> 'blocs', '[]')) with ordinality y(j, k)) z where z.k > 1;
-      p := least(p, (nch + .5) / (nb + 1));
+      declare sa numeric[] := array[.5, 0, 0]; sd numeric[] := array[.5, 0, 0]; pr jsonb; cu jsonb; c1 text; c2 text; ja int; jd int;
+      begin
+        for pr, cu in select lag(j) over (order by k), j from jsonb_array_elements(coalesce(e -> 'blocs', '[]')) with ordinality y(j, k) loop
+          if pr is null then continue; end if;
+          c1 := tactique_bat_def(pr ->> 'bd'); c2 := tactique_bat_att(tactique_bat_def(pr ->> 'ad'));
+          if cu ->> 'aa' = pr ->> 'aa' then sa[1] := sa[1] + 1; end if;
+          if cu ->> 'aa' = c1 then sa[2] := sa[2] + 1; end if;
+          if cu ->> 'aa' = tactique_bat_def(tactique_bat_att(c1)) then sa[3] := sa[3] + 1; end if;
+          if cu ->> 'ad' = pr ->> 'ad' then sd[1] := sd[1] + 1; end if;
+          if cu ->> 'ad' = c2 then sd[2] := sd[2] + 1; end if;
+          if cu ->> 'ad' = tactique_bat_att(tactique_bat_def(c2)) then sd[3] := sd[3] + 1; end if;
+        end loop;
+        ja := case when random() < p then (case when sa[1] >= sa[2] and sa[1] >= sa[3] then 1 when sa[2] >= sa[3] then 2 else 3 end) else 1 + floor(random() * 3)::int end;
+        jd := case when random() < p then (case when sd[1] >= sd[2] and sd[1] >= sd[3] then 1 when sd[2] >= sd[3] then 2 else 3 end) else 1 + floor(random() * 3)::int end;
+        c1 := tactique_bat_def(def);
+        aa2 := case ja when 1 then aa when 2 then c1 else tactique_bat_def(tactique_bat_att(c1)) end;
+        c2 := tactique_bat_att(tactique_bat_def(ad));
+        ad2 := case jd when 1 then ad when 2 then c2 else tactique_bat_att(tactique_bat_def(c2)) end;
+      end;
     end if;
-    -- ce que le joueur ferait ensuite : contrer notre défense actuelle (s'il ne le fait pas déjà) ; l'entraîneur choisit la défense
-    -- (et l'attaque) qui marche le mieux contre notre tactique actuelle et celle d'après, pesées par « anticipe »
-    aa2 := case when contre_tactique(aa, def) = 1 then aa else (select y from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, def) = 1) end;
-    ad2 := case when contre_tactique(att, ad) = -1 then ad else (select y from unnest(array['06', '15', '33']) y where contre_tactique(att, y) = -1) end;
-    ndef := def; vmax := -p * contre_tactique(aa2, def) - (1 - p) * contre_tactique(aa, def);
+    ndef := def; vmax := -contre_tactique(aa2, def);
     ud := vmax;
     foreach x in array array['06', '15', '33'] loop
-      v := -p * contre_tactique(aa2, x) - (1 - p) * contre_tactique(aa, x);
+      v := -contre_tactique(aa2, x);
       if v > vmax + .001 then vmax := v; ndef := x; end if;
     end loop;
     ud := (vmax - ud) / 2;   -- 1 s'il était contré, ½ si c'était neutre, 0 s'il avait déjà le dessus
-    natt := att; vmax := p * contre_tactique(att, ad2) + (1 - p) * contre_tactique(att, ad);
+    natt := att; vmax := contre_tactique(att, ad2);
     ua := vmax;
     foreach x in array array['duels', 'enclenchement', 'rapide'] loop
-      v := p * contre_tactique(x, ad2) + (1 - p) * contre_tactique(x, ad);
+      v := contre_tactique(x, ad2);
       if v > vmax + .001 then vmax := v; natt := x; end if;
     end loop;
     ua := (vmax - ua) / 2;
@@ -2015,7 +2040,7 @@ returns jsonb language sql volatile security definer set search_path = public as
     'a', fa || jsonb_build_object('tactique', p_tactique, 'attaque', tac_attaque(p_tactique), 'defense', tac_defense(p_tactique), 'consigne', p_consigne,
       'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides()),
     'b', match_tactique(fb, p_b_attaque, p_b_defense) || jsonb_build_object('consigne', 'normal', 'fatigue', 0, 'exclu', 0, 'elan', 0, 'stats', stats_vides(),
-      'pref_att', p_b_attaque, 'pref_def', p_b_defense),
+      'pref_att', p_b_attaque, 'pref_def', p_b_defense, 'fo', coalesce((param('fatigue_ordi') #>> '{}')::numeric, 4)),
     'tmb', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0))
 $$;
 -- Remplaçants en match (demande de Maël, 19 nov. 2026) : chaque joueur a sa fatigue (fp : {exemplaire: fatigue}). Sur le terrain,
@@ -2040,13 +2065,18 @@ declare fp jsonb := '{}'; s numeric := 0; n int := 0; l record; v numeric; sur b
   k text; mm numeric; ms numeric; mal numeric; ma numeric := 0; md numeric := 0;
 begin
   if coalesce(jsonb_typeof(eq -> 'fp'), '') <> 'object' then
-    return jsonb_set(eq, '{fatigue}', to_jsonb(round(greatest(0, ((eq ->> 'fatigue')::numeric + p_terrain) * p_fois - p_tous), 4)));
+    v := round(greatest(0, ((eq ->> 'fatigue')::numeric + p_terrain) * p_fois - p_tous), 4);
+    if eq ? 'fo' then   -- l'ordinateur : sa fatigue lui retire des points de note, comme à nos joueurs (fma, fmd)
+      return eq || jsonb_build_object('fatigue', v, 'fma', round((eq ->> 'fo')::numeric * least(v, 4 / 3.0), 2), 'fmd', round((eq ->> 'fo')::numeric * least(v, 4 / 3.0), 2));
+    end if;
+    return jsonb_set(eq, '{fatigue}', to_jsonb(v));
   end if;
   if eq ? 'fcfg' then
     mm := coalesce((eq #>> '{fcfg,m}')::numeric, 80); ms := coalesce((eq #>> '{fcfg,s}')::numeric, .3);
     for l in select key, value::numeric v from jsonb_each_text(eq -> 'fp') loop
       select j.key into k from jsonb_each_text(eq -> 'equipe') j where j.value = l.key limit 1;
-      v := round(least(1, greatest(0, (l.v + case when k is not null then p_terrain * coalesce((eq -> 'fr' ->> l.key)::numeric, 1) else -p_banc end) * p_fois - p_tous)), 4);
+      v := round(least(1, greatest(0, (l.v + case when k is not null then p_terrain * coalesce((eq -> 'fr' ->> l.key)::numeric, 1)
+        * case when k = 'GB' then coalesce((eq #>> '{fcfg,gb}')::numeric, 1) else 1 end else -p_banc end) * p_fois - p_tous)), 4);
       fp := fp || jsonb_build_object(l.key, v);
       if k is not null then
         s := s + v; n := n + 1; mal := mm * greatest(0, v - ms) ^ 2;
@@ -2068,6 +2098,10 @@ create or replace function match_fatiguer(eq jsonb, sec numeric) returns jsonb l
   select case when eq ? 'fcfg' then
       match_fat(eq, sec / 60.0 * coalesce((eq -> 'fcfg' -> 'rythme' ->> coalesce(eq ->> 'consigne', 'normal'))::numeric, .03),
         sec / 60.0 * coalesce((eq #>> '{fcfg,repos}')::numeric, .04))
+    -- l'ordinateur (et l'adversaire d'un défi), match commencé depuis le 21 nov. 2026 (« fo ») : fatigue de 0 à 1 sur une période
+    -- (consigne normale ; pression × 4/3, prudent × 3/4), remise à 0 à la mi-temps ; elle lui retire jusqu'à fo (4) points de note,
+    -- 2 en moyenne : ce que perd une de nos équipes qui fait bien tourner son banc (remplaçants plus faibles 8 minutes sur 30)
+    when eq ? 'fo' then match_fat(eq, sec / 1800.0 * case eq ->> 'consigne' when 'pression' then 4 / 3.0 when 'prudent' then .75 else 1 end, 0)
     else match_fat(eq, sec / 3600.0 * case eq ->> 'consigne' when 'pression' then .22 when 'prudent' then .06 else .1 end, sec / 3600.0 * .15) end
 $$;
 -- endurance d'une carte : multiplie la vitesse à laquelle elle se fatigue (0,8 à 1,2). VIT + PHY (écarts de forme) comparées à la
@@ -2104,7 +2138,7 @@ begin
     'pr', (select coalesce(jsonb_agg(f.key), '[]') from jsonb_each(fp) f join exemplaires x on x.id::text = f.key where coalesce(x.protection, 0) > 0),
     'fcfg', jsonb_build_object('rythme', coalesce(param('fatigue_rythme'), '{"prudent": 0.0225, "normal": 0.03, "pression": 0.04}'),
       'repos', coalesce(param('fatigue_repos'), '0.04'), 'mt', coalesce(param('fatigue_mi_temps'), '0.6'), 'tm', coalesce(param('fatigue_temps_mort'), '0.06'),
-      'm', coalesce(param('fatigue_malus'), '80'), 's', coalesce(param('fatigue_seuil'), '0.3'),
+      'm', coalesce(param('fatigue_malus'), '80'), 's', coalesce(param('fatigue_seuil'), '0.3'), 'gb', coalesce(param('fatigue_gardien'), '0.33'),
       'bm', coalesce(param('blessure_minute'), '0.0002'), 'bf', coalesce(param('blessure_fatigue'), '0.1'), 'bs', coalesce(param('blessure_fatigue_seuil'), '0.35')));
 end $$;
 -- changements (entre deux tranches) : le titulaire de chaque poste demandé et son remplaçant échangent leurs places ; la force de
@@ -2184,7 +2218,7 @@ begin
     p := p * (1 + m * ctr);
     p := p * case cx when 'pression' then 1.04 when 'prudent' then .975 else 1 end * case cy when 'pression' then .97 when 'prudent' then 1.01 else 1 end;
     -- fatigue d'équipe (l'ordinateur, un match d'avant) ; la fatigue de chacun est déjà dans les forces (fma, fmd)
-    p := p * (1 - .5 * case when eqx ? 'fcfg' then 0 else (eqx ->> 'fatigue')::numeric end) * (1 + .5 * case when eqy ? 'fcfg' then 0 else (eqy ->> 'fatigue')::numeric end);
+    p := p * (1 - .5 * case when eqx ? 'fcfg' or eqx ? 'fo' then 0 else (eqx ->> 'fatigue')::numeric end) * (1 + .5 * case when eqy ? 'fcfg' or eqy ? 'fo' then 0 else (eqy ->> 'fatigue')::numeric end);
     if (eqy ->> 'exclu')::int > t then p := p * 1.25; end if;
     if (eqx ->> 'elan')::int > t then p := p * 1.05; end if;
     if (eqy ->> 'elan')::int > t then p := p * .95; end if;
@@ -2280,7 +2314,7 @@ begin
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
     e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,mt}')::numeric) else match_fat(e -> 'a', 0, 0, .5) end,
-      'b', case when e -> 'b' ? 'fcfg' then match_fat(e -> 'b', 0, 0, 1, (e #>> '{b,fcfg,mt}')::numeric) else match_fat(e -> 'b', 0, 0, .5) end);
+      'b', case when e -> 'b' ? 'fcfg' then match_fat(e -> 'b', 0, 0, 1, (e #>> '{b,fcfg,mt}')::numeric) when e -> 'b' ? 'fo' then match_fat(e -> 'b', 0, 0, 0) else match_fat(e -> 'b', 0, 0, .5) end);
     e := match_ordi(e, true);
     e := jsonb_set(e, '{balle}', to_jsonb(case when random() < .5 then 'a' else 'b' end));
   elsif b + 1 < 12 then
@@ -2450,8 +2484,10 @@ begin
     if coalesce(a -> 'blesses', '[]') ? (a -> 'banc' ->> k) then continue; end if;
     if coalesce(a -> 'blesses', '[]') ? (a -> 'equipe' ->> k) then postes := postes || k; continue; end if;
     if a ? 'fcfg' then
-      ft := coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'equipe' ->> k))::numeric, 1);
-      fb := coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'banc' ->> k))::numeric, 1);
+      ft := coalesce((a -> 'fp' ->> (a -> 'equipe' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'equipe' ->> k))::numeric, 1)
+        * case when k = 'GB' then coalesce((a #>> '{fcfg,gb}')::numeric, 1) else 1 end;
+      fb := coalesce((a -> 'fp' ->> (a -> 'banc' ->> k))::numeric, 0) + r5 * coalesce((a -> 'fr' ->> (a -> 'banc' ->> k))::numeric, 1)
+        * case when k = 'GB' then coalesce((a #>> '{fcfg,gb}')::numeric, 1) else 1 end;
       vt := (a -> 'notes' ->> k)::numeric - mm * greatest(0, ft - ms) ^ 2 - 300 * greatest(0, ft - bs) ^ 2;
       vr := (a -> 'nb' ->> k)::numeric - mm * greatest(0, fb - ms) ^ 2 - 300 * greatest(0, fb - bs) ^ 2;
       if vr > vt + 1 then postes := postes || k; end if;
@@ -3905,6 +3941,10 @@ update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs
 -- 21 nov. 2026 (Maël) : prendre le dessus compte double, 10 % de chances de marquer en plus ou en moins (match_contre 0,05 → 0,10) :
 -- il doit compter plus que le plus gros bonus de tactique (10 % d'attaque ≈ +7 à 8 % de chances) ; seulement si encore à 0,05
 update parametres set valeurs = valeurs || '{"match_contre": 0.10}' where (valeurs ->> 'match_contre')::numeric = 0.05;
+-- 21 nov. 2026 (Maël, retour de Rémi : « variation de fatigue entre les joueurs pas assez marquée ») : endurance de 0,65 à 1,35
+-- (0,8 à 1,2 avant), pente doublée ; seulement si encore aux anciennes valeurs
+update parametres set valeurs = valeurs || '{"fatigue_endurance": 0.8, "fatigue_endurance_ecart": 0.35}'
+  where (valeurs ->> 'fatigue_endurance')::numeric = 0.4 and (valeurs ->> 'fatigue_endurance_ecart')::numeric = 0.2;
 -- 21 nov. 2026 (Maël) : les joueurs qui ont joué cette saison pour 2 équipes du jeu (feuilles de match du site, scripts/export_cartes.py)
 -- sont dans les deux ; seulement si la carte n'a pas encore de 2e équipe et a toujours la même équipe principale (l'outil peut la changer)
 update cartes c set equipes = v.eqs from (values

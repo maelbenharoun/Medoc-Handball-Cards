@@ -1392,7 +1392,7 @@ const TIR_POS = {ailes: s => s === 'AD' ? [37.4, 16.6] : [37.4, 3.4], arrieres: 
 // ce que fait l'entraîneur adverse, selon le niveau (match_ia dans schema.sql)
 const ASTUCE_IA = {'imprévisible': 'il change au hasard 🎲', 'lent à réagir': 'il réagit… mais lentement 🐢',
   'réfléchi': 'il réagit quand tu le contres 🧠', 'rapide': 'il réagit vite et cherche à te contrer ⚡',
-  'légendaire': 'il s’adapte sans arrêt et devine tes changements 👑'};
+  'légendaire': 'il s’adapte sans arrêt et apprend ta façon de jouer : varie tes choix 👑'};
 // résumé tactique de fin (match_resume) : tranche par tranche, qui avait le dessus en attaque et en défense, puis les tactiques révélées
 function htmlResume(R) {
   if (!R?.blocs?.length) return '';
@@ -1774,7 +1774,7 @@ function changerMD(poste) {
     // (le serveur a pu le placer quelques secondes plus loin que le récit en pause : le fil va jusqu'à son entrée)
     if (MD.attente && r.reprise > MD.h) { MD.h = Math.min(r.reprise, MD.finBloc); majHorlogeMD(); }
     if (MD.attente) while (MD.file.length && MD.file[0].t <= MD.h) animerMD(MD.file.shift(), 300);
-    Son.jouer('sifflet');
+    // pas de sifflet à chaque changement (retour de Guilhem, 21 nov. 2026 : « horrible et inutile »)
     if (r.reprise > MD.h + 30) toast(`Il entre à ${Math.floor(r.reprise / 60)}'`);
     majBancMD(); majMD();
     if (!MD.panneau && !MD.file.length && MD.h >= MD.finBloc) finBlocMD();
@@ -3414,7 +3414,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=84').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=85').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

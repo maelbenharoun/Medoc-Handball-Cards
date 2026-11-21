@@ -68,11 +68,12 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   for (let k = 0; k < 3; k++) r = await rpcJoueur(db, al, 'match_bloc', ['duels:06', 'pression', false]);
   e = await etat();
   const fT = e.a.fp[e.a.equipe.AG], fB = e.a.fp[e.a.banc.AG];
-  // fatigue de chaque joueur (20 nov. 2026) : 15 minutes sous pression, chacun selon son endurance (fr, de 0,8 à 1,2)
+  // fatigue de chaque joueur (20 nov. 2026) : 15 minutes sous pression, chacun selon son endurance (fr, de 0,65 à 1,35 depuis le
+  // 21 nov. 2026) ; le gardien 3 fois moins vite (fatigue_gardien = 0,33, retour de Rémi)
   const surT = POSTES.map(k => +e.a.fp[e.a.equipe[k]]), moy = surT.reduce((a, b) => a + b, 0) / 7;
   verif('sans changement : chacun sa fatigue (15 min sous pression × son endurance) ; le banc reste frais ; l’équipe = la moyenne des 7',
-    POSTES.every(k => Math.abs(+e.a.fp[e.a.equipe[k]] - Math.min(1, 15 * .04 * +e.a.fr[e.a.equipe[k]])) < .02) && +fB === 0
-    && Math.abs(+e.a.fatigue - moy) < 1e-3 && Object.values(e.a.fr).every(v => +v >= .8 && +v <= 1.2), {surT, fB, f: e.a.fatigue, fr: e.a.fr});
+    POSTES.every(k => Math.abs(+e.a.fp[e.a.equipe[k]] - Math.min(1, 15 * .04 * +e.a.fr[e.a.equipe[k]] * (k === 'GB' ? .33 : 1))) < .02) && +fB === 0
+    && Math.abs(+e.a.fatigue - moy) < 1e-3 && Object.values(e.a.fr).every(v => +v >= .65 && +v <= 1.35), {surT, fB, f: e.a.fatigue, fr: e.a.fr});
   const avant = {att: e.a.att, nomAG: e.a.joueurs.AG, nomR: e.a.bn.AG};
   r = await rpcJoueur(db, al, 'match_changer', [JSON.stringify(['AG', 'PIV']), null]);
   e = await etat();
