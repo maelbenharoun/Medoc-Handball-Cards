@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.05, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -76,7 +76,7 @@ insert into parametres values (1, '{
   "synchro_matchs_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/matchs.json", "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
   "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
   "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
-  "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.06, "tactique_pente": 0.4,
+  "tactique_bonus_base": 0.02, "tactique_bonus_max": 0.10, "tactique_pente": 0.4,
   "amis_max": 50, "echanges_amis_par_jour": 3, "echange_jours": 7,
   "messages_par_jour": 100, "message_longueur": 300, "defis_amis_par_jour": 5, "defi_ami_pieces": 30,
   "synchro_semaine_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/semaine.json",
@@ -3841,9 +3841,9 @@ update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' wher
 -- 20 nov. 2026 (fatigue de chaque joueur) : au plus 1 blessure par match (Maël : « 2 blessures par match c'est trop ») ; seulement si
 -- la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs ->> 'blessures_max')::int = 2;
--- 20 nov. 2026 : bonus de tactique au plus 6 % (10 % avant) ; prendre le dessus (match_contre = 5 % de chances de marquer en plus)
--- doit compter plus que le plus gros bonus (10 % d'attaque ≈ +7 à 8 % de chances, 6 % ≈ +4,4 %) ; seulement si encore à 0,10
-update parametres set valeurs = valeurs || '{"tactique_bonus_max": 0.06}' where (valeurs ->> 'tactique_bonus_max')::numeric = 0.10;
+-- 21 nov. 2026 (Maël) : prendre le dessus compte double, 10 % de chances de marquer en plus ou en moins (match_contre 0,05 → 0,10) :
+-- il doit compter plus que le plus gros bonus de tactique (10 % d'attaque ≈ +7 à 8 % de chances) ; seulement si encore à 0,05
+update parametres set valeurs = valeurs || '{"match_contre": 0.10}' where (valeurs ->> 'match_contre')::numeric = 0.05;
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case

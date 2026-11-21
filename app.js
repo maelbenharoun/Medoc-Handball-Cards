@@ -933,7 +933,7 @@ function bonusTactique(m, stats) {
   // comme le serveur : moyennes arrondies au dixième, bonus arrondi au millième (sinon « 2 % » ici et « 3 % » en match)
   const r = k => Math.round(m[k] * 10) / 10;
   const tout = Object.keys(m).reduce((a, k) => a + r(k), 0) / 6, spe = (r(stats[0]) + r(stats[1])) / 2 / tout - 1;
-  const base = PARAMS.tactique_bonus_base ?? .02, max = PARAMS.tactique_bonus_max ?? .06, pente = PARAMS.tactique_pente ?? .4;
+  const base = PARAMS.tactique_bonus_base ?? .02, max = PARAMS.tactique_bonus_max ?? .1, pente = PARAMS.tactique_pente ?? .4;
   return Math.round(Math.max(0, Math.min(max, base + pente * spe)) * 1000) / 1000;
 }
 const pc100 = x => Math.round(x * 100) + ' %';
@@ -994,7 +994,7 @@ function vueEquipe() {
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
       <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
-      <p class="sub petit">Chaque tactique donne un bonus si ton équipe est forte dans ses deux stats (jusqu’à +${Math.round(100 * (PARAMS.tactique_bonus_max ?? .06))} %).</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
+      <p class="sub petit">Chaque tactique donne un bonus si ton équipe est forte dans ses deux stats (jusqu’à +${Math.round(100 * (PARAMS.tactique_bonus_max ?? .1))} %).</p>` : '<p class="sub">Aligne tes joueurs pour voir les moyennes de ton équipe.</p>'}
     <h3 class="tac-t">Attaque</h3><div class="tacs">${bloc(TACT_ATT, 'att')}</div>
     <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
     <p class="sub petit">${T.choisie ? `${att[1]} + ${def[1]} : ta tactique de départ.` : 'Choisis ton attaque et ta défense de départ.'} En match, contrer l’adversaire compte encore plus 😉</p>`;
