@@ -44,6 +44,23 @@ const parmi = l => l[Math.floor(Math.random() * l.length)];
     ['garde sa tactique', 'contre ce qu’il voit', 'un coup d’avance'].every(s => res[s].contre >= 5.5 && res[s].dessus <= 3.5));
   verif('plus de coup imparable : un coup d’avance ne le bat plus à coup sûr (avant : 10,5 tranches sur 12)', res['un coup d’avance'].dessus <= 3.5);
   verif('qui varie ses façons de jouer s’en sort mieux que toute façon fixe', ['garde sa tactique', 'contre ce qu’il voit', 'un coup d’avance'].every(s => res['varie ses façons'].dessus > res[s].dessus));
+  // l'indice du jeu (match_vue → eux.lecture) : un joueur qui contre toujours la défense qu'il voit est « vu » comme tel
+  {
+    const blocs = [], e0 = {bloc: 0, t: 0, score: [0, 0], ev: [], ia: (await q("select match_ia('legende') i"))[0].i, blocs,
+      a: {attaque: 'duels', defense: '06'}, b: {attaque: 'rapide', defense: '15', att: 90, def: 90, consigne: 'normal', fatigue: 0, pref_att: 'rapide', pref_def: '15'}};
+    let e = e0;
+    for (let k = 0; k < 4; k++) {
+      e.blocs.push({aa: e.a.attaque, ad: e.a.defense, ba: e.b.attaque, bd: e.b.defense});
+      const [na, nd] = STYLES['contre ce qu’il voit'](e.a.attaque, e.a.defense, e.b.defense);
+      e.bloc = k + 1; e.t = (k + 1) * 300;
+      e = (await q('select match_ordi($1::jsonb, false) e', [JSON.stringify(e)]))[0].e; e.ev = []; e.a = {attaque: na, defense: nd};
+    }
+    const v = (await q('select match_vue($1::jsonb) v', [JSON.stringify(e)]))[0].v;
+    verif(`indice : « tu contres sa défense », « tu te protèges » (${JSON.stringify(v.eux.lecture)})`, v.eux.lecture?.att === 2 && v.eux.lecture?.def === 2, v.eux.lecture);
+    const v0 = (await q('select match_vue($1::jsonb) v', [JSON.stringify({...e0, blocs: [blocs[0]]})]))[0].v;
+    verif('pas d’indice avant 2 tranches comptées, ni contre un autre entraîneur', v0.eux.lecture === null
+      && (await q('select match_vue($1::jsonb) v', [JSON.stringify({...e, ia: {nom: 'réfléchi', anticipe: 0}})]))[0].v.eux.lecture === null);
+  }
   // les autres entraîneurs ne changent pas : le « réfléchi » contre notre tactique de la tranche jouée
   const ref = (await q(`select match_ordi('{"bloc": 3, "t": 900, "score": [0, 0], "ia": {"style": "reflechi", "reac": 1, "neutre": 1, "anticipe": 0, "lecture": 1},
     "blocs": [], "ev": [], "a": {"attaque": "duels", "defense": "06"}, "b": {"attaque": "rapide", "defense": "06", "att": 90, "def": 90, "consigne": "normal", "fatigue": 0}}'::jsonb, false) e`))[0].e;

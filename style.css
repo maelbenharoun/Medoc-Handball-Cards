@@ -1410,6 +1410,8 @@ body.connecte .brand span { display: none; }
 h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .md-ch button { position: relative; }
 .md-astuce { margin: 0 0 4px; padding: 8px 10px; border-radius: 12px; background: #18263a; font-size: .74rem; color: #bcd3ea; line-height: 1.35; }
+.md-indice { margin: 6px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78rem; line-height: 1.35; color: var(--ink);
+  background: rgba(181, 124, 255, .12); border: 1px solid rgba(181, 124, 255, .35); }
 /* résumé tactique de fin de match : une case par tranche de 5 minutes */
 .md-resume { padding: 12px; border-radius: 16px; background: #121a26; text-align: left; }
 .md-resume h4 { margin: 0 0 8px; font-size: .9rem; }

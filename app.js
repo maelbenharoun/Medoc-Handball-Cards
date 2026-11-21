@@ -1393,6 +1393,15 @@ const TIR_POS = {ailes: s => s === 'AD' ? [37.4, 16.6] : [37.4, 3.4], arrieres: 
 const ASTUCE_IA = {'imprévisible': 'il change au hasard 🎲', 'lent à réagir': 'il réagit… mais lentement 🐢',
   'réfléchi': 'il réagit quand tu le contres 🧠', 'rapide': 'il réagit vite et cherche à te contrer ⚡',
   'légendaire': 'il s’adapte sans arrêt et apprend ta façon de jouer : varie tes choix 👑'};
+// Légendes : ce que l'entraîneur a remarqué de ta façon de jouer (ia_lecture dans schema.sql, demande de Maël, 21 nov. 2026) :
+// il vise cette façon de jouer 6 fois sur 10 ; à toi d'en profiter (ou de changer)
+const LECTURE_ATT = {1: 'tu <b>gardes ton attaque</b>', 2: 'tu <b>contres sa défense</b> dès que tu la vois', 3: 'tu <b>joues un coup d’avance</b> (tu contres son contre)'};
+const LECTURE_DEF = {1: 'tu <b>gardes ta défense</b>', 2: 'tu <b>te protèges</b> de l’attaque qui bat ta défense', 3: 'tu <b>joues un coup d’avance</b>'};
+function indiceIA() {
+  const l = MD.vue?.eux?.lecture;
+  if (!l) return '';
+  return `<p class="md-indice">👁️ Il a remarqué qu’en attaque, ${LECTURE_ATT[l.att] || LECTURE_ATT[1]}, et qu’en défense, ${LECTURE_DEF[l.def] || LECTURE_DEF[1]}. Il s’attend à ce que tu recommences.</p>`;
+}
 // résumé tactique de fin (match_resume) : tranche par tranche, qui avait le dessus en attaque et en défense, puis les tactiques révélées
 function htmlResume(R) {
   if (!R?.blocs?.length) return '';
@@ -1717,6 +1726,7 @@ function panneauMD(type) {
     ${st.b.buts >= 3 ? `<p class="sub petit centre">Leurs buts viennent surtout : <b>${zoneB[1].toLowerCase()}</b></p>` : ''}` : '';
   p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3>${bilan}<p class="sub petit">${intro}</p>
     ${change ? `<p class="md-astuce">Coach adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}</p>` : ''}
+    ${change ? indiceIA() : ''}
     ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>

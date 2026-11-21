@@ -1912,6 +1912,28 @@ create or replace function match_ia_niveau(pc jsonb) returns text language sql s
     else case param('parcours') -> (coalesce((pc ->> 'niveau')::int, 1) - 1) ->> 'groupe'
       when 'Départemental' then 'hasard' when 'Régional' then 'lent' when 'National' then 'reflechi' when 'International' then 'rapide' else 'legende' end end
 $$;
+-- Ce que l'entraîneur des Légendes a remarqué de notre façon de jouer (demande de Maël, 21 nov. 2026) : pour chaque tranche passée,
+-- si on a gardé sa tactique (1), contré ce qu'on voyait (2) ou joué un coup d'avance, en contrant son contre (3) ; en attaque d'après
+-- sa défense visible, en défense d'après notre défense (son attaque est cachée). {a: [n1, n2, n3], d: [...], n: tranches comptées,
+-- att, def : la façon la plus fréquente, celle qu'il vise 6 fois sur 10}. Sert à sa décision (match_ordi) et à l'indice du jeu (match_vue)
+create or replace function ia_lecture(p_blocs jsonb) returns jsonb language plpgsql immutable as $$
+declare sa numeric[] := array[.5, 0, 0]; sd numeric[] := array[.5, 0, 0]; pr jsonb; cu jsonb; c1 text; c2 text; n int := 0;
+begin
+  for pr, cu in select lag(j) over (order by k), j from jsonb_array_elements(coalesce(p_blocs, '[]')) with ordinality y(j, k) loop
+    if pr is null then continue; end if;
+    n := n + 1;
+    c1 := tactique_bat_def(pr ->> 'bd'); c2 := tactique_bat_att(tactique_bat_def(pr ->> 'ad'));
+    if cu ->> 'aa' = pr ->> 'aa' then sa[1] := sa[1] + 1; end if;
+    if cu ->> 'aa' = c1 then sa[2] := sa[2] + 1; end if;
+    if cu ->> 'aa' = tactique_bat_def(tactique_bat_att(c1)) then sa[3] := sa[3] + 1; end if;
+    if cu ->> 'ad' = pr ->> 'ad' then sd[1] := sd[1] + 1; end if;
+    if cu ->> 'ad' = c2 then sd[2] := sd[2] + 1; end if;
+    if cu ->> 'ad' = tactique_bat_att(tactique_bat_def(c2)) then sd[3] := sd[3] + 1; end if;
+  end loop;
+  return jsonb_build_object('a', to_jsonb(sa), 'd', to_jsonb(sd), 'n', n,
+    'att', case when sa[1] >= sa[2] and sa[1] >= sa[3] then 1 when sa[2] >= sa[3] then 2 else 3 end,
+    'def', case when sd[1] >= sd[2] and sd[1] >= sd[3] then 1 when sd[2] >= sd[3] then 2 else 3 end);
+end $$;
 -- l'entraîneur adverse, à la fin de chaque tranche : il change de tactique (sans temps mort, comme le joueur depuis le 14 nov. 2026,
 -- demande de Maël) quand il se voit contré (notre attaque bat sa défense, notre défense bat son attaque) ou, selon son style, quand
 -- il peut prendre le dessus ; sa réactivité dépend de son style (reac). Il prend un temps mort (3 par match, 2 par période) quand il
@@ -1951,20 +1973,10 @@ begin
     -- qui varie a le dessus 4 à 5 fois sur 12 (avant les temps morts)
     aa2 := aa; ad2 := ad;
     if p > 0 then
-      declare sa numeric[] := array[.5, 0, 0]; sd numeric[] := array[.5, 0, 0]; pr jsonb; cu jsonb; c1 text; c2 text; ja int; jd int;
+      declare lec jsonb := ia_lecture(e -> 'blocs'); c1 text; c2 text; ja int; jd int;
       begin
-        for pr, cu in select lag(j) over (order by k), j from jsonb_array_elements(coalesce(e -> 'blocs', '[]')) with ordinality y(j, k) loop
-          if pr is null then continue; end if;
-          c1 := tactique_bat_def(pr ->> 'bd'); c2 := tactique_bat_att(tactique_bat_def(pr ->> 'ad'));
-          if cu ->> 'aa' = pr ->> 'aa' then sa[1] := sa[1] + 1; end if;
-          if cu ->> 'aa' = c1 then sa[2] := sa[2] + 1; end if;
-          if cu ->> 'aa' = tactique_bat_def(tactique_bat_att(c1)) then sa[3] := sa[3] + 1; end if;
-          if cu ->> 'ad' = pr ->> 'ad' then sd[1] := sd[1] + 1; end if;
-          if cu ->> 'ad' = c2 then sd[2] := sd[2] + 1; end if;
-          if cu ->> 'ad' = tactique_bat_att(tactique_bat_def(c2)) then sd[3] := sd[3] + 1; end if;
-        end loop;
-        ja := case when random() < p then (case when sa[1] >= sa[2] and sa[1] >= sa[3] then 1 when sa[2] >= sa[3] then 2 else 3 end) else 1 + floor(random() * 3)::int end;
-        jd := case when random() < p then (case when sd[1] >= sd[2] and sd[1] >= sd[3] then 1 when sd[2] >= sd[3] then 2 else 3 end) else 1 + floor(random() * 3)::int end;
+        ja := case when random() < p then (lec ->> 'att')::int else 1 + floor(random() * 3)::int end;
+        jd := case when random() < p then (lec ->> 'def')::int else 1 + floor(random() * 3)::int end;
         c1 := tactique_bat_def(def);
         aa2 := case ja when 1 then aa when 2 then c1 else tactique_bat_def(tactique_bat_att(c1)) end;
         c2 := tactique_bat_att(tactique_bat_def(ad));
@@ -2383,6 +2395,9 @@ create or replace function match_vue(e jsonb, p_depuis int default 0) returns js
         from unnest(array['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB']) k) end),
     'eux', jsonb_build_object('nom', e #>> '{b,nom}', 'note', e -> 'b' -> 'note', 'joueurs', e -> 'b' -> 'joueurs', 'defense', e #>> '{b,defense}',
       'entraineur', coalesce(e #>> '{ia,nom}', 'réfléchi'),
+      -- Légendes : ce qu'il a remarqué de notre façon de jouer (l'indice du panneau Tactique), à partir de 2 tranches comptées
+      'lecture', case when coalesce((e #>> '{ia,anticipe}')::numeric, 0) > 0 then
+        (select case when (l ->> 'n')::int >= 2 then jsonb_build_object('att', (l ->> 'att')::int, 'def', (l ->> 'def')::int) end from ia_lecture(e -> 'blocs') l) end,
       'stats', e -> 'b' -> 'stats'),
     'evenements', coalesce((select jsonb_agg(x) from jsonb_array_elements(e -> 'ev') with ordinality z(x, i) where i > p_depuis), '[]'))
 $$;
