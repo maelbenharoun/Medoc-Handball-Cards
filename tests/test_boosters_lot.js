@@ -81,12 +81,13 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
     await p.fill('[name=email]', 'alice@test.fr'); await p.fill('[name=mdp]', 'motdepasse-alice'); await p.click('button[value=connexion]');
     await p.waitForSelector('.btn-lot');
     const L = `${W} px : `;
-    verif(L + 'bouton « ×10 · 10 boosters · 5 000 pièces » sous Acheter', /×10\s*10 boosters · 5.000 pièces/.test((await p.textContent('.btn-lot')).trim()) && await p.isEnabled('.btn-lot'), await p.textContent('.btn-lot'));
+    // le booster mystère est le premier sachet du carrousel (demande de Maël, 21 nov. 2026)
+    verif(L + 'premier sachet = booster mystère : « ×10 · 10 boosters · 3 000 pièces » sous Acheter', /×10\s*10 boosters · 3.000 pièces/.test((await p.textContent('.btn-lot')).trim()) && await p.isEnabled('.btn-lot')
+      && await p.getAttribute('[data-bequipe]', 'data-bequipe') === '?', await p.textContent('.btn-lot'));
     verif(L + 'le bouton tient dans son bloc', await p.evaluate(() => { const r = document.querySelector('.btn-lot').getBoundingClientRect(), s = document.querySelector('.btn-lot').closest('.scene-b').getBoundingClientRect();
       return r.left >= s.left && r.right <= s.right && document.documentElement.scrollWidth <= innerWidth; }));
-    await p.click('.car-points i:last-child', {force: true}); await p.waitForTimeout(700);   // le booster mystère est le dernier sachet
-    verif(L + 'booster mystère : 10 boosters · 3 000 pièces', /10 boosters · 3.000 pièces/.test(await p.textContent('.btn-lot')), await p.textContent('.btn-lot'));
-    await p.click('.car-points i[data-car="0"]', {force: true}); await p.waitForTimeout(700);
+    await p.click('.car-points i[data-car="1"]', {force: true}); await p.waitForTimeout(700);
+    verif(L + 'sachet suivant = SF1 : 10 boosters · 5 000 pièces', /10 boosters · 5.000 pièces/.test(await p.textContent('.btn-lot')) && await p.getAttribute('[data-bequipe]', 'data-bequipe') === 'SF1', await p.textContent('.btn-lot'));
     // on refuse la confirmation : rien n'est acheté
     await p.click('.btn-lot'); await p.waitForSelector('.dmd'); await p.click('.dmd-non'); await p.waitForTimeout(300);
     verif(L + 'confirmation refusée : rien n’est acheté', !(await p.$('.ob-lot')) && (await profil()).pieces === 5200);

@@ -8,7 +8,8 @@ semaine (du lundi au dimanche), d'après les feuilles de match de la page publiq
 - Une semaine déjà choisie ne change plus (le jeu l'a peut-être déjà montrée) : l'historique est gardé dans data/semaine.json.
 - Seuls les nom, équipe et statistiques sportives sortent de la page (aucune autre donnée personnelle).
 
-- Équipes : les 4 seniors et les -18 du site (demande de Maël, 21 nov. 2026 : -18F1, -18F2, -18G). Les -15 ne sont pas sur le site.
+- Équipes : les 4 seniors et les -18 du site (demande de Maël, 21 nov. 2026 : -18F1, -18F2, -18G). Les -15 ne sont pas sur le site :
+  leurs matchs viennent de data/jeunes.json (scripts/jeunes_ffhb.py, pages publiques de la FFHB ; buts seulement).
   Les cartes des jeunes ont été créées dans l'outil : elles ne sont que dans la table `cartes` du serveur, lue avec la clé publique
   de config.js (comme le fait le jeu pour un visiteur) ; sans réponse du serveur, seulement data/cartes.json.
 
@@ -25,7 +26,8 @@ from export_cartes import mots
 DATA = Path(__file__).resolve().parent.parent / "data"
 DEBUT_SAISON = date(2026, 8, 1)
 # équipe du site → équipe du jeu
-EQUIPE_JEU = {"sg1": "SG1", "sg2": "SG2", "sf1": "SF1", "sf2": "SF2", "f18-1": "-18F1", "f18-2": "-18F2", "g18": "-18G"}
+EQUIPE_JEU = {"sg1": "SG1", "sg2": "SG2", "sf1": "SF1", "sf2": "SF2", "f18-1": "-18F1", "f18-2": "-18F2", "g18": "-18G",
+              "-15F": "-15F", "-15G": "-15G"}   # les -15 : data/jeunes.json (scripts/jeunes_ffhb.py, pages de la FFHB)
 
 
 def equipes_carte(c):
@@ -154,6 +156,9 @@ def maj(D, aujourdhui=None):
     cartes = catalogue()
     f = DATA / "semaine.json"
     ancien = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+    fj = DATA / "jeunes.json"
+    if fj.exists():   # les -15, au même format que les équipes du site
+        D = {**D, **json.loads(fj.read_text(encoding="utf-8")).get("equipes", {})}
     nouveau = joueurs_semaine(D, cartes, ancien, aujourdhui)
     if ancien and ancien.get("semaines") == nouveau["semaines"] and ancien.get("buteurs") == nouveau["buteurs"]:
         return nouveau, False

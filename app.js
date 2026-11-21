@@ -236,8 +236,9 @@ function minuteur() {
 // (seul Dorian Bondy, -18G, a une photo publiée)
 const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or'],
   ['-18F1', null, null], ['-18F2', null, null], ['-18G', 'dorian-bondy', 'bronze'], ['-15F', null, null], ['-15G', null, null]];
-// carrousel « Acheter un booster » (demande de Maël) : les équipes, puis le booster mystère (« ? » : une carte parmi toutes)
-const BOOSTERS_CAR = [...BOOSTERS_EQUIPE, ['?', null, null]];
+// carrousel « Acheter un booster » (demande de Maël) : le booster mystère en premier (« ? » : une carte parmi toutes ; 21 nov. 2026),
+// puis les équipes
+const BOOSTERS_CAR = [['?', null, null], ...BOOSTERS_EQUIPE];
 // ordre des équipes à l'écran (joueurs de la semaine) : seniors, puis -18, puis -15
 const rangEquipe = eq => { const i = BOOSTERS_EQUIPE.findIndex(b => b[0] === eq); return i < 0 ? 99 : i; };
 const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2', '-18F1': 'Moins de 18 ans Filles 1', '-18F2': 'Moins de 18 ans Filles 2', '-18G': 'Moins de 18 ans Garçons',
@@ -374,7 +375,8 @@ const RECOMP = r => [r.or ? `<span class="rc rc-or">⭐ Or${r.or > 1 ? ' ×' + r
 const texteRecomp = r => [r.or ? `${r.or} booster${r.or > 1 ? 's' : ''} Or` : '', r.bonus ? `${r.bonus} booster${r.bonus > 1 ? 's' : ''}` : '',
   r.pieces ? `${nb(r.pieces)} pièces` : ''].filter(Boolean).join(' + ');
 const dateCourte = j => new Date(j + 'T12:00').toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
-const ligneStats = s => s.arrets && s.arrets / 2 >= s.buts ? `${s.arrets} arrêts` : `${s.buts} but${s.buts > 1 ? 's' : ''}${s.tirs ? ` sur ${s.tirs} tirs` : ''}`;
+// les buts seulement, jamais les tirs (demande de Maël, 21 nov. 2026) ; les arrêts pour un(e) gardien(ne) élu(e) sur ses arrêts
+const ligneStats = s => s.arrets && s.arrets / 2 >= s.buts ? `${s.arrets} arrêts` : `${s.buts} but${s.buts > 1 ? 's' : ''}`;
 // la carte à montrer d'un joueur : ma meilleure, sinon la carte de base
 const carteMontree = id => { const ex = mesEx(id)[0]; return ex ? vue(ex) : PAR_ID[id]; };
 

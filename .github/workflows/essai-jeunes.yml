@@ -1,0 +1,15 @@
+name: essai-jeunes
+# TEMPORAIRE (à retirer) : essai réel de scripts/jeunes_ffhb.py sur la branche de développement, sans rien enregistrer
+on:
+  push:
+    branches: [claude/confident-goldberg-fisbin]
+    paths: [scripts/jeunes_ffhb.py, .github/workflows/essai-jeunes.yml]
+permissions:
+  contents: read
+jobs:
+  essai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/jeunes_ffhb.py --essai

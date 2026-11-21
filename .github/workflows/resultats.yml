@@ -1,5 +1,6 @@
 name: resultats
-# Scores et horaires des matchs à parier, lus sur ffhandball.fr (scripts/resultats_ffhb.py) : lundi et jeudi à 3 h 17 UTC.
+# Scores et horaires des matchs à parier, lus sur ffhandball.fr (scripts/resultats_ffhb.py) : lundi et jeudi à 3 h 17 UTC ;
+# buts des -15 pour les joueurs de la semaine (scripts/jeunes_ffhb.py → data/jeunes.json, relu par l'action « site »).
 # Le serveur relit data/matchs.json toutes les 3 h et paie le lundi matin les paris des matchs de la semaine passée (pg_cron).
 on:
   schedule:
@@ -18,11 +19,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Scores FFHB
         run: python3 scripts/resultats_ffhb.py
+      # buts des -15 (pas sur le site), pour les joueurs de la semaine ; une panne ici n'empêche pas d'enregistrer les scores
+      - name: Buts des -15 (FFHB)
+        run: python3 scripts/jeunes_ffhb.py || echo "::warning::jeunes_ffhb.py a échoué"
       - name: Enregistrer
         run: |
           git config user.name "resultats-ffhb"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/matchs.json
+          git add data/matchs.json data/jeunes.json
           if git diff --cached --quiet; then echo "rien de nouveau"; exit 0; fi
           git commit -qm "Résultats FFHB : scores et horaires des matchs à parier"
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 10; done
