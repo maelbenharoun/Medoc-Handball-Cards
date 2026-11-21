@@ -27,7 +27,10 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('note d’équipe et notes par poste = celles du match (force_equipe)', r.note === attendu.note && r.collectif === attendu.collectif && JSON.stringify(r.notes) === JSON.stringify(attendu.notes), {r: r.note, attendu: attendu.note});
   verif('tactique et capitaine', r.tactique === 'rapide:33' && r.joueurs.filter(j => j.capitaine).map(j => j.poste).join() === 'DC');
   verif('rien de privé : ni pièces, ni identifiant, ni cartes hors équipe', !JSON.stringify(r).includes('98765') && !JSON.stringify(r).includes(al.id)
-    && Object.keys(r).sort().join() === 'collectif,groupe,joueurs,moi,niveau,note,notes,perso,poule,pseudo,staff,tactique', Object.keys(r));
+    && Object.keys(r).sort().join() === 'collectif,groupe,joueurs,moi,niveau,note,notes,perso,poule,pseudo,remplacants,staff,tactique,tactiques,tactiques_r', Object.keys(r));
+  // les bonus de ses 6 tactiques, calculés comme en match (demande de Maël, 21 nov. 2026)
+  const bon = (await q("select tactique_bonus(f -> 'moyennes', 'duels') d, tactique_bonus(f -> 'moyennes', '33') t from (select force_equipe($1::jsonb, 'rapide:33') f) x", [JSON.stringify(eqA)]))[0];
+  verif('bonus de ses 6 tactiques = ceux du match', Object.keys(r.tactiques || {}).length === 6 && +r.tactiques.duels === +bon.d && +r.tactiques['33'] === +bon.t, {r: r.tactiques, bon});
   verif('joueur inconnu : refusé', erreur(await rpcJoueur(db, bo.id, 'equipe_publique', ['Personne']), 'introuvable'));
   verif('visiteur non connecté : refusé', erreur(await rpcJoueur(db, null, 'equipe_publique', ['Alice'])));
   verif('sa propre équipe : marquée « moi »', (await rpcJoueur(db, al.id, 'equipe_publique', ['Alice'])).moi === true);
@@ -68,11 +71,12 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   await p.click('.cl-l[data-voir-equipe="Alice"]'); await p.waitForSelector('.eq-de .pitch');
   const vue = await p.evaluate(() => ({titre: document.querySelector('.eq-de h3').textContent, vig: document.querySelectorAll('.eq-de .pitch .vig').length,
     cartes: document.querySelectorAll('.eqde-c .card').length, legende: document.querySelectorAll('.eqde-c .card.legende').length, note: document.querySelector('.eq-de .teamnote .stat b').textContent,
-    tac: document.querySelector('.eqde-tac').textContent, staff: !!document.querySelector('.eqde-staff .card.staff'), cap: document.querySelectorAll('.eq-de .pitch .cap').length,
+    tac: document.querySelector('.eqde-tac').textContent, bonus: document.querySelectorAll('.eq-de .tacs .tac').length, staff: !!document.querySelector('.eqde-staff .card.staff'), cap: document.querySelectorAll('.eq-de .pitch .cap').length,
     deborde: document.documentElement.scrollWidth > innerWidth}));
   verif('fenêtre « Équipe de Alice » : 7 vignettes sur le terrain, 7 cartes dont la légende', vue.titre === 'Équipe de Alice' && vue.vig === 7 && vue.cartes === 7 && vue.legende === 1, vue);
   verif('note d’équipe = celle du serveur, tactique Jeu rapide / 3-3, staff, capitaine', vue.note === String(r.note) && vue.tac === 'Jeu rapide3-3' && vue.staff && vue.cap === 1, vue);
   verif('pas de débordement (fenêtre)', !vue.deborde);
+  verif('« Bonus de ses tactiques » : ses 6 tactiques avec leur bonus', vue.bonus === 6, vue);
   if (SP) { await p.screenshot({path: SP + '/ve-2-equipe.png'}); await (await p.$('.eq-de')).screenshot({path: SP + '/ve-3-equipe-entiere.png'}); }
   // une carte (pas la légende) ouvre sa fiche, avec le retour vers l'équipe
   await p.click('button.eqde-c'); await p.waitForSelector('.sheet.fiche');

@@ -2125,6 +2125,16 @@ function fenetreEquipeDe(d) {
   const slots = POSTES.map(p => { const x = al[p.id], [l, t] = posDe(p.id), tag = x && !x.j.legende ? 'button' : 'div';
     return `<${tag} class="slot${p.gb ? ' gb' : ''}"${ouvre(x)} style="left:${l}%;top:${t}%">${x ? vignetteHTML(x.c) : '<span class="empty">–</span>'}${x?.j.capitaine ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${x && horsPoste(x.c, p.id) ? ' class="hors"' : ''}>${p.id}</em></${tag}>`; }).join('');
   const st = d.staff && staffDe(d.staff.id);
+  // ses remplaçants et le bonus de chaque tactique (demande de Maël, 21 nov. 2026)
+  const banc = POSTES.map(p => { const j = (d.remplacants || []).find(x => x.poste === p.id); if (!j) return '';
+    const c = j.legende ? Compte.carteDepuisLigne?.(j.legende) : PAR_ID[j.carte] && vueExemplaire(PAR_ID[j.carte], {palier: j.palier, note: j.note}); if (!c) return '';
+    const tag = j.legende ? 'div' : 'button';
+    return `<${tag} class="eqde-c"${j.legende ? '' : ` data-voir-fiche="${c.id}" data-de="${esc(d.pseudo)}"`}>${carteHTML(c)}<small>${p.id} · remplaçant</small></${tag}>`; }).join('');
+  const T = d.tactiques, TR = d.tactiques_r, clsB = b => b >= .06 ? 'fort' : b <= .005 ? 'nul' : '';
+  const tacBloc = liste => liste.map(([k, nom, sts]) => `<div class="tac${(k === ta || k === td) ? ' on' : ''}"><b>${nom}</b><small>${NOM_STAT[sts[0]]} · ${NOM_STAT[sts[1]]}</small>
+    <em class="${clsB(T[k] || 0)}">+${pc100(T[k] || 0)}</em>${TR ? `<i class="tac-r ${clsB(TR[k] || 0)}">remplaçants +${pc100(TR[k] || 0)}</i>` : ''}</div>`).join('');
+  const tacs = T ? `<h2>Bonus de ses tactiques</h2><p class="sub petit">Ce que chaque tactique lui rapporte, d’après les stats de son équipe${TR ? ' (en petit : avec ses remplaçants)' : ''}. Entourées : sa tactique de départ.</p>
+    <h3 class="tac-t">Attaque</h3><div class="tacs">${tacBloc(TACT_ATT)}</div><h3 class="tac-t">Défense</h3><div class="tacs">${tacBloc(TACT_DEF)}</div>` : '';
   const cartes = POSTES.filter(p => al[p.id]).map(p => { const x = al[p.id], tag = x.j.legende ? 'div' : 'button';
     return `<${tag} class="eqde-c"${ouvre(x)}>${carteHTML(x.c)}<small>${p.id}${d.notes?.[p.id] != null ? ` · ${d.notes[p.id]} en match` : ''}</small></${tag}>`; }).join('');
   ouvrirOverlay(`<div class="sheet eq-de">${EQDE.ami ? `<button class="retour" data-ami="${esc(EQDE.ami)}">‹ ${esc(EQDE.ami)}</button>` : ''}
@@ -2137,6 +2147,8 @@ function fenetreEquipeDe(d) {
       ${st ? `<div class="staff-place eqde-staff"><span class="sp-t">Staff</span>${staffCarteHTML(st, 'mini', d.staff.palier)}
         <span class="sp-d"><b>${esc(st.personne || st.nom)}</b><small>${R_LABEL[d.staff.palier] || ''} · ${staffEffet(st, d.staff.palier)}</small></span></div>` : ''}
       <h2>Ses ${Object.keys(al).length} cartes</h2><div class="eqde-cartes">${cartes}</div>
+      ${banc ? `<h2>Ses remplaçants</h2><div class="eqde-cartes">${banc}</div>` : ''}
+      ${tacs}
       ${d.note == null ? '<p class="sub petit">Note d’équipe : il faut 7 joueurs alignés.</p>' : ''}`
       : '<p class="sub">Aucun joueur aligné pour l’instant.</p>'}
     <button class="btn" data-act="fermer" style="width:100%">Fermer</button></div>`);

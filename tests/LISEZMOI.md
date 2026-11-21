@@ -57,3 +57,4 @@ Les hypothèses du modèle (rythme de jeu, adresse aux mini-jeux, taux de victoi
 Une cinquantaine de tests plus anciens (boosters, matchs en direct, mini-jeux, outil admin…) n'existent que dans le dossier temporaire des sessions Claude. Ils utilisent déjà ce harnais ; il reste à les copier ici et à les faire lancer par une action GitHub.
 - `test_chat.js` : messages entre ami(e)s, la relève des nouveaux messages ne doit pas effacer le message en cours d'écriture (retour de Rémi, iPhone).
 - `test_liens_equipe.js` : le pseudo d'un autre joueur ouvre son équipe partout (fiche d'ami(e) avec retour, club, ligue, derniers matchs, transferts).
+- `test_ecrans_match.js` : le match en direct tient dans l'écran à 9 tailles (PC, tablette, téléphones, téléphone à l'horizontale).

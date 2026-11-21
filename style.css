@@ -1989,3 +1989,25 @@ body.lot-ouvert > :not(.ob) { visibility: hidden; }
 /* fenêtre des ami(e)s : le bandeau des onglets reste visible et utilisable par-dessus (la fenêtre lui laisse sa place) */
 body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
 #overlay:has(.amis-p) { padding-bottom: calc(92px + var(--safe-b)); }
+/* Match en direct : tout l'écran tient sans rien couper, quelle que soit sa taille (Maël, 21 nov. 2026 : sur PC on ne voyait pas
+   le bas ; le terrain, en pleine largeur, devenait plus haut que l'écran et décalait tout). Le terrain ne dépasse pas 44 % de la
+   hauteur (il garde ses proportions et se centre), le contenu ne s'étale pas au-delà de 960 px de large, et le bouton qui valide un
+   panneau reste toujours visible en bas */
+.md > :not(.md-panneau) { width: 100%; max-width: 960px; margin-left: auto; margin-right: auto; }
+.md-terrain { flex: none; }
+.md-terrain svg { width: 100%; height: auto; max-height: 44vh; max-height: 44dvh; }
+.md-panneau { max-width: 960px; margin: 0 auto; }
+.md-p-b { position: sticky; bottom: calc(-14px - var(--safe-b)); z-index: 2; margin-bottom: calc(-14px - var(--safe-b)); padding: 10px 0 calc(14px + var(--safe-b));
+  background: linear-gradient(180deg, rgba(18, 26, 38, 0), #121a26 12px); }
+@media (max-height: 520px) {
+  .md { padding-top: calc(4px + var(--safe-t)); padding-bottom: calc(6px + var(--safe-b)); }
+  .md-haut { padding: 4px 10px; }
+  .md-eq b { font-size: 1.6rem; }
+  .md-terrain { margin: 6px auto 2px; }
+  .md-terrain svg { max-height: 38vh; max-height: 38dvh; }
+  .md-info { display: none; }
+  .md-corps { margin: 4px 0; }
+  .md-bas .btn { padding: 6px; }
+  .md-panneau { max-height: 88%; }
+}
+

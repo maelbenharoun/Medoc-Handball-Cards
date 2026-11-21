@@ -3345,13 +3345,28 @@ end $$;
 -- (force_equipe : postes, forme, capitaine, staff, collectif). Les légendes alignées se voient aussi (demande de Maël : seule
 -- exception à « une légende n'apparaît chez personne d'autre ») ; leur carte est jointe, le jeu ne les a pas dans son catalogue.
 -- Rien d'autre (ni pièces, ni club, ni cartes libres).
+-- remplaçants et bonus de chaque tactique (demande de Maël, 21 nov. 2026) : le banc (toujours au club, pas titulaire) et, pour les 6
+-- tactiques, le bonus de son équipe (tactiques) et celui de l'équipe des remplaçants (tactiques_r : le remplaçant de chaque poste,
+-- sinon le titulaire), calculés comme en match (force_equipe, tactique_bonus)
 create or replace function equipe_publique(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); a profils := ami_de(p_pseudo); vis jsonb; f jsonb; st text; niv int;
+declare p profils := moi(); a profils := ami_de(p_pseudo); vis jsonb; f jsonb; st text; niv int; bn jsonb; fr jsonb;
+  tac jsonb; tac_r jsonb; ch text;
 begin
   select coalesce(jsonb_object_agg(j.key, j.value), '{}') into vis
     from jsonb_each_text(a.equipe) j join exemplaires e on e.id::text = j.value and e.proprietaire = a.user_id
     where j.key in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB');
-  if (select count(*) from jsonb_object_keys(vis)) = 7 then f := force_equipe(vis, a.tactique); end if;
+  select coalesce(jsonb_object_agg(j.key, j.value), '{}') into bn
+    from jsonb_each_text(coalesce(a.remplacants, '{}')) j join exemplaires e on e.id::text = j.value and e.proprietaire = a.user_id
+    where j.key in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB') and not exists (select 1 from jsonb_each_text(vis) v where v.value = j.value);
+  if (select count(*) from jsonb_object_keys(vis)) = 7 then
+    f := force_equipe(vis, a.tactique);
+    begin fr := case when bn <> '{}' then force_equipe(vis || bn, a.tactique) end; exception when others then fr := null; end;
+    tac := '{}'; tac_r := '{}';
+    foreach ch in array array['duels', 'enclenchement', 'rapide', '06', '15', '33'] loop
+      tac := tac || jsonb_build_object(ch, tactique_bonus(f -> 'moyennes', ch));
+      if fr is not null then tac_r := tac_r || jsonb_build_object(ch, tactique_bonus(fr -> 'moyennes', ch)); end if;
+    end loop;
+  end if;
   st := staff_actif(a.user_id); niv := coalesce((a.parcours ->> 'niveau')::int, 1);
   return jsonb_build_object('pseudo', a.pseudo, 'moi', a.user_id = p.user_id, 'perso', perso_public(a.user_id),
     'niveau', niv, 'poule', param('parcours') -> (niv - 1) ->> 'nom', 'groupe', param('parcours') -> (niv - 1) ->> 'groupe',
@@ -3359,7 +3374,11 @@ begin
     'staff', case when st is null then null else jsonb_build_object('id', st, 'palier', staff_meilleur(a.user_id, st)) end,
     'joueurs', coalesce((select jsonb_agg(jsonb_build_object('poste', j.key, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note, 'capitaine', e.id = a.capitaine,
         'legende', case when c.legende then to_jsonb(c) end))
-      from jsonb_each_text(vis) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id), '[]'));
+      from jsonb_each_text(vis) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id), '[]'),
+    'remplacants', coalesce((select jsonb_agg(jsonb_build_object('poste', j.key, 'carte', e.carte_id, 'palier', e.palier, 'note', e.note,
+        'legende', case when c.legende then to_jsonb(c) end))
+      from jsonb_each_text(bn) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id), '[]'),
+    'tactiques', tac, 'tactiques_r', case when tac_r <> '{}' then tac_r end);
 end $$;
 -- Proposer un échange à un(e) ami(e) : ma carte contre la sienne, quels que soient les paliers ; 3 propositions par jour
 create or replace function proposer_echange(p_pseudo text, p_donne uuid, p_demande uuid) returns jsonb language plpgsql security definer set search_path = public as $$
