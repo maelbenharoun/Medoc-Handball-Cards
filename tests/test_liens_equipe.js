@@ -49,10 +49,20 @@ const SP = process.argv[2];
   verif('club : toucher Bob ouvre son équipe', await ouvreEquipeDeBob());
   verif('pas de retour vers un(e) ami(e) depuis le club', !(await p.$('.sheet.eq-de .retour')));
   await fermer();
+  // les victoires du club se mettent à jour quand on revient sur la page (retour de Guilhem, 21 nov. 2026 : des défis gagnés ne
+  // changeaient rien à l'écran ; la page n'était chargée qu'une fois par session)
+  const vAlice = async () => +(await p.evaluate(() => SOC.clubs?.club?.membres?.find(m => m.moi)?.victoires ?? SOC.clubs?.membres?.find(m => m.moi)?.victoires ?? -1));
+  const v0 = await vAlice();
+  await q("insert into rencontres (user_id, type, adversaire, score, resultat) values ($1, 'defi_ami', 'Bob', '{25,20}', 'gagne')", [al.id]);
+  await p.goto(web.url + '#social'); await p.waitForTimeout(200);
+  await p.evaluate(() => { SOC.recu.clubs = 0; });   // comme si 15 s étaient passées
+  await p.goto(web.url + '#clubs'); await p.waitForFunction(v => (SOC.clubs?.club?.membres || SOC.clubs?.membres || []).find(m => m.moi)?.victoires > v, v0, {timeout: 8000}).catch(() => {});
+  const v1 = await vAlice();
+  verif(`club : un défi gagné de plus apparaît en revenant sur la page (${v0} → ${v1})`, v0 >= 0 && v1 === v0 + 1, {v0, v1});
   // 3. derniers matchs : le défi contre Bob a un lien, pas l'équipe du championnat
   await p.goto(web.url + '#championnat'); await p.waitForSelector('.hists', {timeout: 8000}).catch(() => {});
   const liensMatchs = await p.$$eval('.hists .lien-j', l => l.map(x => x.textContent));
-  verif('derniers matchs : lien sur Bob (défi), pas sur une équipe de l’ordinateur', liensMatchs.join() === 'Bob', liensMatchs);
+  verif('derniers matchs : lien sur Bob (défi), pas sur une équipe de l’ordinateur', liensMatchs.length >= 1 && liensMatchs.every(x => x === 'Bob'), liensMatchs);
   // 4. ligue : les joueurs du groupe (s'ils y sont ensemble), jamais l'ordinateur
   await p.goto(web.url + '#ligue'); await p.waitForSelector('.lg-l', {timeout: 8000}).catch(() => {});
   const ligue = await p.evaluate(() => ({liens: [...document.querySelectorAll('.lg-l .lien-j')].map(x => x.textContent),

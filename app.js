@@ -2072,12 +2072,15 @@ function vueSocial() {
     ${porte('clubs', '🛡️', 'Clubs', S().club ? esc(S().club.nom) : 'Rejoins un club : un objectif commun chaque semaine')}</div>
     <p class="sub petit">Tes ami(e)s sont dans la bulle en bas à droite : messages, échanges, défis.</p>`;
 }
-const SOC = {classement: null, amis: null, charge: {}, ajout: '', echange: null, panneau: null, conv: null};
+const SOC = {classement: null, amis: null, charge: {}, recu: {}, ajout: '', echange: null, panneau: null, conv: null};
+// Classement, ligue, clubs, pronos : relus à chaque visite de la page s'ils datent de plus de 15 s (la page montre d'abord ceux
+// qu'elle a, puis se met à jour). Avant, ils n'étaient chargés qu'une fois par session : les victoires du club ne bougeaient pas
+// après des défis gagnés (retour de Guilhem, 21 nov. 2026 ; le serveur les comptait bien)
 function chargerSoc(cle, f) {
-  if (SOC.charge[cle] || SOC[cle] || Compte.horsLigne) return;
+  if (SOC.charge[cle] || Compte.horsLigne || (SOC[cle] && Date.now() - (SOC.recu[cle] || 0) < 15000)) return;
   SOC.charge[cle] = true;
-  f().then(d => { SOC[cle] = d; }).catch(e => { toast(e.message); SOC[cle] = cle === 'amis' ? {amis: [], recues: [], envoyees: [], echanges: [], restants: 0} : {joueurs: []}; })
-    .finally(() => { SOC.charge[cle] = false; if ([cle].includes(vueCourante()) && $('#overlay').hidden) route(true); });
+  f().then(d => { SOC[cle] = d; }).catch(e => { if (!SOC[cle]) { toast(e.message); SOC[cle] = cle === 'amis' ? {amis: [], recues: [], envoyees: [], echanges: [], restants: 0} : {joueurs: []}; } })
+    .finally(() => { SOC.charge[cle] = false; SOC.recu[cle] = Date.now(); if ([cle].includes(vueCourante()) && $('#overlay').hidden) route(true); });
 }
 function vueClassement() {
   chargerSoc('classement', () => Compte.classementPoules());
