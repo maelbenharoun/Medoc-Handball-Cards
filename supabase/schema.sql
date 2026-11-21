@@ -3886,7 +3886,13 @@ update cartes c set equipes = v.eqs from (values
   ('hugo-estrade', array['SG1', 'SG2']),
   ('leonie-celhay', array['SF1', 'SF2']),
   ('norah-de-wilde', array['SF1', 'SF2']),
-  ('sohen-abadie', array['SG1', 'SG2'])) v(id, eqs)
+  ('sohen-abadie', array['SG1', 'SG2']),
+  -- seniors qui jouent aussi en -18 (feuilles de match données par Maël, 21 nov. 2026) : l'équipe senior reste la principale
+  -- (Sohen Abadie a joué en SG1, SG2 et -18G : il garde SG1/SG2, 2 équipes au plus)
+  ('margot-arzel', array['SF2', '-18F1']),
+  ('chiara-geneves', array['SF2', '-18F1']),
+  ('dorian-bondy', array['SG2', '-18G']),
+  ('baptiste-braquessac', array['SG2', '-18G'])) v(id, eqs)
   where c.id = v.id and cardinality(c.equipes) = 0 and c.equipe = v.eqs[1];
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
