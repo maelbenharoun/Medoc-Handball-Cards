@@ -142,6 +142,13 @@ create table if not exists cartes (
   maj timestamptz not null default now()
 );
 alter table cartes add column if not exists ecarts jsonb not null default '{}';   -- stat − note du profil : la forme du joueur
+-- 1 ou 2 équipes par joueur (demande de Maël, 21 nov. 2026), la première = la principale (aussi dans equipe) ; vide = seulement equipe.
+-- Une légende fait partie de toutes les équipes (elle compte dans le collectif de n'importe quelle équipe, force_equipe)
+alter table cartes add column if not exists equipes text[] not null default '{}';
+-- les équipes d'une carte (hors légende, qui est de toutes) : equipes si renseigné, sinon equipe
+create or replace function equipes_de(p_equipe text, p_equipes text[]) returns text[] language sql immutable as $$
+  select case when cardinality(coalesce(p_equipes, '{}')) > 0 then p_equipes else array[p_equipe] end
+$$;
 alter table cartes add column if not exists photos jsonb not null default '{}';   -- une photo par palier
 alter table cartes add column if not exists photo text;
 -- tous les postes du joueur (le premier = principal, celui de la colonne poste) : il joue sans malus à chacun
@@ -824,11 +831,11 @@ $$;
 create or replace function albums_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_agg(jsonb_build_object('equipe', e.equipe, 'palier', pal, 'total', e.n,
       'possede', (select count(distinct c.id) from cartes c join exemplaires x on x.carte_id = c.id and x.proprietaire = p_uid
-        where c.actif and c.equipe = e.equipe and array_position(array['bronze', 'argent', 'or', 'ultime'], x.palier) >= array_position(array['bronze', 'argent', 'or', 'ultime'], pal)),
+        where c.actif and e.equipe = any(equipes_de(c.equipe, c.equipes)) and array_position(array['bronze', 'argent', 'or', 'ultime'], x.palier) >= array_position(array['bronze', 'argent', 'or', 'ultime'], pal)),
       'fait', exists (select 1 from albums_faits f where f.user_id = p_uid and f.equipe = e.equipe and f.palier = pal),
       'recompense', param('albums_recompenses') -> pal)
     order by e.equipe, array_position(array['bronze', 'argent', 'or', 'ultime'], pal)), '[]')
-  from (select equipe, count(*) n from cartes where actif group by equipe) e, unnest(array['bronze', 'argent', 'or', 'ultime']) pal
+  from (select t equipe, count(*) n from cartes c, unnest(equipes_de(c.equipe, c.equipes)) t where c.actif group by t) e, unnest(array['bronze', 'argent', 'or', 'ultime']) pal
 $$;
 
 -- ── personnalisation : ce qui est débloqué se calcule (rien à enregistrer)
@@ -1398,7 +1405,7 @@ declare l record; att numeric := 0; def numeric := 0; arr numeric := 0; notes nu
   tireurs jsonb := '[]'; joueurs jsonb := '{}'; eqs jsonb := '{}'; maxi int; coll int; moy jsonb; b_att numeric; b_def numeric;
   m_tir numeric := 0; m_pas numeric := 0; m_def numeric := 0; m_men numeric := 0; m_phy numeric := 0; m_vit numeric := 0;
   s_tir numeric; s_pas numeric; s_vit numeric; s_def numeric; s_phy numeric; s_men numeric; s_ref numeric; s_pla numeric; s_rel numeric; ne int;
-  proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}';
+  proprio uuid; cap uuid; st text; sv int := 0; nts jsonb := '{}'; nleg int := 0; t text;
 begin
   -- l'équipe d'un joueur : son capitaine et son staff comptent
   select e.proprietaire into proprio from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value limit 1;
@@ -1406,7 +1413,7 @@ begin
     select capitaine into cap from profils where user_id = proprio;
     st := staff_actif(proprio); sv := staff_val(proprio, st);
   end if;
-  for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.ecarts, en_forme(c.id) forme
+  for l in select j.key as slot, e.id eid, e.note, c.postes, c.nom, c.equipe, c.equipes, c.legende, c.ecarts, en_forme(c.id) forme
       from jsonb_each_text(p_equipe) j join exemplaires e on e.id::text = j.value join cartes c on c.id = e.carte_id loop
     -- −5 hors de ses postes (un joueur sans poste renseigné joue partout sans malus) ; joueur de la semaine : +3 (au plus 99)
     ne := l.note - case when l.slot <> 'GB' and cardinality(l.postes) > 0 and not (l.slot = any(l.postes)) then case when st = 'polyvalent' then sv else 5 end else 0 end;
@@ -1415,7 +1422,10 @@ begin
     -- carte staff : entraîneur des gardiens, coach des ailiers, coach de la base arrière
     ne := ne + case when st = 'gardiens' and l.slot = 'GB' or st = 'ailiers' and l.slot in ('AG', 'AD') or st = 'base' and l.slot in ('ARG', 'DC', 'ARD') then sv else 0 end;
     n := n + 1; notes := notes + ne; joueurs := joueurs || jsonb_build_object(l.slot, l.nom); nts := nts || jsonb_build_object(l.slot, ne);
-    eqs := jsonb_set(eqs, array[l.equipe], to_jsonb(coalesce((eqs ->> l.equipe)::int, 0) + 1));
+    -- coéquipier(e)s : un joueur compte pour chacune de ses équipes, une légende pour toutes
+    if l.legende then nleg := nleg + 1;
+    else foreach t in array equipes_de(l.equipe, l.equipes) loop eqs := jsonb_set(eqs, array[t], to_jsonb(coalesce((eqs ->> t)::int, 0) + 1)); end loop;
+    end if;
     s_men := stat_note(ne, (l.ecarts ->> 'men')::numeric);
     s_phy := stat_note(ne, (l.ecarts ->> 'phy')::numeric);
     s_vit := stat_note(ne, (l.ecarts ->> 'vit')::numeric);
@@ -1440,7 +1450,7 @@ begin
     end if;
   end loop;
   if n < 7 then raise exception 'Il faut 7 joueurs alignés dans ton équipe pour jouer'; end if;
-  select max(value::int) into maxi from jsonb_each_text(eqs);
+  select coalesce(max(value::int), 0) + nleg into maxi from jsonb_each_text(eqs);
   coll := case when maxi >= 7 then 3 when maxi >= 5 then 2 when maxi >= 3 then 1 else 0 end;   -- coéquipier(e)s
   moy := jsonb_build_object('tir', round(m_tir, 1), 'pas', round(m_pas, 1), 'def', round(m_def, 1), 'men', round(m_men, 1), 'phy', round(m_phy, 1), 'vit', round(m_vit, 1));
   b_att := tactique_bonus(moy, split_part(coalesce(p_tactique, ''), ':', 1));
@@ -3497,14 +3507,15 @@ begin
   if exists (select 1 from jsonb_array_elements(p_cartes) x where coalesce(x ->> 'id', '') !~ '^[a-z0-9-]{2,60}$' or coalesce(btrim(x ->> 'nom'), '') = '') then
     raise exception 'Carte invalide (identifiant ou nom)';
   end if;
-  insert into cartes (id, nom, equipe, poste, postes, stats, ecarts, photos, photo, site, reglages, legende, actif, maj)
+  insert into cartes (id, nom, equipe, poste, postes, stats, ecarts, photos, photo, site, reglages, legende, actif, maj, equipes)
     select x ->> 'id', x ->> 'nom', x ->> 'equipe', x ->> 'poste',
       coalesce((select array_agg(v) from jsonb_array_elements_text(x -> 'postes') v), case when x ->> 'poste' is null then '{}' else array[x ->> 'poste'] end),
       x -> 'stats', coalesce(x -> 'ecarts', '{}'),
       coalesce(x -> 'photos', '{}'), x ->> 'photo', x -> 'site', nullif(x -> 'reglages', 'null'::jsonb),
-      coalesce((x ->> 'legende')::boolean, false), not coalesce((x ->> 'legende')::boolean, false), now()
+      coalesce((x ->> 'legende')::boolean, false), not coalesce((x ->> 'legende')::boolean, false), now(),
+      coalesce((select (array_agg(v order by o))[1:2] from jsonb_array_elements_text(case when jsonb_typeof(x -> 'equipes') = 'array' then x -> 'equipes' else '[]' end) with ordinality q(v, o)), '{}')
     from jsonb_array_elements(p_cartes) x
-    on conflict (id) do update set nom = excluded.nom, equipe = excluded.equipe, poste = excluded.poste, postes = excluded.postes, stats = excluded.stats,
+    on conflict (id) do update set nom = excluded.nom, equipe = excluded.equipe, equipes = excluded.equipes, poste = excluded.poste, postes = excluded.postes, stats = excluded.stats,
       ecarts = excluded.ecarts, photos = excluded.photos, photo = excluded.photo, site = excluded.site,
       reglages = excluded.reglages, legende = excluded.legende, actif = excluded.actif, maj = now();
   if p_complet then
@@ -3750,9 +3761,9 @@ end $$;
 create or replace function ouvrir_booster_equipe(p_equipe text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); prix int := parami('booster_equipe_prix'); c text; ex uuid;
 begin
-  if p_equipe is null or not exists (select 1 from cartes where actif and equipe = p_equipe) then raise exception 'Équipe inconnue'; end if;
+  if p_equipe is null or not exists (select 1 from cartes where actif and p_equipe = any(equipes_de(equipe, equipes))) then raise exception 'Équipe inconnue'; end if;
   if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
-  select id into c from cartes where actif and equipe = p_equipe order by random() limit 1;
+  select id into c from cartes where actif and p_equipe = any(equipes_de(equipe, equipes)) order by random() limit 1;
   ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:' || p_equipe);
   update profils set pieces = pieces - prix, boosters_ouverts = boosters_ouverts + 1 where user_id = p.user_id;
   perform progresser(p.user_id, 'booster');
@@ -3788,14 +3799,14 @@ create or replace function ouvrir_boosters_lot(p_equipe text) returns jsonb lang
 declare p profils := moi(); n int := greatest(2, least(20, parami('booster_lot'))); mystere boolean := p_equipe = '?';
   prix int; c text; ex uuid; ids uuid[] := '{}'; staffs jsonb := '[]'::jsonb;
 begin
-  if p_equipe is null or (not mystere and not exists (select 1 from cartes where actif and equipe = p_equipe)) then raise exception 'Équipe inconnue'; end if;
+  if p_equipe is null or (not mystere and not exists (select 1 from cartes where actif and p_equipe = any(equipes_de(equipe, equipes)))) then raise exception 'Équipe inconnue'; end if;
   prix := n * parami(case when mystere then 'booster_hasard_prix' else 'booster_equipe_prix' end);
   if p.pieces < prix then raise exception 'Il faut % pièces pour ces % boosters', prix, n; end if;
   for i in 1 .. n loop
     if mystere and random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
       staffs := staffs || donner_staff_hasard(p.user_id, param('booster_chances'));
     else
-      if mystere then c := tirer_carte(); else select id into c from cartes where actif and equipe = p_equipe order by random() limit 1; end if;
+      if mystere then c := tirer_carte(); else select id into c from cartes where actif and p_equipe = any(equipes_de(equipe, equipes)) order by random() limit 1; end if;
       if c is null then raise exception 'Le catalogue est vide'; end if;
       ex := creer_exemplaire(p.user_id, c, tirer_palier(param('booster_chances')), 'booster:' || case when mystere then 'hasard' else p_equipe end);
       ids := ids || ex;
@@ -3942,7 +3953,7 @@ begin
   if m.score_dom is not null or coup_envoi(m) <= now() then raise exception 'Trop tard : le match a commencé'; end if;
   if m.date > aujourdhui() + 7 then raise exception 'Pronostics ouverts une semaine avant le match'; end if;
   if p_dom is null or p_ext is null or p_dom not between 0 and 80 or p_ext not between 0 and 80 then raise exception 'Score invalide'; end if;
-  if p_buteur is not null and not exists (select 1 from cartes where id = p_buteur and actif and equipe = m.equipe) then raise exception 'Buteur inconnu'; end if;
+  if p_buteur is not null and not exists (select 1 from cartes where id = p_buteur and actif and m.equipe = any(equipes_de(equipe, equipes))) then raise exception 'Buteur inconnu'; end if;
   insert into pronostics (user_id, rid, dom, ext, buteur) values (p.user_id, p_rid, p_dom, p_ext, p_buteur)
     on conflict (user_id, rid) do update set dom = excluded.dom, ext = excluded.ext, buteur = excluded.buteur, le = now();
   perform noter(p.user_id, 'prono', jsonb_build_object('rid', p_rid, 'dom', p_dom, 'ext', p_ext, 'buteur', p_buteur));

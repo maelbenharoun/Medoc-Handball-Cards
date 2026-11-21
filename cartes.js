@@ -123,7 +123,7 @@ function fusionnerCarte(c0, p = {}) {
   const ok = n => Number.isInteger(n) && n >= 0 && n <= 99;
   const numero = ok(p.numero) ? p.numero : ok(c0.numero) ? c0.numero : null;
   const c = {...c0, profil: c0.poste, ovrSite: c0.ovr, poste, postes, estGB, stats: profil, calc, bonus, ecarts, photos, photo: p.photo || null, numero,
-    equipe: p.equipe || c0.equipe, legende: !!(p.legende ?? c0.legende),
+    ...equipesCarte(p, c0), legende: !!(p.legende ?? c0.legende),
     fiche: ficheDe(c0.fiche, p.fiche),
     perso: !!(p.poste || p.postes?.length || p.stats || p.photo || ok(p.numero) || Object.keys(photos).length || p.fiche || p.equipe || p.legende)};
   return vueExemplaire(c, c.legende ? {palier: 'ultime', note: NOTE_LEGENDE} : {palier: 'bronze', note: PALIER.bronze.min});
@@ -161,6 +161,25 @@ const moyenneStats = note => Math.round(moyenneExacte(note));
 function statsAuNiveau(c, note) {
   const m = moyenneExacte(note);
   return Object.fromEntries(statsDu(c.poste).map(([k]) => [k, borne(m * (1 + (c.ecarts?.[k] || 0) / 40), 1, 99)]));
+}
+// Équipes (demande de Maël, 21 nov. 2026) : un joueur peut en avoir 2 (equipes, la première = la principale, aussi dans equipe) ;
+// une légende fait partie de toutes les équipes. Réglages de l'outil : equipes (sinon equipe, sinon celle du site)
+function equipesCarte(p, c0) {
+  const l = (Array.isArray(p.equipes) ? p.equipes : []).filter((x, i, t) => x && t.indexOf(x) === i).slice(0, 2);
+  const equipe = l[0] || p.equipe || c0.equipe;
+  return {equipe, equipes: l.length ? l : [equipe].filter(Boolean)};
+}
+const equipesDe = c => c.legende ? ['*'] : c.equipes?.length ? c.equipes : [c.equipe].filter(Boolean);
+const deLEquipe = (c, eq) => !!c.legende || equipesDe(c).includes(eq);
+const coequipiers = (a, b) => !!a.legende || !!b.legende || equipesDe(a).some(e => equipesDe(b).includes(e));
+const libelleEquipes = c => c.legende ? 'Toutes' : equipesDe(c).join('/');
+// bonus collectif : le plus grand nombre de coéquipier(e)s d'une même équipe (un joueur compte pour chacune de ses équipes, une
+// légende pour toutes) : 3 → +1, 5 → +2, 7 → +3 (même calcul que force_equipe dans schema.sql)
+function collectifDe(cs) {
+  const n = {}; let leg = 0;
+  for (const c of cs) { if (c.legende) leg++; else for (const e of equipesDe(c)) n[e] = (n[e] || 0) + 1; }
+  const max = Math.max(0, ...Object.values(n)) + leg;
+  return max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;
 }
 // Une carte créée dans l'outil (pas sur le site) : le minimum que le jeu attend d'une carte du site
 function carteCreee(id, b) {
@@ -226,12 +245,12 @@ function carteHTML(c, o = {}) {
   const visage = c.photo ? `<img class="c-photo" src="${esc(c.photo)}" alt="" loading="lazy">`
     : `<div class="c-face">${silhouette(c.rarete)}</div><div class="c-mono">${initiales(c.nom)}</div>`;
   const pal = c.legende ? 'Légende' : R_LABEL[c.rarete] || '';
-  return `<div class="card r-${c.rarete}${c.legende ? ' legende' : ''}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.equipe}, ${posteAffiche(c)}, ${pal} ${note}">
+  return `<div class="card r-${c.rarete}${c.legende ? ' legende' : ''}${o.cls ? ' ' + o.cls : ''}" data-id="${c.id}" role="img" aria-label="${esc(c.nom)}, ${c.legende ? 'toutes les équipes' : libelleEquipes(c)}, ${posteAffiche(c)}, ${pal} ${note}">
     <i class="c-eclat"></i>${c.legende ? '<i class="c-holo"></i><i class="c-couronne" aria-hidden="true">♛</i>' : ''}${visage}
     <div class="c-top"><b class="c-ovr">${note}</b><span class="c-pal">${pal}</span><i class="c-sep"></i><span class="c-pos">${posteAffiche(c)}</span></div>
     <div class="c-name">${esc(c.nom)}</div>
     <div class="c-stats">${statsDu(c.poste).map(([k, l]) => `<span><small>${l}</small><b>${c.s[k]}</b></span>`).join('')}</div>
-    <div class="c-bas"><span class="c-num">${c.numero != null ? 'N°' + c.numero : 'N°–'}</span><img class="c-logo" src="assets/logo.png" alt=""><span class="c-eq">${c.equipe}</span></div>
+    <div class="c-bas"><span class="c-num">${c.numero != null ? 'N°' + c.numero : 'N°–'}</span><img class="c-logo" src="assets/logo.png" alt=""><span class="c-eq">${libelleEquipes(c)}</span></div>
     ${o.nouveau ? '<span class="c-new">NOUVEAU</span>' : ''}${o.qty > 1 ? `<span class="qty">×${o.qty}</span>` : ''}
     ${o.doublon ? `<span class="c-dup">Doublon · ${o.doublon} pièces</span>` : ''}</div>`;
 }

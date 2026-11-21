@@ -105,6 +105,7 @@ const CompteServeur = (() => {
   function carteDepuisLigne(r) {
     const base = {...fusionnerCarte(r.site, r.reglages || {}), id: r.id, poste: r.poste, postes: r.postes?.length ? r.postes : r.poste ? [r.poste] : [],
       estGB: r.poste === 'GB', ecarts: r.ecarts || {}, equipe: r.equipe || r.site?.equipe, legende: !!r.legende,
+      equipes: r.equipes?.length ? r.equipes : [r.equipe || r.site?.equipe].filter(Boolean),
       photos: r.photos || {}, photo: r.photo || null, actif: r.actif};
     return vueExemplaire(base, r.legende ? {palier: 'ultime', note: NOTE_LEGENDE} : {palier: 'bronze', note: PALIER.bronze.min});
   }

@@ -143,7 +143,7 @@ async function chargerServeur() {
 // carte telle qu'enregistrée sur le serveur : stats du site + réglages, note et rareté calculées par cartes.js
 function ligneServeur(id, reglages) {
   const {base, ...rg} = reglages || {}, site = base ? {...base, id} : PAR_ID[id], c = fusionnerCarte(site, rg);
-  return {id, nom: c.nom, equipe: c.equipe, poste: c.poste, postes: c.postes, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site,
+  return {id, nom: c.nom, equipe: c.equipe, equipes: c.legende ? [] : c.equipes, poste: c.poste, postes: c.postes, stats: c.stats, ecarts: c.ecarts, photos: c.photos, photo: c.photo, site,
     reglages: Object.keys(rg).length ? rg : null, legende: c.legende};
 }
 // envoie ces cartes au serveur (photos du brouillon déposées d'abord) ; complet : les autres ne sont plus tirées
@@ -246,7 +246,7 @@ function majListe() {
   const q = recherche.trim().toLowerCase();
   // poste : le joueur apparaît à chacun de ses postes ; tri par poste = par poste principal, puis par nom
   const rang = c => c.postes.length ? POSTES_JEU.indexOf(c.postes[0]) : POSTES_JEU.length;
-  const liste = cartes().filter(c => (filtre === 'tous' || (filtre === 'legendes' ? c.legende : c.equipe === filtre))
+  const liste = cartes().filter(c => (filtre === 'tous' || (filtre === 'legendes' ? c.legende : !c.legende && equipesDe(c).includes(filtre)))
     && (filtrePoste === 'tous' || (filtrePoste === 'sans' ? !c.postes.length : c.postes.includes(filtrePoste)))
     && (!q || c.nom.toLowerCase().includes(q)))
     .sort((a, b) => (tri === 'poste' ? rang(a) - rang(b) : 0) || a.nom.localeCompare(b.nom, 'fr'));
@@ -260,7 +260,7 @@ function majListe() {
       const etat = (c.legende ? '<span class="tag leg">légende</span>' : '') + (c.cree ? '<span class="tag cree">créée</span>' : '')
         + (c.id in BROUILLON ? '<span class="tag br">brouillon</span>' : PERSO[c.id] ? '<span class="tag">réglée</span>' : '');
       return `${titre}<button class="row" data-ed="${c.id}">${carteHTML(c)}<div><b>${esc(c.nom)}</b>
-        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.equipe}</small>
+        <small>${c.postes.length ? nomsPostes(c) : 'Poste non défini'}${principal} · ${c.legende ? 'toutes les équipes' : libelleEquipes(c)}</small>
         <small>Photos ${RARETES.filter(r => c.photos[r]).length}/4${c.photo && !Object.keys(c.photos).length ? ' (photo unique)' : ''} · ${c.stats ? 'forme ' + (PERSO[c.id]?.stats || BROUILLON[c.id]?.stats ? 'réglée' : 'par défaut') : ''}</small></div>${etat ? `<span class="tags">${etat}</span>` : ''}</button>`;
     }).join('') || '<p class="sub">Aucune carte.</p>';
 }
@@ -274,7 +274,7 @@ function ouvrir(id) {
   ed = {id, postes: Array.isArray(p.postes) ? [...p.postes] : p.poste ? [p.poste] : [], stats: statsValides(p.stats, c.poste) ? {...p.stats} : null,
     numero: Number.isInteger(p.numero) ? p.numero : null, fiche: JSON.parse(JSON.stringify(p.fiche || {})),
     photos: {...(p.photos || {})}, photo: p.photo || null, palier: c.legende ? 'ultime' : 'bronze', img: null, cadre: null,
-    equipe: c.equipe, legende: c.legende, cree: !!site.cree, nom: site.nom, genre: site.genre || 'F', vals: null};
+    equipe: c.equipe, equipes: c.equipes?.length ? [...c.equipes] : [c.equipe], legende: c.legende, cree: !!site.cree, nom: site.nom, genre: site.genre || 'F', vals: null};
   const o = $('#overlay'); o.hidden = false; document.body.style.overflow = 'hidden';
   o.innerHTML = `<div class="sheet editeur">
     <div class="ed-haut"><div id="apercu"></div><div class="ed-note"><small>Palier</small><b id="note"></b><small id="note-site"></small></div></div>
@@ -314,12 +314,13 @@ function ouvrir(id) {
 
 function entree() {
   const r = {}, site = PAR_ID[ed.id];
-  if (ed.cree) r.base = carteCreee(ed.id, {nom: (ed.nom || '').trim() || site.nom, genre: ed.genre, equipe: ed.equipe, legende: ed.legende,
+  if (ed.cree) r.base = carteCreee(ed.id, {nom: (ed.nom || '').trim() || site.nom, genre: ed.genre, equipe: ed.equipes[0] || ed.equipe, legende: ed.legende,
     poste: ed.postes[0] === 'GB' ? 'GB' : 'JDC'});
   else {
-    if (ed.equipe && ed.equipe !== site.equipe) r.equipe = ed.equipe;
+    if (ed.equipes[0] && ed.equipes[0] !== site.equipe) r.equipe = ed.equipes[0];
     if (ed.legende !== !!site.legende) r.legende = ed.legende;
   }
+  if (ed.equipes.length > 1) r.equipes = ed.equipes.slice(0, 2);   // une 2e équipe (la première = principale)
   if (ed.postes.length) r.postes = [...ed.postes];
   if (ed.numero != null) r.numero = ed.numero;
   if (ed.stats) { r.stats = {}; statsDu(posteEd()).forEach(([k]) => r.stats[k] = ed.stats[k]); }
@@ -410,9 +411,11 @@ function majEditeur() {
   const c = carteEd(), poste = posteEd();
   if (!ed.vals) initVals();
   $('#paliers').innerHTML = PALIERS.filter(p => !ed.legende || p.id === 'ultime').map(p => `<button data-palier="${p.id}" class="${ed.palier === p.id ? 'on' : ''}">${ed.legende ? 'Légende' : p.nom}${ed.photos[p.id] ? ' 📷' : ''}</button>`).join('');
-  const eqs = [...new Set([...EQUIPES_CARTES, ed.equipe].filter(Boolean))];
-  $('#equipes').innerHTML = eqs.map(e => `<button data-equipe="${esc(e)}" class="${ed.equipe === e ? 'on' : ''}">${esc(e)}</button>`).join('');
-  $('#ed-titre').innerHTML = `${esc(c.nom)} <small>${esc(c.equipe)}${c.legende ? ' · légende' : ''}</small>`;
+  // 1 ou 2 équipes : on touche pour ajouter ou retirer, la première est la principale (★) ; une légende est de toutes les équipes
+  const eqs = [...new Set([...EQUIPES_CARTES, ...ed.equipes].filter(Boolean))];
+  $('#equipes').innerHTML = ed.legende ? '<p class="sub petit">Une légende fait partie de toutes les équipes.</p>'
+    : eqs.map(e => `<button data-equipe="${esc(e)}" class="${ed.equipes.includes(e) ? 'on' : ''}">${ed.equipes[0] === e && ed.equipes.length > 1 ? '★ ' : ''}${esc(e)}</button>`).join('');
+  $('#ed-titre').innerHTML = `${esc(c.nom)} <small>${c.legende ? 'toutes les équipes · légende' : esc(libelleEquipes(c))}</small>`;
   $('#desc-n').textContent = `${(ed.fiche.intro || '').length}/160`;
   // plusieurs postes possibles : on touche pour ajouter ou retirer, le premier choisi est le principal (★)
   $('#postes').innerHTML = POSTES_JEU.map(p => {
@@ -727,7 +730,12 @@ document.addEventListener('click', e => {
   if (t.dataset.tri) { tri = t.dataset.tri; return vue(); }
   if (t.dataset.poste !== undefined && ed) return changerPoste(t.dataset.poste);
   if (t.dataset.palier && ed) return changerPalier(t.dataset.palier);
-  if (t.dataset.equipe && ed) { ed.equipe = t.dataset.equipe; return majEditeur(); }
+  if (t.dataset.equipe && ed) {   // 2 équipes au plus ; retirer la dernière est impossible ; une 3e remplace la 2e
+    const e = t.dataset.equipe, i = ed.equipes.indexOf(e);
+    if (i >= 0) { if (ed.equipes.length > 1) ed.equipes.splice(i, 1); }
+    else ed.equipes = [ed.equipes[0], e].filter(Boolean).slice(0, 2);
+    ed.equipe = ed.equipes[0]; return majEditeur();
+  }
   if (t.dataset.pm && ed) { const [k, d] = t.dataset.pm.split(':'); return changerStat(k, ed.vals[k] + +d); }
   if (a === 'repartir') return repartir();
   if (a === 'creer') return fenetreCreer();

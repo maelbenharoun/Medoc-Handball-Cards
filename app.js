@@ -240,7 +240,7 @@ const carTitre = eq => eq === '?' ? 'Booster mystère' : NOM_EQUIPE[eq] || eq;
 const carSous = eq => eq === '?' ? 'Une carte au hasard parmi toutes, joueurs et staff · mêmes chances' : `${uneEquipe(eq)} · mêmes chances · ${joueursEquipe(eq)}`;
 const carPrix = eq => eq === '?' ? PARAMS.booster_hasard_prix ?? 300 : PARAMS.booster_equipe_prix ?? 500;
 const carPossible = eq => S().pieces >= carPrix(eq) && (eq === '?' || nbEquipe(eq) > 0);
-const nbEquipe = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).length;
+const nbEquipe = eq => CARTES.filter(c => c.actif !== false && deLEquipe(c, eq)).length;
 const uneEquipe = eq => eq.startsWith('SF') ? 'Une joueuse de l’équipe' : 'Un joueur de l’équipe';
 const joueursEquipe = eq => { const n = nbEquipe(eq), f = eq.startsWith('SF'); return `${n} ${f ? 'joueuse' : 'joueur'}${n > 1 ? 's' : ''}`; };
 const CARROUSEL = {i: 0};
@@ -578,7 +578,7 @@ function vuePronos() {
   const d = SOC.pronos;
   if (!d) return `${retour('social', 'Social')}<h1>Pronos</h1><p class="sub">Chargement…</p>`;
   const B = d.bareme || {}, nomC = id => PAR_ID[id]?.nom || '';
-  const joueurs = eq => CARTES.filter(c => c.actif !== false && c.equipe === eq).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  const joueurs = eq => CARTES.filter(c => c.actif !== false && deLEquipe(c, eq)).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   const quand = m => `${new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric', month: 'short'})}${m.heure ? ' · ' + m.heure : ''}`;
   const aVenir = d.aVenir.map(m => `<div class="pr-m" data-prono-l="${esc(m.rid)}"><div class="pr-t"><b>${esc(m.equipe)}</b><small>${quand(m)}</small>
       ${m.prono ? '<em class="pr-ok">✓ enregistré</em>' : ''}</div>
@@ -765,7 +765,7 @@ const enJeu = () => CARTES.filter(c => c.actif !== false);   // cartes encore ti
 function vueClub() {
   const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2', '-15F', 'fusion'];
   const vus = CARTES.filter(c => (c.actif !== false || mesEx(c.id).length)
-    && (filtre === 'tous' || c.equipe === filtre || (filtre === 'fusion' && fusionsPossibles(c.id).length))
+    && (filtre === 'tous' || (filtre === 'fusion' ? fusionsPossibles(c.id).length : deLEquipe(c, filtre)))
     && (filtrePoste === 'tous' || (c.postes?.length ? c.postes : [c.poste]).includes(filtrePoste)));   // un joueur à plusieurs postes est sous chacun
   const mes = vus.filter(c => mesEx(c.id).length).sort((a, b) => rangEx(mesEx(a.id)[0], mesEx(b.id)[0]));
   const autres = filtre === 'fusion' ? [] : vus.filter(c => !mesEx(c.id).length);
@@ -889,7 +889,7 @@ function fiche(carte, poste, de) {
   }).join('');
   ouvrirOverlay(`<div class="sheet fiche">${de ? `<button class="retour" data-retour-equipe="${esc(de)}">‹ Équipe de ${esc(de)}</button>`
     : poste ? `<button class="retour" data-retour-poste="${poste}">‹ ${poste === 'GB' ? 'Gardien(ne)' : 'Poste ' + poste}</button>` : ''}
-    <h3>${esc(c.nom)} <small>${c.legende ? 'Légende du club · ' : ''}${c.equipe} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
+    <h3>${esc(c.nom)} <small>${c.legende ? 'Légende du club · toutes les équipes' : libelleEquipes(c).replace('/', ' / ')} · ${nomsPostes(c)}${Number.isInteger(c.numero) ? ` · n° ${c.numero}` : ''}</small></h3>
     ${c.fiche?.intro ? `<p class="f-desc">${esc(c.fiche.intro)}</p>` : ''}
     ${hex}
     ${paliers ? `<div class="paliers">${paliers}</div>` : ''}
@@ -906,9 +906,7 @@ function noteEquipe() {
   const cs = places.map(p => aligne(p.id));
   const moy = places.reduce((a, p) => a + noteAuPoste(aligne(p.id), p.id), 0) / 7;   // une place vide compte 0
   const hors = places.filter(p => horsPoste(aligne(p.id), p.id)).length;
-  const parEq = {}; cs.forEach(c => parEq[c.equipe] = (parEq[c.equipe] || 0) + 1);
-  const max = Math.max(...Object.values(parEq));
-  const collectif = max >= 7 ? 3 : max >= 5 ? 2 : max >= 3 ? 1 : 0;   // bonus quand on aligne des coéquipier(e)s
+  const collectif = collectifDe(cs);   // bonus quand on aligne des coéquipier(e)s (2 équipes possibles, une légende est de toutes)
   return {note: Math.min(99, Math.round(moy + collectif)), collectif, n: places.length, hors};
 }
 // Tactiques (même calcul que tactique_bonus dans schema.sql) : chaque choix s'appuie sur deux stats ; bonus de 2 % pour une
@@ -966,7 +964,7 @@ function vueEquipe() {
   // liens : deux voisins de la même équipe du club (leur collectif compte), en doré
   const posDe = id => { const p = POSTES.find(x => x.id === id), [x, y] = p.gb ? [0, 1.1] : pl[id]; return [px(x), py(y)]; };
   const liens = LIENS.map(([u, v]) => { const a = aligne(u), b = aligne(v); if (!a || !b) return '';
-    const [x1, y1] = posDe(u), [x2, y2] = posDe(v), meme = a.equipe === b.equipe;
+    const [x1, y1] = posDe(u), [x2, y2] = posDe(v), meme = coequipiers(a, b);
     return `<line class="${meme ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
   const slots = POSTES.map(p => { const [x, y] = p.gb ? [0, 1.1] : pl[p.id];
     return `<button class="slot${p.gb ? ' gb' : ''}" data-slot="${p.id}" style="left:${px(x)}%;top:${py(y)}%">${carte(p)}</button>`; }).join('');
@@ -1855,7 +1853,7 @@ function resultatMD(r) {
 const MKT = {data: null, charge: false, ajout: null, recherche: '', palier: 'bronze', equipe: ''};
 // joueurs proposés dans « Je veux » : tri par équipe (demande de Maël), puis recherche par nom, sans limite
 const joueursVoulus = () => { const q = MKT.recherche.trim().toLowerCase();
-  const l = CARTES.filter(c => c.actif !== false && (!MKT.equipe || c.equipe === MKT.equipe) && (!q || c.nom.toLowerCase().includes(q)));
+  const l = CARTES.filter(c => c.actif !== false && (!MKT.equipe || deLEquipe(c, MKT.equipe)) && (!q || c.nom.toLowerCase().includes(q)));
   return l; };   // tous : la fenêtre défile (demande de Maël)
 const carteDe = (carte, palier, note) => PAR_ID[carte] ? vueExemplaire(PAR_ID[carte], {palier, note: note ?? PALIER[palier].min}) : null;
 function chargerMarche() {
@@ -1911,7 +1909,7 @@ function fenetreAjoutListe() {
       <button class="btn" data-act="fermer">Fermer</button></div>`);
   }
   const pris = new Set(D.veux.map(x => x.carte + ':' + x.palier)), l = joueursVoulus();
-  const equipes = [...new Set(CARTES.filter(c => c.actif !== false).map(c => c.equipe))].sort();
+  const equipes = [...new Set(CARTES.filter(c => c.actif !== false).flatMap(equipesDe))].filter(e => e !== '*').sort();
   ouvrirOverlay(`<div class="sheet compo"><h3>Je veux</h3>
     <div class="filters">${RARETES.map(r => `<button data-palier-liste="${r}" class="${MKT.palier === r ? 'on' : ''}">${R_LABEL[r]}</button>`).join('')}</div>
     <div class="filters">${['', ...equipes].map(e => `<button data-equipe-liste="${e || '*'}" class="${MKT.equipe === e ? 'on' : ''}">${e || 'Toutes les équipes'}</button>`).join('')}</div>
@@ -2119,7 +2117,7 @@ function fenetreEquipeDe(d) {
   const posDe = id => { const [x, y] = id === 'GB' ? [0, 1.1] : pl[id]; return [px(x), py(y)]; };
   const liens = LIENS.map(([u, v]) => { const a = al[u], b = al[v]; if (!a || !b) return '';
     const [x1, y1] = posDe(u), [x2, y2] = posDe(v);
-    return `<line class="${a.c.equipe === b.c.equipe ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
+    return `<line class="${coequipiers(a.c, b.c) ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
   // une légende n'a pas de fiche à ouvrir chez un autre (elle n'est pas dans le catalogue du jeu)
   const ouvre = x => x && !x.j.legende ? ` data-voir-fiche="${x.c.id}" data-de="${esc(d.pseudo)}"` : '';
   const slots = POSTES.map(p => { const x = al[p.id], [l, t] = posDe(p.id), tag = x && !x.j.legende ? 'button' : 'div';
@@ -2586,7 +2584,7 @@ function attendreRetournement() {
 function indiceSuivant() {
   const c = OB.res[0].c, box = OB.el.querySelector('.ob-indice');
   const etapes = c.staff ? [['Carte', 'Staff'], ['Poste', OB.res[0].staff.nom], ['Palier', R_LABEL[c.rarete]]]
-    : [['Équipe', c.equipe], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
+    : [['Équipe', c.legende ? 'Toutes' : libelleEquipes(c)], ['Poste', posteAffiche(c)], ['Palier', R_LABEL[c.rarete]]];
   if (OB.indice >= etapes.length) { box.hidden = true; return attendreRetournement(); }
   const [l, v] = etapes[OB.indice++];
   box.hidden = false;
