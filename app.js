@@ -232,9 +232,14 @@ function minuteur() {
 }
 // Boosters par poste : un joueur sur chaque sachet (choix de Maël : [poste, carte, palier de la photo])
 // boosters par équipe (demande de Maël : 5 à 9 joueurs par poste, trop peu) : [équipe, carte de la photo, palier de la photo]
-const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
-// carrousel « Acheter un booster » (demande de Maël) : les 4 équipes, puis le booster mystère (« ? » : une carte parmi toutes)
+// jeunes (demande de Maël, 21 nov. 2026) : un booster par équipe aussi ; sachet sans photo tant que Maël n'en a pas choisi
+// (seul Dorian Bondy, -18G, a une photo publiée)
+const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or'],
+  ['-18F1', null, null], ['-18F2', null, null], ['-18G', 'dorian-bondy', 'bronze'], ['-15F', null, null], ['-15G', null, null]];
+// carrousel « Acheter un booster » (demande de Maël) : les équipes, puis le booster mystère (« ? » : une carte parmi toutes)
 const BOOSTERS_CAR = [...BOOSTERS_EQUIPE, ['?', null, null]];
+// ordre des équipes à l'écran (joueurs de la semaine) : seniors, puis -18, puis -15
+const rangEquipe = eq => { const i = BOOSTERS_EQUIPE.findIndex(b => b[0] === eq); return i < 0 ? 99 : i; };
 const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2', '-18F1': 'Moins de 18 ans Filles 1', '-18F2': 'Moins de 18 ans Filles 2', '-18G': 'Moins de 18 ans Garçons',
   '-15F': 'Moins de 15 ans Filles', '-15G': 'Moins de 15 ans Garçons'};
 const carTitre = eq => eq === '?' ? 'Booster mystère' : NOM_EQUIPE[eq] || eq;
@@ -380,7 +385,7 @@ function blocSemaine() {
   return `<h2>⭐ Joueurs de la semaine</h2>
     <section class="js-b">
       <p class="sub petit">Les meilleurs des vrais matchs du week-end (semaine du ${dateCourte(w.lundi)}) : <b>+${w.forme} en match</b> toute la semaine 🔥</p>
-      <div class="js-l">${w.joueurs.filter(j => PAR_ID[j.carte]).map(j => { const m = j.stats.match;
+      <div class="js-l" style="--c:${Math.min(4, w.joueurs.filter(j => PAR_ID[j.carte]).length)}">${w.joueurs.filter(j => PAR_ID[j.carte]).sort((a, b) => rangEquipe(a.equipe) - rangEquipe(b.equipe)).map(j => { const m = j.stats.match;
         return `<button class="js-j" data-voir-fiche="${j.carte}">${vignetteHTML(carteMontree(j.carte))}<span class="js-t"><b>${esc(j.equipe)}</b><span>${ligneStats(j.stats)}</span>
           ${m ? `<small>${m.lieu === 'dom' ? 'contre' : 'à'} ${esc(m.adv)} · ${m.score.join(' – ')}</small>` : ''}</span></button>`; }).join('')}</div>
       <button class="btn gold js-go" data-act="booster-semaine"${reste && S().pieces >= prix ? '' : ' disabled'}>Booster de la semaine · ${nb(prix)} <i class="coin"></i></button>

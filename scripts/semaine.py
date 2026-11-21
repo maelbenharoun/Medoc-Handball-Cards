@@ -8,9 +8,15 @@ semaine (du lundi au dimanche), d'après les feuilles de match de la page publiq
 - Une semaine déjà choisie ne change plus (le jeu l'a peut-être déjà montrée) : l'historique est gardé dans data/semaine.json.
 - Seuls les nom, équipe et statistiques sportives sortent de la page (aucune autre donnée personnelle).
 
+- Équipes : les 4 seniors et les -18 du site (demande de Maël, 21 nov. 2026 : -18F1, -18F2, -18G). Les -15 ne sont pas sur le site.
+  Les cartes des jeunes ont été créées dans l'outil : elles ne sont que dans la table `cartes` du serveur, lue avec la clé publique
+  de config.js (comme le fait le jeu pour un visiteur) ; sans réponse du serveur, seulement data/cartes.json.
+
 Appelé par scripts/depuis_site.py (action GitHub « site ») ; le serveur relit data/semaine.json avec data/matchs.json.
 """
 import json
+import re
+import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -18,6 +24,29 @@ from export_cartes import mots
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 DEBUT_SAISON = date(2026, 8, 1)
+# équipe du site → équipe du jeu
+EQUIPE_JEU = {"sg1": "SG1", "sg2": "SG2", "sf1": "SF1", "sf2": "SF2", "f18-1": "-18F1", "f18-2": "-18F2", "g18": "-18G"}
+
+
+def equipes_carte(c):
+    return c.get("equipes") or [c["equipe"]]
+
+
+def catalogue():
+    """Cartes du jeu : data/cartes.json, complété par la table `cartes` du serveur (cartes créées dans l'outil, équipes réglées)."""
+    cartes = {c["id"]: c for c in json.loads((DATA / "cartes.json").read_text(encoding="utf-8"))["cartes"]}
+    try:
+        conf = (DATA.parent / "config.js").read_text(encoding="utf-8")
+        url, cle = (re.search(k + r": '([^']*)'", conf).group(1) for k in ("supabaseUrl", "supabaseCle"))
+        req = urllib.request.Request(url + "/rest/v1/cartes?select=id,nom,equipe,equipes,actif,legende&legende=eq.false",
+                                     headers={"apikey": cle, "User-Agent": "medoc-hand-cards (joueurs de la semaine)"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            for x in json.loads(r.read().decode("utf-8")):
+                c = cartes.setdefault(x["id"], {"id": x["id"]})
+                c.update(nom=x["nom"], equipe=x["equipe"], equipes=x.get("equipes") or [])
+    except Exception as e:   # le serveur ne répond pas : les cartes du site seulement (les jeunes seront élus à la prochaine mise à jour)
+        print(f"catalogue du serveur indisponible ({e}) : data/cartes.json seulement")
+    return list(cartes.values())
 
 
 def lundi(j):
@@ -90,9 +119,9 @@ def joueurs_semaine(D, cartes, ancien=None, aujourdhui=None):
     gardees = {s["lundi"]: s for s in (ancien or {}).get("semaines", [])}
     par_equipe = {}   # équipe → semaine → lignes
     for k, d in D.items():
-        eq = k.upper()
-        if not any(c["equipe"] == eq for c in cartes):
-            continue   # équipe sans cartes (jeunes) : pas de joueur de la semaine
+        eq = EQUIPE_JEU.get(k)
+        if not eq or not any(eq in equipes_carte(c) for c in cartes):
+            continue   # équipe sans cartes : pas de joueur de la semaine
         par_equipe[eq] = lignes_club(k, d, cartes, avant)   # un joueur d'une autre équipe du club peut être élu
     lundis = sorted({l for s in par_equipe.values() for l in s} | set(gardees))
     buteurs = {rid: b for s in par_equipe.values() for x in s.values() for rid, b in x.get("buteurs", {}).items()}
@@ -122,7 +151,7 @@ def joueurs_semaine(D, cartes, ancien=None, aujourdhui=None):
 
 def maj(D, aujourdhui=None):
     """Met data/semaine.json à jour ; renvoie (contenu, a_change)."""
-    cartes = json.loads((DATA / "cartes.json").read_text(encoding="utf-8"))["cartes"]
+    cartes = catalogue()
     f = DATA / "semaine.json"
     ancien = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
     nouveau = joueurs_semaine(D, cartes, ancien, aujourdhui)

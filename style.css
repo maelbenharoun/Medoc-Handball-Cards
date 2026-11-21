@@ -1517,7 +1517,7 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .js-b > .sub { margin: 0; }
 /* une colonne par joueur, toutes de la même largeur. Pas de repeat(auto-fit, minmax(0, 1fr)) : Safari (iPhone) en fait des dizaines
    de colonnes d'un pixel et les joueurs se retrouvent empilés à gauche. */
-.js-l { container-type: inline-size; width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.js-l { container-type: inline-size; width: 100%; display: grid; grid-template-columns: repeat(var(--c, 4), minmax(0, 1fr)); gap: 6px; }
 .js-j { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px 6px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .05); min-width: 0; }
 .js-j .vig { width: 100%; }
 .js-j .vig-p { width: 58px; width: min(58px, 17cqw); }
@@ -1560,6 +1560,11 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .sachet[data-p="SF2"] { --f1: #c49bff; --f2: #6b38c4; --f3: #24104f; }
 .sachet[data-p="SG1"] { --f1: #5fb8ff; --f2: #1b5fb4; --f3: #08244a; }
 .sachet[data-p="SG2"] { --f1: #63e0a8; --f2: #17865a; --f3: #063523; }
+.sachet[data-p="-18F1"] { --f1: #ffa27a; --f2: #c0461a; --f3: #4a1806; }
+.sachet[data-p="-18F2"] { --f1: #f2d860; --f2: #a8871a; --f3: #3f3104; --ft: #fff; }
+.sachet[data-p="-18G"] { --f1: #8be37a; --f2: #3a9a2c; --f3: #12380c; }
+.sachet[data-p="-15F"] { --f1: #ffc57a; --f2: #c47a16; --f3: #4a2a04; }
+.sachet[data-p="-15G"] { --f1: #7ad8f5; --f2: #1a8db4; --f3: #06334a; }
 /* choix du coach : le bloc de l'accueil (une scène, comme les boosters) : 3 cartes de dos en éventail qui flottent */
 .cc-b { padding-top: 18px; }
 .cc-eventail { position: relative; z-index: 1; width: 220px; height: 128px; }

@@ -3886,14 +3886,19 @@ update cartes c set equipes = v.eqs from (values
   ('hugo-estrade', array['SG1', 'SG2']),
   ('leonie-celhay', array['SF1', 'SF2']),
   ('norah-de-wilde', array['SF1', 'SF2']),
-  ('sohen-abadie', array['SG1', 'SG2']),
-  -- seniors qui jouent aussi en -18 (feuilles de match données par Maël, 21 nov. 2026) : l'équipe senior reste la principale
-  -- (Sohen Abadie a joué en SG1, SG2 et -18G : il garde SG1/SG2, 2 équipes au plus)
-  ('margot-arzel', array['SF2', '-18F1']),
-  ('chiara-geneves', array['SF2', '-18F1']),
-  ('dorian-bondy', array['SG2', '-18G']),
-  ('baptiste-braquessac', array['SG2', '-18G'])) v(id, eqs)
+  ('sohen-abadie', array['SG1', 'SG2'])) v(id, eqs)
   where c.id = v.id and cardinality(c.equipes) = 0 and c.equipe = v.eqs[1];
+-- Seniors qui jouent aussi en -18 (feuilles de match données par Maël, 21 nov. 2026) : l'équipe où ils ont le plus joué devient la
+-- principale (demande de Maël), l'équipe senior la 2e. Écrit aussi dans les réglages (comme l'outil : ★ = principale), sinon une
+-- publication complète depuis l'outil les remettrait à leur seule équipe du site. Seulement si la carte est encore à son équipe senior,
+-- sans 2e équipe. Sohen Abadie (SG1 3 matchs, SG2 1, -18G 1) garde SG1/SG2 : 2 équipes au plus.
+update cartes c set equipe = v.eqs[1], equipes = v.eqs, reglages = coalesce(c.reglages, '{}') || jsonb_build_object('equipes', to_jsonb(v.eqs)), maj = now()
+  from (values
+  ('margot-arzel', array['-18F1', 'SF2']),
+  ('chiara-geneves', array['-18F1', 'SF2']),
+  ('dorian-bondy', array['-18G', 'SG2']),
+  ('baptiste-braquessac', array['-18G', 'SG2'])) v(id, eqs)
+  where c.id = v.id and cardinality(c.equipes) = 0 and c.equipe = v.eqs[2];
 -- Régional, National et International plus durs (demande de Maël, 20 nov. 2026 : on y gagnait 72 à 95 % des matchs) : la force de base
 -- de chaque niveau, seulement si elle est encore à l'ancienne valeur ; les poules et tournois déjà tirés gardent leurs adversaires
 update parametres set valeurs = jsonb_set(valeurs, '{parcours}', (select jsonb_agg(case
