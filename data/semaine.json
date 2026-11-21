@@ -1,10 +1,134 @@
 {
- "maj": "2026-11-16",
+ "maj": "2026-11-21",
  "saison": "2026-2027",
  "semaines": [
   {
+   "lundi": "2026-09-07",
+   "equipes": {
+    "-15F": {
+     "carte": "paloma-boudaud",
+     "nom": "Paloma Boudaud",
+     "buts": 10,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-13",
+      "adv": "Ambares /carbon-blanc U15f",
+      "score": [
+       38,
+       20
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-15G": {
+     "carte": "quentin-chacun",
+     "nom": "Quentin Chacun",
+     "buts": 15,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-12",
+      "adv": "Ambaresienne",
+      "score": [
+       46,
+       31
+      ],
+      "lieu": "ext"
+     }
+    }
+   }
+  },
+  {
    "lundi": "2026-09-14",
    "equipes": {
+    "-15F": {
+     "carte": "pauline-rautureau",
+     "nom": "Pauline Rautureau",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-20",
+      "adv": "Gazinet Cestas 1",
+      "score": [
+       24,
+       58
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-15G": {
+     "carte": "loris-benita",
+     "nom": "Loris Benita",
+     "buts": 7,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-19",
+      "adv": "Girondins De Bordeaux Bastide 2",
+      "score": [
+       29,
+       31
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18F1": {
+     "carte": "chiara-geneves",
+     "nom": "Chiara Geneves",
+     "buts": 7,
+     "tirs": 9,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-19",
+      "adv": "Martignas",
+      "score": [
+       32,
+       18
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18F2": {
+     "carte": "emma-guerrier-tournier",
+     "nom": "Emma Guerrier--Tournier",
+     "buts": 11,
+     "tirs": 16,
+     "arrets": 2,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-20",
+      "adv": "Arsac",
+      "score": [
+       23,
+       33
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18G": {
+     "carte": "taho-gradit",
+     "nom": "Taho Gradit",
+     "buts": 13,
+     "tirs": 22,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-19",
+      "adv": "Agja Bordeaux Cauderan",
+      "score": [
+       42,
+       32
+      ],
+      "lieu": "dom"
+     }
+    },
     "SF1": {
      "carte": "cecilia-ennelin",
      "nom": "Cecilia Ennelin",
@@ -78,6 +202,40 @@
   {
    "lundi": "2026-09-21",
    "equipes": {
+    "-18F1": {
+     "carte": "margot-arzel",
+     "nom": "Margot Arzel",
+     "buts": 11,
+     "tirs": 16,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-27",
+      "adv": "Blanquefortaise",
+      "score": [
+       38,
+       42
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18G": {
+     "carte": "arthur-faugerolle",
+     "nom": "Arthur Faugerolle",
+     "buts": 6,
+     "tirs": 9,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-09-26",
+      "adv": "Haillan 1",
+      "score": [
+       29,
+       37
+      ],
+      "lieu": "ext"
+     }
+    },
     "SF1": {
      "carte": "julie-valentin",
      "nom": "Julie Valentin",
@@ -151,6 +309,91 @@
   {
    "lundi": "2026-09-28",
    "equipes": {
+    "-15F": {
+     "carte": "camille-dezauzier",
+     "nom": "Camille Dezauzier",
+     "buts": 6,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Merignac Gironde 2",
+      "score": [
+       23,
+       46
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-15G": {
+     "carte": "ralph-louis-epee-bokambe",
+     "nom": "Ralph-Louis Epee Bokambe",
+     "buts": 7,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Eysines 1",
+      "score": [
+       40,
+       42
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18F1": {
+     "carte": "rose-harmant-le-gac",
+     "nom": "Rose Harmant--Le Gac",
+     "buts": 0,
+     "tirs": 0,
+     "arrets": 23,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Bruges - Mérignac 1",
+      "score": [
+       28,
+       26
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18F2": {
+     "carte": "thais-bourseau",
+     "nom": "Thaïs Bourseau",
+     "buts": 9,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-03",
+      "adv": "Parempuyre",
+      "score": [
+       31,
+       27
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18G": {
+     "carte": "theo-durez",
+     "nom": "Théo Durez",
+     "buts": 6,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-04",
+      "adv": "Blanquefortaise",
+      "score": [
+       30,
+       35
+      ],
+      "lieu": "dom"
+     }
+    },
     "SF1": {
      "carte": "victoire-grivet",
      "nom": "Victoire Grivet",
@@ -224,6 +467,57 @@
   {
    "lundi": "2026-10-05",
    "equipes": {
+    "-15F": {
+     "carte": "joane-labeyrie",
+     "nom": "Joane Labeyrie",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-11",
+      "adv": "Parempuyre",
+      "score": [
+       24,
+       13
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18F2": {
+     "carte": "eloane-guerrier-tournier",
+     "nom": "Eloane Guerrier--Tournier",
+     "buts": 4,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-10",
+      "adv": "Arsac",
+      "score": [
+       15,
+       26
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18G": {
+     "carte": "elias-montiel-ruer",
+     "nom": "Elias Montiel--Ruer",
+     "buts": 0,
+     "tirs": 0,
+     "arrets": 14,
+     "matchs": 1,
+     "match": {
+      "date": "2026-10-10",
+      "adv": "Agja Bordeaux Cauderan",
+      "score": [
+       42,
+       28
+      ],
+      "lieu": "ext"
+     }
+    },
     "SF1": {
      "carte": "zaya-audard",
      "nom": "Zaya Audard",
@@ -353,6 +647,91 @@
   {
    "lundi": "2026-11-02",
    "equipes": {
+    "-15F": {
+     "carte": "melia-sajdak",
+     "nom": "Melia Sajdak",
+     "buts": 6,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-07",
+      "adv": "Girondins De Bordeaux Bastide",
+      "score": [
+       26,
+       37
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-15G": {
+     "carte": "ewen-tanniou",
+     "nom": "Ewen Tanniou",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-08",
+      "adv": "Bruges 33 2",
+      "score": [
+       31,
+       37
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18F1": {
+     "carte": "emma-guerrier-tournier",
+     "nom": "Emma Guerrier--Tournier",
+     "buts": 6,
+     "tirs": 7,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-08",
+      "adv": "Pe2M",
+      "score": [
+       37,
+       21
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18F2": {
+     "carte": "eva-lepoittevin",
+     "nom": "Eva Lepoittevin",
+     "buts": 0,
+     "tirs": 0,
+     "arrets": 25,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-07",
+      "adv": "Andernos Nord Bassin",
+      "score": [
+       19,
+       31
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18G": {
+     "carte": "dorian-bondy",
+     "nom": "Dorian Bondy",
+     "buts": 4,
+     "tirs": 5,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-07",
+      "adv": "Haillan 1",
+      "score": [
+       34,
+       19
+      ],
+      "lieu": "dom"
+     }
+    },
     "SF1": {
      "carte": "norah-de-wilde",
      "nom": "Norah De Wilde",
@@ -426,6 +805,91 @@
   {
    "lundi": "2026-11-09",
    "equipes": {
+    "-15F": {
+     "carte": "mae-bornes",
+     "nom": "Maé Bornes",
+     "buts": 1,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-15",
+      "adv": "Ambares /carbon-blanc U15f",
+      "score": [
+       8,
+       43
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-15G": {
+     "carte": "sacha-lucas",
+     "nom": "Sacha Lucas",
+     "buts": 6,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-14",
+      "adv": "Ambaresienne",
+      "score": [
+       37,
+       26
+      ],
+      "lieu": "dom"
+     }
+    },
+    "-18F1": {
+     "carte": "nathanaelle-dalibot",
+     "nom": "Nathanaëlle Dalibot",
+     "buts": 4,
+     "tirs": 8,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-14",
+      "adv": "Martignas",
+      "score": [
+       23,
+       20
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18F2": {
+     "carte": "noemie-negrier",
+     "nom": "Noémie Negrier",
+     "buts": 6,
+     "tirs": 13,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-14",
+      "adv": "Parempuyre",
+      "score": [
+       26,
+       23
+      ],
+      "lieu": "ext"
+     }
+    },
+    "-18G": {
+     "carte": "toan-mouton-cazaubon",
+     "nom": "Toan Mouton--Cazaubon",
+     "buts": 3,
+     "tirs": 6,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-15",
+      "adv": "Blanquefortaise",
+      "score": [
+       19,
+       33
+      ],
+      "lieu": "ext"
+     }
+    },
     "SF1": {
      "carte": "soane-audard",
      "nom": "Soane Audard",
@@ -605,6 +1069,114 @@
   "2647829": {
    "carte": "norah-de-wilde",
    "buts": 6
+  },
+  "2691901": {
+   "carte": "paloma-boudaud",
+   "buts": 10
+  },
+  "2691904": {
+   "carte": "paloma-boudaud",
+   "buts": 13
+  },
+  "2691906": {
+   "carte": "camille-dezauzier",
+   "buts": 6
+  },
+  "2691911": {
+   "carte": "pauline-rautureau",
+   "buts": 7
+  },
+  "2691913": {
+   "carte": "pauline-rautureau",
+   "buts": 10
+  },
+  "2691916": {
+   "carte": "paloma-boudaud",
+   "buts": 4
+  },
+  "2692254": {
+   "carte": "quentin-chacun",
+   "buts": 15
+  },
+  "2692257": {
+   "carte": "loris-benita",
+   "buts": 7
+  },
+  "2692261": {
+   "carte": "quentin-chacun",
+   "buts": 10
+  },
+  "2692268": {
+   "carte": "quentin-chacun",
+   "buts": 11
+  },
+  "2692269": {
+   "carte": "quentin-chacun",
+   "buts": 9
+  },
+  "2706344": {
+   "carte": "emma-guerrier-tournier",
+   "buts": 11
+  },
+  "2706348": {
+   "carte": "thais-bourseau",
+   "buts": 9
+  },
+  "2706350": {
+   "carte": "eloane-guerrier-tournier",
+   "buts": 4
+  },
+  "2706352": {
+   "carte": "eloane-guerrier-tournier",
+   "buts": 5
+  },
+  "2706354": {
+   "carte": "noemie-negrier",
+   "buts": 6
+  },
+  "2709731": {
+   "carte": "chiara-geneves",
+   "buts": 7
+  },
+  "2709735": {
+   "carte": "margot-arzel",
+   "buts": 11
+  },
+  "2709739": {
+   "carte": "margot-arzel",
+   "buts": 6
+  },
+  "2709743": {
+   "carte": "chiara-geneves",
+   "buts": 7
+  },
+  "2709746": {
+   "carte": "chiara-geneves",
+   "buts": 6
+  },
+  "2710189": {
+   "carte": "taho-gradit",
+   "buts": 13
+  },
+  "2710191": {
+   "carte": "taho-gradit",
+   "buts": 12
+  },
+  "2710192": {
+   "carte": "taho-gradit",
+   "buts": 14
+  },
+  "2710195": {
+   "carte": "taho-gradit",
+   "buts": 12
+  },
+  "2710197": {
+   "carte": "taho-gradit",
+   "buts": 14
+  },
+  "2710198": {
+   "carte": "arthur-faugerolle",
+   "buts": 8
   }
  }
 }
