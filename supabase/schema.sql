@@ -85,7 +85,7 @@ insert into parametres values (1, '{
   "passe_debut": "2026-11-02", "passe_semaines": 4, "passe_paliers": 30, "passe_xp_palier": 400,
   "compo_par_semaine": 3,
   "booster_equipe_prix": 500, "booster_hasard_prix": 300, "staff_chance": 0.1, "booster_lot": 10, "choix_coach_prix": 400, "choix_coach_par_jour": 3,
-  "legende_chance": 0.002, "legende_note": 100,
+  "legende_chance": 0.002, "legende_chance_mystere": 0.002, "legende_note": 100,
   "prono_pieces_point": 20, "prono_points": {"exact": 5, "issue": 2, "ecart": 1, "buteur": 3},
   "ligue_matchs_jour": 5, "ligue_taille": 10, "ligue_divisions": 8, "ligue_montee": 3, "ligue_descente": 3, "ligue_meme_adversaire": 2,
   "ligue_pieces": {"gagne": 40, "nul": 20, "perdu": 10},
@@ -3780,14 +3780,30 @@ begin
 end $$;
 
 -- Booster mystère (demande de Maël) : une carte au hasard parmi toutes (joueurs de toutes les équipes, et cartes staff
--- 1 fois sur 10), mêmes chances de palier que le booster gratuit ; jamais de légende
+-- 1 fois sur 10), mêmes chances de palier que le booster gratuit ; une légende 1 fois sur 500 (legende_chance_mystere)
+-- Une légende du club, avec la chance de la clé donnée (sinon null) ; booster mystère : legende_chance_mystere (demande de Maël,
+-- 21 nov. 2026 : les légendes sortent aussi du booster mystère, seul ou par 10 ; 1 sur 500 comme le booster gratuit)
+create or replace function tirer_legende(p_cle text) returns text language sql volatile security definer set search_path = public as $$
+  select case when random() < coalesce((param(p_cle) #>> '{}')::numeric, 0) then (select id from cartes where legende order by random() limit 1) end
+$$;
+-- une légende tirée devient un exemplaire Ultime à sa note de légende
+create or replace function donner_legende(p_uid uuid, p_carte text, p_origine text) returns uuid language plpgsql security definer set search_path = public as $$
+declare ex uuid;
+begin
+  ex := creer_exemplaire(p_uid, p_carte, 'ultime', p_origine);
+  update exemplaires set note = greatest(palier_min('ultime'), least(100, parami('legende_note'))) where id = ex;
+  return ex;
+end $$;
 create or replace function ouvrir_booster_hasard() returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils; prix int := parami('booster_hasard_prix'); c text; ex uuid; st jsonb;
 begin
   select * into p from profils where user_id = auth.uid() for update;
   if not found then raise exception 'Crée ton profil d''abord'; end if;
   if p.pieces < prix then raise exception 'Il faut % pièces pour ce booster', prix; end if;
-  if random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
+  c := tirer_legende('legende_chance_mystere');
+  if c is not null then
+    ex := donner_legende(p.user_id, c, 'booster:hasard-legende');
+  elsif random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
     st := donner_staff_hasard(p.user_id, param('booster_chances'));
   else
     c := tirer_carte();
@@ -3802,7 +3818,8 @@ end $$;
 
 -- Boosters par 10 (demande de Maël) : 10 boosters d'une équipe, ou 10 boosters mystère (p_equipe = '?'), payés et ouverts d'un
 -- coup (`booster_lot` boosters au prix de `booster_lot` fois un seul). Chaque carte est tirée exactement comme dans le booster
--- seul : mêmes chances de palier, carte staff 1 fois sur 10 dans le mystère, jamais de légende. Renvoie {ids, staffs}.
+-- seul : mêmes chances de palier, carte staff 1 fois sur 10 et légende 1 fois sur 500 dans le mystère (jamais dans un booster
+-- d'équipe). Renvoie {ids, staffs}.
 create or replace function ouvrir_boosters_lot(p_equipe text) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); n int := greatest(2, least(20, parami('booster_lot'))); mystere boolean := p_equipe = '?';
   prix int; c text; ex uuid; ids uuid[] := '{}'; staffs jsonb := '[]'::jsonb;
@@ -3811,7 +3828,10 @@ begin
   prix := n * parami(case when mystere then 'booster_hasard_prix' else 'booster_equipe_prix' end);
   if p.pieces < prix then raise exception 'Il faut % pièces pour ces % boosters', prix, n; end if;
   for i in 1 .. n loop
-    if mystere and random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
+    c := case when mystere then tirer_legende('legende_chance_mystere') end;
+    if c is not null then
+      ids := ids || donner_legende(p.user_id, c, 'booster:hasard-legende');
+    elsif mystere and random() < coalesce((param('staff_chance') #>> '{}')::numeric, 0) then
       staffs := staffs || donner_staff_hasard(p.user_id, param('booster_chances'));
     else
       if mystere then c := tirer_carte(); else select id into c from cartes where actif and p_equipe = any(equipes_de(equipe, equipes)) order by random() limit 1; end if;

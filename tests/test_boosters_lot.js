@@ -52,12 +52,24 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('staff à coup sûr : 10 cartes staff avec leur palier, aucun joueur', r.ids?.length === 0 && r.staffs?.length === 10 && r.staffs.every(x => x.id && x.palier)
     && await staffs() === ns + 10 && await cartes() === nb, r.erreur || r.staffs);
   verif('la première carte staff est placée dans l’équipe', !!(await un('select staff from profils where user_id = $1', [al.id])).staff);
-  await reglage({staff_chance: 0.1});
+  await reglage({staff_chance: 0.1, legende_chance_mystere: 0});
   await q('update profils set pieces = 200000 where user_id = $1', [al.id]);
   let legendes = 0, equipes = new Set();
   for (let k = 0; k < 15; k++) { r = await rpcJoueur(db, al.id, 'ouvrir_boosters_lot', ['?']);
     for (const x of await q('select c.legende, c.equipe from exemplaires e join cartes c on c.id = e.carte_id where e.id = any($1::uuid[])', [r.ids])) { legendes += x.legende ? 1 : 0; equipes.add(x.equipe); } }
-  verif('150 boosters mystère : jamais de légende, des joueurs de plusieurs équipes', legendes === 0 && equipes.size >= 3, {legendes, equipes: [...equipes]});
+  verif('150 boosters mystère (chance de légende à 0) : aucune légende, des joueurs de plusieurs équipes', legendes === 0 && equipes.size >= 3, {legendes, equipes: [...equipes]});
+  // légendes dans le booster mystère (demande de Maël, 21 nov. 2026) : réglage legende_chance_mystere (1 sur 500 par défaut)
+  await reglage({legende_chance_mystere: 1});
+  r = await rpcJoueur(db, al.id, 'ouvrir_boosters_lot', ['?']);
+  nv = await q("select c.legende, e.palier, e.note, e.origine from exemplaires e join cartes c on c.id = e.carte_id where e.id = any($1::uuid[])", [r.ids || []]);
+  verif('10 boosters mystère, légende à coup sûr : 10 légendes Ultime à 100', nv.length === 10 && nv.every(x => x.legende && x.palier === 'ultime' && x.note === 100 && x.origine === 'booster:hasard-legende'), r.erreur || nv.slice(0, 2));
+  r = await rpcJoueur(db, al.id, 'ouvrir_booster_hasard', []);
+  nv = await q("select c.legende, e.note from exemplaires e join cartes c on c.id = e.carte_id where e.id = any($1::uuid[])", [r.ids || []]);
+  verif('booster mystère seul, légende à coup sûr : la légende, à 100', nv.length === 1 && nv[0].legende && nv[0].note === 100, r.erreur || nv);
+  r = await rpcJoueur(db, al.id, 'ouvrir_boosters_lot', ['SF1']);
+  nv = await q("select c.legende from exemplaires e join cartes c on c.id = e.carte_id where e.id = any($1::uuid[])", [r.ids || []]);
+  verif('booster d’équipe : jamais de légende, même à coup sûr dans le mystère', nv.length === 10 && nv.every(x => !x.legende), r.erreur);
+  await reglage({legende_chance_mystere: 0});
   // le nombre vient du réglage, borné
   await reglage({booster_lot: 4});
   avant = await profil(); r = await rpcJoueur(db, al.id, 'ouvrir_boosters_lot', ['SF2']); apres = await profil();

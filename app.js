@@ -2692,6 +2692,7 @@ function acheterLot(eq) {
 function acheterLotOui(eq) {
   const avant = new Set(EX().map(e => e.carte)), avantStaff = new Set(staffListe().filter(x => x.meilleur).map(x => x.id));
   action(Compte.ouvrirBoostersLot(eq), ({ids, staffs}) => {
+    integrerLegendes();   // une légende du club (booster mystère, 1 sur 500) : absente du catalogue tant qu'on ne l'a pas
     // « nouveau » seulement sur le premier exemplaire d'un joueur qu'on n'avait pas
     const res = (ids || []).map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte) && !!avant.add(e.carte)}));
     for (const st of staffs || []) { const x = staffDe(st.id);
@@ -2824,7 +2825,9 @@ function lotRetourner(c, enMasse) {
   const {el, res, finales} = OB, i = +c.dataset.i, f = finales[i], r = res[i].c.rarete, k = Math.max(0, RARETES.indexOf(r)), d = f.w * f.s;
   c.classList.remove('attente'); c.classList.add('vu', 't-' + r);
   Son.jouer('retourne');
-  if (!enMasse) { Son.jouer('revele-' + r); vibrer(k >= 2 ? [40, 60, 80] : 20); }
+  const leg = !!res[i].c.legende;   // une légende du club : son à elle, et l'écran tremble même pendant « Tout retourner »
+  if (!enMasse) { Son.jouer(leg ? 'legende' : 'revele-' + r); vibrer(leg ? [60, 40, 60, 40, 120] : k >= 2 ? [40, 60, 80] : 20); }
+  else if (leg) Son.jouer('legende');
   if (k > OB.meilleur) { OB.meilleur = k; el.style.setProperty('--tc', TEINTE[r]); }   // le fond prend la couleur de la meilleure carte vue
   if (!OB.vite) {
     lotVers(c, place(f.x, f.y, f.s), {via: place(f.x, f.y - 8, f.s * (1.1 + k * .03)), a: .45, duree: 620});
@@ -2839,7 +2842,7 @@ function lotRetourner(c, enMasse) {
     if (k >= 2) {   // Or et Ultime : éclair à leur couleur, rayons, et l'écran tremble pour un Ultime
       el.classList.add('t-haut');
       el.querySelector('.lot-flash').animate([{opacity: 0}, {opacity: k > 2 ? .75 : .45, offset: .2}, {opacity: 0}], {duration: 800, delay: 230, easing: 'ease-out'});
-      if (k > 2 && !enMasse) el.animate([{transform: 'none'}, {transform: 'translate(-6px, 3px)'}, {transform: 'translate(5px, -4px)'}, {transform: 'translate(-3px, 2px)'}, {transform: 'none'}],
+      if (k > 2 && (!enMasse || leg)) el.animate([{transform: 'none'}, {transform: 'translate(-6px, 3px)'}, {transform: 'translate(5px, -4px)'}, {transform: 'translate(-3px, 2px)'}, {transform: 'none'}],
         {duration: 380, delay: 260, easing: 'linear'});
     }
   } else if (k >= 2) el.classList.add('t-haut');
@@ -3411,7 +3414,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=83').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=84').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
