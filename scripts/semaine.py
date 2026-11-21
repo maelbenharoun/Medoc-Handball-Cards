@@ -17,6 +17,7 @@ Appelé par scripts/depuis_site.py (action GitHub « site ») ; le serveur relit
 """
 import json
 import re
+import urllib.error
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
@@ -40,12 +41,18 @@ def catalogue():
     try:
         conf = (DATA.parent / "config.js").read_text(encoding="utf-8")
         url, cle = (re.search(k + r": '([^']*)'", conf).group(1) for k in ("supabaseUrl", "supabaseCle"))
-        req = urllib.request.Request(url + "/rest/v1/cartes?select=id,nom,equipe,equipes,actif,legende&legende=eq.false",
-                                     headers={"apikey": cle, "User-Agent": "medoc-hand-cards (joueurs de la semaine)"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            for x in json.loads(r.read().decode("utf-8")):
-                c = cartes.setdefault(x["id"], {"id": x["id"]})
-                c.update(nom=x["nom"], equipe=x["equipe"], equipes=x.get("equipes") or [])
+        def lire(champs):
+            req = urllib.request.Request(url + f"/rest/v1/cartes?select={champs}&legende=eq.false",
+                                         headers={"apikey": cle, "User-Agent": "medoc-hand-cards (joueurs de la semaine)"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read().decode("utf-8"))
+        try:
+            lignes = lire("id,nom,equipe,equipes")
+        except urllib.error.HTTPError:   # base d'avant la colonne « equipes »
+            lignes = lire("id,nom,equipe")
+        for x in lignes:
+            c = cartes.setdefault(x["id"], {"id": x["id"]})
+            c.update(nom=x["nom"], equipe=x["equipe"], equipes=x.get("equipes") or [])
     except Exception as e:   # le serveur ne répond pas : les cartes du site seulement (les jeunes seront élus à la prochaine mise à jour)
         print(f"catalogue du serveur indisponible ({e}) : data/cartes.json seulement")
     return list(cartes.values())

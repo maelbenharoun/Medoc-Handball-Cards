@@ -126,7 +126,14 @@ def main():
             if v and v.get("sheet"):
                 e["sheet"] = v["sheet"]
             else:
-                lj = composant(page(pu + f"rencontre-{rid}/"), "competitions---rencontre-liste-joueurs")
+                hp = page(pu + f"rencontre-{rid}/") or ""
+                lj = composant(hp, "competitions---rencontre-liste-joueurs")
+                if essai:   # diagnostic (sans nom) : la page, ses composants, la liste des joueurs
+                    import re as _re
+                    print("  page", rid, len(hp), "car.", sorted(set(_re.findall(r'name="(competitions---[a-z-]+)"', hp)))[:12],
+                          "| hideButs", lj.get("hideButs"), "| joueurs", len(lj.get("statsJoueurs") or []),
+                          "| du club", sum(1 for j in lj.get("statsJoueurs") or [] if str(j.get("equipeId")) in club), "| ids club", sorted(club),
+                          "| ids vus", sorted({str(j.get("equipeId")) for j in lj.get("statsJoueurs") or []}), "| fdm", bool(r.get("fdmCode")))
                 cote = "h" if e1 in club else "a"
                 lignes = []
                 for j in lj.get("statsJoueurs") or []:
