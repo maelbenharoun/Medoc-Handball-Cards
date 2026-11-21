@@ -23,7 +23,7 @@ let BROUILLON = lireBrouillon();
 let REGL = lireReglages();
 const PHOTOS_LOCALES = {};   // photos publiées pendant cette session, le temps que GitHub Pages les mette en ligne
 let filtre = 'tous', filtrePoste = 'tous', tri = 'nom', recherche = '', ed = null;   // filtres : équipe, poste ; tri : nom ou poste
-const EQUIPES_CARTES = ['SF1', 'SF2', 'SG1', 'SG2'];
+const EQUIPES_CARTES = ['SF1', 'SF2', 'SG1', 'SG2', '-15F'];
 // identifiant d'une carte créée : nom sans accents, en minuscules, mots reliés par des tirets (comme le site)
 const slugAdmin = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
 // une carte créée (pas sur le site) rejoint la liste ; SITE et PAR_ID partagent le même objet
@@ -228,7 +228,7 @@ function vue() {
     <p class="sub">${SITE.length} cartes · ${Object.keys(PERSO).length} réglée${Object.keys(PERSO).length > 1 ? 's' : ''} · ${SOURCE}</p>
     ${SERVEUR && adminOk ? '<p class="actions-admin"><button class="btn gold petit" data-act="creer">＋ Créer une carte</button> <button class="btn ghost petit" data-act="synchro">Synchroniser avec le site</button> <button class="btn ghost petit" data-act="matchs">Matchs, paris et équipes du parcours</button> <button class="btn ghost petit" data-act="staff">Cartes staff</button></p>' : ''}
     <input class="champ" type="search" placeholder="Chercher un nom" value="${esc(recherche)}" data-recherche>
-    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['legendes', `Légendes (${toutes.filter(c => c.legende).length})`]]
+    <div class="filters">${[['tous', 'Toutes'], ['SG1'], ['SG2'], ['SF1'], ['SF2'], ['-15F'], ['legendes', `Légendes (${toutes.filter(c => c.legende).length})`]]
       .map(([k, l]) => `<button data-filtre="${k}" class="${filtre === k ? 'on' : ''}">${l || k}</button>`).join('')}</div>
     <div class="filters">${[['tous', 'Tous les postes'], ...POSTES_JEU.map(p => [p, `${p} (${parPoste(p)})`]), ['sans', `Sans poste (${sansPoste})`]]
       .map(([k, l]) => `<button data-fposte="${k}" class="${filtrePoste === k ? 'on' : ''}">${l}</button>`).join('')}</div>

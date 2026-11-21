@@ -235,7 +235,7 @@ function minuteur() {
 const BOOSTERS_EQUIPE = [['SF1', 'julie-valentin', 'or'], ['SF2', 'elodie-perez', 'bronze'], ['SG1', 'wassia-donzow', 'or'], ['SG2', 'luigi-bataillon', 'or']];
 // carrousel « Acheter un booster » (demande de Maël) : les 4 équipes, puis le booster mystère (« ? » : une carte parmi toutes)
 const BOOSTERS_CAR = [...BOOSTERS_EQUIPE, ['?', null, null]];
-const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2'};
+const NOM_EQUIPE = {SF1: 'Seniors Filles 1', SF2: 'Seniors Filles 2', SG1: 'Seniors Garçons 1', SG2: 'Seniors Garçons 2', '-15F': 'Moins de 15 ans Filles'};
 const carTitre = eq => eq === '?' ? 'Booster mystère' : NOM_EQUIPE[eq] || eq;
 const carSous = eq => eq === '?' ? 'Une carte au hasard parmi toutes, joueurs et staff · mêmes chances' : `${uneEquipe(eq)} · mêmes chances · ${joueursEquipe(eq)}`;
 const carPrix = eq => eq === '?' ? PARAMS.booster_hasard_prix ?? 300 : PARAMS.booster_equipe_prix ?? 500;
@@ -763,7 +763,7 @@ function validerCompo() {
 // ── club : la collection ────────────────────────────────────────────────────────
 const enJeu = () => CARTES.filter(c => c.actif !== false);   // cartes encore tirées dans les boosters
 function vueClub() {
-  const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2', 'fusion'];
+  const eqs = ['tous', 'SG1', 'SG2', 'SF1', 'SF2', '-15F', 'fusion'];
   const vus = CARTES.filter(c => (c.actif !== false || mesEx(c.id).length)
     && (filtre === 'tous' || c.equipe === filtre || (filtre === 'fusion' && fusionsPossibles(c.id).length))
     && (filtrePoste === 'tous' || (c.postes?.length ? c.postes : [c.poste]).includes(filtrePoste)));   // un joueur à plusieurs postes est sous chacun
@@ -1937,7 +1937,7 @@ function chargerParis() {
 }
 const issueNom = (m, choix) => choix === '1' ? m.dom : choix === '2' ? m.ext : 'Match nul';
 // couleurs des quatre poules (bandeau des matchs, filtres) et blason des clubs : le logo pour le Médoc, des initiales sinon
-const TEINTE_EQ = {SG1: '#4f8cff', SG2: '#1fc7b6', SF1: '#ff5c93', SF2: '#a979ff'};
+const TEINTE_EQ = {SG1: '#4f8cff', SG2: '#1fc7b6', SF1: '#ff5c93', SF2: '#a979ff', '-15F': '#ffb347'};
 const teinteClub = n => { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const initialesClub = n => { const num = n.match(/\s(\d+)$/)?.[1] || '', mots = n.replace(/\s\d+$/, '').split(/[\s-]+/).filter(w => w.length > 2 || /^[A-ZÉ]/.test(w));
   return ((mots.length > 1 ? mots[0][0] + mots[1][0] : (mots[0] || n).slice(0, 2)) + num).toUpperCase(); };
