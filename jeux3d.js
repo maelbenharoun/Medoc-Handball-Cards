@@ -76,11 +76,15 @@ const POSES = {
   paradeHautCentre: [[B('R_UpperArm'), 'z', -168], [B('L_UpperArm'), 'z', 168], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -10], [B('L_Calf'), 'x', 15], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeBasCentre: [[B('R_UpperArm'), 'z', -30], [B('L_UpperArm'), 'z', 30], [B('R_Forearm'), 'x', -25], [B('L_Forearm'), 'x', -25],
     [B('L_Thigh'), 'z', 8], [B('R_Thigh'), 'z', -8], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -20], [B('L_Calf'), 'x', 35], [B('Spine'), 'x', 14]],
-  // jet de 7 m (photos envoyées par Maël, 23 nov. 2026) : buste droit (pas penché comme pour une feinte), ballon derrière la tête au
-  // niveau de l'oreille, coude plié, l'autre bras tendu vers l'avant et le bas, jambes écartées, la gauche devant genou plié
-  arme7m: [[B('Spine1'), 'y', 28], [B('R_UpperArm'), 'z', -108], [B('R_UpperArm'), 'y', -58], [B('R_Forearm'), 'z', -128],
-    [B('L_UpperArm'), 'z', 48], [B('L_UpperArm'), 'x', -45], [B('L_Forearm'), 'x', -10],
-    [B('L_Thigh'), 'x', -34], [B('L_Thigh'), 'z', 6], [B('L_Calf'), 'x', 30], [B('R_Thigh'), 'x', 24], [B('R_Thigh'), 'z', -6], [B('R_Calf'), 'x', 6]],
+  // jet de 7 m (photos envoyées par Maël, 23 nov. 2026) : buste droit (pas penché comme pour une feinte), jambe gauche devant
+  // juste derrière la ligne, épaule et pied droits loin derrière pour « ouvrir le geste » ; appui7m = hanches et jambes (posée la
+  // première : elle tourne tout le haut du corps), bras7m = épaules, tête vers le but, bras armé (coude à hauteur d'épaule, ballon
+  // derrière la tête au niveau de l'oreille) et l'autre bras tendu vers le but
+  appui7m: [[B('Spine'), 'y', -30], [B('L_Thigh'), 'x', -32], [B('L_Calf'), 'x', 30], [B('R_Thigh'), 'x', 30], [B('R_Calf'), 'x', 6]],
+  bras7m: [[B('Spine1'), 'y', -25], [B('Neck'), 'y', 22], [B('Head'), 'y', 30],
+    [B('R_Forearm'), 'x', -95], [B('R_UpperArm'), 'z', -90], [B('R_UpperArm'), 'x', -90], [B('R_UpperArm'), 'z', -14],
+    [B('R_UpperArm'), 'y', -50],
+    [B('L_UpperArm'), 'z', 48], [B('L_UpperArm'), 'x', -45], [B('L_Forearm'), 'x', -10]],
   arme: [[B('Spine1'), 'y', 25], [B('R_UpperArm'), 'z', -105], [B('R_UpperArm'), 'y', -40], [B('R_Forearm'), 'z', -95], [B('L_UpperArm'), 'z', 45], [B('L_UpperArm'), 'x', -40], [B('L_Forearm'), 'x', -50]],
   tir: [[B('Spine1'), 'y', -20], [B('Spine1'), 'x', 15], [B('R_UpperArm'), 'z', -120], [B('R_UpperArm'), 'y', 45], [B('R_Forearm'), 'z', -15], [B('L_UpperArm'), 'z', 25]],
   contre: [[B('R_UpperArm'), 'z', -165], [B('L_UpperArm'), 'z', 165], [B('R_Forearm'), 'z', -5], [B('L_Forearm'), 'z', 5], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
@@ -553,11 +557,13 @@ export async function gardien(sc, n) {
   // course d'élan plus courte (Maël, 20 nov. 2026 : « c'est trop long de voir le mec courir ») : il part de 12 m au lieu de 15,5
   // jet de 7 m (Maël, 23 nov. 2026) : le tireur ne bouge pas le pied du point de 7 m, pas de trajectoire dessinée
   const fixe = !!MJ.match;
-  const x0 = fixe ? 0 : (Math.random() - .5) * 4, dep = fixe ? {x: 0, z: 7} : {x: x0, z: 12.2}, appui = fixe ? {x: 0, z: 7} : {x: x0 * .55, z: 9.6};
+  // pied gauche (devant) juste derrière la ligne de 7 m (6,95-7 m), jamais dessus (Maël, 23 nov. 2026)
+  const Z7 = 7.47;
+  const x0 = fixe ? 0 : (Math.random() - .5) * 4, dep = fixe ? {x: 0, z: Z7} : {x: x0, z: 12.2}, appui = fixe ? {x: 0, z: Z7} : {x: x0 * .55, z: 9.6};
   const cible = v3(X[prep.colonne] + (Math.random() - .5) * .3, {h: 1.55, b: .42}[prep.hauteur] + (Math.random() - .5) * .25, 0);
   const vite = Math.max(.85, 1 - (MJ.serieN || 0) * .02), course = fixe ? 0 : 520 * vite, saut = fixe ? 900 : 440 * vite, duree = prep.duree;
   tireur.mettre(dep.x, 0, dep.z, Math.PI);
-  if (fixe) { tireur.regarder(0, 0); tireur.jouer('repos', .1); miniAide('Il arme son tir…'); }
+  if (fixe) { tireur.regarder(0, 0); tireur.jouer('repos', .1); tireur.ancre = true; tireur.pose('appui7m', 1); miniAide('Il arme son tir…'); }
   else { tireur.regarder(appui.x, appui.z); tireur.jouer('course', .1, 1.15); miniAide('Le tireur arrive…'); }
   let choisi = null, envoye = false, r = null, quand = 0, depart = null, fini = false, tChoix = 0, par = null;
   const envoyer = async ent => {
@@ -572,9 +578,10 @@ export async function gardien(sc, n) {
     // tireur : course d'élan, appel, saut ; bras armé puis tir
     if (t < course) { const u = t / course; tireur.mettre(lerp(dep.x, appui.x, u), 0, lerp(dep.z, appui.z, u)); }
     else if (fixe) {   // debout sur le point de 7 m : il arme, puis tire, sans sauter
-      tireur.mettre(0, 0, 7);
-      if (t < saut) tireur.pose('arme7m', doux(cl(t / 350)));
-      else { const v = doux(cl((t - saut) / 120)); tireur.pose('arme7m', 1 - v); tireur.pose('tir', v); }
+      tireur.mettre(0, 0, Z7);
+      tireur.pose('appui7m', 1);
+      if (t < saut) tireur.pose('bras7m', doux(cl(t / 350)));
+      else { const v = doux(cl((t - saut) / 120)); tireur.pose('bras7m', 1 - v); tireur.pose('tir', v); }
     } else {
       const u = cl((t - course) / (saut + 520));
       tireur.mettre(appui.x, Math.sin(Math.PI * u) * .55, appui.z - u * .9);
@@ -890,7 +897,8 @@ export async function jet7m(J7, z) {
   let etat = null, enMain = true;
   const placer = () => {
     etat = null; enMain = true;
-    tireur.sansPoses(); tireur.jouer('repos', 0); tireur.mettre(.1, 0, 7.6, Math.PI); tireur.pose('arme', .5);
+    // même pose que le tireur adverse : pied gauche juste derrière la ligne de 7 m, bras armé pendant la visée (à moitié, le ballon sortait de l'écran)
+    tireur.sansPoses(); tireur.jouer('repos', 0); tireur.mettre(0, 0, 7.47, Math.PI); tireur.ancre = true; tireur.pose('appui7m', 1); tireur.pose('bras7m', 1);
     gb.sansPoses(); gb.jouer('repos', 0); gb.ancre = true; gb.mettre(0, 0, .5, 0); gb.pose('pret', 1);
     S.buts.forEach(b => { b.bosseT = .56; b.maj(0); }); S.ballon.visible = true;
   };
@@ -906,7 +914,7 @@ export async function jet7m(J7, z) {
   J7.raf3 = requestAnimationFrame(boucle);
   return {
     nouveau: placer,
-    armer() { tireur.pose('arme', 1); },
+    armer() { tireur.pose('bras7m', 1); },
     // r : réponse de tirer_7m (x, y sur le but, 0-1 de gauche à droite et de haut en bas ; gardien {x, y}) ; duree du vol en ms
     tirer(r, duree) {
       return new Promise(fin => {
@@ -919,7 +927,7 @@ export async function jet7m(J7, z) {
         let dep = null, rebond = null, tR = 0, fini = false;
         etat = now => {
           const t = now - t0;
-          const w = doux(cl(t / 110)); tireur.pose('arme', (1 - w) * 1); tireur.pose('tir', w);
+          const w = doux(cl(t / 110)); tireur.pose('bras7m', 1 - w); tireur.pose('tir', w);
           const v = doux(cl((t - 150) / Math.max(180, duree * .7)));
           gb.pose('pret', 1 - v); gb.pose(P.nom, v, P.miroir); gb.mettre(lerp(0, dx, v), saut * Math.sin(Math.PI * cl((t - 150) / 420)), .5);
           if (t < 110) return;
