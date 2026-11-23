@@ -93,7 +93,7 @@ insert into parametres values (1, '{
   "club_membres_max": 20, "club_paliers": [25, 50, 100], "club_recompenses": [{"bonus": 1}, {"bonus": 2}, {"or": 1}],
   "albums_recompenses": {"bronze": {"pieces": 300}, "argent": {"bonus": 2}, "or": {"or": 1}, "ultime": {"or": 2, "pieces": 2000}},
   "capitaine_bonus": 2, "staff_prix": 500,
-  "marche_prix": {"bronze": [20, 300], "argent": [80, 1000], "or": [300, 4000], "ultime": [1200, 15000]}, "marche_taxe": 0.1,
+  "marche_prix": {"bronze": [50, 300], "argent": [200, 1000], "or": [750, 4000], "ultime": [3000, 15000]}, "marche_taxe": 0.1,
   "marche_ventes_max": 5, "marche_jours": 3, "marche_achats_par_jour": 5,
   "boite_par_jour": 5, "boite_nouveau": true,
   "club_demande_heures": 8, "club_demande_duree_heures": 24, "club_demande_nombre": {"bronze": 4, "argent": 2, "or": 1}, "club_demande_or_jours": 7,
@@ -4640,8 +4640,8 @@ begin
 end $$;
 
 -- ── marché à pièces (façon Ultimate Team) : une carte libre mise en vente à un prix borné par palier ; n'importe qui l'achète
--- d'un toucher ; le vendeur reçoit le prix moins la taxe. Prix plancher = 2 fois la vente au jeu : passer des cartes d'un compte
--- à un autre coûte toujours des pièces.
+-- d'un toucher ; le vendeur reçoit le prix moins la taxe. Prix plancher = 5 fois la vente au jeu (demande de Maël, 23 nov. 2026 :
+-- « remonte les prix sans augmenter le max ») : une carte garde sa valeur, et passer des cartes d'un compte à un autre coûte cher.
 create or replace function marche_vendre(p_ex uuid, p_prix int) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); e exemplaires; b jsonb;
 begin

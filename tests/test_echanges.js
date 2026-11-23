@@ -23,12 +23,14 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const donner = async (u, c, pal = 'bronze', note) => (await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, $3, coalesce($4, case $3 when 'bronze' then 50 when 'argent' then 60 when 'or' then 75 else 90 end)) returning id", [u, c, pal, note ?? null]))[0].id;
   const pieces = async u => (await q('select pieces from profils where user_id = $1', [u]))[0].pieces;
   const proprio = async ex => (await q('select proprietaire, verrou from exemplaires where id = $1', [ex]))[0];
-  const X = cartes[10], Y = cartes[11], Z = cartes[12];
+  // des joueurs que personne n'a encore (le booster de départ est tiré au hasard)
+  const libres = (await q('select id from cartes c where actif and not legende and not exists (select 1 from exemplaires x where x.carte_id = c.id) order by id')).map(x => x.id);
+  const [X, Y, Z, W, V] = libres;
 
   // ── 1. marché
   const exA = await donner(U.al, X, 'argent', 66);
-  verif('prix sous le plancher : refusé', erreur(await rpcJoueur(db, U.al, 'marche_vendre', [exA, 50]), 'entre 80 et 1000'));
-  verif('prix au-dessus du plafond : refusé', erreur(await rpcJoueur(db, U.al, 'marche_vendre', [exA, 5000]), 'entre 80 et 1000'));
+  verif('prix sous le plancher : refusé', erreur(await rpcJoueur(db, U.al, 'marche_vendre', [exA, 150]), 'entre 200 et 1000'));
+  verif('prix au-dessus du plafond : refusé', erreur(await rpcJoueur(db, U.al, 'marche_vendre', [exA, 5000]), 'entre 200 et 1000'));
   verif('vendre la carte d’un autre : refusé', erreur(await rpcJoueur(db, U.bo, 'marche_vendre', [exA, 200]), 'absente'));
   const titulaire = (await q('select equipe ->> $2 e from profils where user_id = $1', [U.al, 'DC']))[0].e;
   verif('vendre un titulaire : refusé', erreur(await rpcJoueur(db, U.al, 'marche_vendre', [titulaire, 200]), 'titulaire'));
@@ -53,17 +55,17 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const etA = (await rpcJoueur(db, U.al, 'mon_etat'));
   verif('pastille de Social pour le vendeur, effacée en ouvrant les Transferts', etA.social.transferts === 1 && (await rpcJoueur(db, U.al, 'mes_echanges')).etat.social.transferts === 0);
   // retrait, expiration, limites
-  const exR = await donner(U.al, Y, 'bronze'); await rpcJoueur(db, U.al, 'marche_vendre', [exR, 30]);
+  const exR = await donner(U.al, Y, 'bronze'); await rpcJoueur(db, U.al, 'marche_vendre', [exR, 60]);
   const idr = (await q("select id from ventes where statut = 'ouverte' and exemplaire = $1", [exR]))[0].id;
   verif('retirer sa vente : carte débloquée ; retirer celle d’un autre : refusé', erreur(await rpcJoueur(db, U.bo, 'marche_retirer', [idr]))
     && !(await rpcJoueur(db, U.al, 'marche_retirer', [idr])).erreur && !(await proprio(exR)).verrou);
-  await rpcJoueur(db, U.al, 'marche_vendre', [exR, 30]);
+  await rpcJoueur(db, U.al, 'marche_vendre', [exR, 60]);
   await q("update ventes set cree_le = now() - interval '4 days' where exemplaire = $1 and statut = 'ouverte'", [exR]);
   r = await rpcJoueur(db, U.bo, 'mes_echanges');
   verif('vente de plus de 3 jours : expirée, carte rendue', !r.marche.ventes.some(v => v.carte === Y) && !(await proprio(exR)).verrou
     && (await q("select count(*)::int n from ventes where exemplaire = $1 and statut = 'expiree'", [exR]))[0].n === 1, r.marche.ventes.map(v => v.carte));
-  for (let i = 0; i < 5; i++) await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[20 + i]), 20]);
-  verif('6e vente ouverte : refusée (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[26]), 20]), '5 cartes'));
+  for (let i = 0; i < 5; i++) await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[20 + i]), 50]);
+  verif('6e vente ouverte : refusée (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[26]), 50]), '5 cartes'));
   const ventesC = (await q("select id from ventes where vendeur = $1 and statut = 'ouverte'", [U.ch])).map(x => x.id);
   for (const v of ventesC.slice(0, 4)) await rpcJoueur(db, U.bo, 'marche_acheter', [v]);
   verif('6e achat de la journée : refusé (5 au plus)', erreur(await rpcJoueur(db, U.bo, 'marche_acheter', [ventesC[4]]), 'déjà acheté 5'));
@@ -80,13 +82,13 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('boîte vide : le jeu donne une autre carte Or (pas la même), la carte déposée va dans la boîte', !r.erreur && recu.palier === 'or' && recu.carte_id !== Z
     && recu.proprietaire === U.al && !(await proprio(exS)) && (await q("select count(*)::int n from boite where carte = $1 and palier = 'or'", [Z]))[0].n === 1, r.erreur || recu);
   // Bob dépose un doublon Or : il reçoit la carte d'Alice (de préférence un joueur qu'il n'a pas)
-  const W = cartes[30]; await donner(U.bo, W, 'or'); await donner(U.bo, W, 'bronze');
+  await donner(U.bo, W, 'or'); await donner(U.bo, W, 'bronze');
   r = await rpcJoueur(db, U.bo, 'boite_echanger', [W, 'or']);
   recu = (await q('select carte_id from exemplaires where id = $1', [r.id]))[0];
   verif('boîte : Bob repart avec la carte déposée par Alice', !r.erreur && recu.carte_id === Z, r.erreur || recu);
   verif('boîte : jamais sa propre carte (Alice ne reprend pas ce qu’elle a déposé)', (await q("select count(*)::int n from boite where depose_par = $1", [U.al]))[0].n === 0);
   await q('delete from boite_faits'); 
-  const V = cartes[31]; for (let i = 0; i < 7; i++) await donner(U.ch, V, 'bronze');
+  for (let i = 0; i < 7; i++) await donner(U.ch, V, 'bronze');
   for (let i = 0; i < 5; i++) await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']);
   verif('boîte : 6e échange du jour refusé (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']), '5 échanges'));
 
