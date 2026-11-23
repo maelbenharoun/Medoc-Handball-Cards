@@ -28,6 +28,8 @@ async function creerBase() {
   const db = new PGlite();
   await db.exec(SOCLE);
   await db.exec(SCHEMA());
+  // jets de 7 m joués au mini-jeu (23 nov. 2026) : au hasard, ils arrêteraient les matchs des autres tests ; test_7m.js les remet
+  await db.exec(`update parametres set valeurs = valeurs || '{"sept_chance": 0}'`);
   return db;
 }
 // exécute une requête en tant que joueur (uid) ou visiteur (null) ; renvoie {rows} ou {erreur}

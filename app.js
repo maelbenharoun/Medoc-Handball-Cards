@@ -1473,7 +1473,9 @@ function texteMD(x) {
   return {but: `But de <b>${n}</b>${x.z === 'contre' ? ' en contre-attaque' : x.z === 'pivot' ? ' au pivot' : x.z === 'ailes' ? ' depuis l’aile' : ''}`,
     '7m-but': `<b>${n}</b> transforme le jet de 7 m`, '7m-arret': `<b>${g}</b> arrête le jet de 7 m de ${n}`,
     arret: `Arrêt de <b>${g}</b> devant ${n}`, poteau: `Poteau ! Le tir de ${n} ne rentre pas`, dehors: `${n} tire à côté`,
-    perte: `Perte de balle de ${n}`, excl: `2 minutes pour <b>${n}</b>`,
+    perte: x.long ? `⏱️ Trop long ! ${n} n’a pas tiré son jet de 7 m : ballon à ${esc((x.c === 'b' ? MD.vue?.nous?.nom : MD.vue?.eux?.nom) || '')}` : `Perte de balle de ${n}`,
+    excl: `2 minutes pour <b>${n}</b>`,
+    sept: `🎯 Jet de 7 m pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')} : <b>${n}</b> face à ${g}`,
     'temps-mort': x.c === 'a' && x.va ? `Temps mort : ${esc(MD.vue?.eux?.nom || '')} attaque en <b>${NOM_ATT[x.va] || x.va}</b> et défend en <b>${NOM_DEF[x.vd] || x.vd}</b> 🕵️`
       : `Temps mort pour ${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}`,
     tactique: `${x.adj ? 'Ton adjoint passe en' : 'Tu passes en'} <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
@@ -1661,11 +1663,133 @@ function flashMD(txt, cls) {
   const f = MD.el.querySelector('.md-flash'), nf = f.cloneNode(false);
   nf.className = `md-flash ${cls || ''}`; nf.innerHTML = txt; nf.hidden = false; f.replaceWith(nf);
 }
+// Jets de 7 m joués au mini-jeu (demande de Maël, 23 nov. 2026) : le récit s'arrête, une intro « 7m » (traits qui défilent, sifflet long qui
+// décroît) le temps que la scène 3D se charge, puis notre tir (mini-jeu du jet de 7 m) ou leur tir à arrêter (le tireur reste sur le point
+// de 7 m, sans trajectoire dessinée) ; le serveur décide (match_7m, pvp_7m) et la tranche reprend. En Classé : le tireur vise d'abord, le
+// gardien voit partir le ballon ensuite ; sans tir à temps, « trop long » : ballon à l'adversaire.
+const R7M = {but: 'But !', arret: 'Arrêté !', poteau: 'Poteau !', dehors: 'À côté !', long: 'Trop long !'};
+function septIntro(nom) {
+  const el = document.createElement('div'); el.className = 'sept-intro'; el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<div class="si-l g">${'<i></i>'.repeat(6)}</div><div class="si-l d">${'<i></i>'.repeat(6)}</div>
+    <div class="si-c"><b class="si-7m">7m</b><small>Jet de 7 m · ${esc(nom || '')}</small></div>`;
+  document.body.appendChild(el);
+  Son.jouer('sifflet-long'); vibrer([80, 60, 160]);
+  return new Promise(f => setTimeout(() => f(el), moinsAnim() ? 500 : 1800));
+}
+function septMD(x) {
+  if (MD.sept || !MD.el) return;
+  const S7 = MD.vue.sept || {};
+  MD.sept = {c: S7.c || x.c, n: S7.n || x.n, t: S7.t ?? x.t}; MD.septVue = null; MD.attente = true; majMD();
+  Promise.all([septIntro(MD.sept.n), jeux3d().catch(() => null)]).then(([intro]) => {
+    if (!MD.el || !MD.sept) { intro.remove(); return; }
+    if (MD.sept.c === 'a') septTirer(); else septArreter();
+    setTimeout(() => intro.classList.add('fin'), 250); setTimeout(() => intro.remove(), 700);
+  });
+}
+// le résultat d'un jet de 7 m, d'après le fil (Classé : il arrive par la relève)
+function septResultat(evs) {
+  const t = MD.sept?.t; if (t == null) return null;
+  const e = (evs || []).find(y => y.t === t && (y.joue || y.long));
+  if (!e) return null;
+  return e.long ? 'long' : {'7m-but': 'but', '7m-arret': 'arret'}[e.ty] || e.ty;
+}
+function septVerifier(neufs, v) {
+  if (!MD.sept) return;
+  if (MD.septPrep && v.sept?.phase === 'gardien' && v.sept.col) { const f = MD.septPrep; MD.septPrep = null; f({colonne: v.sept.col, hauteur: v.sept.hau, duree: v.sept.duree}); }
+  const r = septResultat(neufs);
+  if (r && MD.septAttente) { const f = MD.septAttente; MD.septAttente = null; f(r); }
+  else if (r && (r === 'long' || MD.septPrep)) septSansJeu(r);   // trop long, ou tiré à côté avant que le gardien n'ait à jouer
+}
+function septSansJeu(r) {
+  MD.septPrep = null; Son.jouer(r === 'long' ? 'sifflet' : 'rate');
+  toast(r === 'long' ? 'Trop long ! L’arbitre siffle : ballon à l’adversaire' : R7M[r] || '');
+  septFin();
+}
+function septTirer() {
+  ouvrirJet7mMatch({nom: MD.sept.n, pvp: !!MD.pvp,
+    tirer: (x, y, f) => MD.pvp
+      ? Compte.pvp7m({x, y, puissance: f}, MD.n).then(v => new Promise(res => {
+          MD.septAttente = r => res(r === 'long' ? {resultat: 'long'} : {resultat: r, x, y, vitesse: Math.min(f, .8) / .8,
+            gardien: {x: r === 'arret' ? x : x < .5 ? .8 : .2, y: r === 'arret' ? y : .5}});
+          pvpRecevoir(v);
+        }))
+      : Compte.match7m({x, y, puissance: f}, MD.n).then(r => { MD.septVue = r.vue; return r.tir; }),
+    fin: () => septFin()});
+}
+function septArreter() {
+  const S7 = MD.vue.sept || {};
+  ouvrirArret7m({nom: MD.sept.n,
+    prep: () => S7.col ? Promise.resolve({colonne: S7.col, hauteur: S7.hau, duree: S7.duree}) : new Promise(res => { MD.septPrep = res; }),
+    envoyer: ent => MD.pvp
+      ? Compte.pvp7m(ent, MD.n).then(v => { const t = v.tir; pvpRecevoir(v); return {resultat: t?.resultat || septResultat(v.evenements) || 'but'}; })
+      : Compte.match7m(ent, MD.n).then(r => { MD.septVue = r.vue; return {resultat: r.tir?.resultat || 'but'}; }),
+    fin: () => septFin()});
+}
+function septFin() {
+  if (J7.match) { J7.match = null; fermerJet7m(true); }
+  if (MJ.match) { MJ.match = null; fermerMini(true); }
+  if (!MD.el) return;
+  document.body.classList.add('avec-intro');
+  const v = MD.septVue;
+  if (v) {   // Championnat VS Ordi : le résultat et la fin de la tranche
+    MD.vue = v; const nv = v.evenements || []; MD.file.push(...nv); MD.n += nv.length;
+    MD.finBloc = v.sept ? v.sept.t : v.bloc * 300;
+  }
+  MD.sept = null; MD.septVue = null; MD.septAttente = null; MD.septPrep = null;
+  MD.attente = false; majMD();
+}
+// notre tir : le mini-jeu du jet de 7 m, sans essais ni pièces
+function ouvrirJet7mMatch(o) {
+  const el = document.createElement('div');
+  el.className = 'j7 j7-3d sept';
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score">Jet de 7 m · ${esc(o.nom || '')}</b></div>
+    <div class="j7-terrain"><div class="t3"></div><div class="j7-but"><div class="j7-viseur"><i></i></div></div></div>
+    <div class="j7-jauge" aria-hidden="true"><i class="j7-ideal"></i><i class="j7-niveau"></i><small>Puissance</small></div>
+    <p class="j7-aide">Chargement du terrain…</p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
+  document.body.appendChild(el);
+  Son.discret(true);
+  Object.assign(J7, {el, tirs: [], limite: 1, gains: 0, demo: false, match: o});
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && J7.ctl) { Son.jouer('tap'); toucherJet7m(); } });
+  jeux3d().then(m => m.jet7m(J7, el.querySelector('.t3'))).catch(() => null).then(ctl => {
+    if (J7.el !== el) return;
+    if (!ctl) { toast('Impossible de charger le terrain 3D'); return o.tirer(.5, .5, .5).then(r => o.fin(r)).catch(() => o.fin()); }
+    J7.ctl = ctl; nouveauTir();
+    el.querySelector('.j7-score').textContent = `Jet de 7 m · ${o.nom || ''}`;
+    if (o.pvp) el.querySelector('.j7-aide').textContent = 'Touche pour viser · ne traîne pas, sinon « trop long » !';
+  });
+}
+function animerTir7mMatch(r) {
+  const el = J7.el; if (!el) return;
+  if (r.resultat === 'long') { el.querySelector('.j7-aide').textContent = ''; }
+  const fin = () => {
+    if (!J7.el) return;
+    el.classList.add(r.resultat === 'but' ? 'r-but' : 'r-rate');
+    vibrer(r.resultat === 'but' ? [30, 40, 60] : 40);
+    Son.jouer({but: 'but', arret: 'arret', poteau: 'poteau', long: 'sifflet'}[r.resultat] || 'rate');
+    const box = el.querySelector('.j7-resultat'); box.innerHTML = `<b>${r.resultat === 'long' ? R7M.long : titre7(r)}</b>`; box.hidden = false;
+    setTimeout(() => J7.match?.fin(r), moinsAnim() ? 500 : 1500);
+  };
+  if (r.resultat === 'long') return fin();
+  J7.ctl.tirer(r, moinsAnim() ? 1 : Math.round(560 - 330 * (r.vitesse ?? .7))).then(fin);
+}
+// leur tir : l'arrêt réflexe, le tireur sur le point de 7 m (jeux3d.gardien, MJ.match)
+function ouvrirArret7m(o) {
+  const el = document.createElement('div');
+  el.className = 'j7 mj mj-gardien sept';
+  el.innerHTML = `<div class="j7-haut"><b class="j7-score">Jet de 7 m · ${esc(o.nom || '')}</b></div>
+    <div class="mj-scene">${JEUX.gardien.scene()}</div><p class="j7-aide"></p><div class="j7-resultat" hidden></div><div class="j7-bas"></div>`;
+  document.body.appendChild(el);
+  Son.discret(true);
+  Object.assign(MJ, {el, jeu: 'gardien', liste: [], limite: 1, gains: 0, demo: false, toucher: null, timers: [], raf: 0, serie: [], serieN: 0, match: o});
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('button') && MJ.toucher) { Son.jouer('tap'); MJ.toucher(e); } });
+  JEUX.gardien.essai(el.querySelector('.mj-scene'), 0);
+}
 // raconte une possession : mise en place, le tireur s'avance, le ballon part ; durée D (ms) jusqu'à l'action suivante
 function animerMD(x, D) {
   const tir = TIRS_MD.includes(x.ty), c = x.c;
   MD.svg.style.setProperty('--md-dur', Math.round(Math.max(90, Math.min(520, D * .3))) + 'ms');
   const fin = () => { noterMD(x); sonMD(x); };
+  if (x.ty === 'sept') { noterMD(x); return septMD(x); }   // jet de 7 m joué au mini-jeu
   // le momentum se bloque au but qui vient d'être raconté : on attend que le ballon soit au fond
   if (x.ty === 'momentum') return MD.timers.push(setTimeout(() => { if (!MD.el) return; fin();
     flashMD(`🔥 Momentum<small>${esc((x.c === 'b' ? MD.vue.eux.nom : MD.vue.nous.nom) || '')}</small>`, x.c === 'b' ? 'b' : 'a'); }, Math.max(450, D * .85)));
@@ -1736,6 +1860,7 @@ function finBlocMD() {
   MD.attente = true;
   // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend (sauf « Tactique » d'un match à deux, qui n'arrête pas le jeu)
   if (MD.enCours || MD.chgEnCours || MD.panneau && !(MD.pvp && MD.panneau === 'tactique')) return;
+  if (MD.vue.sept && !MD.sept) return septMD(MD.vue.sept);   // un jet de 7 m à jouer (match repris, par exemple)
   if (MD.pvp) return pvpFinBloc();
   const pause = Math.round(650 / MD.vitesse);
   if (MD.tab) return MD.timers.push(setTimeout(() => panneauTab(), pause + 400));
@@ -1765,7 +1890,7 @@ function blocMD() {
   MD.attente = true; MD.enCours = true; majMD();
   Compte.matchBloc(MD.tac, MD.cons, false).then(r => {
     MD.enCours = false; if (!MD.el) return;
-    MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.bloc * 300;
+    MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.sept ? r.vue.sept.t : r.vue.bloc * 300;
     if (r.match) { MD.fin = r; MD.finBloc = 3600; }
     if (r.tirsAuBut) { MD.tab = r.tirsAuBut; MD.finBloc = 3600; }   // nul en tournoi ou contre une Légende : tirs au but
     if (!MD.panneau) MD.attente = false;
@@ -2087,14 +2212,15 @@ function pvpRecevoir(v, complet) {
   const avant = MD.vue.bloc, neufs = nv.slice(MD.n - debut);
   MD.vue = v; MD.pvp = P; MD.pvpRecu = Date.now(); MD.pvpPostes = P.choix?.postes || [];
   if (neufs.length) { MD.file.push(...neufs); MD.n = debut + nv.length; }
-  if (!P.pause) MD.finBloc = Math.max(MD.finBloc, v.bloc * 300);
+  if (!P.pause) MD.finBloc = Math.max(MD.finBloc, v.bloc * 300, v.sept?.t || 0);
+  septVerifier(neufs, v);
   if (P.fin && !MD.fin) { MD.fin = P.fin; MD.finBloc = 3600; clearInterval(MD.pvpT); }
   // coup d'envoi ou mi-temps : le compte à rebours est fini, la tranche suivante est partie
   if (['envoi', 'mi-temps'].includes(MD.panneau) && v.bloc > avant) { fermerPanneauMD(); fermerBancMD(); }
   if (P.pause) { if (MD.panneau !== 'tm') pvpPause(); }
   else if (MD.panneau === 'tm') { fermerPanneauMD(); fermerBancMD(); flashMD('Reprise', 'tm'); Son.jouer('sifflet'); }
   // le panneau « Tactique » ne met pas le match à deux en pause : le récit continue derrière
-  if (MD.file.length && MD.attente && (!MD.panneau || MD.panneau === 'tactique')) MD.attente = false;
+  if (MD.file.length && MD.attente && !MD.sept && (!MD.panneau || MD.panneau === 'tactique')) MD.attente = false;
   pvpCompteur(); majMD(); majBancMD();
   if (MD.attente && !MD.panneau && !MD.file.length && MD.h >= MD.finBloc && MD.fin) finBlocMD();
 }
@@ -3996,6 +4122,7 @@ function toucherJet7m() {
     J7.phase = 'tir'; cancelAnimationFrame(J7.raf); vibrer(20); Son.jouer('tir');
     J7.el.classList.add('tir'); J7.el.querySelector('.j7-aide').textContent = '';
     const x = Math.round(J7.x * 1000) / 1000, y = Math.round(J7.y * 1000) / 1000, f = Math.round(J7.puissance * 1000) / 1000;
+    if (J7.match) return J7.match.tirer(x, y, f).then(animerTir7mMatch).catch(e => { toast(e.message); J7.match?.fin(); });
     (J7.demo ? tir7mDemo(x, y, f) : Compte.tirer7m(x, y, f)).then(animerTir).catch(e => { toast(e.message); fermerJet7m(); });
   }
 }
@@ -4080,12 +4207,20 @@ function miniEssai() {
 }
 const miniAide = t => { if (MJ.el) MJ.el.querySelector('.j7-aide').textContent = t; };
 function miniEnvoyer(entrees) {
+  if (MJ.match) return MJ.match.envoyer(entrees);   // jet de 7 m en match
   if (!MJ.demo) return Compte.miniJouer(MJ.jeu, entrees);
   const res = JEUX[MJ.jeu].demo(entrees), essais = [...MJ.liste, res.resultat];
   return Promise.resolve({...res, reussi: res.resultat === MINI[MJ.jeu].succes, pieces: 0, bonus: 0, essais, restants: MJ.limite - essais.length});
 }
 function miniFin(r) {
   const el = MJ.el; if (!el) return;
+  if (MJ.match) {   // jet de 7 m en match : le résultat, puis le match reprend
+    const ok = r.resultat !== 'but';
+    el.classList.add(ok ? 'r-but' : 'r-rate'); vibrer(ok ? [30, 40, 60] : 40); Son.jouer(r.resultat === 'arret' ? 'parade' : ok ? 'rate' : 'encaisse'); miniAide('');
+    const box = el.querySelector('.j7-resultat'); box.innerHTML = `<b>${{arret: 'Arrêté !', but: 'But…', poteau: 'Poteau !', dehors: 'À côté !'}[r.resultat] || r.resultat}</b>`; box.hidden = false;
+    const m = MJ.match; MJ.timers.push(setTimeout(() => m.fin(r), moinsAnim() ? 500 : 1500));
+    return;
+  }
   MJ.liste = r.essais; MJ.gains += r.pieces + r.bonus;
   el.classList.add(r.reussi ? 'r-but' : 'r-rate');
   vibrer(r.reussi ? [30, 40, 60] : 40);
@@ -4138,7 +4273,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=94').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=95').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

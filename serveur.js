@@ -259,6 +259,8 @@ const CompteServeur = (() => {
     matchChanger: (postes, seconde) => rpc('match_changer', {p_postes: postes, p_seconde: seconde}),   // changements tout de suite, à la seconde que montre le récit → {vue, reprise}
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
+    match7m: (entrees, depuis) => rpc('match_7m', {p_entrees: entrees, p_depuis: depuis || 0}),   // jet de 7 m au mini-jeu → {tir, vue}
+    pvp7m: (entrees, depuis) => rpc('pvp_7m', {p_entrees: entrees, p_depuis: depuis || 0}),
     // tirs au but après un nul (tournoi, Légendes) : 5 tireurs dans l'ordre et le gardien (exemplaires) → comme la fin d'un match
     matchTirsAuBut: (tireurs, gardien) => rpc('match_tirs_au_but', {p_tireurs: tireurs, p_gardien: gardien}),
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}

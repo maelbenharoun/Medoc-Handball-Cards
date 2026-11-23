@@ -104,6 +104,10 @@ const Son = (() => {
     sifflet: q => { [0, .32].forEach((d, i) => { const o = note(2850, q + d, i ? .5 : .2, {type: 'sine', vol: .12, att: .01});
       const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 38; lg.gain.value = 140; lfo.connect(lg); lg.connect(o.frequency);
       lfo.start(q + d); lfo.stop(q + d + .55); }); bruit(q, .8, {type: 'bandpass', f: 2900, q: 8, vol: .04}); },
+    // jet de 7 m (23 nov. 2026) : un coup de sifflet long, qui décroît
+    'sifflet-long': q => { const o = note(2850, q, 1.7, {type: 'sine', vol: .13, att: .015});
+      const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 34; lg.gain.value = 120; lfo.connect(lg); lg.connect(o.frequency);
+      lfo.start(q); lfo.stop(q + 1.75); bruit(q, 1.5, {type: 'bandpass', f: 2900, q: 8, vol: .045}); },
     tir: q => { bruit(q, .2, {type: 'bandpass', f: 500, f2: 3200, q: 1.5, vol: .24, att: .01}); note(110, q, .06, {type: 'sine', vol: .2, glisse: 70}); },
     filet: q => { bruit(q, .35, {type: 'highpass', f: 2200, f2: 5000, vol: .2, att: .01}); },
     poteau: q => { [523, 1427, 2349, 3350].forEach((f, i) => note(f, q, 1.1 - i * .2, {type: 'sine', vol: .12 / (i + 1), att: .002, reverb: .4})); note(90, q, .15, {type: 'sine', vol: .3}); },

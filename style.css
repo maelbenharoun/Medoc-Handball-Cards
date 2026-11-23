@@ -2209,3 +2209,23 @@ body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
 .sal-p { display: block; font-size: .78rem; margin-bottom: 2px; color: #ffe08a; }
 .sal-p .lien-j { color: inherit; }
 .sal-f { margin-top: 10px; }
+/* jet de 7 m joué au mini-jeu (23 nov. 2026) : intro « 7m » le temps que la scène se charge (traits qui défilent sur les côtés) */
+.sept-intro { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; overflow: hidden; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(28, 45, 80, .94), rgba(5, 8, 16, .96) 70%); transition: opacity .4s; }
+.sept-intro.fin { opacity: 0; }
+.si-c { position: relative; z-index: 1; text-align: center; animation: si-entre .55s cubic-bezier(.2, 1.6, .4, 1); }
+.si-7m { display: block; font-size: 7.5rem; font-weight: 900; line-height: .9; letter-spacing: -.02em; color: #ffe08a;
+  text-shadow: 0 6px 0 #9c7414, 0 0 40px rgba(255, 210, 90, .45); animation: si-pouls 1s ease-in-out infinite .55s; }
+.si-c small { display: block; margin-top: 14px; font-size: 1rem; font-weight: 800; color: #d6e2f5; }
+@keyframes si-entre { from { transform: scale(2.4); opacity: 0; } }
+@keyframes si-pouls { 50% { transform: scale(1.06); } }
+.si-l { position: absolute; top: 0; bottom: 0; width: 46%; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+.si-l.g { left: 0; } .si-l.d { right: 0; align-items: flex-end; }
+.si-l i { display: block; height: 6px; width: 70%; border-radius: 99px; background: linear-gradient(90deg, transparent, #e3b23c, transparent); opacity: .8;
+  animation: si-trait-g .7s linear infinite; }
+.si-l.d i { animation-name: si-trait-d; }
+.si-l i:nth-child(2) { width: 45%; animation-duration: .55s; } .si-l i:nth-child(3) { width: 85%; animation-duration: .8s; }
+.si-l i:nth-child(4) { width: 55%; animation-duration: .6s; } .si-l i:nth-child(5) { width: 75%; animation-duration: .9s; } .si-l i:nth-child(6) { width: 40%; animation-duration: .65s; }
+@keyframes si-trait-g { from { transform: translateX(-110%); } to { transform: translateX(160%); } }
+@keyframes si-trait-d { from { transform: translateX(110%); } to { transform: translateX(-160%); } }
+@media (prefers-reduced-motion: reduce) { .si-7m, .si-l i { animation: none; } }

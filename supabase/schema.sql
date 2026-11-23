@@ -110,6 +110,7 @@ insert into parametres values (1, '{
     {"pieces": 2000, "or": 1}, {"pieces": 3000, "or": 2}, {"pieces": 5000, "or": 3}],
   "momentum_valeurs": {"but": 20, "but_dessus": 28, "7m-but": 14, "arret": 12, "7m-arret": 20, "perte": 10, "rate": 5, "excl": 10},
   "momentum_max": 100, "momentum_effet": 0.10,
+  "sept_chance": 0.34, "sept_max_mi_temps": 1, "sept_tir_secondes": 12, "sept_gardien_secondes": 8,
   "en_ligne_minutes": 2, "salon_longueur": 300, "salon_intervalle_secondes": 3, "salon_par_jour": 200, "salon_jours": 7,
   "momentum_ia": {"hasard": 0.3, "lent": 0.5, "reflechi": 0.75, "rapide": 0.9, "legende": 1},
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
@@ -2554,6 +2555,16 @@ begin
       ty := 'perte'; nom := joueur_zone(eqx -> 'joueurs', 'champ'); zn := null;
       eqx := jsonb_set(eqx, '{stats,pertes}', to_jsonb((eqx #>> '{stats,pertes}')::int + 1));
       if random() < .55 then e := e || jsonb_build_object('contre', y); end if;
+    elsif r < perte + .06 and e ? 'sept_jeu' and not e ? 'sept'
+      and coalesce((e #>> array['sept_n', x, case when t < 1800 then 'p1' else 'p2' end])::int, 0) < coalesce(parami('sept_max_mi_temps'), 1)
+      and random() < coalesce((param('sept_chance') #>> '{}')::numeric, 0) then
+      -- jet de 7 m joué au mini-jeu (demande de Maël, 23 nov. 2026) : la tranche s'arrête là ; match_7m_resoudre le tire, puis la reprend
+      nom := joueur_zone(eqx -> 'joueurs', '7m');
+      e := e || jsonb_build_object(x, eqx, y, eqy, 'sept', sept_preparer(e, x, t, nom, gb, eqx, eqy),
+        'sept_n', jsonb_set(coalesce(e -> 'sept_n', '{"a": {"p1": 0, "p2": 0}, "b": {"p1": 0, "p2": 0}}'), array[x, case when t < 1800 then 'p1' else 'p2' end],
+          to_jsonb(coalesce((e #>> array['sept_n', x, case when t < 1800 then 'p1' else 'p2' end])::int, 0) + 1)));
+      e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', x, 'ty', 'sept', 'n', nom, 'g', gb, 's', sc));
+      return e || jsonb_build_object('t', t, 'score', sc);
     elsif r < perte + .06 then   -- jet de 7 m
       zn := '7m'; nom := joueur_zone(eqx -> 'joueurs', '7m');
       eqx := jsonb_set(eqx, '{stats,sept}', to_jsonb((eqx #>> '{stats,sept}')::int + 1));
@@ -2655,6 +2666,118 @@ begin
   return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', adv, 'ty', 'momentum-fin', 'par', 'tm', 'm', 0,
     'v', v is not null, 's', e -> 'score'));
 end $$;
+-- Jets de 7 m joués au mini-jeu (demande de Maël, 23 nov. 2026). sept = {c (qui tire), t, n (tireur), g (gardien), tir, gb (niveaux),
+-- phase : 'tir' (le tireur, un joueur, vise) ou 'gardien' (le tir part : zone col/hau, durée du vol), limite (Classé : sans tir à temps,
+-- « trop long », ballon à l'adversaire ; sans réaction du gardien, le ballon passe)}. L'ordinateur tire : la zone est tirée tout de suite.
+create or replace function sept_preparer(e jsonb, x text, t int, nom text, gb text, eqx jsonb, eqy jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare niv_t numeric := (eqx ->> 'att')::numeric - coalesce((eqx ->> 'fma')::numeric, 0);
+  niv_g numeric := coalesce((eqy -> 'notes' ->> 'GB')::numeric, (eqy ->> 'def')::numeric); s jsonb;
+begin
+  s := jsonb_build_object('c', x, 't', t, 'n', nom, 'g', gb, 'tir', round(niv_t, 1), 'gb', round(niv_g, 1),
+    'limite', pvp_maintenant() + parami('sept_tir_secondes'), 'phase', 'tir');
+  if x = 'b' and not e ? 'pvp' then   -- l'ordinateur tire : où, et à quelle vitesse (plus son tireur est fort face à notre gardien, plus c'est rapide)
+    s := s || jsonb_build_object('phase', 'gardien', 'col', case when random() < .35 then 'g' when random() < .54 then 'd' else 'c' end,
+      'hau', case when random() < .5 then 'h' else 'b' end, 'duree', greatest(480, least(1100, round(900 - 6 * (niv_t - niv_g) - random() * 150))));
+  end if;
+  return s;
+end $$;
+-- la barre de momentum après une action jouée hors du moteur (jet de 7 m) : l'événement, puis le blocage éventuel
+create or replace function match_mom_ev(e jsonb, ev jsonb, p_vers text, p_val numeric) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare mmax numeric := coalesce((param('momentum_max') #>> '{}')::numeric, 100); mom numeric;
+begin
+  if not e ? 'momv' then
+    mom := least(mmax, greatest(-mmax, coalesce((e ->> 'mom')::numeric, 0) + case p_vers when 'a' then 1 else -1 end * coalesce(p_val, 0)));
+    e := e || jsonb_build_object('mom', mom); ev := ev || jsonb_build_object('m', mom);
+  end if;
+  e := jsonb_set(e, '{ev}', (e -> 'ev') || ev);
+  if not e ? 'momv' and abs(mom) >= mmax then
+    e := e || jsonb_build_object('momv', case when mom > 0 then 'a' else 'b' end);
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', ev -> 't', 'c', e ->> 'momv', 'ty', 'momentum', 'm', mom, 's', ev -> 's'));
+  end if;
+  return e;
+end $$;
+-- le point visé par le tireur (mini-jeu du jet de 7 m : x, y de 0 à 1 depuis le coin haut gauche ; puissance idéale 80 %, au-delà le
+-- tir part de travers) : {x, y, vitesse}
+create or replace function sept_point(p_tir jsonb) returns jsonb language plpgsql volatile as $$
+declare x numeric := (p_tir ->> 'x')::numeric; y numeric := (p_tir ->> 'y')::numeric; pu numeric := (p_tir ->> 'puissance')::numeric; trop numeric;
+begin
+  if x is null or y is null or pu is null or x < -.5 or x > 1.5 or y < -.5 or y > 1.2 or pu < 0 or pu > 1 then raise exception 'Tir invalide'; end if;
+  trop := greatest(0, pu - .8) / .2;
+  x := x + (random() - .5) * .44 * trop; y := y + (random() - .5) * .38 * trop;
+  return jsonb_build_object('x', round(x, 3), 'y', round(y, 3), 'vitesse', round(least(pu, .8) / .8, 3));
+end $$;
+-- Classé : le tireur a visé ; à côté, c'est fini ; sinon le ballon part vers la zone du but, que le gardien doit deviner à temps
+create or replace function match_7m_viser(e jsonb, p_tir jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare s jsonb := e -> 'sept'; pt jsonb := sept_point(p_tir); x numeric := (pt ->> 'x')::numeric; y numeric := (pt ->> 'y')::numeric; d int;
+begin
+  -- vu du gardien (derrière son but, face au terrain), la gauche du tireur est à droite de l'écran
+  d := greatest(450, least(1100, round(1000 - 450 * (pt ->> 'vitesse')::numeric - 4 * ((s ->> 'tir')::numeric - (s ->> 'gb')::numeric))));
+  s := s || pt || jsonb_build_object('phase', 'gardien', 'col', case when x < 1 / 3.0 then 'd' when x > 2 / 3.0 then 'g' else 'c' end,
+    'hau', case when y < .5 then 'h' else 'b' end, 'duree', d, 'limite', pvp_maintenant() + d / 1000.0 + parami('sept_gardien_secondes'));
+  if x < 0 or x > 1 or y < 0 then s := s || '{"hors": "dehors"}'; elsif x < .05 or x > .95 or y < .05 then s := s || '{"hors": "poteau"}'; end if;
+  e := e || jsonb_build_object('sept', s);
+  if s ? 'hors' then return match_7m_resoudre(e, null, '{"temps": 0}'); end if;   -- à côté : pas besoin du gardien
+  return e;
+end $$;
+-- le jet de 7 m tiré : p_tir = le tir du joueur contre le gardien de l'ordinateur ({x, y, puissance}, formule du mini-jeu corrigée par
+-- les niveaux), ou {"long": true} (trop long) ; p_gb = la parade du joueur ({colonne, hauteur, temps}) contre le tir prévu (sept.col, hau,
+-- duree) ; les deux nuls : tiré par la formule du moteur (simulation). Le résultat au fil (et la barre de momentum), sept_der pour le jeu.
+create or replace function match_7m_resoudre(e jsonb, p_tir jsonb, p_gb jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare s jsonb := e -> 'sept'; x text; y text; eqx jsonb; eqy jsonb; t int; sc jsonb; res text; d jsonb := '{}'; ev jsonb; pt jsonb;
+  niv_t numeric; niv_g numeric; vit numeric; gx numeric; gy numeric; portee numeric; px numeric; py numeric; tps numeric; pen numeric;
+  mval jsonb := coalesce(param('momentum_valeurs'), '{}');
+begin
+  if s is null then return e; end if;
+  x := s ->> 'c'; y := case x when 'a' then 'b' else 'a' end; eqx := e -> x; eqy := e -> y; t := (s ->> 't')::int; sc := e -> 'score';
+  niv_t := (s ->> 'tir')::numeric; niv_g := (s ->> 'gb')::numeric;
+  if coalesce((p_tir ->> 'long')::boolean, false) then
+    res := 'long';
+  elsif p_tir is not null then
+    pt := sept_point(p_tir); px := (pt ->> 'x')::numeric; py := (pt ->> 'y')::numeric; vit := (pt ->> 'vitesse')::numeric;
+    gx := case when random() < .3 then .2 when random() < .3 / .7 then .8 else .5 end; gy := case when random() < .5 then .3 else .75 end;
+    portee := least(.9, greatest(.1, .66 - .46 * vit + case when gx = .5 then .08 else 0 end + .004 * (niv_g - niv_t)));
+    res := case when px < 0 or px > 1 or py < 0 then 'dehors' when px < .05 or px > .95 or py < .05 then 'poteau' when abs(px - .5) < .2 then 'arret'
+      when sqrt(power(px - (.5 + (gx - .5) * .6), 2) + power((py - gy) * .67, 2)) < portee then 'arret' else 'but' end;
+    d := pt || jsonb_build_object('gardien', jsonb_build_object('x', gx, 'y', gy));
+  elsif p_gb is not null and s ? 'col' then
+    if s ? 'hors' then res := s ->> 'hors';
+    else
+      tps := coalesce((p_gb ->> 'temps')::numeric, 99999);
+      if tps > (s ->> 'duree')::numeric + 60 then res := 'but';
+      elsif p_gb ->> 'colonne' = s ->> 'col' and p_gb ->> 'hauteur' = s ->> 'hau' then res := 'arret';
+      elsif p_gb ->> 'colonne' = s ->> 'col' and random() < .35 then res := 'arret';
+      else res := 'but'; end if;
+      if res = 'but' and not s ? 'x' and random() < .06 then res := case when random() < .5 then 'poteau' else 'dehors' end; end if;   -- l'ordinateur rate parfois
+    end if;
+    d := jsonb_build_object('colonne', s -> 'col', 'hauteur', s -> 'hau', 'duree', s -> 'duree', 'x', s -> 'x', 'y', s -> 'y', 'vitesse', s -> 'vitesse');
+  else
+    pen := least(.88, greatest(.55, .75 + .01 * (niv_t - niv_g)));
+    res := case when random() < pen then 'but' when random() < .7 then 'arret' when random() < .5 then 'poteau' else 'dehors' end;
+  end if;
+  if res = 'long' then
+    eqx := jsonb_set(eqx, '{stats,pertes}', to_jsonb((eqx #>> '{stats,pertes}')::int + 1));
+    ev := jsonb_build_object('t', t, 'c', x, 'ty', 'perte', 'n', s -> 'n', 'long', true, 's', sc);
+    e := e || jsonb_build_object(x, eqx, y, eqy);
+    e := match_mom_ev(e, ev, y, coalesce((mval ->> 'perte')::numeric, 10));
+  else
+    eqx := jsonb_set(eqx, '{stats,sept}', to_jsonb((eqx #>> '{stats,sept}')::int + 1));
+    eqx := jsonb_set(eqx, '{stats,tirs}', to_jsonb((eqx #>> '{stats,tirs}')::int + 1));
+    eqx := jsonb_set(eqx, '{stats,xg}', to_jsonb(round(coalesce((eqx #>> '{stats,xg}')::numeric, 0) + least(.88, greatest(.55, .75 + .01 * (niv_t - niv_g))), 3)));
+    if res = 'but' then
+      sc := jsonb_set(sc, array[case x when 'a' then '0' else '1' end], to_jsonb((sc ->> case x when 'a' then 0 else 1 end)::int + 1));
+      eqx := jsonb_set(eqx, '{stats,buts}', to_jsonb((eqx #>> '{stats,buts}')::int + 1));
+      eqx := jsonb_set(eqx, '{stats,zones,7m}', to_jsonb((eqx #>> '{stats,zones,7m}')::int + 1));
+    elsif res = 'arret' then
+      eqy := jsonb_set(eqy, '{stats,arrets}', to_jsonb((eqy #>> '{stats,arrets}')::int + 1));
+    end if;
+    ev := jsonb_build_object('t', t, 'c', x, 'ty', case res when 'but' then '7m-but' when 'arret' then '7m-arret' else res end,
+      'n', s -> 'n', 'g', s -> 'g', 'z', '7m', 's', sc, 'x', eqx #> '{stats,xg}', 'joue', true);
+    e := e || jsonb_build_object(x, eqx, y, eqy, 'score', sc);
+    e := match_mom_ev(e, ev, case when res = 'but' then x else y end,
+      case res when 'but' then coalesce((mval ->> '7m-but')::numeric, 14) when 'arret' then coalesce((mval ->> '7m-arret')::numeric, 20) else coalesce((mval ->> 'rate')::numeric, 5) end);
+  end if;
+  return (e - 'sept') || jsonb_build_object('balle', y, 't', t, 'sept_der', d || jsonb_build_object('resultat', res, 'c', x));
+end $$;
 -- un bloc de 5 minutes ; à la mi-temps, l'adversaire peut s'adapter et l'équipe récupère un peu
 -- Une tranche : on garde l'état du match à son début (debut, sans le fil ; debut_n = longueur du fil à ce moment ; servi = quand elle
 -- a été jouée, servi_t = sa première seconde) pour pouvoir y revenir : un changement de joueurs se fait à la seconde où on le
@@ -2674,6 +2797,7 @@ create or replace function match_bloc_suite(e jsonb) returns jsonb language plpg
 declare b int := (e ->> 'bloc')::int;
 begin
   e := match_avancer(e, (b + 1) * 300);
+  if e ? 'sept' then return e; end if;   -- un jet de 7 m à jouer : la tranche reprendra après (match_7m_resoudre)
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
@@ -2744,6 +2868,10 @@ create or replace function match_vue(e jsonb, p_depuis int default 0) returns js
   select jsonb_build_object('type', e ->> 'type', 'bloc', (e ->> 'bloc')::int, 'minute', (e ->> 't')::int / 60.0, 'score', e -> 'score',
     'tempsMorts', e -> 'tm', 'tempsMortsAdv', coalesce(e -> 'tmb', '{"restants": 3}'),
     'fini', (e ->> 'bloc')::int >= 12,
+    'sept', case when e ? 'sept' then jsonb_build_object('c', e #>> '{sept,c}', 't', (e #>> '{sept,t}')::int, 'n', e #>> '{sept,n}', 'g', e #>> '{sept,g}', 'phase', e #>> '{sept,phase}',
+      'reste', greatest(0, round(coalesce((e #>> '{sept,limite}')::numeric, 0) - extract(epoch from clock_timestamp())::numeric, 1)))
+      || case when e #>> '{sept,c}' = 'b' and e #>> '{sept,phase}' = 'gardien' then jsonb_build_object('col', e #>> '{sept,col}', 'hau', e #>> '{sept,hau}',
+        'duree', (e #>> '{sept,duree}')::int) else '{}'::jsonb end end,
     'nous', jsonb_build_object('nom', e #>> '{a,nom}', 'note', e -> 'a' -> 'note', 'joueurs', e -> 'a' -> 'joueurs', 'tactique', e #>> '{a,tactique}',
       'consigne', e #>> '{a,consigne}', 'stats', e -> 'a' -> 'stats',
       -- chaque poste : le titulaire et son remplaçant, leur note à ce poste et leur fatigue (0 = frais)
@@ -2940,6 +3068,8 @@ end $$;
 create or replace function match_finir_simule(p_uid uuid, e jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
 declare reste int := 12 - (e ->> 'bloc')::int; g numeric := (param('match_simule_gain') #>> '{}')::numeric;
 begin
+  e := e - 'sept_jeu';
+  if e ? 'sept' then e := match_7m_resoudre(e, null, null); end if;   -- un jet de 7 m en attente : tiré par la formule
   e := match_reprendre_tranche(e);
   while (e ->> 'bloc')::int < 12 loop e := match_bloc_jouer(match_adjoint(match_adjoint_changer(e, p_uid))); end loop;
   e := jsonb_set(e, '{simules}', to_jsonb((e ->> 'simules')::int + reste));
@@ -2993,6 +3123,7 @@ begin
   e := e || jsonb_build_object('ia', match_ia(case when p_type = 'championnat' then match_ia_niveau(p.parcours) else 'reflechi' end));
   e := match_absents(e, p.user_id);
   if p_simuler then return match_finir_simule(p.user_id, e); end if;
+  e := e || '{"sept_jeu": true}';   -- jets de 7 m joués au mini-jeu
   insert into matchs_direct (user_id, etat) values (p.user_id, e);
   return jsonb_build_object('direct', true, 'vue', match_vue(e), 'etat', etat_de(p.user_id));
 end $$;
@@ -3035,6 +3166,7 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat; n := jsonb_array_length(e -> 'ev');
+  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   -- la dernière tranche jouée, le jeu la raconte (on peut encore faire des changements) ; le résultat vient à l'appel suivant
   if (e ->> 'bloc')::int >= 12 then return match_conclure(p.user_id, e, 1) || jsonb_build_object('vue', match_vue(e, n)); end if;
   e := match_regler(e, p_tactique, p_consigne, p_temps_mort);
@@ -3053,12 +3185,36 @@ $$;
 -- au prochain match_bloc, avec la tactique choisie pendant le temps mort. Renvoie la tactique adverse du moment et « reprise ».
 -- (L'ancienne fonction sans paramètre est remplacée : avec une valeur par défaut, le jeu pas encore à jour l'appelle encore.)
 drop function if exists match_temps_mort();
+-- le jet de 7 m du match en cours (Championnat VS Ordi, fantôme du Classé) : notre tir ({x, y, puissance}) ou notre parade
+-- ({colonne, hauteur, temps}) ; puis la fin de la tranche est jouée. Renvoie le détail du tir (tir) et la suite du fil (vue).
+create or replace function match_7m(p_entrees jsonb, p_depuis int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; d jsonb; n0 int;
+begin
+  select * into cur from matchs_direct where user_id = p.user_id for update;
+  if not found then raise exception 'Pas de match en cours'; end if;
+  e := cur.etat;
+  if not e ? 'sept' then raise exception 'Pas de jet de 7 m en cours'; end if;
+  n0 := jsonb_array_length(e -> 'ev');   -- le jet de 7 m est le dernier événement : on renvoie ce qui suit (p_depuis ne sert plus)
+  if jsonb_typeof(p_entrees) is distinct from 'object' then raise exception 'Jet de 7 m invalide'; end if;
+  if e #>> '{sept,c}' = 'a' then
+    e := match_7m_resoudre(e, p_entrees, null);
+  else
+    if coalesce(p_entrees ->> 'colonne', '') not in ('g', 'c', 'd') or coalesce(p_entrees ->> 'hauteur', '') not in ('h', 'b') then raise exception 'Jet de 7 m invalide'; end if;
+    e := match_7m_resoudre(e, null, jsonb_build_object('colonne', p_entrees ->> 'colonne', 'hauteur', p_entrees ->> 'hauteur',
+      'temps', coalesce((p_entrees ->> 'temps')::numeric, 99999)));
+  end if;
+  d := e -> 'sept_der';
+  e := match_reprendre_tranche(e);
+  update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
+  return jsonb_build_object('tir', d, 'vue', match_vue(e, n0));
+end $$;
 create or replace function match_temps_mort(p_seconde int default null) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); cur matchs_direct; e jsonb; n int; h int;
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat;
+  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   h := match_seconde(e, p_seconde);
   if h = 1800 and (e ->> 'bloc')::int = 6 then raise exception 'C’est la mi-temps : change ce que tu veux sans temps mort'; end if;
   if h < (e ->> 't')::int then e := match_rembobiner(e, h); end if;
@@ -3080,6 +3236,7 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat; fin := (e ->> 't')::int; b := (e ->> 'bloc')::int;
+  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) = 0 or jsonb_array_length(p_postes) > 7 then raise exception 'Changements invalides'; end if;
   select array_agg(x) into ps from jsonb_array_elements_text(p_postes) x;
   if exists (select 1 from unnest(ps) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then raise exception 'Poste inconnu'; end if;
@@ -3134,6 +3291,9 @@ begin
   if e ->> 'contre' in ('a', 'b') then r := r || jsonb_build_object('contre', case e ->> 'contre' when 'a' then 'b' else 'a' end); end if;
   if e ? 'mom' then r := r || jsonb_build_object('mom', -coalesce((e ->> 'mom')::numeric, 0)); end if;
   r := r - 'momv';
+  if jsonb_typeof(e -> 'sept') = 'object' then r := r || jsonb_build_object('sept', (e -> 'sept') || jsonb_build_object('c', case e #>> '{sept,c}' when 'a' then 'b' else 'a' end)); end if;
+  if jsonb_typeof(e -> 'sept_n') = 'object' then r := r || jsonb_build_object('sept_n', jsonb_build_object('a', e #> '{sept_n,b}', 'b', e #> '{sept_n,a}')); end if;
+  if jsonb_typeof(e -> 'sept_der') = 'object' then r := r || jsonb_build_object('sept_der', (e -> 'sept_der') || jsonb_build_object('c', case e #>> '{sept_der,c}' when 'a' then 'b' else 'a' end)); end if;
   if e ->> 'momv' in ('a', 'b') then r := r || jsonb_build_object('momv', case e ->> 'momv' when 'a' then 'b' else 'a' end); end if;
   if jsonb_typeof(e -> 'ev') = 'array' then
     r := r || jsonb_build_object('ev', (select coalesce(jsonb_agg(pvp_miroir_ev(x) order by i), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(x, i)));
@@ -3227,6 +3387,7 @@ begin
     'b', ((e -> 'b') - 'pref_att' - 'pref_def' - 'fo') || jsonb_build_object('tactique', tac_complete(pb.tactique), 'consigne', 'normal'));
   e := match_absents(e, p_a);
   e := pvp_miroir(match_absents(pvp_miroir(e), p_b));
+  e := e || '{"sept_jeu": true}';   -- jets de 7 m joués au mini-jeu
   insert into pvp_matchs (a, b, classe, etat, attente, meta) values (p_a, p_b, p_classe, e, p_attente, jsonb_build_object(
     'choix', jsonb_build_object('a', jsonb_build_object('tac', e #>> '{a,tactique}', 'cons', 'normal'), 'b', jsonb_build_object('tac', e #>> '{b,tactique}', 'cons', 'normal')),
     'postes', jsonb_build_object('a', '[]'::jsonb, 'b', '[]'::jsonb), 'pret', jsonb_build_object('a', -1, 'b', -1),
@@ -3274,6 +3435,17 @@ begin
   loop
     i := i + 1; exit when i > 3;
     b := (e ->> 'bloc')::int; pz := mt -> 'pause';
+    if e ? 'sept' then
+      -- un jet de 7 m : on attend le tireur, puis le gardien ; sans réponse à temps, « trop long » (ballon à l'adversaire, demande de
+      -- Maël) ou, pour le gardien, le ballon passe
+      exit when t < coalesce((e #>> '{sept,limite}')::numeric, 0);
+      if e #>> '{sept,phase}' = 'tir' then e := match_7m_resoudre(e, '{"long": true}', null);
+      else e := match_7m_resoudre(e, null, '{"colonne": "c", "hauteur": "b", "temps": 99999}'); end if;
+      h := (e ->> 't')::int;
+      e := match_reprendre_tranche(e); b := (e ->> 'bloc')::int;
+      mt := mt || jsonb_build_object('prochain', t + (b * 300 - h) / 25.0 + marge + case when b = 6 then parami('pvp_mi_temps_secondes') else 0 end);
+      continue;
+    end if;
     if jsonb_typeof(pz) = 'object' then
       -- un temps mort : 20 secondes, ou moins si les deux joueurs sont prêts
       exit when t < (pz ->> 'jusqu')::numeric and not (coalesce((pz #>> '{pret,a}')::boolean, false) and coalesce((pz #>> '{pret,b}')::boolean, false));
@@ -3446,6 +3618,37 @@ begin
   select * into m from pvp_matchs where id = m.id;
   return pvp_vue_json(m, c, p_depuis);
 end $$;
+-- Classé : le jet de 7 m. Le tireur vise ({x, y, puissance}) ; puis le gardien devine ({colonne, hauteur, temps}) ; la fin de la
+-- tranche est jouée dès que le jet est tiré
+create or replace function pvp_7m(p_entrees jsonb, p_depuis int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; c text; e jsonb; s jsonb; mt jsonb; h int; b int; t numeric := pvp_maintenant(); fini boolean := false;
+begin
+  m := pvp_mon_match(auth.uid());
+  if m.id is null or m.statut <> 'direct' then raise exception 'Pas de match en cours'; end if;
+  select * into m from pvp_matchs where id = m.id for update;   -- le match d'abord, puis le profil (voir pvp_vue)
+  p := moi();
+  c := case when m.a = p.user_id then 'a' else 'b' end; e := m.etat; mt := m.meta; s := e -> 'sept';
+  if s is null then raise exception 'Pas de jet de 7 m en cours'; end if;
+  if jsonb_typeof(p_entrees) is distinct from 'object' then raise exception 'Jet de 7 m invalide'; end if;
+  if s ->> 'c' = c and s ->> 'phase' = 'tir' then
+    e := match_7m_viser(e, p_entrees);
+  elsif s ->> 'c' <> c and s ->> 'phase' = 'gardien' then
+    if coalesce(p_entrees ->> 'colonne', '') not in ('g', 'c', 'd') or coalesce(p_entrees ->> 'hauteur', '') not in ('h', 'b') then raise exception 'Jet de 7 m invalide'; end if;
+    e := match_7m_resoudre(e, null, jsonb_build_object('colonne', p_entrees ->> 'colonne', 'hauteur', p_entrees ->> 'hauteur',
+      'temps', coalesce((p_entrees ->> 'temps')::numeric, 99999)));
+  else
+    raise exception 'Pas à toi de jouer';
+  end if;
+  if not e ? 'sept' then
+    fini := true; h := (e ->> 't')::int;
+    e := match_reprendre_tranche(e); b := (e ->> 'bloc')::int;
+    mt := mt || jsonb_build_object('prochain', t + (b * 300 - h) / 25.0 + parami('pvp_marge_secondes') + case when b = 6 then parami('pvp_mi_temps_secondes') else 0 end);
+  end if;
+  mt := jsonb_set(mt, array['vu', c], to_jsonb(t));
+  update pvp_matchs set etat = e, meta = mt, maj = now() where id = m.id;
+  select * into m from pvp_matchs where id = m.id;
+  return pvp_vue_json(m, c, p_depuis) || jsonb_build_object('tir', case when fini then pvp_cote(e, c) -> 'sept_der' end);
+end $$;
 -- temps mort : tout de suite, à la seconde où en est le récit (calculée par le serveur), 20 secondes pour les deux équipes ;
 -- l'élan et leur tactique du moment pour celui qui le prend (comme en championnat)
 create or replace function pvp_temps_mort() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -3457,6 +3660,7 @@ begin
   p := moi();
   c := case when m.a = p.user_id then 'a' else 'b' end; e := m.etat; mt := m.meta;
   if jsonb_typeof(mt -> 'pause') = 'object' then raise exception 'Le jeu est déjà arrêté'; end if;
+  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   fin := (e ->> 't')::int;
   if (e ->> 'bloc')::int < 1 or (e ->> 'bloc')::int >= 12 and fin >= 3600 and t >= (mt ->> 'prochain')::numeric then raise exception 'Pas de temps mort maintenant'; end if;
   h := case when e ? 'servi' then least(fin, greatest((e #>> '{debut,t}')::int, (e ->> 'servi_t')::int + floor((t - (e ->> 'servi')::numeric) * 25)::int)) else fin end;
@@ -3490,7 +3694,7 @@ begin
   e := match_nouveau('classe', jsonb_build_object('fantome', a.user_id, 'pseudo', a.pseudo, 'trophees', a.trophees, 'attente', p_attente), fa, fb,
     tac_complete(p.tactique), 'normal', tac_attaque(coalesce(a.tactique, 'duels:06')), tac_defense(coalesce(a.tactique, 'duels:06')));
   st := case when ar <= 1 then 'lent' when ar <= 3 then 'reflechi' when ar <= 5 then 'rapide' else 'legende' end;
-  e := e || jsonb_build_object('ia', match_ia(st));
+  e := e || jsonb_build_object('ia', match_ia(st), 'sept_jeu', true);
   e := match_absents(e, p.user_id);
   insert into matchs_direct (user_id, etat) values (p.user_id, e);
   return match_vue(e);
@@ -3813,7 +4017,8 @@ begin
   for m in select * from pvp_matchs where statut in ('propose', 'prepa') for update skip locked loop perform pvp_phase_maj(m.id); end loop;
   for m in select * from pvp_matchs where statut = 'direct' and maj < now() - interval '30 seconds' for update skip locked loop
     if m.maj < now() - interval '10 minutes' then
-      e := m.etat; meta := m.meta || jsonb_build_object('pause', null, 'vu', jsonb_build_object('a', 0, 'b', 0));
+      e := m.etat - 'sept_jeu'; meta := m.meta || jsonb_build_object('pause', null, 'vu', jsonb_build_object('a', 0, 'b', 0));
+      if e ? 'sept' then e := match_7m_resoudre(e, null, null); end if;
       if (e ->> 't')::int > (e ->> 'bloc')::int * 300 then e := match_reprendre_tranche(e); end if;
       while (e ->> 'bloc')::int < 12 loop
         e := pvp_appliquer(e, meta, 'a', m.a); e := pvp_appliquer(e, meta, 'b', m.b); e := match_bloc_jouer(e);
@@ -5766,7 +5971,7 @@ grant execute on function
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
-  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text), compo_enregistrer(int), compo_charger(int),
+  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),

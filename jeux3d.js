@@ -76,6 +76,11 @@ const POSES = {
   paradeHautCentre: [[B('R_UpperArm'), 'z', -168], [B('L_UpperArm'), 'z', 168], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -10], [B('L_Calf'), 'x', 15], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
   paradeBasCentre: [[B('R_UpperArm'), 'z', -30], [B('L_UpperArm'), 'z', 30], [B('R_Forearm'), 'x', -25], [B('L_Forearm'), 'x', -25],
     [B('L_Thigh'), 'z', 8], [B('R_Thigh'), 'z', -8], [B('R_Thigh'), 'x', -20], [B('R_Calf'), 'x', 35], [B('L_Thigh'), 'x', -20], [B('L_Calf'), 'x', 35], [B('Spine'), 'x', 14]],
+  // jet de 7 m (photos envoyées par Maël, 23 nov. 2026) : buste droit (pas penché comme pour une feinte), ballon derrière la tête au
+  // niveau de l'oreille, coude plié, l'autre bras tendu vers l'avant et le bas, jambes écartées, la gauche devant genou plié
+  arme7m: [[B('Spine1'), 'y', 28], [B('R_UpperArm'), 'z', -108], [B('R_UpperArm'), 'y', -58], [B('R_Forearm'), 'z', -128],
+    [B('L_UpperArm'), 'z', 48], [B('L_UpperArm'), 'x', -45], [B('L_Forearm'), 'x', -10],
+    [B('L_Thigh'), 'x', -34], [B('L_Thigh'), 'z', 6], [B('L_Calf'), 'x', 30], [B('R_Thigh'), 'x', 24], [B('R_Thigh'), 'z', -6], [B('R_Calf'), 'x', 6]],
   arme: [[B('Spine1'), 'y', 25], [B('R_UpperArm'), 'z', -105], [B('R_UpperArm'), 'y', -40], [B('R_Forearm'), 'z', -95], [B('L_UpperArm'), 'z', 45], [B('L_UpperArm'), 'x', -40], [B('L_Forearm'), 'x', -50]],
   tir: [[B('Spine1'), 'y', -20], [B('Spine1'), 'x', 15], [B('R_UpperArm'), 'z', -120], [B('R_UpperArm'), 'y', 45], [B('R_Forearm'), 'z', -15], [B('L_UpperArm'), 'z', 25]],
   contre: [[B('R_UpperArm'), 'z', -165], [B('L_UpperArm'), 'z', 165], [B('R_Forearm'), 'z', -5], [B('L_Forearm'), 'z', 5], [B('R_Hand'), 'lx', 90], [B('L_Hand'), 'lx', -90]],
@@ -517,7 +522,9 @@ export async function gardien(sc, n) {
   const z = sc.querySelector('.t3'), S = await salle(z); if (!S) return;
   const q = s => z.querySelector(s);
   let prep;
-  try { prep = MJ.demo ? (MJ.secret = {colonne: ['g', 'c', 'd'][Math.random() < .4 ? 0 : Math.random() < 2 / 3 ? 2 : 1], hauteur: Math.random() < .5 ? 'h' : 'b',
+  // jet de 7 m en match (MJ.match) : le tir vient du match (en Classé, quand le tireur adverse a visé)
+  if (MJ.match) miniAide('Le tireur se concentre sur le point de 7 m…');
+  try { prep = MJ.match ? await MJ.match.prep() : MJ.demo ? (MJ.secret = {colonne: ['g', 'c', 'd'][Math.random() < .4 ? 0 : Math.random() < 2 / 3 ? 2 : 1], hauteur: Math.random() < .5 ? 'h' : 'b',
     duree: Math.max(520, 980 - 18 * MJ.liste.length - Math.floor(Math.random() * 120))}) : await Compte.miniPreparer('gardien'); }
   catch (e) { toast(e.message); return fermerMini(); }
   if (!MJ.el) return;
@@ -544,11 +551,14 @@ export async function gardien(sc, n) {
   // à l'écran, la gauche du but est du côté des x positifs (on regarde vers le terrain)
   const X = {g: 1.05, c: 0, d: -1.05};
   // course d'élan plus courte (Maël, 20 nov. 2026 : « c'est trop long de voir le mec courir ») : il part de 12 m au lieu de 15,5
-  const x0 = (Math.random() - .5) * 4, dep = {x: x0, z: 12.2}, appui = {x: x0 * .55, z: 9.6};
+  // jet de 7 m (Maël, 23 nov. 2026) : le tireur ne bouge pas le pied du point de 7 m, pas de trajectoire dessinée
+  const fixe = !!MJ.match;
+  const x0 = fixe ? 0 : (Math.random() - .5) * 4, dep = fixe ? {x: 0, z: 7} : {x: x0, z: 12.2}, appui = fixe ? {x: 0, z: 7} : {x: x0 * .55, z: 9.6};
   const cible = v3(X[prep.colonne] + (Math.random() - .5) * .3, {h: 1.55, b: .42}[prep.hauteur] + (Math.random() - .5) * .25, 0);
-  const vite = Math.max(.85, 1 - (MJ.serieN || 0) * .02), course = 520 * vite, saut = 440 * vite, duree = prep.duree;
-  tireur.mettre(dep.x, 0, dep.z, Math.PI); tireur.regarder(appui.x, appui.z); tireur.jouer('course', .1, 1.15);
-  miniAide('Le tireur arrive…');
+  const vite = Math.max(.85, 1 - (MJ.serieN || 0) * .02), course = fixe ? 0 : 520 * vite, saut = fixe ? 900 : 440 * vite, duree = prep.duree;
+  tireur.mettre(dep.x, 0, dep.z, Math.PI);
+  if (fixe) { tireur.regarder(0, 0); tireur.jouer('repos', .1); miniAide('Il arme son tir…'); }
+  else { tireur.regarder(appui.x, appui.z); tireur.jouer('course', .1, 1.15); miniAide('Le tireur arrive…'); }
   let choisi = null, envoye = false, r = null, quand = 0, depart = null, fini = false, tChoix = 0, par = null;
   const envoyer = async ent => {
     if (envoye) return; envoye = true; MJ.toucher = null;
@@ -561,7 +571,11 @@ export async function gardien(sc, n) {
     const dt = S.pas(); t += dt * 1000;
     // tireur : course d'élan, appel, saut ; bras armé puis tir
     if (t < course) { const u = t / course; tireur.mettre(lerp(dep.x, appui.x, u), 0, lerp(dep.z, appui.z, u)); }
-    else {
+    else if (fixe) {   // debout sur le point de 7 m : il arme, puis tire, sans sauter
+      tireur.mettre(0, 0, 7);
+      if (t < saut) tireur.pose('arme7m', doux(cl(t / 350)));
+      else { const v = doux(cl((t - saut) / 120)); tireur.pose('arme7m', 1 - v); tireur.pose('tir', v); }
+    } else {
       const u = cl((t - course) / (saut + 520));
       tireur.mettre(appui.x, Math.sin(Math.PI * u) * .55, appui.z - u * .9);
       if (!tireur.enlair) { tireur.enlair = true; tireur.jouer('repos', .15); miniAide('Regarde le ballon…'); }
@@ -576,7 +590,7 @@ export async function gardien(sc, n) {
     if (t >= course + saut) {
       if (!depart) {
         depart = tireur.main(); quand = now; vibrer(10); miniAide('Touche la zone du but où va le ballon !');
-        S.montrerTrajectoire(posBallon);
+        if (!fixe) S.montrerTrajectoire(posBallon);
         MJ.timers.push(setTimeout(() => { if (!choisi) { choisi = {colonne: 'c', hauteur: 'b', temps: 99999}; envoyer(choisi); } }, duree + 80));
       }
       const u = cl((now - quand) / duree), p = posBallon(u);
@@ -592,10 +606,10 @@ export async function gardien(sc, n) {
   };
   // la suite : arrêt (le ballon repart vers le terrain) ou but (filet qui se creuse)
   const impact = () => new Promise(fin => {
-    const t1 = performance.now(), arret = r.resultat === 'arret', a = arret ? S.ballon.position.clone() : cible.clone();
-    const b = arret ? v3(a.x * 2.2 + (Math.random() - .5), .1, 5.5) : v3(a.x * .9, Math.max(.12, a.y - .3), -.85);   // repoussé vers le terrain
+    const t1 = performance.now(), arret = r.resultat === 'arret', rate = r.resultat === 'poteau' || r.resultat === 'dehors', a = arret ? S.ballon.position.clone() : cible.clone();
+    const b = arret ? v3(a.x * 2.2 + (Math.random() - .5), .1, 5.5) : rate ? v3((a.x || .5) * 2.4, a.y + .4, -2.5) : v3(a.x * .9, Math.max(.12, a.y - .3), -.85);   // repoussé vers le terrain
     if (arret) { vibrer(30); z.animate([{translate: '0 0'}, {translate: '-5px 3px'}, {translate: '5px -2px'}, {translate: '0 0'}], {duration: 240}); }
-    else S.buts[0].bosse(a.x, a.y);
+    else if (!rate) S.buts[0].bosse(a.x, a.y);
     const pas = now => {
       if (!MJ.el) return fin();
       const u = cl((now - t1) / (arret ? 620 : 380)), dt = S.pas();
