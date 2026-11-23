@@ -77,6 +77,14 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   await A.fill('form[data-form=salon] [name=texte]', 'Qui veut un match en Classé ?'); await A.click('form[data-form=salon] button');
   await A.waitForFunction(() => /Qui veut un match/.test(document.querySelector('#sal-fil').textContent), null, {timeout: 5000});
   verif('Alice envoie : le champ se vide, son message est dans le fil', await A.$eval('form[data-form=salon] [name=texte]', x => x.value === ''));
+  // capture de Maël (24 nov. 2026) : le style du bouton « Niv. » (classe moi) déformait nos messages ; la bulle des ami(e)s cachait « Envoyer »
+  const vm = await A.evaluate(() => { const m = document.querySelector('.sal-m.moi'), cs = getComputedStyle(m), env = document.querySelector('form[data-form=salon] button').getBoundingClientRect();
+    const bulle = document.querySelector('.bulle-amis'), bb = bulle && getComputedStyle(bulle).display !== 'none' ? bulle.getBoundingClientRect() : null;
+    return {marge: cs.marginLeft, rayon: cs.borderTopLeftRadius, fond: cs.backgroundImage, niv: getComputedStyle(m.querySelector('span') || m, '::before').content,
+      cache: !!bb && !(bb.right < env.left || bb.left > env.right || bb.bottom < env.top || bb.top > env.bottom)}; });
+  verif('notre message : une bulle normale (pas le style du bouton « Niv. »), « Envoyer » pas caché par la bulle des ami(e)s',
+    vm.marge !== '-18px' && !/linear-gradient\(180deg, rgb\(45, 54, 70\)/.test(vm.fond) && !vm.cache, vm);
+  if (SP) await A.screenshot({path: SP + '/salon-moi.png'});
   await B.fill('form[data-form=salon] [name=texte]', 'Je tape un mess');
   await B.waitForFunction(() => /Qui veut un match/.test(document.querySelector('#sal-fil').textContent), null, {timeout: 9000});
   const vb = await B.evaluate(() => ({champ: document.querySelector('form[data-form=salon] [name=texte]').value, vert: !!document.querySelector('#sal-en .sal-j:not(.moi) .pt-vert'),

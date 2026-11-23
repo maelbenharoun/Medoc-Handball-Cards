@@ -43,7 +43,7 @@ main { padding: 18px 16px calc(150px + var(--safe-b)); max-width: 720px; margin:
 
 [hidden] { display: none !important; }
 .haut-d { display: flex; align-items: center; gap: 8px; }
-.moi { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg2); font-weight: 900; font-size: .95rem; padding: 0; }
+#moi { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg2); font-weight: 900; font-size: .95rem; padding: 0; }
 
 /* ── formulaires (connexion, profil, outil) */
 .champ { width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: var(--ink);
@@ -1108,6 +1108,8 @@ body.avec-intro { overflow: hidden; }
 .bulle-amis svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .bulle-amis .pastille { top: -3px; left: auto; right: -3px; }
 body.avec-intro .bulle-amis { display: none; }
+/* salon « En ligne » : la bulle des ami(e)s cachait le bouton « Envoyer » (capture de Maël, 24 nov. 2026) */
+body:has(form[data-form=salon]) .bulle-amis { display: none; }
 button.retour { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
 .amis-p h3 small { display: block; margin-top: 2px; }
 .liste-amis { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
@@ -1411,9 +1413,9 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .hud-g { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .hud-g .brand img { width: 42px; height: 42px; border: 3px solid #fff; box-shadow: 0 3px 0 rgba(0, 0, 0, .35), 0 0 0 2px #1d5b8f; position: relative; z-index: 1; }
 body.connecte .brand span { display: none; }
-.moi { position: relative; width: auto; height: 34px; margin-left: -18px; padding: 0 12px 0 22px; border-radius: 0 99px 99px 0; display: flex; flex-direction: column; justify-content: center; gap: 3px;
+#moi { position: relative; width: auto; height: 34px; margin-left: -18px; padding: 0 12px 0 22px; border-radius: 0 99px 99px 0; display: flex; flex-direction: column; justify-content: center; gap: 3px;
   border: 0; background: linear-gradient(180deg, #2d3646, #1c222c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 3px 0 #0a0d12; color: var(--ink); }
-.moi b { font-size: .7rem; font-weight: 900; line-height: 1; text-align: left; } .moi b::before { content: "Niv. "; color: var(--muted); font-weight: 700; }
+#moi b { font-size: .7rem; font-weight: 900; line-height: 1; text-align: left; } #moi b::before { content: "Niv. "; color: var(--muted); font-weight: 700; }
 .hud-xp { display: block; width: 40px; height: 5px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .hud-xp i { display: block; height: 100%; background: linear-gradient(90deg, #7fe0ff, #3f8cff); transform-origin: left; transform: scaleX(0); transition: transform .6s; }
 .hud-boost { position: relative; display: flex; flex-direction: column; justify-content: center; height: 34px; padding: 0 10px 0 30px; border-radius: 99px; text-decoration: none; color: var(--ink);
