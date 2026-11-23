@@ -1772,20 +1772,24 @@ function animerTir7mMatch(r) {
   if (r.resultat === 'long') return fin();
   J7.ctl.tirer(r, moinsAnim() ? 1 : Math.round(560 - 330 * (r.vitesse ?? .7))).then(fin);
 }
-// Démo (?demo=sept) : un jet de 7 m de match à tirer, puis un à arrêter, comme en match (intro, mini-jeux), sans serveur ; pour essayer
-// sans attendre qu'un 7 m tombe dans un match (Maël, 23 nov. 2026)
+// Démo (?demo=sept) : un jet de 7 m de match à tirer, puis les deux bouts de la fourchette des arrêts d'affilée (demande de Maël,
+// 23 nov. 2026) : le plus lent (1,1 s : tireur bien plus faible que ton gardien) et le plus rapide (0,48 s : bien plus fort), comme en
+// match (intro, mini-jeux), sans serveur
 function demoSept() {
-  const tour = tireur => Promise.all([septIntro(tireur ? 'Démo · à toi de tirer' : 'Démo · à toi d’arrêter'), jeux3d().catch(() => null)]).then(([intro]) => new Promise(fin => {
-    if (tireur) ouvrirJet7mMatch({nom: 'Démo', tirer: (x, y, f) => tir7mDemo(x, y, f), fin: () => { J7.match = null; fermerJet7m(true); fin(); }});
+  const tour = (titre, duree) => Promise.all([septIntro(titre), jeux3d().catch(() => null)]).then(([intro]) => new Promise(fin => {
+    if (!duree) ouvrirJet7mMatch({nom: titre, tirer: (x, y, f) => tir7mDemo(x, y, f), fin: () => { J7.match = null; fermerJet7m(true); fin(); }});
     else {
-      const prep = {colonne: ['g', 'c', 'd'][Math.floor(Math.random() * 3)], hauteur: Math.random() < .5 ? 'h' : 'b', duree: 600 + Math.floor(Math.random() * 250)};
-      ouvrirArret7m({nom: 'Démo', prep: () => Promise.resolve(prep),
-        envoyer: ent => Promise.resolve({resultat: ent.colonne === prep.colonne && ent.hauteur === prep.hauteur && ent.temps <= prep.duree ? 'arret' : Math.random() < .1 ? 'poteau' : 'but'}),
+      const prep = {colonne: ['g', 'c', 'd'][Math.floor(Math.random() * 3)], hauteur: Math.random() < .5 ? 'h' : 'b', duree};
+      ouvrirArret7m({nom: titre, prep: () => Promise.resolve(prep),
+        envoyer: ent => Promise.resolve({resultat: ent.colonne === prep.colonne && ent.hauteur === prep.hauteur && ent.temps <= prep.duree ? 'arret' : 'but'}),
         fin: () => { MJ.match = null; fermerMini(true); fin(); }});
     }
     setTimeout(() => intro.classList.add('fin'), 250); setTimeout(() => intro.remove(), 700);
   }));
-  tour(true).then(() => tour(false)).then(() => toast('Démo des jets de 7 m terminée'));
+  tour('Démo · à toi de tirer')
+    .then(() => tour('Arrêt le plus lent · 1,1 s', 1100))
+    .then(() => tour('Arrêt le plus rapide · 0,48 s', 480))
+    .then(() => toast('Démo des jets de 7 m terminée'));
 }
 // leur tir : l'arrêt réflexe, le tireur sur le point de 7 m (jeux3d.gardien, MJ.match)
 function ouvrirArret7m(o) {
@@ -4288,7 +4292,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=95').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=96').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

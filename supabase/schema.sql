@@ -2669,9 +2669,19 @@ end $$;
 -- Jets de 7 m joués au mini-jeu (demande de Maël, 23 nov. 2026). sept = {c (qui tire), t, n (tireur), g (gardien), tir, gb (niveaux),
 -- phase : 'tir' (le tireur, un joueur, vise) ou 'gardien' (le tir part : zone col/hau, durée du vol), limite (Classé : sans tir à temps,
 -- « trop long », ballon à l'adversaire ; sans réaction du gardien, le ballon passe)}. L'ordinateur tire : la zone est tirée tout de suite.
+-- niveaux d'un jet de 7 m (demande de Maël, 23 nov. 2026, comme les tirs au but) : la stat TIR du tireur, la moyenne de MEN et RÉF du
+-- gardien ; une équipe de l'ordinateur (sans exemplaires) tire et garde à sa note (stat moyenne à cette note)
+create or replace function sept_stat(eq jsonb, p_poste text, p_gardien boolean) returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select case when p_gardien then (stat_note(x.note, (c.ecarts ->> 'men')::numeric) + stat_note(x.note, (c.ecarts ->> 'ref')::numeric)) / 2.0
+       else stat_note(x.note, (c.ecarts ->> 'tir')::numeric) end
+     from exemplaires x join cartes c on c.id = x.carte_id where x.id::text = eq -> 'equipe' ->> p_poste),
+    stat_note(coalesce((eq ->> 'note')::numeric, ((eq ->> 'att')::numeric + (eq ->> 'def')::numeric) / 2, 75), 0))
+$$;
 create or replace function sept_preparer(e jsonb, x text, t int, nom text, gb text, eqx jsonb, eqy jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
-declare niv_t numeric := (eqx ->> 'att')::numeric - coalesce((eqx ->> 'fma')::numeric, 0);
-  niv_g numeric := coalesce((eqy -> 'notes' ->> 'GB')::numeric, (eqy ->> 'def')::numeric); s jsonb;
+declare poste text := coalesce((select k from unnest(array['DC', 'ARG', 'ARD']) k where eqx -> 'joueurs' ->> k = nom limit 1), 'DC');
+  niv_t numeric := sept_stat(eqx, poste, false);
+  niv_g numeric := sept_stat(eqy, 'GB', true); s jsonb;
 begin
   s := jsonb_build_object('c', x, 't', t, 'n', nom, 'g', gb, 'tir', round(niv_t, 1), 'gb', round(niv_g, 1),
     'limite', pvp_maintenant() + parami('sept_tir_secondes'), 'phase', 'tir');
