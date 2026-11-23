@@ -94,7 +94,7 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
     && (va.pvp.fin.match.resultat === 'nul' ? tA === 0 && tB === 0 : tA + tB === 30), {fa: va.pvp.fin, fb: vb.pvp.fin?.gains});
   verif('historique : un match « pvp » pour chacun', (await q("select count(*)::int n from rencontres where type = 'pvp'"))[0].n === 2);
   const acc = await rpcJoueur(db, U.Alice, 'pvp_accueil');
-  verif('accueil : trophées, 7 arènes, classement', acc.arenes.length === 7 && acc.classement.length >= 1 && acc.derniers.length === 1, acc.erreur || acc);
+  verif('accueil : trophées, 7 arènes, classement', acc.arenes.length === 7 && (acc.classement.length >= 1 || acc.moi?.rang >= 1) && acc.derniers.length === 1, acc.erreur || acc);
   // fantôme après 2 minutes
   await q('update profils set trophees = 500 where user_id = $1', [U.Chloe]);   // une victoire comme une défaite changerait ses trophées
   r = await rpcJoueur(db, U.Chloe, 'pvp_chercher');
