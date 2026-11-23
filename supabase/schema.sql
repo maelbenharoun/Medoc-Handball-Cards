@@ -3003,6 +3003,8 @@ declare p profils := moi(); cur matchs_direct;
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
+  -- Classé contre un fantôme : pas de simulation (demande de Maël, 23 nov. 2026)
+  if cur.etat ->> 'type' = 'classe' then raise exception 'Pas de simulation en Classé : joue le match jusqu’au bout'; end if;
   return match_finir_simule(p.user_id, cur.etat);
 end $$;
 
@@ -3385,11 +3387,10 @@ begin
   return match_vue(e);
 end $$;
 create or replace function pvp_fantome_conclure(p_uid uuid, e jsonb, r jsonb, p_gain numeric) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils; res text := r ->> 'resultat'; d int; tr jsonb; g int; x int; niveaux jsonb; tf int := coalesce((e #>> '{ctx,trophees}')::int, 0);
+declare p profils; res text := r ->> 'resultat'; tr jsonb := null; g int; x int; niveaux jsonb;
 begin
   select * into p from profils where user_id = p_uid for update;
-  d := case res when 'gagne' then pvp_trophees_gain(p.trophees, tf) when 'perdu' then -pvp_trophees_gain(tf, p.trophees) else 0 end;
-  tr := pvp_trophees_donner(p_uid, d);
+  -- contre le fantôme (l'ordinateur), aucun trophée gagné ni perdu (demande de Maël, 23 nov. 2026) : seulement les pièces et l'XP
   g := pvp_pieces(p_uid, res, p_gain); x := round((param('pve_xp') ->> res)::int * p_gain);
   update profils set pieces = pieces + g, tactique = coalesce(e #>> '{a,tactique}', tactique) where user_id = p_uid;
   niveaux := gagner_xp(p_uid, x);

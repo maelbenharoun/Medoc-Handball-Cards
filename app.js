@@ -1535,6 +1535,8 @@ function ouvrirDirect(vue, reprise) {
   // match à deux en direct : même écran, rythme ×1 imposé, pas de « Simuler » ; le serveur est interrogé toutes les secondes ou deux
   Object.assign(MD, {pvp: vue.pvp || null, gen: vue.pvp?.gen ?? 0, n: (vue.evenements || []).length, pvpRecu: Date.now(), pvpPostes: vue.pvp?.choix?.postes || [],
     pretEnvoye: null, miTemps: false, pvpPret: false, adverse: null});
+  // Classé contre un fantôme : pas de simulation (demande de Maël, 23 nov. 2026), comme contre un vrai joueur
+  if (vue.type === 'classe') el.classList.add('sans-sim');
   if (MD.pvp) {
     MD.vitesse = 1; el.classList.add('pvp');
     if (vue.pvp.choix?.tac) { MD.tac = vue.pvp.choix.tac; MD.cons = vue.pvp.choix.cons || 'normal'; }
@@ -1789,7 +1791,7 @@ function panneauMD(type) {
       <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
     ${change && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
     <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
-        : type !== 'envoi' && !MD.pvp ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
+        : type !== 'envoi' && !MD.pvp && MD.vue.type !== 'classe' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
       <button class="btn gold" data-md-go="jouer">${MD.pvp && type !== 'tactique' ? 'Prêt' : {envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', blessure: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
   p.hidden = false; MD.el.classList.add('en-pause');
   choixMD();
@@ -1897,7 +1899,7 @@ function clicMD(e) {
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
   if (b.classList.contains('md-tm')) return tempsMortMD();
   if (b.classList.contains('md-tac')) return panneauMD('tactique');
-  if (b.classList.contains('md-sim') || d.mdGo === 'sim') return simulerFinMD();
+  if ((b.classList.contains('md-sim') || d.mdGo === 'sim') && !MD.pvp && MD.vue.type !== 'classe') return simulerFinMD();
   if (d.mdGo === 'annuler') { fermerPanneauMD(); return reprendreMD(); }
   if (d.mdGo === 'jouer') {
     const type = MD.panneau;
@@ -2156,7 +2158,7 @@ function pvpTrouve(vue, fantome) {
   el.innerHTML = `<p class="pvp-t">${fantome ? 'Personne de disponible' : vue.pvp?.classe === false ? 'Défi accepté !' : 'Adversaire trouvé !'}</p>
     <div class="pvp-face"><div><b>${esc(moi)}</b><small>${nb(S().pvp?.trophees ?? S().trophees ?? 0)} 🏆</small></div><i>VS</i>
       <div><b>${esc(eux)}</b><small>${fantome ? 'joué par l’ordinateur' : tr != null ? `${nb(tr)} 🏆` : ''}</small></div></div>
-    ${fantome ? '<p class="pvp-s">Tu affrontes son équipe, coachée par l’ordinateur. Les trophées comptent.</p>' : ''}`;
+    ${fantome ? '<p class="pvp-s">Tu affrontes son équipe, coachée par l’ordinateur. Contre l’ordinateur, pas de trophées : seulement des pièces.</p>' : ''}`;
   document.body.appendChild(el);
   Son.jouer('sifflet'); vibrer([30, 40, 60]);
   setTimeout(() => { el.remove(); ouvrirDirect(vue); if (fantome) Compte.rafraichir().catch(() => {}); }, fantome ? 2600 : 1800);
@@ -2190,7 +2192,7 @@ function vueClasse() {
     ${enCours ? '<button class="btn gold large" data-act="pvp-reprendre" style="width:100%">⚔️ Reprendre le match en direct</button>'
       : `<button class="btn gold large" data-act="pvp-chercher" style="width:100%"${complet && !FILE.t ? '' : ' disabled'}>⚔️ ${FILE.t ? 'Recherche en cours…' : 'Trouver un adversaire'}</button>`}
     <p class="sub petit">${complet ? '' : 'Aligne 7 joueurs dans l’onglet Équipe pour jouer. '}En direct contre un vrai joueur : vous choisissez vos tactiques en même temps, 3 temps morts de 20 s chacun.
-      Personne après ${Math.round((D.fantome || 120) / 60)} min : tu affrontes le fantôme d’un joueur proche en trophées (son équipe, coachée par l’ordinateur).
+      Personne après ${Math.round((D.fantome || 120) / 60)} min : tu affrontes le fantôme d’un joueur proche en trophées (son équipe, coachée par l’ordinateur ; ni trophées gagnés, ni perdus).
       Victoire ${nb(D.pieces?.gagne || 0)}+ pièces selon l’arène, ${D.gainsRestants} match${D.gainsRestants > 1 ? 's' : ''} récompensé${D.gainsRestants > 1 ? 's' : ''} aujourd’hui.</p>
     <p class="sub petit">Saison : fin dans ${jours} jour${jours > 1 ? 's' : ''}. Récompense selon ton arène ; au-dessus de ${nb(D.saisonSeuil)} 🏆, la moitié des trophées en plus repart.</p>
     <h2>Arènes</h2><div class="cl-ars">${A.map(x => `<div class="cl-ar${x.i === D.arene ? ' on' : ''}${x.atteinte ? ' ok' : ''}"><b>${esc(x.nom)}</b><small>${nb(x.min)} 🏆</small>
@@ -3927,7 +3929,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=91').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=92').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

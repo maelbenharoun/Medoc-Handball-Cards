@@ -69,12 +69,18 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const acc = await rpcJoueur(db, U.Alice, 'pvp_accueil');
   verif('accueil : trophées, 7 arènes, classement', acc.arenes.length === 7 && acc.classement.length >= 1 && acc.derniers.length === 1, acc.erreur || acc);
   // fantôme après 2 minutes
+  await q('update profils set trophees = 500 where user_id = $1', [U.Chloe]);   // une victoire comme une défaite changerait ses trophées
   r = await rpcJoueur(db, U.Chloe, 'pvp_chercher');
   await q("update pvp_file set entree = now() - interval '121 seconds' where user_id = $1", [U.Chloe]);
   r = await rpcJoueur(db, U.Chloe, 'pvp_chercher');
   verif(`après 2 min : un fantôme (${r.vue?.eux?.nom})`, r.fantome === true && /^Fantôme de /.test(r.vue.eux.nom), r.erreur || r);
+  const avantF = (await q('select trophees from profils where user_id = $1', [U.Chloe]))[0].trophees;
   r = await rpcJoueur(db, U.Chloe, 'match_simuler_fin');
-  verif(`fantôme simulé : trophées ${r.gains?.trophees}, pièces ${r.gains?.pieces}`, r.classe === true && typeof r.gains.trophees === 'number', r.erreur || r);
+  verif('fantôme : « Simuler » refusé par le serveur', /Pas de simulation/.test(r?.erreur || ''), r);
+  // le match est joué jusqu'au bout (fonction interne)
+  r = (await q('select match_finir_simule($1, etat) r from matchs_direct where user_id = $1', [U.Chloe]))[0].r;
+  verif(`fantôme joué jusqu'au bout : aucun trophée (contre l'ordinateur), pièces ${r.gains?.pieces}`, r.classe === true && r.gains.trophees == null && r.trophees == null && r.gains.pieces > 0
+    && (await q('select trophees from profils where user_id = $1', [U.Chloe]))[0].trophees === avantF, r.erreur || r);
   // invitation entre ami(e)s
   await rpcJoueur(db, U.Alice, 'ajouter_ami', ['Chloe']); await rpcJoueur(db, U.Chloe, 'ajouter_ami', ['Alice']);
   const inv = await rpcJoueur(db, U.Alice, 'pvp_inviter', ['Chloe']);
@@ -160,6 +166,9 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   if (SP) await F.screenshot({path: SP + '/pvp-fantome.png'});
   await F.waitForSelector('.md:not(.pvp) .md-panneau:not([hidden])', {timeout: 8000});
   verif('le match contre le fantôme s’ouvre (coaché par l’ordinateur)', /Fantôme de/.test(await F.$eval('.md-eq.b small', x => x.textContent)));
+  const simF = await F.evaluate(() => ({bouton: getComputedStyle(document.querySelector('.md-sim')).display, fin: !!document.querySelector('[data-md-go="sim"]')}));
+  const refus = await rpcJoueur(db, U.Fanny, 'match_simuler_fin');
+  verif('contre le fantôme : pas de « Simuler » (bouton caché, refusé par le serveur)', simF.bouton === 'none' && !simF.fin && /Pas de simulation/.test(refus?.erreur || ''), {simF, refus});
   // invitation : Dani défie Eva en direct
   for (const pg of [D, E]) { await pg.evaluate(() => { if (MD.el) fermerDirect(); }); await pg.goto(web.url + '#jouer'); }
   await rpcJoueur(db, U.Dani, 'ajouter_ami', ['Eva']); await rpcJoueur(db, U.Eva, 'ajouter_ami', ['Dani']);
