@@ -1978,12 +1978,13 @@ const majMarche = (d, msg) => { MKT.data = d; MKT.recu = Date.now(); if (msg) to
 const dureeTx = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.min(59, Math.ceil(s % 3600 / 60))).padStart(2, '0')}` : `${Math.max(1, Math.ceil(s / 60))} min`;
 const resteTx = t => dureeTx(Math.max(0, (new Date(t) - Date.now()) / 1000));
 const libreEx = e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte] && !PAR_ID[e.carte].legende;
-// mes cartes qu'on peut céder (hors équipe, banc et ventes), une ligne par joueur et par palier ; doublons = j'en garde au moins une
+// mes cartes qu'on peut céder (hors équipe, banc et ventes), une ligne par joueur et par palier ; doublons = au moins 2 cartes du
+// joueur à ce palier, j'en garde une (retour de Rémi : une Ultime seule passait pour un doublon s'il avait le joueur à un autre palier)
 function mesCedables(doublons) {
   const tot = {}, g = {};
-  for (const e of EX()) tot[e.carte] = (tot[e.carte] || 0) + 1;
-  for (const e of EX()) if (libreEx(e) && (!doublons || tot[e.carte] >= 2)) {
-    const k = e.carte + ':' + e.palier, x = g[k] = g[k] || {carte: e.carte, palier: e.palier, n: 0, note: 99};
+  for (const e of EX()) tot[e.carte + ':' + e.palier] = (tot[e.carte + ':' + e.palier] || 0) + 1;
+  for (const e of EX()) if (libreEx(e) && (!doublons || tot[e.carte + ':' + e.palier] >= 2)) {
+    const k = e.carte + ':' + e.palier, x = g[k] = g[k] || {carte: e.carte, palier: e.palier, n: 0, note: 99, tot: tot[k]};
     x.n++; x.note = Math.min(x.note, e.note);   // la moins entraînée : c'est elle qui part
   }
   return Object.values(g).sort((a, b) => RARETES.indexOf(b.palier) - RARETES.indexOf(a.palier) || PAR_ID[a.carte].nom.localeCompare(PAR_ID[b.carte].nom, 'fr'));
@@ -2069,8 +2070,8 @@ function vueBoite(D) {
   return `<div class="daily bx-t"><p><b>🎁 Boîte à échanges</b>Dépose un doublon contre une autre carte du même palier, déposée par un autre joueur (plutôt un joueur que tu n’as pas encore).
       S’il y en a une dans la boîte, l’échange est immédiat ; sinon ta carte attend qu’un joueur dépose la sienne, ${B.minutes || 60} min au plus, puis la boîte t’en donne une. <em>${B.restants ? `Encore ${plur(B.restants, 'échange')} aujourd’hui (${B.limite} par jour)` : 'Plus d’échange aujourd’hui : reviens demain'}</em></p></div>
     ${attente ? `<h2>En attente dans la boîte</h2><div class="mk-ms">${attente}</div>` : ''}
-    <h2>Tes doublons</h2><p class="sub petit">Touche une carte pour l’échanger. Tu gardes toujours au moins une carte de chaque joueur, et c’est la moins entraînée qui part.</p>
-    <div class="pickgrid">${l.map(x => `<button class="pc" data-boite="${x.carte}:${x.palier}"${B.restants ? '' : ' disabled'}>${carteHTML(carteDe(x.carte, x.palier, x.note), {qty: x.n > 1 ? x.n : 0})}</button>`).join('')
+    <h2>Tes doublons</h2><p class="sub petit">Touche une carte pour l’échanger. Un doublon = 2 cartes du même joueur au même palier : tu en gardes toujours une, et c’est la moins entraînée qui part.</p>
+    <div class="pickgrid">${l.map(x => `<button class="pc" data-boite="${x.carte}:${x.palier}"${B.restants ? '' : ' disabled'}>${carteHTML(carteDe(x.carte, x.palier, x.note), {qty: x.tot})}</button>`).join('')
       || '<p class="sub">Pas de doublon libre pour l’instant (cartes hors de ton équipe et de ton banc).</p>'}</div>`;
 }
 // ── demandes au club
@@ -3626,7 +3627,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=88').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=89').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

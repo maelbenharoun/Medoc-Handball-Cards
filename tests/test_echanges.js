@@ -76,12 +76,17 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const exS = await donner(U.al, Z, 'or');
   verif('boîte : un joueur dont on n’a qu’une carte : refusé (doublons seulement)', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'or']), 'doublons'));
   await donner(U.al, Z, 'bronze');
-  verif('boîte : pas de carte libre à ce palier : refusé', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'argent']), 'carte libre'));
+  verif('boîte : aucune carte de ce joueur à ce palier : refusé', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'argent']), 'doublons'));
+  { const a1 = await donner(U.al, Z, 'argent'), a2 = await donner(U.al, Z, 'argent'); await rpcJoueur(db, U.al, 'marche_vendre', [a1, 300]); await rpcJoueur(db, U.al, 'marche_vendre', [a2, 300]);
+    verif('boîte : 2 Argent mais toutes deux en vente (pas libres) : refusé', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'argent']), 'carte libre'));
+    await q("update exemplaires set verrou = null where id in ($1, $2)", [a1, a2]); await q("delete from ventes where exemplaire in ($1, $2)", [a1, a2]); await q('delete from exemplaires where id in ($1, $2)', [a1, a2]); }
+  verif('boîte : une Or seule et une Bronze du même joueur, ce n’est pas un doublon Or (retour de Rémi) : refusé', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'or']), 'doublons'));
+  await donner(U.al, Z, 'or');
   r = await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'or']);
   verif('boîte vide : la carte d’Alice attend dans la boîte (rien reçu tout de suite)', !r.erreur && r.attente === true && !r.id && !(await proprio(exS))
     && r.boite.attente.length === 1 && (await q("select statut from boite where carte = $1", [Z]))[0]?.statut === 'attente', r.erreur || r.boite);
   // Bob dépose un doublon Or : échange immédiat avec Alice qui attendait ; Alice reçoit la carte de Bob
-  await donner(U.bo, W, 'or'); await donner(U.bo, W, 'bronze');
+  await donner(U.bo, W, 'or'); await donner(U.bo, W, 'or');
   r = await rpcJoueur(db, U.bo, 'boite_echanger', [W, 'or']);
   let recu = r.id && (await q('select carte_id from exemplaires where id = $1', [r.id]))[0];
   verif('boîte : Bob repart tout de suite avec la carte qu’Alice avait déposée', !r.erreur && recu?.carte_id === Z, r.erreur || recu);
@@ -127,14 +132,18 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const idd = (await q('select id from club_demandes where user_id = $1', [U.al]))[0].id;
   verif('donner à sa propre demande : refusé', erreur(await rpcJoueur(db, U.al, 'club_donner', [idd]), 'propre'));
   verif('donner hors du club : refusé', erreur(await rpcJoueur(db, U.ch, 'club_donner', [idd]), 'autre club'));
-  const dBob = await donner(U.bo, X, 'bronze');
-  // Bob a déjà la carte X (achetée, Argent) : 2 cartes de X, il peut donner sa Bronze
+  await donner(U.bo, X, 'bronze');
+  verif('club : une Argent et une Bronze du même joueur, ce n’est pas un doublon Bronze : don refusé', erreur(await rpcJoueur(db, U.bo, 'club_donner', [idd]), 'doublons')
+    && (await rpcJoueur(db, U.bo, 'mes_echanges')).club.demandes.find(d => d.id === idd)?.possible === false);
+  const dBob = (await q("select id from exemplaires where proprietaire = $1 and carte_id = $2 and palier = 'bronze'", [U.bo, X]))[0].id;
+  await donner(U.bo, X, 'bronze');
+  // 2 Bronze de X : il peut donner
   verif('le jeu de Bob voit qu’il peut donner', (await rpcJoueur(db, U.bo, 'mes_echanges')).club.demandes.find(d => d.id === idd)?.possible === true
     && (await rpcJoueur(db, U.bo, 'mon_etat')).social.clubDemandes === 1);
   avB = await pieces(U.bo);
   r = await rpcJoueur(db, U.bo, 'club_donner', [idd]);
   verif('don : la carte passe à Alice, Bob gagne 20 pièces et de l’XP', !r.erreur && (await proprio(dBob)).proprietaire === U.al && await pieces(U.bo) - avB === 20 && r.xp === 5, r.erreur);
-  verif('Bob n’a plus qu’une carte de X : il ne peut plus donner (doublons seulement)', erreur(await rpcJoueur(db, U.bo, 'club_donner', [idd]), 'doublons')
+  verif('Bob n’a plus qu’une Bronze de X : il ne peut plus donner (doublons seulement)', erreur(await rpcJoueur(db, U.bo, 'club_donner', [idd]), 'doublons')
     || erreur(await rpcJoueur(db, U.bo, 'club_donner', [idd]), 'carte libre'));
   for (let i = 0; i < 4; i++) await donner(U.bo, X, 'bronze');
   for (let i = 0; i < 3; i++) await rpcJoueur(db, U.bo, 'club_donner', [idd]);

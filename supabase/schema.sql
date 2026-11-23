@@ -1062,7 +1062,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'clubDemandes', (select count(*) from club_demandes d join clubs_membres m on m.club = d.club and m.user_id = p.user_id
         where d.statut = 'ouverte' and d.user_id <> p.user_id and d.recu < d.voulu
           and d.cree_le > now() - make_interval(hours => parami('club_demande_duree_heures'))
-          and (select count(*) from exemplaires x where x.proprietaire = p.user_id and x.carte_id = d.carte) >= 2
+          and (select count(*) from exemplaires x where x.proprietaire = p.user_id and x.carte_id = d.carte and x.palier = d.palier) >= 2
           and exists (select 1 from exemplaires x where x.proprietaire = p.user_id and x.carte_id = d.carte and x.palier = d.palier and x.verrou is null
             and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = x.id::text)
             and not exists (select 1 from jsonb_each_text(coalesce(p.remplacants, '{}')) j where j.value = x.id::text)))),
@@ -4565,6 +4565,11 @@ drop policy if exists lecture on cartes;
 create or replace function nombre_cartes(p_uid uuid, p_carte text) returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from exemplaires where proprietaire = p_uid and carte_id = p_carte
 $$;
+-- un doublon = au moins 2 cartes du même joueur AU MÊME PALIER (retour de Rémi, 23 nov. 2026 : avec une Bibey Ultime et une Bibey
+-- d'un autre palier, la boîte proposait sa seule Ultime comme doublon)
+create or replace function nombre_cartes_palier(p_uid uuid, p_carte text, p_palier text) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from exemplaires where proprietaire = p_uid and carte_id = p_carte and palier = p_palier
+$$;
 -- une carte qu'on peut céder : libre (hors équipe, banc et ventes), pas proposée à un(e) ami(e) ; la moins entraînée
 create or replace function ex_cedable(p_uid uuid, p_carte text, p_palier text) returns uuid language sql stable security definer set search_path = public as $$
   select e.id from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
@@ -4613,7 +4618,7 @@ begin
       'nom', (select nom from clubs where id = m.club),
       'demandes', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'pseudo', o.pseudo, 'moi', d.user_id = p_uid, 'carte', d.carte, 'palier', d.palier,
           'voulu', d.voulu, 'recu', d.recu, 'fin', d.cree_le + make_interval(hours => parami('club_demande_duree_heures')),
-          'possible', d.user_id <> p_uid and nombre_cartes(p_uid, d.carte) >= 2 and ex_cedable(p_uid, d.carte, d.palier) is not null)
+          'possible', d.user_id <> p_uid and nombre_cartes_palier(p_uid, d.carte, d.palier) >= 2 and ex_cedable(p_uid, d.carte, d.palier) is not null)
           order by d.user_id = p_uid desc, d.cree_le desc)
         from club_demandes d join profils o on o.user_id = d.user_id where d.club = m.club and club_demande_ouverte(d)), '[]'),
       'prochaine', secondes_avant(der + make_interval(hours => parami('club_demande_heures'))),
@@ -4748,7 +4753,7 @@ begin
   if (select count(*) from boite_faits where user_id = p.user_id and le >= debut_du_jour()) >= parami('boite_par_jour') then
     raise exception 'Tu as fait tes % échanges de la boîte aujourd’hui : reviens demain', parami('boite_par_jour');
   end if;
-  if nombre_cartes(p.user_id, p_carte) < 2 then raise exception 'Seulement les doublons : garde au moins une carte de ce joueur'; end if;
+  if nombre_cartes_palier(p.user_id, p_carte, p_palier) < 2 then raise exception 'Seulement les doublons : il te faut 2 cartes de ce joueur à ce palier (tu en gardes une)'; end if;
   ex := ex_cedable(p.user_id, p_carte, p_palier);
   if ex is null then raise exception 'Il te faut une carte libre de ce joueur à ce palier (hors équipe, banc et ventes)'; end if;
   perform boite_servir();
@@ -4823,7 +4828,7 @@ begin
     raise exception 'Tu as déjà donné % cartes aujourd’hui : reviens demain', parami('club_dons_par_jour');
   end if;
   perform 1 from profils where user_id = d.user_id for update;   -- celui qui reçoit est verrouillé à son tour
-  if nombre_cartes(p.user_id, d.carte) < 2 then raise exception 'Tu ne donnes que tes doublons : garde au moins une carte de ce joueur'; end if;
+  if nombre_cartes_palier(p.user_id, d.carte, d.palier) < 2 then raise exception 'Tu ne donnes que tes doublons : il te faut 2 cartes de ce joueur à ce palier (tu en gardes une)'; end if;
   ex := ex_cedable(p.user_id, d.carte, d.palier);
   if ex is null then raise exception 'Il te faut une carte libre de ce joueur à ce palier (hors équipe, banc et ventes)'; end if;
   update exemplaires set proprietaire = d.user_id, protection = 5 where id = ex;
