@@ -73,7 +73,7 @@ insert into parametres values (1, '{
   "poule_equipes": 8, "poule_equipes_depart": 4, "poule_equipes_pas": 1, "poule_petite": 5, "poule_descente_petite": 1, "poule_tours": 2, "poule_ecart": 4, "poule_montee": 2, "poule_descente": 2,
   "tournoi_ecart": 2, "legendes_manches": 5, "tournoi_poule_equipes": 6, "tournoi_poule_tours": 1, "tournoi_poule_qualifies": 2,
   "points_match": {"gagne": 3, "nul": 2, "perdu": 1},
-  "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 7500, "parcours_legendes_bonus_or": 2,
+  "parcours_saison_pieces": 300, "parcours_tournoi_pieces": 1500, "parcours_legendes_pieces": 5000, "parcours_legendes_bonus_or": 2,
   "synchro_matchs_url": "https://raw.githubusercontent.com/maelbenharoun/Medoc-Handball-Cards/main/data/matchs.json", "jet7m_tirs_par_jour": 5, "jet7m_pieces_but": 50, "jet7m_bonus_parfait": 100,
   "mini_essais_par_jour": 5, "mini_pieces": 50, "mini_bonus_parfait": 100,
   "mini_gardien_tirs_par_jour": 25, "mini_gardien_pieces": 10,
@@ -4174,9 +4174,8 @@ update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs
 -- 21 nov. 2026 (Maël) : prendre le dessus compte double, 10 % de chances de marquer en plus ou en moins (match_contre 0,05 → 0,10) :
 -- il doit compter plus que le plus gros bonus de tactique (10 % d'attaque ≈ +7 à 8 % de chances) ; seulement si encore à 0,05
 update parametres set valeurs = valeurs || '{"match_contre": 0.10}' where (valeurs ->> 'match_contre')::numeric = 0.05;
--- primes des Légendes +50 % (demande de Maël, 23 nov. 2026) : 7 500 à 15 000 pièces pour une Légende battue la première fois (5 000 à
--- 10 000 avant), 1 500 pour la 10e rejouée (1 000 avant) ; seulement si les valeurs sont encore les anciennes
-update parametres set valeurs = valeurs || '{"parcours_legendes_pieces": 7500}' where (valeurs ->> 'parcours_legendes_pieces')::int = 5000;
+-- primes des Légendes (demande de Maël, 23 nov. 2026) : la première victoire contre une Légende ne change pas (5 000 à 10 000 pièces),
+-- les suivantes rapportent moitié plus (1 500 au lieu de 1 000) ; seulement si la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"parcours_legendes_rejouer_pieces": 1500}' where (valeurs ->> 'parcours_legendes_rejouer_pieces')::int = 1000;
 -- 21 nov. 2026 (Maël, retour de Rémi : « variation de fatigue entre les joueurs pas assez marquée ») : endurance de 0,65 à 1,35
 -- (0,8 à 1,2 avant), pente doublée ; seulement si encore aux anciennes valeurs
