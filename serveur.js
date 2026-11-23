@@ -223,6 +223,8 @@ const CompteServeur = (() => {
     aligner: (poste, ex) => rpc('aligner', {p_poste: poste, p_ex: ex || null}),
     alignerEquipe: equipe => rpc('aligner_equipe', {p_equipe: equipe}),
     alignerRemplacants: (equipe, remp) => rpc('aligner_remplacants', {p_equipe: equipe, p_remplacants: remp}),   // l'équipe et son banc (un remplaçant par poste)
+    compoEnregistrer: slot => rpc('compo_enregistrer', {p_slot: slot}),   // compos enregistrées (3) : l'équipe, le banc, le capitaine, la tactique, le staff
+    compoCharger: slot => rpc('compo_charger', {p_slot: slot}),           // → {etat, manquants : joueurs qui ne sont plus au club}
     reclamerQuete: id => rpc('reclamer_quete', {p_quete: id}),                  // → {xp, pieces, niveaux}
     reclamerQueteSemaine: id => rpc('reclamer_quete_semaine', {p_quete: id}),  // → {xp, pieces, niveaux}
     ouvrirBoosterSemaine: () => rpc('ouvrir_booster_semaine'),                 // un joueur de la semaine → {ids}
@@ -257,6 +259,8 @@ const CompteServeur = (() => {
     matchChanger: (postes, seconde) => rpc('match_changer', {p_postes: postes, p_seconde: seconde}),   // changements tout de suite, à la seconde que montre le récit → {vue, reprise}
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
+    // tirs au but après un nul (tournoi, Légendes) : 5 tireurs dans l'ordre et le gardien (exemplaires) → comme la fin d'un match
+    matchTirsAuBut: (tireurs, gardien) => rpc('match_tirs_au_but', {p_tireurs: tireurs, p_gardien: gardien}),
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
     miniJouer: (jeu, entrees) => rpc('mini_jouer', {p_jeu: jeu, p_entrees: entrees}),   // → {resultat, reussi, reponse, pieces, bonus, essais, restants}
     tirer7m: (x, y, puissance) => rpc('tirer_7m', {p_x: x, p_y: y, p_puissance: puissance}),   // mini-jeu → {resultat, x, y, vitesse, gardien, pieces, bonus, tirs, restants}

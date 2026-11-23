@@ -1410,6 +1410,34 @@ body.connecte .brand span { display: none; }
 h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .md-ch button { position: relative; }
 .md-astuce { margin: 0 0 4px; padding: 8px 10px; border-radius: 12px; background: #18263a; font-size: .74rem; color: #bcd3ea; line-height: 1.35; }
+/* tirs au but : le menu (gardien, 5 tireurs dans l'ordre) et la séance tir par tir */
+.compos { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; }
+.compo { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); }
+.compo.vide { opacity: .8; border-style: dashed; }
+.compo-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.compo-t b { font-size: .86rem; }
+.compo-t small { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compo-b { display: flex; gap: 6px; flex: none; }
+.compo-b .btn { padding: 7px 10px; font-size: .78rem; min-height: 0; }
+.tab-l { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.tab-j { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg2); color: var(--ink); text-align: left; min-width: 0; }
+.tab-j b { font-size: .82rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-j small { font-size: .7rem; color: var(--muted); }
+.tab-j.on { border-color: #ffd257; background: rgba(255, 210, 87, .14); }
+.tab-j em { position: absolute; top: 6px; right: 8px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+  font-weight: 900; font-size: .72rem; background: #ffd257; color: #1b1405; }
+.tab-j:disabled { opacity: .35; }
+.tab-seance { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.tab-ligne { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px; align-items: center; gap: 8px; }
+.tab-ligne b { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-ligne span { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.tab-ligne strong { font-size: 1.2rem; text-align: right; }
+.tab-r { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); transition: transform .2s, opacity .2s; }
+.tab-r.but { background: #4cd17b; border-color: #4cd17b; transform: scale(1.15); }
+.tab-r.rate { background: #e5484d; border-color: #e5484d; }
+.md-tous { width: 100%; margin-top: 8px; display: flex; flex-direction: column; align-items: center; }
+.md-tous small { font-size: .7rem; color: var(--muted); }
 .md-indice { margin: 6px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78rem; line-height: 1.35; color: var(--ink);
   background: rgba(181, 124, 255, .12); border: 1px solid rgba(181, 124, 255, .35); }
 /* résumé tactique de fin de match : une case par tranche de 5 minutes */

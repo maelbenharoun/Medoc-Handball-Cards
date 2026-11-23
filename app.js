@@ -963,6 +963,16 @@ function terrainSVG() {
     <path class="neuf" d="M-10 ${n9} A9 9 0 0 1 -1.5 ${G - 9} H1.5 A9 9 0 0 1 10 ${n9}"/>
     <path d="M-0.5 ${G - 7} h1 M-0.075 ${G - 4} h.15"/><rect class="but" x="-1.5" y="${G}" width="3" height="1"/></svg>`;
 }
+// Compos enregistrées (demande de Rémi, 23 nov. 2026) : 3 emplacements, chacun garde titulaires, remplaçants, capitaine, tactique
+// et carte staff (compo_enregistrer, compo_charger : un joueur fusionné revient avec son meilleur exemplaire)
+function blocCompos() {
+  const cs = S().compos || [], n = o => Object.keys(o || {}).length;
+  const tac = t => { const [a, d] = String(t || '').split(':'); return NOM_ATT[a] && NOM_DEF[d] ? `${NOM_ATT[a]} + ${NOM_DEF[d]}` : ''; };
+  return `<h3 class="banc-t">Mes compos <small>équipe, banc, capitaine, tactique et staff</small></h3>
+    <div class="compos">${[1, 2, 3].map(i => { const c = cs[i - 1];
+      return `<div class="compo${c ? '' : ' vide'}"><span class="compo-t"><b>Compo ${i}</b><small>${c ? `${n(c.equipe)} titulaires · ${n(c.remplacants)} remplaçants${tac(c.tactique) ? ' · ' + tac(c.tactique) : ''}` : 'vide'}</small></span>
+        <span class="compo-b">${c ? `<button class="btn gold" data-compo-charger="${i}">Charger</button>` : ''}<button class="btn ghost" data-compo-enr="${i}">${c ? 'Remplacer' : 'Enregistrer'}</button></span></div>`; }).join('')}</div>`;
+}
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
@@ -1002,6 +1012,7 @@ function vueEquipe() {
       return `<button class="staff-place${x ? '' : ' vide'}" data-act="staff-place"><span class="sp-t">Staff</span>${x ? staffCarteHTML(x, 'mini') : '<span class="sp-plus" aria-hidden="true">+</span>'}
         <span class="sp-d"><b>${x ? esc(x.personne || x.nom) : 'Aucune carte staff'}</b><small>${x ? `${R_LABEL[x.meilleur] || ''} · ${staffEffet(x)}` : 'Place une carte staff : elle ne joue pas, mais donne son passif'}</small></span></button>`; })()}
     <button class="btn ghost" data-act="auto" style="width:100%">Aligner automatiquement la meilleure équipe et le banc</button>
+    ${blocCompos()}
     <h2>Tactique</h2>
     ${m ? `<div class="hex-eq">${hexHTML(STATS_CHAMP, m, {ton: 'equipe', min: Math.max(0, Math.floor(Math.min(...Object.values(m)) - 12)), forts: [...att[2], ...def[2]], titre: 'Moyennes de tes 6 joueurs de champ'})}</div>
       <p class="sub petit centre">En doré : les deux stats de ton attaque (${att[1]}) et de ta défense (${def[1]}).</p>
@@ -1502,7 +1513,7 @@ function ouvrirDirect(vue, reprise) {
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheMD);
   const h0 = Math.max(vue.bloc * 300, Math.round((vue.minute || 0) * 60));
-  Object.assign(MD, {el, vue, evs: [], file: [], h: h0, finBloc: h0, attente: true, fin: null, timers: [], ts: 0,
+  Object.assign(MD, {el, vue, evs: [], file: [], h: h0, finBloc: h0, attente: true, fin: null, tab: null, tabSel: null, timers: [], ts: 0,
     tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, vitesse: vitesseMD(), onglet: 'direct',
     exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
   if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
@@ -1514,7 +1525,8 @@ function ouvrirDirect(vue, reprise) {
   el.addEventListener('click', clicMD);
   el.addEventListener('pointerdown', e => e.stopPropagation());
   MD.raf = requestAnimationFrame(boucleMD);
-  if (vue.bloc === 0) panneauMD('envoi');
+  if (vue.tirsAuBut) { MD.tab = vue.tirsAuBut; MD.h = MD.finBloc = 3600; majHorlogeMD(); panneauTab(); }
+  else if (vue.bloc === 0) panneauMD('envoi');
   else if (vue.bloc === 6 && h0 === 1800) panneauMD('mi-temps');
   else panneauMD(reprise ? 'pause' : 'pause');
   if (!reprise) Son.jouer('sifflet');
@@ -1637,6 +1649,7 @@ function finBlocMD() {
   MD.attente = true;
   if (MD.enCours || MD.chgEnCours || MD.panneau) return;   // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend
   const pause = Math.round(650 / MD.vitesse);
+  if (MD.tab) return MD.timers.push(setTimeout(() => panneauTab(), pause + 400));
   if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
   if (MD.vue.bloc === 6) return MD.timers.push(setTimeout(() => panneauMD('mi-temps'), pause));
   blocMD();
@@ -1664,6 +1677,7 @@ function blocMD() {
     MD.enCours = false; if (!MD.el) return;
     MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.bloc * 300;
     if (r.match) { MD.fin = r; MD.finBloc = 3600; }
+    if (r.tirsAuBut) { MD.tab = r.tirsAuBut; MD.finBloc = 3600; }   // nul en tournoi ou contre une Légende : tirs au but
     if (!MD.panneau) MD.attente = false;
     majMD(); majBancMD();
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
@@ -1769,14 +1783,23 @@ function majBancMD() {
     <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
       const bt = blesses.has(x.n), br = blesses.has(x.r);
       return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}${bt ? ' blesse' : ''}" data-md-chg="${k}"${x.r && !br && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't' + (bt ? ' md-blesse' : ''))}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r' + (br ? ' md-blesse' : '')) : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
+    ${(() => { const n = postesBancTous().length;
+      return n > 1 ? `<button class="btn ghost md-tous${MD.chgPoste === 'tous' ? ' on' : ''}" data-md-chg="tous"${occupe || MD.fin ? ' disabled' : ''}>⇄ Changer les ${n} joueurs de champ d’un coup<small>le gardien reste</small></button>` : ''; })()}
     <div class="md-p-b"><button class="btn gold" data-md-go="banc-fermer">Fermer</button></div></div>`;
 }
 function fermerBancMD() { MD.bancOuvert = false; if (MD.el) MD.el.querySelector('.md-bancp').hidden = true; }
+// « tout le banc » (demande de Rémi, 23 nov. 2026) : les postes de champ qui ont un remplaçant valide (jamais le gardien)
+function postesBancTous() {
+  const ef = MD.vue.nous.effectif || {}, blesses = new Set(MD.evs.filter(x => (x.ty === 'blessure' || x.ty === 'absent') && x.c === 'a').map(x => x.n));
+  return POSTES_MD.filter(k => k !== 'GB' && ef[k]?.r && !blesses.has(ef[k].r));
+}
 function changerMD(poste) {
-  if (MD.chgEnCours || MD.fin) return;
+  if (MD.chgEnCours || MD.fin || MD.tab) return;
   if (MD.enCours) return toast('Un instant…');
+  const postes = poste === 'tous' ? postesBancTous() : [poste];
+  if (!postes.length) return;
   MD.chgEnCours = true; MD.chgPoste = poste; majBancMD();
-  Compte.matchChanger([poste], Math.floor(MD.h)).then(r => {
+  Compte.matchChanger(postes, Math.floor(MD.h)).then(r => {
     MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return;
     // ce qui est déjà raconté (jusqu'à « reprise ») reste ; la suite de la tranche est rejouée avec le remplaçant
     MD.vue = r.vue; MD.file = MD.file.filter(x => x.t <= r.reprise).concat(r.vue.evenements || []);
@@ -1785,7 +1808,7 @@ function changerMD(poste) {
     if (MD.attente && r.reprise > MD.h) { MD.h = Math.min(r.reprise, MD.finBloc); majHorlogeMD(); }
     if (MD.attente) while (MD.file.length && MD.file[0].t <= MD.h) animerMD(MD.file.shift(), 300);
     // pas de sifflet à chaque changement (retour de Guilhem, 21 nov. 2026 : « horrible et inutile »)
-    if (r.reprise > MD.h + 30) toast(`Il entre à ${Math.floor(r.reprise / 60)}'`);
+    if (r.reprise > MD.h + 30) toast(`${postes.length > 1 ? 'Ils entrent' : 'Il entre'} à ${Math.floor(r.reprise / 60)}'`);
     majBancMD(); majMD();
     if (!MD.panneau && !MD.file.length && MD.h >= MD.finBloc) finBlocMD();
   }).catch(e => { MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majBancMD(); });
@@ -1820,6 +1843,11 @@ function clicMD(e) {
   if (d.mdDef) { MD.choix.def = d.mdDef; return choixMD(); }
   if (d.mdCons) { MD.choix.cons = d.mdCons; return choixMD(); }
   if (d.mdChg) return changerMD(d.mdChg);
+  if (d.tabGb) { MD.tabSel.gb = d.tabGb; MD.tabSel.tireurs = MD.tabSel.tireurs.filter(x => x !== d.tabGb); return panneauTab(); }
+  if (d.tabT) { const t = MD.tabSel.tireurs, i = t.indexOf(d.tabT);
+    if (i >= 0) t.splice(i, 1); else if (t.length < tabMax()) t.push(d.tabT); return panneauTab(); }
+  if (d.mdGo === 'tab-tirer') return tirerTab();
+  if (d.mdGo === 'tab-fin') return resultatMD(MD.fin);
   if (b.classList.contains('md-chg') || d.mdGo === 'banc') return panneauBanc();
   if (d.mdGo === 'banc-fermer') return fermerBancMD();
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
@@ -1850,6 +1878,65 @@ function simulerFinMDOui() {
     for (const x of tous.slice(deja)) noterMD(x, true);
     MD.fin = r; MD.h = 3600; majHorlogeMD(); resultatMD(r);
   }).catch(e => { Son.jouer('erreur'); toast(e.message || 'Action impossible'); MD.attente = false; });
+}
+// Tirs au but (demande de Maël, 23 nov. 2026) : après un nul en tournoi ou contre une Légende, le joueur choisit son gardien
+// (mental et réflexes) et 5 tireurs dans l'ordre (seul le TIR compte) ; le serveur joue la séance (match_tirs_au_but)
+const tabMax = () => Math.min(5, (MD.tab?.joueurs || []).filter(x => x.id !== MD.tabSel?.gb).length);
+function panneauTab() {
+  if (!MD.el || !MD.tab) return;
+  const js = MD.tab.joueurs || [], adv = MD.tab.adversaire || {};
+  if (!MD.tabSel) {   // proposé d'office : le meilleur gardien et les 5 meilleurs tireurs
+    const gb = [...js].filter(x => x.gb != null).sort((a, b) => b.gb - a.gb)[0];
+    MD.tabSel = {gb: gb?.id || null, tireurs: []};
+    MD.tabSel.tireurs = [...js].filter(x => x.id !== MD.tabSel.gb).sort((a, b) => b.tir - a.tir).slice(0, 5).map(x => x.id);
+  }
+  const s = MD.tabSel, nom = x => esc(String(nomCourt(x.nom) || '').replace(/--/g, '-')), ok = s.gb && s.tireurs.length === tabMax();
+  MD.panneau = 'tab'; MD.attente = true;
+  const p = MD.el.querySelector('.md-panneau');
+  p.innerHTML = `<div class="md-p-c md-tab"><h3>Tirs au but</h3>
+    <p class="sub petit">Match nul : choisis ton gardien et tes ${tabMax()} tireurs, dans l’ordre. Pour un tireur, seul son <b>TIR</b> compte ; pour le gardien, son <b>mental</b> et ses <b>réflexes</b>.</p>
+    <p class="md-astuce">En face (${esc(adv.nom || '')}) : gardien <b>${adv.gb ?? '–'}</b> · tireurs <b>${adv.tir ?? '–'}</b></p>
+    <h4>Gardien</h4><div class="tab-l">${js.filter(x => x.gb != null).sort((a, b) => b.gb - a.gb).map(x =>
+      `<button class="tab-j${s.gb === x.id ? ' on' : ''}" data-tab-gb="${x.id}"><b>${nom(x)}</b><small>MEN/RÉF ${x.gb}${x.titulaire ? '' : ' · banc'}</small></button>`).join('') || '<p class="sub petit">Aucun gardien valide.</p>'}</div>
+    <h4>Tireurs <small>${s.tireurs.length}/${tabMax()} · touche dans l’ordre</small></h4><div class="tab-l">${[...js].sort((a, b) => b.tir - a.tir).map(x => { const i = s.tireurs.indexOf(x.id);
+      return `<button class="tab-j${i >= 0 ? ' on' : ''}" data-tab-t="${x.id}"${x.id === s.gb ? ' disabled' : ''}>${i >= 0 ? `<em>${i + 1}</em>` : ''}<b>${nom(x)}</b><small>TIR ${x.tir}${x.titulaire ? '' : ' · banc'}</small></button>`; }).join('')}</div>
+    <div class="md-p-b"><button class="btn gold" data-md-go="tab-tirer"${ok && !MD.enCours ? '' : ' disabled'}>Tirer !</button></div></div>`;
+  p.hidden = false; MD.el.classList.add('en-pause');
+}
+function tirerTab() {
+  if (MD.enCours || !MD.tabSel) return;
+  MD.enCours = true; panneauTab();
+  Compte.matchTirsAuBut(MD.tabSel.tireurs, MD.tabSel.gb).then(r => {
+    MD.enCours = false; if (!MD.el) return;
+    MD.tab = null; MD.fin = r; MD.vue = r.vue || MD.vue;
+    seanceTab(r);
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauTab(); });
+}
+// la séance, tir par tir (nos tirs en haut, les leurs en bas), puis le résultat
+function seanceTab(r) {
+  const t = r.match?.tab, p = MD.el.querySelector('.md-panneau');
+  if (!t?.tirs?.length) return resultatMD(r);
+  const rond = (v, k, i) => `<i class="tab-r" data-k="${k}${i}">${v ? '' : ''}</i>`;
+  p.innerHTML = `<div class="md-p-c md-tab"><h3>Tirs au but</h3>
+    <div class="tab-seance"><div class="tab-ligne"><b>${esc(MD.vue.nous?.nom || 'Toi')}</b><span>${t.tirs.map((x, i) => rond(x.a, 'a', i)).join('')}</span><strong class="tab-sa">0</strong></div>
+      <div class="tab-ligne"><b>${esc(MD.vue.eux?.nom || 'Eux')}</b><span>${t.tirs.map((x, i) => rond(x.b, 'b', i)).join('')}</span><strong class="tab-sb">0</strong></div></div>
+    <p class="md-info tab-qui">&nbsp;</p><div class="md-p-b"><button class="btn gold" data-md-go="tab-fin" hidden>Voir le résultat</button></div></div>`;
+  let a = 0, b = 0;
+  t.tirs.forEach((x, i) => {
+    MD.timers.push(setTimeout(() => { if (!MD.el) return;
+      p.querySelector('.tab-qui').textContent = `${nomCourt(x.n)} s’élance…`;
+      const ra = p.querySelector(`[data-k="a${i}"]`); ra.classList.add(x.a ? 'but' : 'rate'); a += x.a ? 1 : 0;
+      p.querySelector('.tab-sa').textContent = a; Son.jouer(x.a ? 'but' : 'arret');
+    }, 500 + i * 1300));
+    MD.timers.push(setTimeout(() => { if (!MD.el) return;
+      const rb = p.querySelector(`[data-k="b${i}"]`); rb.classList.add(x.b ? 'but' : 'rate'); b += x.b ? 1 : 0;
+      p.querySelector('.tab-sb').textContent = b; Son.jouer(x.b ? 'encaisse' : 'arret');
+    }, 500 + i * 1300 + 650));
+  });
+  MD.timers.push(setTimeout(() => { if (!MD.el) return;
+    p.querySelector('.tab-qui').innerHTML = `<b>${t.a > t.b ? 'Tirs au but gagnés !' : 'Tirs au but perdus'}</b> ${t.a} – ${t.b}${t.gardien ? ` · gardien : ${esc(nomCourt(t.gardien))}` : ''}`;
+    p.querySelector('[data-md-go="tab-fin"]').hidden = false;
+  }, 500 + t.tirs.length * 1300 + 300));
 }
 function resultatMD(r) {
   if (!MD.el) return;
@@ -2961,7 +3048,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-ajout-liste],[data-palier-liste],[data-equipe-liste],[data-ajouter-veux],[data-ajouter-donne],[data-retirer-liste],[data-transferer],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -3057,6 +3144,12 @@ document.addEventListener('click', e => {
   if (d.staffMettre !== undefined) return action(Compte.choisirStaff(d.staffMettre), () => { Son.jouer('clic'); toast(d.staffMettre ? 'Carte staff placée 🧑‍🏫' : 'Place staff libre');
     if (!$('#overlay').hidden) cacherOverlay(); route(true); });
   if (d.capitaine) return action(Compte.choisirCapitaine(d.capitaine), () => { Son.jouer('tap'); toast('Nouveau capitaine'); fermerOverlay(); });
+  if (d.compoEnr) { const i = +d.compoEnr, c = (S().compos || [])[i - 1];
+    const go = () => action(Compte.compoEnregistrer(i), () => { Son.jouer('tap'); toast(`Compo ${i} enregistrée`); route(true); });
+    return c ? demander(`Remplacer la compo ${i} par ton équipe actuelle ?`, 'Remplacer').then(ok => ok && go()) : go(); }
+  if (d.compoCharger) { const i = +d.compoCharger;
+    return action(Compte.compoCharger(i), r => { Son.jouer('tap'); route(true);
+      toast(r?.manquants?.length ? `Compo ${i} chargée, sauf : ${r.manquants.join(', ')} (plus au club)` : `Compo ${i} chargée`); }); }
   if (d.perso) { const [type, id] = d.perso.split(':'); return action(Compte.choisirPerso(type, id), () => { fenetreCompte(); const d = document.querySelector('#overlay details.perso'); if (d) d.open = true; }); }
   if (d.queteS) return action(Compte.reclamerQueteSemaine(d.queteS), r => { Son.jouer('recompense'); toast(`+${r.xp} XP · +${nb(r.pieces)} pièces`); route(true); fenetreQuetes(); });
   if (a === 'passe') return fenetrePasse();
@@ -3424,7 +3517,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=85').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=86').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
