@@ -13,13 +13,17 @@ const {verif, bilan} = verifs();
   for (const [u, n] of [[al, 'Alice'], [bo, 'Bob']]) { await rpcJoueur(db, u, 'creer_profil', [n, true]); await rpcJoueur(db, u, 'ouvrir_depart'); }
   await rpcJoueur(db, al, 'ajouter_ami', ['Bob']); await rpcJoueur(db, bo, 'repondre_ami', ['Alice', true]);
   await rpcJoueur(db, al, 'envoyer_message', ['Bob', 'Salut !']);
+  // l'ancien défi contre l'équipe coachée par l'ordinateur est retiré (23 nov. 2026)
   let r = await rpcJoueur(db, al, 'match_commencer', ['defi_ami', 'Bob', 'duels:06', 'normal', true]);
-  r = await rpcJoueur(db, bo, 'match_commencer', ['defi_ami', 'Alice', 'duels:06', 'normal', true]);
-  const chezBob = async () => (await q("select adversaire from rencontres where user_id = $1 and type in ('defi_ami', 'defense_ami') order by id", [bo])).map(x => x.adversaire);
-  verif('avant : Alice apparaît dans l’historique de Bob (son défi, sa défense)', JSON.stringify(await chezBob()) === JSON.stringify(['Alice', 'Alice']), await chezBob());
+  verif('ancien défi refusé', /Match inconnu/.test(r?.erreur || ''), r);
+  // l'historique de Bob : anciens défis gardés, matchs en direct, fantôme d'Alice
+  await q(`insert into rencontres (user_id, type, adversaire, score, resultat) values ($1, 'defi_ami', 'Alice', '{28,25}', 'gagne'),
+    ($1, 'defense_ami', 'Alice', '{20,22}', 'perdu'), ($1, 'pvp', 'Alice', '{27,27}', 'nul'), ($1, 'pvp', 'Fantôme de Alice', '{30,25}', 'gagne')`, [bo]);
+  const chezBob = async () => (await q("select adversaire from rencontres where user_id = $1 and type in ('defi_ami', 'defense_ami', 'pvp') order by id", [bo])).map(x => x.adversaire);
+  verif('avant : Alice apparaît dans l’historique de Bob (défi, défense, match en direct, son fantôme)', JSON.stringify(await chezBob()) === JSON.stringify(['Alice', 'Alice', 'Alice', 'Fantôme de Alice']), await chezBob());
   r = await rpcJoueur(db, al, 'supprimer_mon_compte');
   verif('suppression acceptée', !r?.erreur, r?.erreur);
-  verif('chez Bob : « Joueur supprimé » à la place d’Alice', JSON.stringify(await chezBob()) === JSON.stringify(['Joueur supprimé', 'Joueur supprimé']), await chezBob());
+  verif('chez Bob : « Joueur supprimé » à la place d’Alice', JSON.stringify(await chezBob()) === JSON.stringify(Array(4).fill('Joueur supprimé')), await chezBob());
   const reste = (await q(`select (select count(*) from profils where user_id = $1) profil, (select count(*) from exemplaires where proprietaire = $1) cartes,
     (select count(*) from rencontres where user_id = $1) matchs, (select count(*) from mouvements where user_id = $1) journal,
     (select count(*) from messages_amis where de = $1 or pour = $1) messages, (select count(*) from amis where de = $1 or pour = $1) amis,

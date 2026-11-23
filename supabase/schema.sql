@@ -1306,7 +1306,7 @@ begin
   -- son pseudo ne reste pas dans l'historique des matchs des autres (défis entre ami(e)s, ligue) : page de confidentialité
   if v_pseudo is not null then
     update rencontres set adversaire = 'Joueur supprimé'
-      where user_id <> u and adversaire = v_pseudo and type in ('defi', 'defense', 'defi_ami', 'defense_ami', 'defense_ligue');
+      where user_id <> u and adversaire in (v_pseudo, 'Fantôme de ' || v_pseudo) and type in ('defi', 'defense', 'defi_ami', 'defense_ami', 'defense_ligue', 'pvp');
   end if;
   delete from auth.users where id = u;   -- efface aussi le profil, les cartes et les quêtes (en cascade)
 end $$;
@@ -2857,7 +2857,9 @@ begin
     else raise exception 'Tu as un match en cours : reprends-le ou simule la fin'; end if;
     select * into p from profils where user_id = p.user_id;
   end if;
-  if p_type not in ('championnat', 'defi_ami') then raise exception 'Match inconnu'; end if;
+  -- l'ancien défi contre l'équipe d'un(e) ami(e) coachée par l'ordinateur est retiré (demande de Maël, 23 nov. 2026) : on se défie en direct (pvp_inviter) ;
+  -- un défi déjà commencé se termine normalement
+  if p_type <> 'championnat' then raise exception 'Match inconnu'; end if;
   if coalesce(p_consigne, 'normal') not in ('normal', 'prudent', 'pression') then raise exception 'Consigne inconnue'; end if;
   perform verifier_tactique(p_tactique);
   perform verifier_equipe(p.user_id, p.equipe);
@@ -5027,12 +5029,12 @@ end $$;
 -- ── clubs de joueurs
 create or replace function club_victoires(p_club bigint) returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from rencontres r join clubs_membres m on m.user_id = r.user_id
-  where m.club = p_club and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'ligue') and r.le >= greatest(debut_semaine(), m.rejoint_le)
+  where m.club = p_club and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'pvp', 'ligue') and r.le >= greatest(debut_semaine(), m.rejoint_le)
 $$;
 create or replace function club_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object('id', c.id, 'nom', c.nom, 'victoires', club_victoires(c.id), 'max', parami('club_membres_max'),
     'membres', (select jsonb_agg(jsonb_build_object('pseudo', pr.pseudo, 'niveau', pr.niveau, 'role', m.role, 'moi', pr.user_id = p_uid, 'perso', perso_public(pr.user_id),
-        'victoires', (select count(*) from rencontres r where r.user_id = m.user_id and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'ligue')
+        'victoires', (select count(*) from rencontres r where r.user_id = m.user_id and r.resultat = 'gagne' and r.type in ('championnat', 'defi_ami', 'pvp', 'ligue')
           and r.le >= greatest(debut_semaine(), m.rejoint_le))) order by m.role desc, m.rejoint_le)
       from clubs_membres m join profils pr on pr.user_id = m.user_id where m.club = c.id),
     'paliers', (select jsonb_agg(jsonb_build_object('palier', i, 'objectif', (o #>> '{}')::int, 'recompense', param('club_recompenses') -> (i - 1)::int,

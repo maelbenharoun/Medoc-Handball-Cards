@@ -2706,10 +2706,7 @@ function fenetreDefi(pseudo) {
     <h3>Défier ${esc(pseudo)}</h3>
     <button class="lien voir-eq" data-voir-equipe="${esc(pseudo)}">Voir son équipe ›</button>
     <p class="sub petit"><b>En direct</b> : ${esc(pseudo)} reçoit ton invitation (2 minutes pour accepter), vous jouez le match ensemble, chacun sa tactique, 3 temps morts de 20 s. ${A.defiPieces ?? 30} pièces au gagnant.</p>
-    <button class="btn gold large" data-act="defi-live" style="width:100%">⚔️ Défier en direct</button>
-    <p class="sub petit">Sinon, contre son équipe coachée par l’ordinateur :</p>
-    <div class="jouer-2"><button class="btn ghost" data-act="defi-direct">Jouer le match</button>
-      <button class="btn ghost" data-act="defi-simuler">Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div></div>`);
+    <button class="btn gold large" data-act="defi-live" style="width:100%">⚔️ Défier en direct</button></div>`);
 }
 const filMsgHTML = C => C ? C.messages.map(m => `<p class="msg${m.moi ? ' moi' : ''}"><span>${esc(m.texte)}</span>
       <small>${new Date(m.le).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'})}</small></p>`).join('') || '<p class="sub petit centre">Pas encore de message : dis bonjour !</p>' : '<p class="sub">Chargement…</p>';
@@ -3526,7 +3523,6 @@ document.addEventListener('click', e => {
   if (a === 'pvp-inv-annuler') { arreterInv(true); return toast('Invitation annulée'); }
   if (a === 'pvp-reprendre') return reprendrePvp();
   if (d.pvpInv) { const [id, oui] = d.pvpInv.split(':'); return repondreInvitation(id, oui === '1'); }
-  if (a === 'defi-direct' || a === 'defi-simuler') { const ps = SOC.defi; cacherOverlay(); return commencerMatch('defi_ami', ps, a === 'defi-simuler'); }
   if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
