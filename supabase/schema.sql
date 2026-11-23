@@ -98,6 +98,16 @@ insert into parametres values (1, '{
   "marche_ventes_max": 5, "marche_jours": 3, "marche_achats_par_jour": 5,
   "boite_par_jour": 5, "boite_nouveau": true, "boite_attente_minutes": 60,
   "club_demande_heures": 8, "club_demande_duree_heures": 24, "club_demande_nombre": {"bronze": 4, "argent": 2, "or": 1}, "club_demande_or_jours": 7,
+  "pvp_arenes": [{"nom": "Départemental", "min": 0}, {"nom": "Régional", "min": 300, "recompense": {"pieces": 500, "bonus": 1}},
+    {"nom": "National", "min": 700, "recompense": {"pieces": 1000, "bonus": 2}}, {"nom": "Championnat d’Europe", "min": 1200, "recompense": {"pieces": 2000, "or": 1}},
+    {"nom": "Championnat du monde", "min": 1800, "recompense": {"pieces": 3000, "or": 1}}, {"nom": "Jeux olympiques", "min": 2500, "recompense": {"pieces": 5000, "or": 2}},
+    {"nom": "Légendes", "min": 3300, "recompense": {"pieces": 8000, "or": 3}}],
+  "pvp_trophees_base": 30, "pvp_trophees_ecart": 20, "pvp_trophees_min": 10, "pvp_trophees_max": 50,
+  "pvp_pieces": {"gagne": 60, "nul": 25, "perdu": 10}, "pvp_gains_par_jour": 10, "pvp_ami_pieces": 30,
+  "pvp_fantome_secondes": 120, "pvp_pause_secondes": 20, "pvp_envoi_secondes": 30, "pvp_mi_temps_secondes": 30, "pvp_tranche_secondes": 12,
+  "pvp_marge_secondes": 3, "pvp_absent_secondes": 30, "pvp_invitation_secondes": 120,
+  "pvp_saison_seuil": 1000, "pvp_saison_recompenses": [{"pieces": 200}, {"pieces": 400, "bonus": 1}, {"pieces": 800, "bonus": 2}, {"pieces": 1200, "or": 1},
+    {"pieces": 2000, "or": 1}, {"pieces": 3000, "or": 2}, {"pieces": 5000, "or": 3}],
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
@@ -252,10 +262,43 @@ create table if not exists matchs_direct (
 );
 revoke all on matchs_direct from anon, authenticated;
 
+-- Matchs à deux en direct (23 nov. 2026, demande de Maël : « les défis sont nazes » : en temps réel, temps morts de 20 secondes,
+-- classement avec des trophées façon Clash Royale). Le serveur joue le match comme en championnat (tranches de 5 minutes), les deux
+-- joueurs choisissent en même temps. File d'attente (pvp_file) façon LoL, fantôme après 2 minutes ; invitations entre ami(e)s.
+-- Rien n'est lisible par le jeu : tout passe par les fonctions pvp_*.
+create table if not exists pvp_file (user_id uuid primary key references profils on delete cascade, trophees int not null default 0,
+  entree timestamptz not null default now(), vu timestamptz not null default now());
+create table if not exists pvp_matchs (
+  id uuid primary key default gen_random_uuid(),
+  a uuid references profils on delete set null, b uuid references profils on delete set null,
+  classe boolean not null default true,
+  etat jsonb not null, meta jsonb not null default '{}',
+  statut text not null default 'direct' check (statut in ('direct', 'fini')),
+  attente int, resultat jsonb,
+  cree_le timestamptz not null default now(), maj timestamptz not null default now()
+);
+create index if not exists pvp_matchs_a on pvp_matchs (a, statut);
+create index if not exists pvp_matchs_b on pvp_matchs (b, statut);
+create table if not exists pvp_invitations (id uuid primary key default gen_random_uuid(),
+  de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
+  statut text not null default 'attente' check (statut in ('attente', 'acceptee', 'refusee', 'annulee', 'expiree')),
+  match uuid, cree_le timestamptz not null default now());
+create index if not exists pvp_invitations_pour on pvp_invitations (pour, statut);
+create table if not exists pvp_arenes_faites (user_id uuid not null references profils on delete cascade, arene int not null,
+  le timestamptz not null default now(), primary key (user_id, arene));
+alter table profils add column if not exists trophees_max int not null default 0;
+alter table profils add column if not exists pvp_saison date;
+alter table profils add column if not exists pvp_matchs_saison int not null default 0;
+alter table pvp_file enable row level security;
+alter table pvp_matchs enable row level security;
+alter table pvp_invitations enable row level security;
+alter table pvp_arenes_faites enable row level security;
+revoke all on pvp_file, pvp_matchs, pvp_invitations, pvp_arenes_faites from anon, authenticated;
+
 -- défis entre ami(e)s (30 pièces au gagnant, 5 par jour) : deux types de plus
 alter table rencontres drop constraint if exists rencontres_type_check;
 -- tous les types en une fois (la ligue comprise) : le fichier doit se relancer même quand des matchs de ligue existent déjà
-alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami', 'ligue', 'defense_ligue'));
+alter table rencontres add constraint rencontres_type_check check (type in ('championnat', 'seance', 'defi', 'defense', 'defi_ami', 'defense_ami', 'ligue', 'defense_ligue', 'pvp'));
 
 -- Vrais matchs des poules SG1, SG2, SF1, SF2 (data/matchs.json, envoyé par l'outil) et les paris dessus
 create table if not exists matchs (
@@ -1038,6 +1081,13 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'equipe', p.equipe, 'remplacants', p.remplacants, 'tactique', p.tactique, 'compos', coalesce(p.compos, '[]'),
     'matchDirect', (select jsonb_build_object('type', d.etat ->> 'type', 'adversaire', d.etat #>> '{b,nom}', 'minute', (d.etat ->> 't')::int / 60,
       'score', d.etat -> 'score') from matchs_direct d where d.user_id = p.user_id),
+    'pvp', jsonb_build_object('trophees', p.trophees,
+      'match', (select m.id from pvp_matchs m where m.statut = 'direct' and p.user_id in (m.a, m.b) order by m.cree_le desc limit 1),
+      'file', (select extract(epoch from f.entree) from pvp_file f where f.user_id = p.user_id),
+      'invitations', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'de', pr.pseudo,
+          'reste', greatest(0, parami('pvp_invitation_secondes') - floor(extract(epoch from now() - i.cree_le))::int)) order by i.cree_le)
+        from pvp_invitations i join profils pr on pr.user_id = i.de where i.pour = p.user_id and i.statut = 'attente'
+          and i.cree_le > now() - make_interval(secs => parami('pvp_invitation_secondes'))), '[]')),
     'matchs', p.matchs, 'matchMax', parami('match_stock_max'),
     'prochainMatch', case when p.matchs >= parami('match_stock_max') then null
       else greatest(0, ceil(extract(epoch from p.matchs_maj + make_interval(mins => parami('match_minutes')) - now())))::int end,
@@ -2412,7 +2462,7 @@ end $$;
 -- joue les possessions jusqu'à la seconde p_fin
 create or replace function match_avancer(e jsonb, p_fin int) returns jsonb language plpgsql volatile as $$
 declare x text; y text; eqx jsonb; eqy jsonb; t int; duree int; p numeric; ps numeric; pen numeric; perte numeric; r numeric; zn text;
-  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric; ea jsonb; kb text; dev numeric;
+  nom text; gb text; ty text; ctr int; sc jsonb; contre_pour text; cx text; cy text; fx numeric; fy numeric; ea jsonb; kb text; dev numeric; sb text;
   reg numeric := coalesce((param('match_regularite') #>> '{}')::numeric, 0);
   pbl numeric := coalesce((param('blessure_chance') #>> '{}')::numeric, 0); bmax int := coalesce(parami('blessures_max'), 2);
   m numeric := (param('match_contre') #>> '{}')::numeric; base numeric := parami('match_base');
@@ -2483,9 +2533,10 @@ begin
     -- fatigue : par minute jouée, selon la consigne ; sur le banc, on récupère (match_fatiguer, match_fat)
     eqx := match_fatiguer(eqx, duree);
     eqy := match_fatiguer(eqy, duree);
-    -- blessure (seulement notre équipe, a) : chaque joueur sur le terrain a son risque, par minute jouée, qui grimpe avec SA fatigue
-    -- au-delà d'un seuil (bm + bf × (fatigue − bs)²) ; blessure_chance (0,003) sert d'échelle (0 = aucune blessure, tests)
-    ea := case x when 'a' then eqx else eqy end;
+    -- blessure (notre équipe, a ; les deux équipes en match à deux, pvp) : chaque joueur sur le terrain a son risque, par minute jouée,
+    -- qui grimpe avec SA fatigue au-delà d'un seuil (bm + bf × (fatigue − bs)²) ; blessure_chance (0,003) sert d'échelle (0 = aucune blessure, tests)
+    foreach sb in array case when e ? 'pvp' then array['a', 'b'] else array['a'] end loop
+    ea := case when x = sb then eqx else eqy end;
     kb := null;
     if jsonb_typeof(ea -> 'fp') = 'object' and jsonb_array_length(coalesce(ea -> 'blesses', '[]')) < bmax and pbl > 0 then
       if ea ? 'fcfg' then
@@ -2499,12 +2550,13 @@ begin
       end if;
       if kb is not null then
         ea := match_blesser(ea, kb);
-        e := jsonb_set(e, '{ev}', (e -> 'ev') || (blessure_tirer() || jsonb_build_object('t', t, 'c', 'a', 'ty', 'blessure', 'p', kb, 'n', ea -> 'joueurs' ->> kb,
+        e := jsonb_set(e, '{ev}', (e -> 'ev') || (blessure_tirer() || jsonb_build_object('t', t, 'c', sb, 'ty', 'blessure', 'p', kb, 'n', ea -> 'joueurs' ->> kb,
           'id', ea -> 'equipe' ->> kb,
           'r', coalesce(coalesce(ea -> 'banc', '{}') ? kb and not coalesce(ea -> 'blesses', '[]') ? (ea -> 'banc' ->> kb), false), 's', sc)));
-        if x = 'a' then eqx := ea; else eqy := ea; end if;
+        if x = sb then eqx := ea; else eqy := ea; end if;
       end if;
     end if;
+    end loop;
     e := e || jsonb_build_object(x, eqx, y, eqy, 'balle', y);
   end loop;
   return e || jsonb_build_object('t', t, 'score', sc);
@@ -2533,9 +2585,9 @@ begin
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
     e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,mt}')::numeric) else match_fat(e -> 'a', 0, 0, .5) end,
       'b', case when e -> 'b' ? 'fcfg' then match_fat(e -> 'b', 0, 0, 1, (e #>> '{b,fcfg,mt}')::numeric) when e -> 'b' ? 'fo' then match_fat(e -> 'b', 0, 0, 0) else match_fat(e -> 'b', 0, 0, .5) end);
-    e := match_ordi(e, true);
+    if not e ? 'pvp' then e := match_ordi(e, true); end if;   -- en match à deux, chaque équipe a son entraîneur humain
     e := jsonb_set(e, '{balle}', to_jsonb(case when random() < .5 then 'a' else 'b' end));
-  elsif b + 1 < 12 then
+  elsif b + 1 < 12 and not e ? 'pvp' then
     e := match_ordi(e, false);
   end if;
   return e;
@@ -2546,7 +2598,7 @@ create or replace function match_rembobiner(e jsonb, h int) returns jsonb langua
 declare d jsonb := e -> 'debut'; n0 int := (e ->> 'debut_n')::int; t0 int; dt numeric; x jsonb; i int := 0; garde jsonb := '[]'; sc jsonb;
   st jsonb := jsonb_build_object('a', e #> '{debut,a,stats}', 'b', e #> '{debut,b,stats}');
   ex jsonb := jsonb_build_object('a', coalesce((e #>> '{debut,a,exclu}')::int, 0), 'b', coalesce((e #>> '{debut,b,exclu}')::int, 0));
-  der jsonb; prochain jsonb; c text; o text; balle text; contre text; bl jsonb := '[]'; ra jsonb; kbl text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
+  der jsonb; prochain jsonb; c text; o text; balle text; contre text; bl jsonb := '[]'; blb jsonb := '[]'; ra jsonb; rb jsonb; kbl text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
 begin
   t0 := (d ->> 't')::int; dt := greatest(0, h - t0); sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
   for x in select v from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k > n0 order by k loop
@@ -2569,7 +2621,7 @@ begin
       ex := jsonb_set(ex, array[c], to_jsonb(greatest((ex ->> c)::int, (x ->> 't')::int + 120)));
     end if;
     if x ->> 'ty' = any(POSS) then der := x; end if;
-    if x ->> 'ty' = 'blessure' then bl := bl || to_jsonb(x ->> 'p'); end if;
+    if x ->> 'ty' = 'blessure' then if c = 'b' then blb := blb || to_jsonb(x ->> 'p'); else bl := bl || to_jsonb(x ->> 'p'); end if; end if;
     if x ? 'x' and c in ('a', 'b') then st := jsonb_set(st, array[c, 'xg'], x -> 'x'); end if;
   end loop;
   if der is not null then
@@ -2580,10 +2632,12 @@ begin
   d := (d - 'contre') || case when contre is not null then jsonb_build_object('contre', contre) else '{}' end;
   ra := match_fatiguer((d -> 'a') || jsonb_build_object('stats', st -> 'a', 'exclu', (ex ->> 'a')::int), dt);
   for kbl in select jsonb_array_elements_text(bl) loop ra := match_blesser(ra, kbl); end loop;
+  rb := match_fatiguer((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int), dt);
+  for kbl in select jsonb_array_elements_text(blb) loop rb := match_blesser(rb, kbl); end loop;   -- match à deux : l'autre équipe aussi
   return d || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
     't', h, 'score', sc, 'balle', balle,
     'a', ra,
-    'b', match_fatiguer((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int), dt),
+    'b', rb,
     'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t');
 end $$;
 -- ce que le jeu voit d'un match en cours : tout, sauf l'attaque adverse (à deviner) et les forces exactes
@@ -2678,6 +2732,8 @@ begin
       and x.id::text = v ->> 'id' and x.proprietaire = p_uid;
   if e ->> 'type' = 'championnat' then
     s := championnat_conclure(p_uid, e #>> '{a,tactique}', e -> 'a', e -> 'b', r, p_gain);
+  elsif e ->> 'type' = 'classe' then
+    s := pvp_fantome_conclure(p_uid, e, r, p_gain);
   else
     s := defi_ami_conclure(p_uid, (e #>> '{ctx,ami}')::uuid, e -> 'a', e -> 'b', r, p_gain);
   end if;
@@ -2942,6 +2998,560 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   return match_finir_simule(p.user_id, cur.etat);
+end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Matchs à deux en direct (23 nov. 2026, demande de Maël) : file d'attente classée façon LoL (fantôme après 2 minutes), trophées et
+-- arènes façon Clash Royale, saisons d'un mois, invitations entre ami(e)s. Un seul état de match (etat) : a = le premier joueur,
+-- b = le second ; le moteur est le même qu'en championnat, rendu symétrique (blessures, banc et fatigue des deux côtés, pas
+-- d'entraîneur ordinateur). Le joueur b voit et joue le match « en miroir » (pvp_miroir : a et b échangés), avec les fonctions du
+-- championnat. Les deux joueurs choisissent en secret pendant la tranche (pvp_choix) ; la tranche suivante part quand les deux ont
+-- fini de la regarder, ou à l'heure prévue (meta.prochain). Temps mort : 20 secondes pour les deux, le match revient à la seconde
+-- où il a été demandé. Un joueur absent est coaché par son adjoint (match_adjoint) ; si les deux s'en vont, pvp_cron finit le match.
+-- ════════════════════════════════════════════════════════════════════════════
+create or replace function pvp_miroir_ev(x jsonb) returns jsonb language sql immutable as $$
+  select x || case when x ->> 'c' in ('a', 'b') then jsonb_build_object('c', case x ->> 'c' when 'a' then 'b' else 'a' end) else '{}'::jsonb end
+    || case when jsonb_typeof(x -> 's') = 'array' then jsonb_build_object('s', jsonb_build_array(x #> '{s,1}', x #> '{s,0}')) else '{}'::jsonb end
+$$;
+create or replace function pvp_miroir(e jsonb) returns jsonb language plpgsql immutable as $$
+declare r jsonb;
+begin
+  if e is null or jsonb_typeof(e) <> 'object' then return e; end if;
+  r := (e - 'contre') || jsonb_build_object('a', e -> 'b', 'b', e -> 'a',
+    'tm', coalesce(e -> 'tmb', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0)), 'tmb', coalesce(e -> 'tm', jsonb_build_object('restants', 3, 'p1', 0, 'p2', 0)));
+  if e ? 'score' then r := r || jsonb_build_object('score', jsonb_build_array(e #> '{score,1}', e #> '{score,0}')); end if;
+  if e ->> 'balle' in ('a', 'b') then r := r || jsonb_build_object('balle', case e ->> 'balle' when 'a' then 'b' else 'a' end); end if;
+  if e ->> 'contre' in ('a', 'b') then r := r || jsonb_build_object('contre', case e ->> 'contre' when 'a' then 'b' else 'a' end); end if;
+  if jsonb_typeof(e -> 'ev') = 'array' then
+    r := r || jsonb_build_object('ev', (select coalesce(jsonb_agg(pvp_miroir_ev(x) order by i), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(x, i)));
+  end if;
+  if jsonb_typeof(e -> 'blocs') = 'array' then
+    r := r || jsonb_build_object('blocs', (select coalesce(jsonb_agg(jsonb_build_object('aa', x -> 'ba', 'ad', x -> 'bd', 'ba', x -> 'aa', 'bd', x -> 'ad') order by i), '[]')
+      from jsonb_array_elements(e -> 'blocs') with ordinality z(x, i)));
+  end if;
+  if jsonb_typeof(e -> 'debut') = 'object' then r := r || jsonb_build_object('debut', pvp_miroir(e -> 'debut')); end if;
+  return r;
+end $$;
+create or replace function pvp_cote(e jsonb, p_cote text) returns jsonb language sql immutable as $$
+  select case when p_cote = 'b' then pvp_miroir(e) else e end
+$$;
+create or replace function pvp_maintenant() returns numeric language sql volatile as $$ select extract(epoch from clock_timestamp())::numeric $$;
+-- l'arène d'un nombre de trophées (0 = la première)
+create or replace function pvp_arene(p_trophees int) returns int language sql stable security definer set search_path = public as $$
+  select coalesce(max(i - 1), 0)::int from jsonb_array_elements(param('pvp_arenes')) with ordinality z(x, i) where (x ->> 'min')::int <= coalesce(p_trophees, 0)
+$$;
+-- trophées gagnés par le vainqueur (et perdus par le vaincu) : plus si l'adversaire en avait plus, moins s'il en avait moins
+create or replace function pvp_trophees_gain(p_gagnant int, p_perdant int) returns int language sql stable security definer set search_path = public as $$
+  select least(parami('pvp_trophees_max'), greatest(parami('pvp_trophees_min'),
+    round(parami('pvp_trophees_base') + (coalesce(p_perdant, 0) - coalesce(p_gagnant, 0))::numeric / greatest(1, parami('pvp_trophees_ecart'))))::int)
+$$;
+-- saison d'un mois : au changement de mois, une récompense selon l'arène atteinte (si on a joué), puis les trophées au-dessus du seuil
+-- redescendent de moitié (comme Clash Royale) ; renvoie la récompense donnée (ou null)
+create or replace function pvp_saison_maj(p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; debut date := date_trunc('month', aujourdhui())::date; r jsonb; seuil int := parami('pvp_saison_seuil'); ar int;
+begin
+  select * into p from profils where user_id = p_uid;
+  if not found then return null; end if;
+  if p.pvp_saison is null then update profils set pvp_saison = debut where user_id = p_uid; return null; end if;
+  if p.pvp_saison >= debut then return null; end if;
+  ar := pvp_arene(p.trophees);
+  if p.pvp_matchs_saison > 0 then
+    r := param('pvp_saison_recompenses') -> least(ar, jsonb_array_length(param('pvp_saison_recompenses')) - 1);
+    if r is not null then perform donner_recompense(p_uid, r); end if;
+  end if;
+  update profils set pvp_saison = debut, pvp_matchs_saison = 0,
+    trophees = case when trophees > seuil then seuil + (trophees - seuil) / 2 else trophees end where user_id = p_uid;
+  perform noter(p_uid, 'pvp-saison', jsonb_build_object('trophees', p.trophees, 'arene', ar, 'recompense', r));
+  return case when r is not null then jsonb_build_object('arene', param('pvp_arenes') -> ar ->> 'nom', 'recompense', r, 'trophees', p.trophees) end;
+end $$;
+-- trophées d'un match classé (contre un vrai joueur ou un fantôme) : nouveau total, arène, récompense d'une arène atteinte la première fois
+create or replace function pvp_trophees_donner(p_uid uuid, p_delta int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare avant int; apres int; ar0 int; ar1 int; i int; r jsonb; nouvelle jsonb := null;
+begin
+  select trophees into avant from profils where user_id = p_uid;
+  apres := greatest(0, avant + p_delta);
+  update profils set trophees = apres, trophees_max = greatest(trophees_max, apres), pvp_matchs_saison = pvp_matchs_saison + 1 where user_id = p_uid;
+  ar0 := pvp_arene(avant); ar1 := pvp_arene(apres);
+  for i in 1 .. ar1 loop
+    insert into pvp_arenes_faites (user_id, arene) values (p_uid, i) on conflict do nothing;
+    if found then
+      r := param('pvp_arenes') -> i -> 'recompense';
+      if r is not null then perform donner_recompense(p_uid, r); end if;
+      nouvelle := jsonb_build_object('nom', param('pvp_arenes') -> i ->> 'nom', 'recompense', r);
+    end if;
+  end loop;
+  return jsonb_build_object('avant', avant, 'apres', apres, 'delta', apres - avant, 'arene', param('pvp_arenes') -> ar1 ->> 'nom', 'nouvelle', nouvelle);
+end $$;
+-- pièces d'un match classé : selon le résultat et l'arène, pour les pvp_gains_par_jour premiers matchs de la journée
+create or replace function pvp_pieces(p_uid uuid, p_res text, p_gain numeric) returns int language sql stable security definer set search_path = public as $$
+  select case when (select count(*) from rencontres r where r.user_id = p_uid and r.type = 'pvp' and r.le >= debut_du_jour()
+      and coalesce((r.detail ->> 'pieces')::int, 0) > 0) >= parami('pvp_gains_par_jour') then 0
+    else round(coalesce((param('pvp_pieces') ->> p_res)::numeric, 0) * (1 + .25 * pvp_arene((select trophees from profils where user_id = p_uid))) * coalesce(p_gain, 1))::int end
+$$;
+-- blessures et protection après un match, pour le joueur d'un côté (comme match_conclure)
+create or replace function pvp_blessures(p_uid uuid, e jsonb, p_cote text) returns void language sql security definer set search_path = public as $$
+  update exemplaires set blessure = blessure - 1, blessure_g = case when blessure > 1 then blessure_g end where proprietaire = p_uid and blessure > 0;
+  update exemplaires set protection = protection - 1 where proprietaire = p_uid and protection > 0;
+  update exemplaires x set blessure = greatest(x.blessure, (v ->> 'm')::int), blessure_g = v ->> 'g'
+    from jsonb_array_elements(e -> 'ev') v where v ->> 'ty' = 'blessure' and v ->> 'c' = p_cote and coalesce((v ->> 'm')::int, 0) > 0
+      and x.id::text = v ->> 'id' and x.proprietaire = p_uid;
+$$;
+
+-- ── le match à deux
+create or replace function pvp_equipe(p profils) returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  perform verifier_equipe(p.user_id, p.equipe);
+  return force_equipe(p.equipe, p.tactique) || jsonb_build_object('nom', p.pseudo) || match_banc_init(p.user_id, p.equipe, p.remplacants, p.tactique);
+end $$;
+create or replace function pvp_nouveau(p_a uuid, p_b uuid, p_classe boolean, p_attente int) returns uuid language plpgsql security definer set search_path = public as $$
+declare pa profils; pb profils; fa jsonb; fb jsonb; e jsonb; v_id uuid; t numeric := pvp_maintenant();
+begin
+  select * into pa from profils where user_id = p_a; select * into pb from profils where user_id = p_b;
+  fa := pvp_equipe(pa); fb := pvp_equipe(pb);
+  e := match_nouveau('pvp', jsonb_build_object('classe', p_classe), fa, fb, coalesce(pa.tactique, 'duels:06'), 'normal',
+    tac_attaque(coalesce(pb.tactique, 'duels:06')), tac_defense(coalesce(pb.tactique, 'duels:06')));
+  e := e || jsonb_build_object('pvp', true,
+    'b', ((e -> 'b') - 'pref_att' - 'pref_def' - 'fo') || jsonb_build_object('tactique', coalesce(pb.tactique, 'duels:06'), 'consigne', 'normal'));
+  e := match_absents(e, p_a);
+  e := pvp_miroir(match_absents(pvp_miroir(e), p_b));
+  insert into pvp_matchs (a, b, classe, etat, attente, meta) values (p_a, p_b, p_classe, e, p_attente, jsonb_build_object(
+    'choix', jsonb_build_object('a', jsonb_build_object('tac', e #>> '{a,tactique}', 'cons', 'normal'), 'b', jsonb_build_object('tac', e #>> '{b,tactique}', 'cons', 'normal')),
+    'postes', jsonb_build_object('a', '[]'::jsonb, 'b', '[]'::jsonb), 'pret', jsonb_build_object('a', -1, 'b', -1),
+    'vu', jsonb_build_object('a', t, 'b', t), 'gen', 0, 'prochain', t + parami('pvp_envoi_secondes'),
+    'trophees', jsonb_build_object('a', pa.trophees, 'b', pb.trophees)))
+    returning pvp_matchs.id into v_id;
+  return v_id;
+end $$;
+-- les choix d'un côté pour la tranche qui part : tactique, consigne (raconté à l'équipe ; l'adversaire ne voit que ce qui se voit),
+-- changements ; un joueur absent est coaché par son adjoint
+create or replace function pvp_appliquer(e jsonb, meta jsonb, p_cote text, p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare ee jsonb := pvp_cote(e, p_cote); ch jsonb := meta -> 'choix' -> p_cote; ps text[]; n int; vieux text; vc text; nouveau text; nc text;
+  absent boolean := pvp_maintenant() - coalesce((meta -> 'vu' ->> p_cote)::numeric, 0) > parami('pvp_absent_secondes');
+begin
+  if ch ->> 'tac' ~ '^(duels|enclenchement|rapide):(06|15|33)$' then
+    vieux := ee #>> '{a,tactique}'; vc := coalesce(ee #>> '{a,consigne}', 'normal');
+    nouveau := ch ->> 'tac'; nc := coalesce(ch ->> 'cons', vc);
+    n := jsonb_array_length(ee -> 'ev');
+    ee := match_regler(ee, nouveau, nc, false);
+    if jsonb_array_length(ee -> 'ev') > n then
+      -- ce qui a changé : l'adversaire verra la nouvelle défense et la consigne, pas l'attaque (pvp_vue)
+      ee := jsonb_set(ee, array['ev', (jsonb_array_length(ee -> 'ev') - 1)::text], (ee -> 'ev' -> -1) || jsonb_build_object('ch', jsonb_build_object(
+        'att', split_part(vieux, ':', 1) is distinct from split_part(nouveau, ':', 1), 'def', split_part(vieux, ':', 2) is distinct from split_part(nouveau, ':', 2),
+        'cons', vc is distinct from nc)));
+    end if;
+  end if;
+  select array_agg(distinct x) into ps from jsonb_array_elements_text(coalesce(meta -> 'postes' -> p_cote, '[]')) x
+    where x in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB');
+  if cardinality(ps) > 0 then
+    begin ee := match_changer_e(ee, p_uid, ps); exception when others then null; end;   -- un changement devenu impossible est oublié
+  end if;
+  if absent and (ee ->> 'bloc')::int > 0 then
+    begin ee := match_adjoint(match_adjoint_changer(ee, p_uid)); exception when others then null; end;
+  end if;
+  return pvp_cote(ee, p_cote);
+end $$;
+-- fait avancer le match si c'est l'heure (ou si les deux joueurs sont prêts) : fin d'un temps mort, tranche suivante, fin du match
+create or replace function pvp_avancer(p_id uuid) returns void language plpgsql security definer set search_path = public as $$
+declare m pvp_matchs; e jsonb; mt jsonb; t numeric := pvp_maintenant(); b int; pz jsonb; dur numeric; tr int := parami('pvp_tranche_secondes');
+  marge int := parami('pvp_marge_secondes'); h int; i int := 0;
+begin
+  select * into m from pvp_matchs where id = p_id for update;
+  if not found or m.statut <> 'direct' then return; end if;
+  e := m.etat; mt := m.meta;
+  loop
+    i := i + 1; exit when i > 3;
+    b := (e ->> 'bloc')::int; pz := mt -> 'pause';
+    if jsonb_typeof(pz) = 'object' then
+      -- un temps mort : 20 secondes, ou moins si les deux joueurs sont prêts
+      exit when t < (pz ->> 'jusqu')::numeric and not (coalesce((pz #>> '{pret,a}')::boolean, false) and coalesce((pz #>> '{pret,b}')::boolean, false));
+      e := pvp_appliquer(e, mt, 'a', m.a); e := pvp_appliquer(e, mt, 'b', m.b);
+      mt := mt || jsonb_build_object('pause', null, 'postes', jsonb_build_object('a', '[]'::jsonb, 'b', '[]'::jsonb));
+      h := (e ->> 't')::int;
+      if h > b * 300 then
+        e := match_reprendre_tranche(e); b := (e ->> 'bloc')::int;
+        dur := (b * 300 - h) / 25.0;
+        mt := mt || jsonb_build_object('prochain', t + dur + marge + case when b = 6 then parami('pvp_mi_temps_secondes') else 0 end);
+      else
+        mt := mt || jsonb_build_object('prochain', t);
+      end if;
+      continue;
+    end if;
+    exit when not (t >= (mt ->> 'prochain')::numeric
+      or ((mt #>> '{pret,a}')::int >= b and (mt #>> '{pret,b}')::int >= b));
+    if b >= 12 then
+      -- la dernière tranche est racontée : le résultat
+      m.etat := e; m.meta := mt;
+      perform pvp_conclure(m);
+      return;
+    end if;
+    e := pvp_appliquer(e, mt, 'a', m.a); e := pvp_appliquer(e, mt, 'b', m.b);
+    e := match_bloc_jouer(e); b := (e ->> 'bloc')::int;
+    mt := mt || jsonb_build_object('postes', jsonb_build_object('a', '[]'::jsonb, 'b', '[]'::jsonb),
+      'prochain', t + tr + marge + case when b = 6 then parami('pvp_mi_temps_secondes') else 0 end);
+    exit;
+  end loop;
+  update pvp_matchs set etat = e, meta = mt, maj = now() where id = p_id;
+end $$;
+-- la fin d'un match à deux : résultat, trophées (match classé) ou pièces du défi (entre ami(e)s), blessures, historique
+create or replace function pvp_conclure(m pvp_matchs) returns void language plpgsql security definer set search_path = public as $$
+declare e jsonb := m.etat; r jsonb := match_resultat(m.etat); ra text; rb text; pa profils; pb profils; ga int := 0; gb int := 0;
+  ta jsonb := null; tb jsonb := null; d int; xa int; xb int; na jsonb; nb jsonb; res jsonb;
+begin
+  -- les deux profils, toujours dans le même ordre (pas d'interblocage)
+  perform 1 from profils where user_id in (m.a, m.b) order by user_id for update;
+  select * into pa from profils where user_id = m.a; select * into pb from profils where user_id = m.b;
+  ra := r ->> 'resultat'; rb := case ra when 'gagne' then 'perdu' when 'perdu' then 'gagne' else 'nul' end;
+  if m.classe then
+    if ra <> 'nul' then
+      d := case when ra = 'gagne' then pvp_trophees_gain(pa.trophees, pb.trophees) else pvp_trophees_gain(pb.trophees, pa.trophees) end;
+      if m.a is not null then ta := pvp_trophees_donner(m.a, case when ra = 'gagne' then d else -d end); end if;
+      if m.b is not null then tb := pvp_trophees_donner(m.b, case when rb = 'gagne' then d else -d end); end if;
+    else
+      if m.a is not null then ta := pvp_trophees_donner(m.a, 0); end if;
+      if m.b is not null then tb := pvp_trophees_donner(m.b, 0); end if;
+    end if;
+    if m.a is not null then ga := pvp_pieces(m.a, ra, 1); end if;
+    if m.b is not null then gb := pvp_pieces(m.b, rb, 1); end if;
+  else
+    ga := case when ra = 'gagne' then parami('pvp_ami_pieces') else 0 end;
+    gb := case when rb = 'gagne' then parami('pvp_ami_pieces') else 0 end;
+  end if;
+  xa := (param('pve_xp') ->> ra)::int; xb := (param('pve_xp') ->> rb)::int;
+  if m.a is not null then
+    perform pvp_blessures(m.a, e, 'a');
+    update profils set pieces = pieces + ga where user_id = m.a;
+    na := gagner_xp(m.a, xa);
+    insert into rencontres (user_id, type, adversaire, score, resultat, detail) values (m.a, 'pvp', coalesce(pb.pseudo, 'Joueur supprimé'),
+      array[(r ->> 'a')::int, (r ->> 'b')::int], ra, jsonb_build_object('classe', m.classe, 'trophees', ta -> 'delta', 'pieces', ga, 'match', m.id));
+    if ra = 'gagne' then perform progresser(m.a, 'victoire'); end if;
+    if not m.classe then perform progresser(m.a, 'defi'); end if;
+    perform noter(m.a, 'pvp', jsonb_build_object('contre', pb.pseudo, 'resultat', ra, 'pieces', ga, 'trophees', ta -> 'delta', 'classe', m.classe));
+  end if;
+  if m.b is not null then
+    perform pvp_blessures(m.b, e, 'b');
+    update profils set pieces = pieces + gb where user_id = m.b;
+    nb := gagner_xp(m.b, xb);
+    insert into rencontres (user_id, type, adversaire, score, resultat, detail) values (m.b, 'pvp', coalesce(pa.pseudo, 'Joueur supprimé'),
+      array[(r ->> 'b')::int, (r ->> 'a')::int], rb, jsonb_build_object('classe', m.classe, 'trophees', tb -> 'delta', 'pieces', gb, 'match', m.id));
+    if rb = 'gagne' then perform progresser(m.b, 'victoire'); end if;
+    if not m.classe then perform progresser(m.b, 'defi'); end if;
+    perform noter(m.b, 'pvp', jsonb_build_object('contre', pa.pseudo, 'resultat', rb, 'pieces', gb, 'trophees', tb -> 'delta', 'classe', m.classe));
+  end if;
+  res := jsonb_build_object(
+    'a', jsonb_build_object('match', jsonb_build_object('a', (r ->> 'a')::int, 'b', (r ->> 'b')::int, 'resultat', ra), 'adversaire', pb.pseudo, 'classe', m.classe,
+      'gains', jsonb_build_object('pieces', ga, 'xp', xa, 'trophees', ta -> 'delta'), 'trophees', ta, 'niveaux', na, 'resume', match_resume(e)),
+    'b', jsonb_build_object('match', jsonb_build_object('a', (r ->> 'b')::int, 'b', (r ->> 'a')::int, 'resultat', rb), 'adversaire', pa.pseudo, 'classe', m.classe,
+      'gains', jsonb_build_object('pieces', gb, 'xp', xb, 'trophees', tb -> 'delta'), 'trophees', tb, 'niveaux', nb, 'resume', match_resume(pvp_miroir(e))));
+  update pvp_matchs set statut = 'fini', etat = e, meta = m.meta, resultat = res, maj = now() where id = m.id;
+end $$;
+-- ce que le joueur d'un côté voit : le match en miroir s'il est b ; les changements de tactique adverses réduits à ce qui se voit
+-- (la nouvelle défense et la consigne ; l'attaque reste cachée) ; le compte à rebours, la pause, le résultat
+create or replace function pvp_vue_json(m pvp_matchs, p_cote text, p_depuis int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare ee jsonb := pvp_cote(m.etat, p_cote); o text := case p_cote when 'a' then 'b' else 'a' end; v jsonb; t numeric := pvp_maintenant();
+  meta jsonb := m.meta; pz jsonb := m.meta -> 'pause'; adv profils;
+begin
+  select * into adv from profils where user_id = case p_cote when 'a' then m.b else m.a end;
+  v := match_vue(ee, greatest(0, coalesce(p_depuis, 0)));
+  v := v || jsonb_build_object('evenements', (select coalesce(jsonb_agg(case when x ->> 'c' = 'b' and x ->> 'ty' = 'tactique' then
+      jsonb_build_object('t', x -> 't', 'c', 'b', 'ty', 'tactique-adv', 's', x -> 's',
+        'def', case when coalesce((x #>> '{ch,def}')::boolean, true) then split_part(x ->> 'v', ':', 2) end,
+        'att', coalesce((x #>> '{ch,att}')::boolean, true), 'cons', case when coalesce((x #>> '{ch,cons}')::boolean, false) then x ->> 'cons' end)
+      when x ->> 'c' = 'b' and x ->> 'ty' = 'temps-mort' then x - 'va' - 'vd'
+      else x end order by i), '[]') from jsonb_array_elements(v -> 'evenements') with ordinality z(x, i)),
+    'eux', (v -> 'eux') || jsonb_build_object('entraineur', null, 'lecture', null));
+  return v || jsonb_build_object('pvp', jsonb_build_object('id', m.id, 'cote', p_cote, 'classe', m.classe, 'statut', m.statut,
+    'gen', coalesce((meta ->> 'gen')::int, 0), 'n', jsonb_array_length(ee -> 'ev'), 'h', (ee ->> 't')::int,
+    'prochain', greatest(0, round(coalesce((meta ->> 'prochain')::numeric, t) - t, 1)),
+    'pause', case when jsonb_typeof(pz) = 'object' then jsonb_build_object('reste', greatest(0, round((pz ->> 'jusqu')::numeric - t, 1)),
+      'moi', pz ->> 'par' = p_cote, 'h', (pz ->> 'h')::int, 'pret', coalesce((pz -> 'pret' ->> p_cote)::boolean, false)) end,
+    'pretEux', coalesce((meta -> 'pret' ->> o)::int, -1) >= (ee ->> 'bloc')::int,
+    'absentEux', t - coalesce((meta -> 'vu' ->> o)::numeric, t) > parami('pvp_absent_secondes'),
+    'choix', jsonb_build_object('tac', meta -> 'choix' -> p_cote ->> 'tac', 'cons', meta -> 'choix' -> p_cote ->> 'cons', 'postes', coalesce(meta -> 'postes' -> p_cote, '[]')),
+    'adversaire', jsonb_build_object('pseudo', adv.pseudo, 'trophees', meta -> 'trophees' -> o, 'perso', perso_public(adv.user_id)),
+    'trophees', meta -> 'trophees' -> p_cote,
+    'fin', case when m.statut = 'fini' then m.resultat -> p_cote end));
+end $$;
+-- le match à deux du joueur (en cours, ou fini depuis moins de 10 minutes : le jeu montre le résultat)
+create or replace function pvp_mon_match(p_uid uuid) returns pvp_matchs language sql stable security definer set search_path = public as $$
+  select * from pvp_matchs m where p_uid in (m.a, m.b) and (m.statut = 'direct' or m.maj > now() - interval '10 minutes')
+  order by (m.statut = 'direct') desc, m.cree_le desc limit 1
+$$;
+-- Ordre des verrous : le match d'abord, puis les profils (moi(), et les deux profils à la fin du match) : deux joueurs qui
+-- interrogent le même match au même instant ne se bloquent jamais l'un l'autre
+create or replace function pvp_vue(p_depuis int default 0) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; c text;
+begin
+  m := pvp_mon_match(auth.uid());
+  if m.id is not null then perform 1 from pvp_matchs where id = m.id for update; end if;
+  p := moi();
+  if m.id is null then return jsonb_build_object('aucun', true); end if;
+  c := case when m.a = p.user_id then 'a' else 'b' end;
+  if m.statut = 'direct' then
+    update pvp_matchs set meta = jsonb_set(meta, array['vu', c], to_jsonb(pvp_maintenant())) where id = m.id;
+    perform pvp_avancer(m.id);
+    select * into m from pvp_matchs where id = m.id;
+  end if;
+  return pvp_vue_json(m, c, p_depuis);
+end $$;
+-- les choix du joueur pour la suite : tactique, consigne, changements (ils partent avec la tranche suivante, ou à la fin d'un temps
+-- mort) ; p_pret = la tranche qu'il a fini de regarder ; p_pret_pause = prêt à reprendre après un temps mort
+create or replace function pvp_choix(p_tactique text, p_consigne text, p_postes jsonb, p_pret int, p_pret_pause boolean, p_depuis int)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; c text; mt jsonb;
+begin
+  m := pvp_mon_match(auth.uid());
+  if m.id is null or m.statut <> 'direct' then raise exception 'Pas de match en cours'; end if;
+  select * into m from pvp_matchs where id = m.id for update;   -- le match d'abord, puis le profil (voir pvp_vue)
+  p := moi();
+  c := case when m.a = p.user_id then 'a' else 'b' end; mt := m.meta;
+  if p_tactique is not null then
+    perform verifier_tactique(p_tactique);
+    if coalesce(p_consigne, 'normal') not in ('normal', 'prudent', 'pression') then raise exception 'Consigne inconnue'; end if;
+    mt := jsonb_set(mt, array['choix', c], jsonb_build_object('tac', p_tactique, 'cons', coalesce(p_consigne, 'normal')));
+  end if;
+  if p_postes is not null then
+    if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) > 7
+      or exists (select 1 from jsonb_array_elements_text(p_postes) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then
+      raise exception 'Changements invalides';
+    end if;
+    mt := jsonb_set(mt, array['postes', c], p_postes);
+  end if;
+  if p_pret is not null then mt := jsonb_set(mt, array['pret', c], to_jsonb(least(12, greatest(-1, p_pret)))); end if;
+  if coalesce(p_pret_pause, false) and jsonb_typeof(mt -> 'pause') = 'object' then
+    mt := jsonb_set(mt, array['pause', 'pret'], coalesce(mt #> '{pause,pret}', '{}') || jsonb_build_object(c, true));
+  end if;
+  mt := jsonb_set(mt, array['vu', c], to_jsonb(pvp_maintenant()));
+  update pvp_matchs set meta = mt, maj = now() where id = m.id;
+  perform pvp_avancer(m.id);
+  select * into m from pvp_matchs where id = m.id;
+  return pvp_vue_json(m, c, p_depuis);
+end $$;
+-- temps mort : tout de suite, à la seconde où en est le récit (calculée par le serveur), 20 secondes pour les deux équipes ;
+-- l'élan et leur tactique du moment pour celui qui le prend (comme en championnat)
+create or replace function pvp_temps_mort() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; c text; e jsonb; mt jsonb; h int; t numeric := pvp_maintenant(); fin int;
+begin
+  m := pvp_mon_match(auth.uid());
+  if m.id is null or m.statut <> 'direct' then raise exception 'Pas de match en cours'; end if;
+  select * into m from pvp_matchs where id = m.id for update;   -- le match d'abord, puis le profil (voir pvp_vue)
+  p := moi();
+  c := case when m.a = p.user_id then 'a' else 'b' end; e := m.etat; mt := m.meta;
+  if jsonb_typeof(mt -> 'pause') = 'object' then raise exception 'Le jeu est déjà arrêté'; end if;
+  fin := (e ->> 't')::int;
+  if (e ->> 'bloc')::int < 1 or (e ->> 'bloc')::int >= 12 and fin >= 3600 and t >= (mt ->> 'prochain')::numeric then raise exception 'Pas de temps mort maintenant'; end if;
+  h := case when e ? 'servi' then least(fin, greatest((e #>> '{debut,t}')::int, (e ->> 'servi_t')::int + floor((t - (e ->> 'servi')::numeric) * 25)::int)) else fin end;
+  if h = 1800 and (e ->> 'bloc')::int = 6 then raise exception 'C’est la mi-temps : change ce que tu veux sans temps mort'; end if;
+  if h >= 3600 then raise exception 'Le match est fini'; end if;
+  if h < fin then e := match_rembobiner(e, h); end if;
+  e := pvp_cote(match_tm_prendre(pvp_cote(e, c)), c);
+  mt := mt || jsonb_build_object('pause', jsonb_build_object('jusqu', t + parami('pvp_pause_secondes'), 'par', c, 'h', h, 'pret', '{}'::jsonb),
+    'gen', coalesce((mt ->> 'gen')::int, 0) + 1);
+  mt := jsonb_set(mt, array['vu', c], to_jsonb(t));
+  update pvp_matchs set etat = e, meta = mt, maj = now() where id = m.id;
+  select * into m from pvp_matchs where id = m.id;
+  return pvp_vue_json(m, c, 0) || jsonb_build_object('adverse', jsonb_build_object('attaque', pvp_cote(e, c) #>> '{b,attaque}', 'defense', pvp_cote(e, c) #>> '{b,defense}'));
+end $$;
+
+-- ── la file d'attente classée (façon LoL) : le plus proche en trophées parmi ceux qui cherchent ; personne après 2 minutes : un fantôme
+create or replace function pvp_fantome(p profils, p_attente int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare a profils; fb jsonb; fa jsonb; e jsonb; ar int := pvp_arene(p.trophees); st text;
+begin
+  -- l'équipe d'un vrai joueur proche en trophées, jouée par l'ordinateur
+  for a in select * from profils x where x.user_id <> p.user_id and (select count(*) from jsonb_object_keys(x.equipe)) = 7
+      order by abs(x.trophees - p.trophees), random() limit 10 loop
+    begin
+      fb := force_equipe(a.equipe, a.tactique) || jsonb_build_object('nom', 'Fantôme de ' || a.pseudo);
+      exit;
+    exception when others then fb := null;
+    end;
+  end loop;
+  if fb is null then raise exception 'Aucun adversaire pour l’instant : réessaie dans un moment'; end if;
+  fa := force_equipe(p.equipe, p.tactique) || jsonb_build_object('nom', p.pseudo) || match_banc_init(p.user_id, p.equipe, p.remplacants, p.tactique);
+  e := match_nouveau('classe', jsonb_build_object('fantome', a.user_id, 'pseudo', a.pseudo, 'trophees', a.trophees, 'attente', p_attente), fa, fb,
+    coalesce(p.tactique, 'duels:06'), 'normal', tac_attaque(coalesce(a.tactique, 'duels:06')), tac_defense(coalesce(a.tactique, 'duels:06')));
+  st := case when ar <= 1 then 'lent' when ar <= 3 then 'reflechi' when ar <= 5 then 'rapide' else 'legende' end;
+  e := e || jsonb_build_object('ia', match_ia(st));
+  e := match_absents(e, p.user_id);
+  insert into matchs_direct (user_id, etat) values (p.user_id, e);
+  return match_vue(e);
+end $$;
+create or replace function pvp_fantome_conclure(p_uid uuid, e jsonb, r jsonb, p_gain numeric) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; res text := r ->> 'resultat'; d int; tr jsonb; g int; x int; niveaux jsonb; tf int := coalesce((e #>> '{ctx,trophees}')::int, 0);
+begin
+  select * into p from profils where user_id = p_uid for update;
+  d := case res when 'gagne' then pvp_trophees_gain(p.trophees, tf) when 'perdu' then -pvp_trophees_gain(tf, p.trophees) else 0 end;
+  tr := pvp_trophees_donner(p_uid, d);
+  g := pvp_pieces(p_uid, res, p_gain); x := round((param('pve_xp') ->> res)::int * p_gain);
+  update profils set pieces = pieces + g, tactique = coalesce(e #>> '{a,tactique}', tactique) where user_id = p_uid;
+  niveaux := gagner_xp(p_uid, x);
+  insert into rencontres (user_id, type, adversaire, score, resultat, detail) values (p_uid, 'pvp', e #>> '{b,nom}',
+    array[(r ->> 'a')::int, (r ->> 'b')::int], res, jsonb_build_object('classe', true, 'fantome', true, 'trophees', tr -> 'delta', 'pieces', g));
+  if res = 'gagne' then perform progresser(p_uid, 'victoire'); end if;
+  perform noter(p_uid, 'pvp', jsonb_build_object('contre', e #>> '{b,nom}', 'resultat', res, 'pieces', g, 'trophees', tr -> 'delta', 'fantome', true));
+  return jsonb_build_object('match', r, 'adversaire', e #>> '{b,nom}', 'classe', true, 'fantome', true, 'note', e #> '{a,note}', 'noteAdversaire', e #> '{b,note}',
+    'gains', jsonb_build_object('pieces', g, 'xp', x, 'trophees', tr -> 'delta'), 'trophees', tr, 'niveaux', niveaux, 'etat', etat_de(p_uid));
+end $$;
+create or replace function pvp_chercher() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m pvp_matchs; f pvp_file; o pvp_file; att int; v_id uuid; v jsonb; est int;
+begin
+  perform pvp_saison_maj(p.user_id);
+  select * into p from profils where user_id = p.user_id;
+  -- déjà dans un match à deux : on y va
+  m := pvp_mon_match(p.user_id);
+  if m.id is not null and m.statut = 'direct' then
+    delete from pvp_file where user_id = p.user_id;
+    return jsonb_build_object('match', pvp_vue_json(m, case when m.a = p.user_id then 'a' else 'b' end, 0));
+  end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  perform verifier_equipe(p.user_id, p.equipe);
+  insert into pvp_file (user_id, trophees) values (p.user_id, p.trophees)
+    on conflict (user_id) do update set vu = now(), trophees = excluded.trophees;
+  -- une recherche à la fois sur tout le serveur : deux joueurs ne s'affrontent jamais deux fois en même temps
+  perform pg_advisory_xact_lock(424242);
+  delete from pvp_file where vu < now() - interval '15 seconds';
+  select * into f from pvp_file where user_id = p.user_id;
+  if f.user_id is null then
+    insert into pvp_file (user_id, trophees) values (p.user_id, p.trophees) returning * into f;
+  end if;
+  att := floor(extract(epoch from now() - f.entree))::int;
+  select * into o from pvp_file x where x.user_id <> p.user_id order by abs(x.trophees - p.trophees), x.entree limit 1;
+  if o.user_id is not null then
+    delete from pvp_file where user_id in (p.user_id, o.user_id);
+    -- celui qui attendait depuis le plus longtemps est a
+    if o.entree <= f.entree then v_id := pvp_nouveau(o.user_id, p.user_id, true, greatest(att, floor(extract(epoch from now() - o.entree))::int));
+    else v_id := pvp_nouveau(p.user_id, o.user_id, true, att); end if;
+    select * into m from pvp_matchs where pvp_matchs.id = v_id;
+    perform noter(p.user_id, 'pvp-trouve', jsonb_build_object('match', v_id, 'attente', att));
+    return jsonb_build_object('match', pvp_vue_json(m, case when m.a = p.user_id then 'a' else 'b' end, 0));
+  end if;
+  if att >= parami('pvp_fantome_secondes') then
+    delete from pvp_file where user_id = p.user_id;
+    v := pvp_fantome(p, att);
+    return jsonb_build_object('fantome', true, 'vue', v, 'etat', etat_de(p.user_id));
+  end if;
+  select coalesce(round(avg(x.attente))::int, parami('pvp_fantome_secondes')) into est
+    from (select attente from pvp_matchs where classe and attente is not null order by cree_le desc limit 20) x;
+  return jsonb_build_object('attente', att, 'estime', least(parami('pvp_fantome_secondes'), est), 'fantome', parami('pvp_fantome_secondes'),
+    'enFile', (select count(*) from pvp_file));
+end $$;
+create or replace function pvp_annuler() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  delete from pvp_file where user_id = p.user_id;
+  return jsonb_build_object('ok', true);
+end $$;
+
+-- ── l'écran du mode classé : trophées, arène, arènes et leurs récompenses, classement, fin de saison
+create or replace function pvp_accueil() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); r jsonb; ar int;
+begin
+  r := pvp_saison_maj(p.user_id);
+  select * into p from profils where user_id = p.user_id;
+  ar := pvp_arene(p.trophees);
+  return jsonb_build_object('trophees', p.trophees, 'max', p.trophees_max, 'arene', ar, 'saisonRecompense', r,
+    'arenes', (select jsonb_agg(x || jsonb_build_object('i', i - 1, 'atteinte', i - 1 <= ar or exists (select 1 from pvp_arenes_faites f where f.user_id = p.user_id and f.arene = i - 1)) order by i)
+      from jsonb_array_elements(param('pvp_arenes')) with ordinality z(x, i)),
+    'saisonFin', (date_trunc('month', aujourdhui()) + interval '1 month')::date, 'saisonSeuil', parami('pvp_saison_seuil'),
+    'saisonRecompenses', param('pvp_saison_recompenses'),
+    'gainsRestants', greatest(0, parami('pvp_gains_par_jour') - (select count(*) from rencontres x where x.user_id = p.user_id and x.type = 'pvp'
+      and x.le >= debut_du_jour() and coalesce((x.detail ->> 'pieces')::int, 0) > 0)),
+    'pieces', param('pvp_pieces'), 'fantome', parami('pvp_fantome_secondes'),
+    'classement', coalesce((select jsonb_agg(t order by t.trophees desc, lower(t.pseudo)) from (
+      select x.pseudo, x.trophees, param('pvp_arenes') -> pvp_arene(x.trophees) ->> 'nom' arene, x.user_id = p.user_id moi, perso_public(x.user_id) perso
+      from profils x where x.trophees > 0 or x.user_id = p.user_id order by x.trophees desc limit 50) t), '[]'),
+    'rang', (select count(*) + 1 from profils x where x.trophees > p.trophees),
+    'derniers', coalesce((select jsonb_agg(jsonb_build_object('adversaire', x.adversaire, 'score', x.score, 'resultat', x.resultat,
+        'trophees', x.detail -> 'trophees', 'fantome', coalesce((x.detail ->> 'fantome')::boolean, false), 'classe', coalesce((x.detail ->> 'classe')::boolean, true), 'le', x.le) order by x.le desc)
+      from (select * from rencontres x where x.user_id = p.user_id and x.type = 'pvp' order by x.le desc limit 8) x), '[]'));
+end $$;
+
+-- ── défi en direct entre ami(e)s : une invitation de 2 minutes ; acceptée, un match à deux non classé (30 pièces au gagnant)
+create or replace function pvp_inviter(p_pseudo text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); a profils := ami_de(p_pseudo); v_id uuid;
+begin
+  if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
+  if (pvp_mon_match(p.user_id)).statut = 'direct' then raise exception 'Tu as déjà un match en cours'; end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  perform verifier_equipe(p.user_id, p.equipe);
+  if (select count(*) from jsonb_object_keys(a.equipe)) < 7 then raise exception '% n’a pas encore d’équipe complète', a.pseudo; end if;
+  update pvp_invitations set statut = 'annulee' where de = p.user_id and statut = 'attente';
+  insert into pvp_invitations (de, pour) values (p.user_id, a.user_id) returning pvp_invitations.id into v_id;
+  perform noter(p.user_id, 'pvp-invite', jsonb_build_object('pour', a.pseudo));
+  return jsonb_build_object('invitation', v_id, 'pour', a.pseudo, 'secondes', parami('pvp_invitation_secondes'));
+end $$;
+-- celui qui invite attend la réponse
+create or replace function pvp_attendre(p_invitation uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); i pvp_invitations; m pvp_matchs; ecoule int;
+begin
+  select * into i from pvp_invitations where id = p_invitation and de = p.user_id;
+  if not found then raise exception 'Invitation inconnue'; end if;
+  ecoule := floor(extract(epoch from now() - i.cree_le))::int;
+  if i.statut = 'attente' and ecoule >= parami('pvp_invitation_secondes') then
+    update pvp_invitations set statut = 'expiree' where id = i.id; i.statut := 'expiree';
+  end if;
+  if i.statut = 'acceptee' then
+    select * into m from pvp_matchs where id = i.match;
+    return jsonb_build_object('statut', 'acceptee', 'match', pvp_vue_json(m, 'a', 0));
+  end if;
+  return jsonb_build_object('statut', i.statut, 'attente', ecoule, 'secondes', parami('pvp_invitation_secondes'),
+    'pour', (select pseudo from profils where user_id = i.pour));
+end $$;
+create or replace function pvp_repondre(p_invitation uuid, p_oui boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); i pvp_invitations; v_id uuid; m pvp_matchs;
+begin
+  select * into i from pvp_invitations where id = p_invitation and pour = p.user_id for update;
+  if not found or i.statut <> 'attente' or i.cree_le < now() - make_interval(secs => parami('pvp_invitation_secondes')) then
+    raise exception 'Cette invitation n’est plus valable';
+  end if;
+  if not coalesce(p_oui, false) then
+    update pvp_invitations set statut = 'refusee' where id = i.id;
+    return jsonb_build_object('ok', true);
+  end if;
+  perform 1 from profils where user_id in (p.user_id, i.de) order by user_id for update;
+  if (pvp_mon_match(p.user_id)).statut = 'direct' or (pvp_mon_match(i.de)).statut = 'direct' then raise exception 'Un de vous deux a déjà un match en cours'; end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  delete from pvp_file where user_id in (p.user_id, i.de);
+  v_id := pvp_nouveau(i.de, p.user_id, false, null);
+  update pvp_invitations set statut = 'acceptee', match = v_id where pvp_invitations.id = i.id;
+  select * into m from pvp_matchs where pvp_matchs.id = v_id;
+  return jsonb_build_object('match', pvp_vue_json(m, 'b', 0));
+end $$;
+create or replace function pvp_annuler_invitation(p_invitation uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  update pvp_invitations set statut = 'annulee' where id = p_invitation and de = p.user_id and statut = 'attente';
+  return jsonb_build_object('ok', true);
+end $$;
+-- invitations reçues (bulle des ami(e)s)
+create or replace function pvp_invitations_de(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'de', pr.pseudo,
+      'reste', greatest(0, parami('pvp_invitation_secondes') - floor(extract(epoch from now() - i.cree_le))::int)) order by i.cree_le), '[]')
+  from pvp_invitations i join profils pr on pr.user_id = i.de
+  where i.pour = p_uid and i.statut = 'attente' and i.cree_le > now() - make_interval(secs => parami('pvp_invitation_secondes'))
+$$;
+
+-- ── tâche de fond (pg_cron, chaque minute) : file et invitations périmées ; un match à deux dont les joueurs sont partis avance
+-- seul (avec leurs adjoints) ; un match oublié depuis plus de 10 minutes est joué jusqu'au bout
+create or replace function pvp_cron() returns int language plpgsql security definer set search_path = public as $$
+declare m pvp_matchs; n int := 0; e jsonb; meta jsonb;
+begin
+  delete from pvp_file where vu < now() - interval '1 minute';
+  update pvp_invitations set statut = 'expiree' where statut = 'attente' and cree_le < now() - make_interval(secs => parami('pvp_invitation_secondes'));
+  for m in select * from pvp_matchs where statut = 'direct' and maj < now() - interval '30 seconds' for update skip locked loop
+    if m.maj < now() - interval '10 minutes' then
+      e := m.etat; meta := m.meta || jsonb_build_object('pause', null, 'vu', jsonb_build_object('a', 0, 'b', 0));
+      if (e ->> 't')::int > (e ->> 'bloc')::int * 300 then e := match_reprendre_tranche(e); end if;
+      while (e ->> 'bloc')::int < 12 loop
+        e := pvp_appliquer(e, meta, 'a', m.a); e := pvp_appliquer(e, meta, 'b', m.b); e := match_bloc_jouer(e);
+      end loop;
+      m.etat := e; m.meta := meta;
+      perform pvp_conclure(m);
+    else
+      perform pvp_avancer(m.id);
+    end if;
+    n := n + 1;
+  end loop;
+  return n;
 end $$;
 
 -- Mini-jeu : jet de 7 mètres. Le jeu envoie le point visé, arrêté par le joueur sur un viseur qui se promène sur tout
@@ -4873,6 +5483,8 @@ grant execute on function
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), aligner_remplacants(jsonb, jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
+  pvp_chercher(), pvp_annuler(), pvp_vue(int), pvp_choix(text, text, jsonb, int, boolean, int), pvp_temps_mort(), pvp_accueil(),
+  pvp_inviter(text), pvp_attendre(uuid), pvp_repondre(uuid, boolean), pvp_annuler_invitation(uuid),
   mes_echanges(), marche_vendre(uuid, int), marche_retirer(uuid), marche_acheter(uuid), boite_echanger(text, text), club_demander(text, text), club_donner(uuid),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
@@ -4903,6 +5515,7 @@ begin
     perform cron.schedule('mhc-matchs-demande', '0 */3 * * *', 'select public.synchro_matchs_demander()');
     perform cron.schedule('mhc-matchs-lecture', '5,15,25 */3 * * *', 'select public.synchro_matchs_lire()');
     perform cron.schedule('mhc-boite', '*/5 * * * *', 'select public.boite_servir()');
+    perform cron.schedule('mhc-pvp', '* * * * *', 'select public.pvp_cron()');
   end if;
 end $cron$;
 -- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue
