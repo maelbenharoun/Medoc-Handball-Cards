@@ -3134,7 +3134,7 @@ end $$;
 create or replace function match_seconde(e jsonb, p_seconde int) returns int language plpgsql stable as $$
 declare fin int := (e ->> 't')::int; h int := least(fin, greatest(0, coalesce(p_seconde, fin)));
 begin
-  if not (e ? 'debut') or (e ->> 'bloc')::int < 1 then return fin; end if;
+  if not (e ? 'debut') or ((e ->> 'bloc')::int < 1 and not e ? 'sept') then return fin; end if;   -- 7 m en attente dans la 1re tranche : on peut y revenir
   return least(fin, greatest(h, (e #>> '{debut,t}')::int,
     (e ->> 'servi_t')::int + floor((extract(epoch from clock_timestamp()) - (e ->> 'servi')::numeric) * 25)::int));
 end $$;
@@ -3319,8 +3319,10 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat;
-  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   h := match_seconde(e, p_seconde);
+  -- un jet de 7 m en attente plus loin dans la tranche (retour de Guilhem, 24 nov. 2026 : blessure puis 7 m dans la même tranche, plus
+  -- rien de possible) : le temps mort, pris avant, revient à sa seconde et le 7 m, pas encore raconté, n'a pas eu lieu
+  if e ? 'sept' and h >= (e #>> '{sept,t}')::int then raise exception 'Jet de 7 m en cours'; end if;
   if h = 1800 and (e ->> 'bloc')::int = 6 then raise exception 'C’est la mi-temps : change ce que tu veux sans temps mort'; end if;
   if h < (e ->> 't')::int then e := match_rembobiner(e, h); end if;
   n := jsonb_array_length(e -> 'ev');
@@ -3341,11 +3343,11 @@ begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
   if not found then raise exception 'Pas de match en cours'; end if;
   e := cur.etat; fin := (e ->> 't')::int; b := (e ->> 'bloc')::int;
-  if e ? 'sept' then raise exception 'Jet de 7 m en cours'; end if;
   if jsonb_typeof(p_postes) <> 'array' or jsonb_array_length(p_postes) = 0 or jsonb_array_length(p_postes) > 7 then raise exception 'Changements invalides'; end if;
   select array_agg(x) into ps from jsonb_array_elements_text(p_postes) x;
   if exists (select 1 from unnest(ps) x where x not in ('AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB')) then raise exception 'Poste inconnu'; end if;
   h := match_seconde(e, p_seconde);
+  if e ? 'sept' and h >= (e #>> '{sept,t}')::int then raise exception 'Jet de 7 m en cours'; end if;   -- avant : retour à h, le 7 m n'a pas eu lieu
   if b >= 12 and h >= fin then raise exception 'Le match est fini'; end if;
   if h < fin then
     -- au milieu de la tranche : retour à la seconde h, changements, puis la fin de la tranche rejouée

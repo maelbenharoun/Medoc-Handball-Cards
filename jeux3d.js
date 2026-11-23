@@ -550,6 +550,7 @@ export async function gardien(sc, n) {
     const g0 = S.ecran(1.5, 2, 0), g1 = S.ecran(-1.5, 0, 0);
     Object.assign(q('.t3-zones').style, {left: g0.x + 'px', top: g0.y + 'px', width: (g1.x - g0.x) + 'px', height: (g1.y - g0.y) + 'px'});
   };
+  if (MJ.match) S.r.setPixelRatio(1);   // jet de 7 m en match : téléphones lents (voir jet7m)
   S.w = 0; S.taille();
   q('.t3-zones').innerHTML = ['g', 'c', 'd'].map(c => ['h', 'b'].map(h => `<i data-z="${c}${h}"></i>`).join('')).join('');
   // à l'écran, la gauche du but est du côté des x positifs (on regarde vers le terrain)
@@ -893,8 +894,12 @@ export async function jet7m(J7, z) {
     const g0 = S.ecran(-1.5, 2, 0), g1 = S.ecran(1.5, 0, 0);
     Object.assign(but.style, {left: g0.x + 'px', top: g0.y + 'px', width: (g1.x - g0.x) + 'px', height: (g1.y - g0.y) + 'px'});
   };
+  // téléphones lents (retour de Guilhem, 24 nov. 2026 : « injouable quand le téléphone lag ») : en match, la scène est dessinée à la
+  // résolution de l'écran (pas ×2), et pendant la visée elle n'est redessinée que 4 fois par seconde (rien n'y bouge) : le viseur et la
+  // jauge, qui ne sont pas en 3D, restent fluides
+  if (J7.match) S.r.setPixelRatio(1);
   S.w = 0; S.taille();
-  let etat = null, enMain = true;
+  let etat = null, enMain = true, fige = false, rendu = 0;
   const placer = () => {
     etat = null; enMain = true;
     // même pose que le tireur adverse : pied gauche juste derrière la ligne de 7 m, bras armé pendant la visée (à moitié, le ballon sortait de l'écran)
@@ -905,7 +910,9 @@ export async function jet7m(J7, z) {
   placer(); S.prechauffer();
   const boucle = () => {
     if (!J7.el) return;
-    const dt = S.pas(), now = performance.now();
+    const now = performance.now();
+    if (fige && !etat && now - rendu < 250) { J7.raf3 = requestAnimationFrame(boucle); return; }
+    const dt = S.pas(); rendu = now;
     if (etat) etat(now);
     S.maj(dt, v3(0, 0, 4));
     if (enMain) S.ballon.position.copy(tireur.main());
@@ -915,8 +922,10 @@ export async function jet7m(J7, z) {
   return {
     nouveau: placer,
     armer() { tireur.pose('bras7m', 1); },
+    figer(v) { fige = !!v; },
     // r : réponse de tirer_7m (x, y sur le but, 0-1 de gauche à droite et de haut en bas ; gardien {x, y}) ; duree du vol en ms
     tirer(r, duree) {
+      fige = false;
       return new Promise(fin => {
         const t0 = performance.now(), arret = r.resultat === 'arret';
         const ix = r.resultat === 'poteau' ? (r.x < .05 ? 0 : r.x > .95 ? 1 : r.x) : r.x, iy = r.resultat === 'poteau' && r.y < .05 ? 0 : r.y;

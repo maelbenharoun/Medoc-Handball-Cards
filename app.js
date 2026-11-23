@@ -1973,7 +1973,7 @@ function panneauMD(type) {
       : `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>.`,
     tactique: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b> ; leur attaque reste cachée (un temps mort la dévoile).${quand}`,
     pause: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux, puis reprends.`,
-    blessure: `🚑 <b>${esc(nomCourt(MD.blesseNom || ''))}</b> est blessé(e) et joue diminué(e) : fais entrer son remplaçant, puis reprends.`, erreur: 'Oups, la connexion a coupé.'}[type];
+    blessure: `🚑 <b>${esc(nomCourt(MD.blesseNom || ''))}</b> est blessé(e) et joue diminué(e) : fais entrer son remplaçant (obligatoire), puis reprends.`, erreur: 'Oups, la connexion a coupé.'}[type];
   // la mi-temps : le bilan de la 1re période (ce qui a été raconté jusqu'ici)
   const st = type === 'mi-temps' ? statsMD(MD.evs) : null, reu = x => x.tirs ? Math.round(x.buts / x.tirs * 100) + ' %' : '–';
   const zoneB = st && ZONES_MD.filter(([k]) => k !== '7m').sort((x, y) => st.b.zones[y[0]] - st.b.zones[x[0]])[0];
@@ -2048,6 +2048,9 @@ function changerMD(poste) {
     MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return;
     // ce qui est déjà raconté (jusqu'à « reprise ») reste ; la suite de la tranche est rejouée avec le remplaçant
     MD.vue = r.vue; MD.file = MD.file.filter(x => x.t <= r.reprise).concat(r.vue.evenements || []);
+    if (MD.blessePoste && postes.includes(MD.blessePoste)) MD.blessePoste = null;   // le blessé est remplacé : on peut reprendre
+    // la tranche rejouée va jusqu'au bout, ou jusqu'à un jet de 7 m (celui d'avant, plus loin, n'a pas eu lieu)
+    if (r.reprise < MD.finBloc || r.vue.sept) MD.finBloc = r.vue.sept ? r.vue.sept.t : Math.max(MD.finBloc, r.vue.bloc * 300);
     // récit à l'arrêt (mi-temps, temps mort, pause) : le changement s'écrit tout de suite au fil
     // (le serveur a pu le placer quelques secondes plus loin que le récit en pause : le fil va jusqu'à son entrée)
     if (MD.attente && r.reprise > MD.h) { MD.h = Math.min(r.reprise, MD.finBloc); majHorlogeMD(); }
@@ -2103,6 +2106,8 @@ function clicMD(e) {
   if (d.mdGo === 'annuler') { fermerPanneauMD(); return reprendreMD(); }
   if (d.mdGo === 'jouer') {
     const type = MD.panneau;
+    // blessure : le remplacement est obligatoire quand il y a un remplaçant (demande de Maël, 24 nov. 2026)
+    if (type === 'blessure' && MD.blessePoste && !MD.pvp) { Son.jouer('erreur'); toast('Fais d’abord entrer son remplaçant'); return panneauBanc(); }
     if (type !== 'erreur') { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
     fermerPanneauMD(); majMD();
     if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
@@ -4159,7 +4164,7 @@ function nouveauTir() {
   el.querySelector('.j7-score').textContent = `Tir ${n + 1}/${J7.limite} · ${buts} but${buts > 1 ? 's' : ''}`;
   el.querySelector('.j7-resultat').hidden = true; el.querySelector('.j7-bas').innerHTML = '';
   el.classList.remove('puissance', 'tir', 'r-but', 'r-rate');
-  J7.ctl.nouveau();
+  J7.ctl.nouveau(); J7.ctl.figer?.(true);   // la 3D au ralenti pendant la visée : viseur et jauge fluides sur les téléphones lents
   el.querySelector('.j7-aide').textContent = 'Touche pour viser';
   // plus rapide à chaque tir
   // viseur 20 % plus lent (Maël, 20 nov. 2026 : « les penaltys sont trop durs ») : période × 1,25
@@ -4341,7 +4346,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=96').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=97').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

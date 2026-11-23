@@ -82,6 +82,39 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   r = await rpcJoueur(db, U.Alice, 'match_simuler_fin');
   verif('« Simuler la fin » avec un jet de 7 m en attente : tiré par la formule, le match va au bout', !r.erreur && !!r.match, r.erreur);
 
+  // ── 2 bis. une blessure (ou autre chose) racontée avant un 7 m de la même tranche (retour de Guilhem, 24 nov. 2026 : plus rien de
+  // possible) : changement et temps mort avant le 7 m sont acceptés ; le 7 m, pas encore raconté, n'a pas eu lieu
+  {
+    const jusquau7m = async () => {
+      await q(`update parametres set valeurs = valeurs || '{"sept_chance": 1}'`);
+      for (let i = 0; i < 12; i++) {
+        const e = (await q('select etat from matchs_direct where user_id = $1', [U.Alice]))[0]?.etat;
+        if (e?.sept && e.sept.t > (e.debut?.t ?? 0) + 20) break;
+        if (e?.sept) await rpcJoueur(db, U.Alice, 'match_7m', [JSON.stringify({x: .15, y: .3, puissance: .8}), 0]);
+        else await rpcJoueur(db, U.Alice, 'match_bloc', ['duels:06', 'normal', false]);
+      }
+      await q(`update parametres set valeurs = valeurs || '{"sept_chance": 0}'`);
+      await q(`update matchs_direct set etat = jsonb_set(etat, '{servi}', to_jsonb(extract(epoch from clock_timestamp()))) where user_id = $1`, [U.Alice]);
+      return (await q('select etat from matchs_direct where user_id = $1', [U.Alice]))[0].etat;
+    };
+    await commencer();
+    let e = await jusquau7m();
+    const h = (e.debut?.t ?? 0) + 5;
+    verif(`un 7 m en attente à ${e.sept?.t} s, la tranche commencée à ${e.debut?.t} s`, !!e.sept && h < e.sept.t, {sept: e.sept?.t, debut: e.debut?.t});
+    verif('temps mort ou changement à la seconde du 7 m : refusé', erreur(await rpcJoueur(db, U.Alice, 'match_temps_mort', [e.sept.t]), 'Jet de 7 m'));
+    let r = await rpcJoueur(db, U.Alice, 'match_changer', [JSON.stringify(['AG']), h]);
+    let e2 = (await q('select etat from matchs_direct where user_id = $1', [U.Alice]))[0].etat;
+    // (le compte de test n'a pas de remplaçant : « Pas de remplaçant » prouve que le 7 m en attente ne bloque plus le changement)
+    verif(`changement avant le 7 m (${h} s) : plus refusé à cause du 7 m`, !r.erreur ? r.reprise === h : !/Jet de 7 m/.test(r.erreur), r.erreur || {reprise: r.reprise, sept: e2.sept});
+    e = await jusquau7m();
+    const h2 = Math.max(e.debut?.t ?? 0, (e.sept?.t ?? 0) - 10);
+    r = await rpcJoueur(db, U.Alice, 'match_temps_mort', [h2]);
+    e2 = (await q('select etat from matchs_direct where user_id = $1', [U.Alice]))[0].etat;
+    verif(`temps mort avant le 7 m (${h2} s) : accepté, le match s’arrête à cette seconde, plus de 7 m en attente`, !r.erreur && r.reprise === h2 && !e2.sept && e2.t === h2, r.erreur || {reprise: r.reprise, t: e2.t, sept: e2.sept});
+    r = await rpcJoueur(db, U.Alice, 'match_bloc', ['duels:06', 'normal', false]);
+    verif('… puis la fin de la tranche se joue', !r.erreur, r.erreur);
+  }
+
   // ── 3. Classé : le tireur vise, le gardien devine, « trop long »
   await q('delete from matchs_direct');
   const id = (await q("select pvp_nouveau($1, $2, true, 0) id", [U.Alice, U.Bob]))[0].id;
