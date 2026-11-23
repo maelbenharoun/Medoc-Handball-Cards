@@ -1772,6 +1772,21 @@ function animerTir7mMatch(r) {
   if (r.resultat === 'long') return fin();
   J7.ctl.tirer(r, moinsAnim() ? 1 : Math.round(560 - 330 * (r.vitesse ?? .7))).then(fin);
 }
+// Démo (?demo=sept) : un jet de 7 m de match à tirer, puis un à arrêter, comme en match (intro, mini-jeux), sans serveur ; pour essayer
+// sans attendre qu'un 7 m tombe dans un match (Maël, 23 nov. 2026)
+function demoSept() {
+  const tour = tireur => Promise.all([septIntro(tireur ? 'Démo · à toi de tirer' : 'Démo · à toi d’arrêter'), jeux3d().catch(() => null)]).then(([intro]) => new Promise(fin => {
+    if (tireur) ouvrirJet7mMatch({nom: 'Démo', tirer: (x, y, f) => tir7mDemo(x, y, f), fin: () => { J7.match = null; fermerJet7m(true); fin(); }});
+    else {
+      const prep = {colonne: ['g', 'c', 'd'][Math.floor(Math.random() * 3)], hauteur: Math.random() < .5 ? 'h' : 'b', duree: 600 + Math.floor(Math.random() * 250)};
+      ouvrirArret7m({nom: 'Démo', prep: () => Promise.resolve(prep),
+        envoyer: ent => Promise.resolve({resultat: ent.colonne === prep.colonne && ent.hauteur === prep.hauteur && ent.temps <= prep.duree ? 'arret' : Math.random() < .1 ? 'poteau' : 'but'}),
+        fin: () => { MJ.match = null; fermerMini(true); fin(); }});
+    }
+    setTimeout(() => intro.classList.add('fin'), 250); setTimeout(() => intro.remove(), 700);
+  }));
+  tour(true).then(() => tour(false)).then(() => toast('Démo des jets de 7 m terminée'));
+}
 // leur tir : l'arrêt réflexe, le tireur sur le point de 7 m (jeux3d.gardien, MJ.match)
 function ouvrirArret7m(o) {
   const el = document.createElement('div');
@@ -4403,6 +4418,7 @@ Compte.demarrer().then(info => {
   if (demo === '7m') ouvrirJet7m(true);
   else if (MINI[demo]) ouvrirMini(demo, true);
   else if (demo === 'montee') demoMontee();
+  else if (demo === 'sept') demoSept();
   else if (demo !== null) demoBooster(demo);
   if (info.erreurLien) { if (Compte.connecte) toast(info.erreurLien); else { messageCompte = info.erreurLien; route(); } }   // une seule fois à l'écran
   else if (info.confirme) toast('Adresse confirmée, bienvenue !');
