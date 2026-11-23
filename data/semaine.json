@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-21",
+ "maj": "2026-11-23",
  "saison": "2026-2027",
  "semaines": [
   {
@@ -959,6 +959,28 @@
      }
     }
    }
+  },
+  {
+   "lundi": "2026-11-16",
+   "equipes": {
+    "-18F1": {
+     "carte": "marie-dalibot",
+     "nom": "Marie Dalibot",
+     "buts": 5,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-21",
+      "adv": "Blanquefortaise",
+      "score": [
+       33,
+       34
+      ],
+      "lieu": "dom"
+     }
+    }
+   }
   }
  ],
  "buteurs": {
@@ -1153,6 +1175,10 @@
   "2709746": {
    "carte": "chiara-geneves",
    "buts": 6
+  },
+  "2709750": {
+   "carte": "chiara-geneves",
+   "buts": 7
   },
   "2710189": {
    "carte": "taho-gradit",
