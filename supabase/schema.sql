@@ -103,7 +103,7 @@ insert into parametres values (1, '{
     {"nom": "Championnat du monde", "min": 1800, "recompense": {"pieces": 3000, "or": 1}}, {"nom": "Jeux olympiques", "min": 2500, "recompense": {"pieces": 5000, "or": 2}},
     {"nom": "Légendes", "min": 3300, "recompense": {"pieces": 8000, "or": 3}}],
   "pvp_trophees_base": 30, "pvp_trophees_ecart": 20, "pvp_trophees_min": 10, "pvp_trophees_max": 50,
-  "pvp_pieces": {"gagne": 60, "nul": 25, "perdu": 10}, "pvp_gains_par_jour": 10, "pvp_ami_pieces": 30,
+  "classe_pieces": {"gagne": 60, "nul": 25, "perdu": 10}, "pvp_gains_par_jour": 10, "pvp_ami_pieces": 30,
   "pvp_fantome_secondes": 120, "pvp_pause_secondes": 20, "pvp_envoi_secondes": 30, "pvp_mi_temps_secondes": 30, "pvp_tranche_secondes": 12,
   "pvp_marge_secondes": 3, "pvp_absent_secondes": 30, "pvp_invitation_secondes": 120,
   "pvp_saison_seuil": 1000, "pvp_saison_recompenses": [{"pieces": 200}, {"pieces": 400, "bonus": 1}, {"pieces": 800, "bonus": 2}, {"pieces": 1200, "or": 1},
@@ -2097,6 +2097,10 @@ create or replace function tac_defense(p_tactique text) returns text language sq
   select case when split_part(coalesce(p_tactique, ''), ':', 2) in ('06', '15', '33') then split_part(p_tactique, ':', 2)
     when p_tactique = 'defense' then '06' when p_tactique = 'attaque' then '33' else '15' end
 $$;
+-- tactique au format « attaque:défense » (anciennes valeurs attaque, equilibre, defense converties) : pour le match en direct entre joueurs
+create or replace function tac_complete(p_tactique text) returns text language sql immutable as $$
+  select tac_attaque(p_tactique) || ':' || tac_defense(p_tactique)
+$$;
 -- pierre-feuille-ciseaux : les duels battent le 0-6 et butent sur le 1-5 ; l'enclenchement bat le 3-3 et bute sur le 0-6 ;
 -- le jeu rapide bat le 1-5 et bute sur le 3-3. +1 : l'attaque prend le dessus, −1 : la défense, 0 : rien de spécial
 create or replace function contre_tactique(p_att text, p_def text) returns int language sql immutable as $$
@@ -3086,7 +3090,7 @@ end $$;
 create or replace function pvp_pieces(p_uid uuid, p_res text, p_gain numeric) returns int language sql stable security definer set search_path = public as $$
   select case when (select count(*) from rencontres r where r.user_id = p_uid and r.type = 'pvp' and r.le >= debut_du_jour()
       and coalesce((r.detail ->> 'pieces')::int, 0) > 0) >= parami('pvp_gains_par_jour') then 0
-    else round(coalesce((param('pvp_pieces') ->> p_res)::numeric, 0) * (1 + .25 * pvp_arene((select trophees from profils where user_id = p_uid))) * coalesce(p_gain, 1))::int end
+    else round(coalesce((param('classe_pieces') ->> p_res)::numeric, 0) * (1 + .25 * pvp_arene((select trophees from profils where user_id = p_uid))) * coalesce(p_gain, 1))::int end
 $$;
 -- blessures et protection après un match, pour le joueur d'un côté (comme match_conclure)
 create or replace function pvp_blessures(p_uid uuid, e jsonb, p_cote text) returns void language sql security definer set search_path = public as $$
@@ -3108,10 +3112,10 @@ declare pa profils; pb profils; fa jsonb; fb jsonb; e jsonb; v_id uuid; t numeri
 begin
   select * into pa from profils where user_id = p_a; select * into pb from profils where user_id = p_b;
   fa := pvp_equipe(pa); fb := pvp_equipe(pb);
-  e := match_nouveau('pvp', jsonb_build_object('classe', p_classe), fa, fb, coalesce(pa.tactique, 'duels:06'), 'normal',
+  e := match_nouveau('pvp', jsonb_build_object('classe', p_classe), fa, fb, tac_complete(pa.tactique), 'normal',
     tac_attaque(coalesce(pb.tactique, 'duels:06')), tac_defense(coalesce(pb.tactique, 'duels:06')));
   e := e || jsonb_build_object('pvp', true,
-    'b', ((e -> 'b') - 'pref_att' - 'pref_def' - 'fo') || jsonb_build_object('tactique', coalesce(pb.tactique, 'duels:06'), 'consigne', 'normal'));
+    'b', ((e -> 'b') - 'pref_att' - 'pref_def' - 'fo') || jsonb_build_object('tactique', tac_complete(pb.tactique), 'consigne', 'normal'));
   e := match_absents(e, p_a);
   e := pvp_miroir(match_absents(pvp_miroir(e), p_b));
   insert into pvp_matchs (a, b, classe, etat, attente, meta) values (p_a, p_b, p_classe, e, p_attente, jsonb_build_object(
@@ -3213,8 +3217,11 @@ begin
     if m.a is not null then ga := pvp_pieces(m.a, ra, 1); end if;
     if m.b is not null then gb := pvp_pieces(m.b, rb, 1); end if;
   else
-    ga := case when ra = 'gagne' then parami('pvp_ami_pieces') else 0 end;
-    gb := case when rb = 'gagne' then parami('pvp_ami_pieces') else 0 end;
+    -- défi entre ami(e)s : 30 pièces au gagnant, pour ses defis_amis_par_jour premiers défis gagnés de la journée
+    ga := case when ra = 'gagne' and (select count(*) from rencontres x where x.user_id = m.a and x.type = 'pvp' and x.le >= debut_du_jour()
+      and not coalesce((x.detail ->> 'classe')::boolean, true) and coalesce((x.detail ->> 'pieces')::int, 0) > 0) < parami('defis_amis_par_jour') then parami('pvp_ami_pieces') else 0 end;
+    gb := case when rb = 'gagne' and (select count(*) from rencontres x where x.user_id = m.b and x.type = 'pvp' and x.le >= debut_du_jour()
+      and not coalesce((x.detail ->> 'classe')::boolean, true) and coalesce((x.detail ->> 'pieces')::int, 0) > 0) < parami('defis_amis_par_jour') then parami('pvp_ami_pieces') else 0 end;
   end if;
   xa := (param('pve_xp') ->> ra)::int; xb := (param('pve_xp') ->> rb)::int;
   if m.a is not null then
@@ -3263,7 +3270,7 @@ begin
     'gen', coalesce((meta ->> 'gen')::int, 0), 'n', jsonb_array_length(ee -> 'ev'), 'h', (ee ->> 't')::int,
     'prochain', greatest(0, round(coalesce((meta ->> 'prochain')::numeric, t) - t, 1)),
     'pause', case when jsonb_typeof(pz) = 'object' then jsonb_build_object('reste', greatest(0, round((pz ->> 'jusqu')::numeric - t, 1)),
-      'moi', pz ->> 'par' = p_cote, 'h', (pz ->> 'h')::int, 'pret', coalesce((pz -> 'pret' ->> p_cote)::boolean, false)) end,
+      'moi', pz ->> 'par' = p_cote, 'h', (pz ->> 'h')::int, 'pret', coalesce((pz -> 'pret' ->> p_cote)::boolean, false), 'pretEux', coalesce((pz -> 'pret' ->> o)::boolean, false)) end,
     'pretEux', coalesce((meta -> 'pret' ->> o)::int, -1) >= (ee ->> 'bloc')::int,
     'absentEux', t - coalesce((meta -> 'vu' ->> o)::numeric, t) > parami('pvp_absent_secondes'),
     'choix', jsonb_build_object('tac', meta -> 'choix' -> p_cote ->> 'tac', 'cons', meta -> 'choix' -> p_cote ->> 'cons', 'postes', coalesce(meta -> 'postes' -> p_cote, '[]')),
@@ -3368,7 +3375,7 @@ begin
   if fb is null then raise exception 'Aucun adversaire pour l’instant : réessaie dans un moment'; end if;
   fa := force_equipe(p.equipe, p.tactique) || jsonb_build_object('nom', p.pseudo) || match_banc_init(p.user_id, p.equipe, p.remplacants, p.tactique);
   e := match_nouveau('classe', jsonb_build_object('fantome', a.user_id, 'pseudo', a.pseudo, 'trophees', a.trophees, 'attente', p_attente), fa, fb,
-    coalesce(p.tactique, 'duels:06'), 'normal', tac_attaque(coalesce(a.tactique, 'duels:06')), tac_defense(coalesce(a.tactique, 'duels:06')));
+    tac_complete(p.tactique), 'normal', tac_attaque(coalesce(a.tactique, 'duels:06')), tac_defense(coalesce(a.tactique, 'duels:06')));
   st := case when ar <= 1 then 'lent' when ar <= 3 then 'reflechi' when ar <= 5 then 'rapide' else 'legende' end;
   e := e || jsonb_build_object('ia', match_ia(st));
   e := match_absents(e, p.user_id);
@@ -3431,7 +3438,7 @@ begin
   end if;
   select coalesce(round(avg(x.attente))::int, parami('pvp_fantome_secondes')) into est
     from (select attente from pvp_matchs where classe and attente is not null order by cree_le desc limit 20) x;
-  return jsonb_build_object('attente', att, 'estime', least(parami('pvp_fantome_secondes'), est), 'fantome', parami('pvp_fantome_secondes'),
+  return jsonb_build_object('attente', att, 'estime', least(parami('pvp_fantome_secondes'), greatest(10, est)), 'seuilFantome', parami('pvp_fantome_secondes'),
     'enFile', (select count(*) from pvp_file));
 end $$;
 create or replace function pvp_annuler() returns jsonb language plpgsql security definer set search_path = public as $$
@@ -3455,7 +3462,7 @@ begin
     'saisonRecompenses', param('pvp_saison_recompenses'),
     'gainsRestants', greatest(0, parami('pvp_gains_par_jour') - (select count(*) from rencontres x where x.user_id = p.user_id and x.type = 'pvp'
       and x.le >= debut_du_jour() and coalesce((x.detail ->> 'pieces')::int, 0) > 0)),
-    'pieces', param('pvp_pieces'), 'fantome', parami('pvp_fantome_secondes'),
+    'pieces', param('classe_pieces'), 'fantome', parami('pvp_fantome_secondes'),
     'classement', coalesce((select jsonb_agg(t order by t.trophees desc, lower(t.pseudo)) from (
       select x.pseudo, x.trophees, param('pvp_arenes') -> pvp_arene(x.trophees) ->> 'nom' arene, x.user_id = p.user_id moi, perso_public(x.user_id) perso
       from profils x where x.trophees > 0 or x.user_id = p.user_id order by x.trophees desc limit 50) t), '[]'),

@@ -2076,3 +2076,44 @@ body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
 .dm-d .bar { height: 6px; }
 .dm-l .btn { display: flex; flex-direction: column; align-items: center; line-height: 1.1; } .dm-l .btn small { font-size: .68rem; font-weight: 700; display: inline-flex; gap: 2px; align-items: center; }
 .mk-o .coin, .mk-m .coin, .dm-l .coin, .tr-h .coin, .mk-pr .coin { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* Matchs à deux en direct (23 nov. 2026) : porte Classé, file façon LoL, « Adversaire trouvé », invitation, page Classé */
+.porte.classe { background: linear-gradient(135deg, #c2412b, #7a1d12 60%, #3d0c07); border-color: #e0664f; box-shadow: 0 14px 30px -18px rgba(224, 102, 79, .9); }
+#pvp-file, #pvp-invit { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 70px); transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; width: min(420px, calc(100% - 24px)); padding: 8px 10px 8px 12px; border-radius: 16px;
+  background: #142235; border: 2px solid #3f8cff; box-shadow: 0 10px 26px rgba(0, 0, 0, .45); color: #f2f3f5; }
+#pvp-invit { border-color: #e3b23c; }
+.pf-anim { font-size: 1.4rem; animation: pf-tourne 1.6s ease-in-out infinite; }
+@keyframes pf-tourne { 0%, 100% { transform: rotate(-12deg) scale(1); } 50% { transform: rotate(12deg) scale(1.12); } }
+.pf-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pf-t b { font: 800 1.3rem var(--f); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.pf-t small { font-size: .75rem; color: #9fb2c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-x { border: 0; border-radius: 10px; padding: 8px 12px; background: #e5484d; color: #fff; font: 800 .82rem var(--f); }
+#pvp-invit p { flex: 1; margin: 0; font-size: .9rem; min-width: 0; }
+#pvp-invit .btn { flex: none; }
+.pvp-vs { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px;
+  background: radial-gradient(circle at 50% 45%, #233a5c, #0b111b 70%); color: #f2f3f5; text-align: center; animation: pvp-in .35s ease-out; }
+@keyframes pvp-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+.pvp-t { margin: 0; font: 900 1.6rem var(--f); color: #ffe08a; letter-spacing: .02em; }
+.pvp-face { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; width: min(440px, 100%); }
+.pvp-face div { display: flex; flex-direction: column; gap: 4px; padding: 14px 8px; border-radius: 16px; background: rgba(255, 255, 255, .06); min-width: 0; }
+.pvp-face b { font: 800 1.1rem var(--f); overflow: hidden; text-overflow: ellipsis; }
+.pvp-face small { color: #9fb2c8; font-size: .8rem; }
+.pvp-face i { font: 900 1.8rem var(--f); font-style: normal; color: #e0664f; animation: pvp-vs 1s ease-in-out infinite; }
+@keyframes pvp-vs { 50% { transform: scale(1.2); } }
+.pvp-s { margin: 0; max-width: 32ch; color: #c9d4e2; font-size: .9rem; }
+.md.pvp .md-vit, .md.pvp .md-sim { display: none; }
+.md.pvp .md-bas { grid-template-columns: 1fr 1fr; }
+.md-cd { margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(227, 178, 60, .14); color: #ffe08a; font-size: .9rem; text-align: center; }
+.pvp-arene { margin: 4px 0; padding: 10px; border-radius: 12px; background: rgba(227, 178, 60, .16); text-align: center; font-size: .9rem; }
+.cl-arene { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 14px; margin: 6px 0 14px; border-radius: 18px; text-align: center;
+  background: linear-gradient(160deg, #7a1d12, #2a0b07); border: 1px solid #e0664f; color: #f2f3f5; }
+.cl-arene > small { color: #f0c4b8; font-size: .78rem; }
+.cl-arene > b { font: 900 1.5rem var(--f); }
+.cl-tr { font: 900 2rem var(--f); color: #ffe08a; font-variant-numeric: tabular-nums; }
+.cl-arene .bar { width: 100%; max-width: 320px; }
+.cl-ars { display: flex; flex-direction: column; gap: 6px; }
+.cl-ar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--line); }
+.cl-ar small { color: var(--muted); font-size: .78rem; } .cl-ar span { grid-column: 1 / -1; font-size: .78rem; }
+.cl-ar.on { border-color: var(--accent); } .cl-ar.ok em { color: #5ad16a; font-style: normal; font-weight: 900; }
+.md-pause-b { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 6px 12px; border-radius: 99px; background: rgba(0, 0, 0, .65); color: #fff; font-size: .8rem; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }

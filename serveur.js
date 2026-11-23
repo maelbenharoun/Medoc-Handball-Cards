@@ -271,6 +271,18 @@ const CompteServeur = (() => {
     parier: (rid, choix, mise) => rpc('parier', {p_rid: rid, p_choix: choix, p_mise: mise}),   // → {cote, gainPossible}
 
     // ── transferts (23 nov. 2026) : marché à pièces, boîte à échanges, demandes au club → {marche, boite, club, historique, etat}
+    // ── matchs à deux en direct (23 nov. 2026) : file classée, match partagé, invitations entre ami(e)s
+    pvpChercher: () => rpc('pvp_chercher'),
+    pvpAnnuler: () => rpc('pvp_annuler'),
+    pvpVue: depuis => rpc('pvp_vue', {p_depuis: depuis || 0}),
+    pvpChoix: (tac, cons, postes, pret, pretPause, depuis) => rpc('pvp_choix', {p_tactique: tac ?? null, p_consigne: cons ?? null,
+      p_postes: postes ?? null, p_pret: pret ?? null, p_pret_pause: !!pretPause, p_depuis: depuis || 0}),
+    pvpTempsMort: () => rpc('pvp_temps_mort'),
+    pvpAccueil: () => rpc('pvp_accueil'),
+    pvpInviter: pseudo => rpc('pvp_inviter', {p_pseudo: pseudo}),
+    pvpAttendre: id => rpc('pvp_attendre', {p_invitation: id}),
+    pvpRepondre: (id, oui) => rpc('pvp_repondre', {p_invitation: id, p_oui: !!oui}),
+    pvpAnnulerInvitation: id => rpc('pvp_annuler_invitation', {p_invitation: id}),
     mesEchanges: () => rpc('mes_echanges'),
     marcheVendre: (ex, prix) => rpc('marche_vendre', {p_ex: ex, p_prix: prix}),
     marcheRetirer: id => rpc('marche_retirer', {p_vente: id}),

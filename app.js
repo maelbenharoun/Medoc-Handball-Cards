@@ -123,11 +123,11 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, pieces: vuePieces, defis: vueDefis,
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, classe: vueClasse, pieces: vuePieces, defis: vueDefis,
   ligue: vueLigue, pronos: vuePronos, clubs: vueClubs, albums: vueAlbums, staff: vueStaff,
   social: vueSocial, classement: vueClassement, marche: vueMarche, paris: vueParis, compte: vueCompte};
 // sous-pages : l'onglet qui reste allumé, et le retour
-const ONGLET = {championnat: 'jouer', pieces: 'jouer', defis: 'jouer', ligue: 'jouer', pronos: 'social', clubs: 'social', albums: 'club', staff: 'club', classement: 'social', marche: 'social', paris: 'social'};
+const ONGLET = {championnat: 'jouer', classe: 'jouer', pieces: 'jouer', defis: 'jouer', ligue: 'jouer', pronos: 'social', clubs: 'social', albums: 'club', staff: 'club', classement: 'social', marche: 'social', paris: 'social'};
 const retour = (h, l) => `<a class="retour" href="#${h}">‹ ${l}</a>`;
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
@@ -164,6 +164,7 @@ function integrerLegendes() {
 }
 function nTransferts() { return (S().social?.transferts || 0) + (S().social?.clubDemandes || 0); }
 function majEntete() {
+  try { majInvitations(); } catch (er) {}
   integrerLegendes();
   $('#coins').hidden = !Compte.pret;
   $('.tabs').hidden = !Compte.pret;
@@ -1118,7 +1119,10 @@ function vueJouer() {
   const mj = e.minijeux || {}, essais = seriesRestantes((mj.gardien || []).length, mj.limites?.gardien || 25)
     + ['contre', 'suspension'].reduce((t, k) => t + Math.max(0, (mj.limites?.[k] || 5) - (mj[k] || []).length), 0)
     + Math.max(0, (e.jet7m?.limite || 5) - (e.jet7m?.tirs || []).length);
+  const pv = e.pvp || {};
   return `<h1>Jouer</h1>
+    <a class="porte classe" href="#classe"><span class="porte-ic" aria-hidden="true">⚔️</span><b>Classé</b>
+      <small>${pv.match ? '<em class="md-porte">Match en direct en cours : reprends-le</em> · ' : ''}${nb(pv.trophees ?? e.trophees ?? 0)} 🏆 · en direct contre un vrai joueur, trophées et arènes</small></a>
     <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
       <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (${rechargeMatch()})` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
@@ -1377,6 +1381,8 @@ function htmlFin(r) {
   return `<div class="resultat r-${res}"><b>${RES[res]} ${r.match.a} – ${r.match.b}</b>
       ${tab ? `<small class="tab">Tirs au but ${tab.a} – ${tab.b} : ${tab.a > tab.b ? 'gagnés' : 'perdus'}</small>` : ''}
       <small>${g.points != null ? `+${g.points} pt${g.points > 1 ? 's' : ''} · ` : ''}+${nb(g.pieces)} pièces${g.xp != null ? ` · +${g.xp} XP` : ''}${g.trophees != null ? ` · ${g.trophees >= 0 ? '+' : ''}${g.trophees} 🏆` : ''}</small></div>
+    ${r.trophees ? `<p class="sub petit centre">🏆 ${nb(r.trophees.avant)} → <b>${nb(r.trophees.apres)}</b> · ${esc(r.trophees.arene || '')}</p>` : ''}
+    ${r.trophees?.nouvelle ? `<p class="pvp-arene">Nouvelle arène : <b>${esc(r.trophees.nouvelle.nom)}</b> ${r.trophees.nouvelle.recompense ? RECOMP(r.trophees.nouvelle.recompense) : ''}</p>` : ''}
     ${etape ? `<p class="sub petit centre">${esc(etape)}</p>` : ''}
     ${progres ? `<p class="sub petit centre">Progrès : ${progres}</p>` : ''}
     ${r.gain != null && r.gain < 1 ? `<p class="sub petit centre">${r.direct ? 'Fin simulée' : 'Match simulé'} : gains −${pcMoins(r.gain)} %</p>` : ''}
@@ -1435,7 +1441,7 @@ function htmlResume(R) {
     <div class="rs-l"><small>Ton attaque</small><span>${cases('att')}</span><b>${ca.p}/${n}</b></div>
     <div class="rs-l"><small>Ta défense</small><span>${cases('def')}</span><b>${cd.p}/${n}</b></div>
     <p class="rs-leg"><i class="rs-p"></i>tu prenais le dessus <i class="rs-m"></i>contré <i class="rs-n"></i>neutre · par tranche de 5 minutes</p>
-    <p class="sub petit">Leur attaque : ${leursAtt}. Leur défense : ${leursDef}. Entraîneur ${esc(R.entraineur || '')} : ${R.changementsAdv} changement${R.changementsAdv > 1 ? 's' : ''},
+    <p class="sub petit">Leur attaque : ${leursAtt}. Leur défense : ${leursDef}. ${MD.pvp ? nomEux() : `Entraîneur ${esc(R.entraineur || '')}`} : ${R.changementsAdv} changement${R.changementsAdv > 1 ? 's' : ''},
       ${R.tempsMortsAdv} temps mort${R.tempsMortsAdv > 1 ? 's' : ''} ; toi : ${R.tempsMorts} temps mort${R.tempsMorts > 1 ? 's' : ''}.</p>
     <p class="sub petit">Ton équipe est faite pour <b>${NOM_ATT[mAtt]}</b> (+${Math.round((bo[mAtt] || 0) * 100)} %) et la <b>${NOM_DEF[mDef]}</b> (+${Math.round((bo[mDef] || 0) * 100)} %). ${conseil}</p></div>`;
 }
@@ -1474,8 +1480,11 @@ function texteMD(x) {
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`,
-    changement: `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`,
-    blessure: `🚑 Blessure ${x.g ? `<b>${esc(x.g)}</b> ` : ''}de <b>${esc(x.n || '')}</b> (${x.p})${x.m ? `, absent(e) ${x.m} match${x.m > 1 ? 's' : ''} après celui-ci` : ''} : ${x.r ? 'fais entrer son remplaçant (Banc)' : 'pas de remplaçant à ce poste, jeu diminué'}`,
+    'tactique-adv': `${esc(MD.vue?.eux?.nom || '')} ${[x.def ? `passe en défense <b>${NOM_DEF[x.def] || ''}</b>` : '', x.att ? 'change d’attaque : regarde d’où partent ses tirs' : '',
+      x.cons ? `joue ${x.cons === 'pression' ? 'sous <b>pression</b>' : x.cons === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}` : ''].filter(Boolean).join(', ') || 'change de tactique'}`,
+    changement: x.c === 'b' ? `🔁 ${esc(MD.vue?.eux?.nom || '')} : entrée de <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`
+      : `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`,
+    blessure: x.c === 'b' ? `🚑 Blessure chez ${esc(MD.vue?.eux?.nom || '')} : <b>${esc(x.n || '')}</b> (${x.p})` : `🚑 Blessure ${x.g ? `<b>${esc(x.g)}</b> ` : ''}de <b>${esc(x.n || '')}</b> (${x.p})${x.m ? `, absent(e) ${x.m} match${x.m > 1 ? 's' : ''} après celui-ci` : ''} : ${x.r ? 'fais entrer son remplaçant (Banc)' : 'pas de remplaçant à ce poste, jeu diminué'}`,
     absent: `🚑 <b>${esc(x.n || '')}</b> (${x.p}) est blessé(e)${x.m ? `, encore ${x.m} match${x.m > 1 ? 's' : ''} d’absence` : ''} : ${x.r ? 'son remplaçant commence' : 'pas de remplaçant valide, il joue diminué'}`}[x.ty] || '';
 }
 const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
@@ -1523,6 +1532,14 @@ function ouvrirDirect(vue, reprise) {
     tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, vitesse: vitesseMD(), onglet: 'direct',
     exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
   if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
+  // match à deux en direct : même écran, rythme ×1 imposé, pas de « Simuler » ; le serveur est interrogé toutes les secondes ou deux
+  Object.assign(MD, {pvp: vue.pvp || null, gen: vue.pvp?.gen ?? 0, n: (vue.evenements || []).length, pvpRecu: Date.now(), pvpPostes: vue.pvp?.choix?.postes || [],
+    pretEnvoye: null, miTemps: false, pvpPret: false, adverse: null});
+  if (MD.pvp) {
+    MD.vitesse = 1; el.classList.add('pvp');
+    if (vue.pvp.choix?.tac) { MD.tac = vue.pvp.choix.tac; MD.cons = vue.pvp.choix.cons || 'normal'; }
+    MD.pvpT = setInterval(pvpTick, 1000);
+  }
   el.classList.toggle('avec-banc', bancMD().length > 0);
   // reprise : tout ce qui s'est passé est affiché d'un coup ; puis le panneau qui convient (coup d'envoi, mi-temps ou pause)
   for (const x of vue.evenements || []) noterMD(x, true);
@@ -1531,6 +1548,13 @@ function ouvrirDirect(vue, reprise) {
   el.addEventListener('click', clicMD);
   el.addEventListener('pointerdown', e => e.stopPropagation());
   MD.raf = requestAnimationFrame(boucleMD);
+  if (MD.pvp) {
+    if (vue.pvp.pause) { MD.h = MD.finBloc = vue.pvp.pause.h; majHorlogeMD(); pvpPause(); }
+    else if (vue.bloc === 0) panneauMD('envoi');
+    else { MD.h = MD.finBloc = Math.max(h0, vue.pvp.h || 0); majHorlogeMD(); if (vue.bloc === 6 && MD.h === 1800) { MD.miTemps = true; panneauMD('mi-temps'); } else pvpFinBloc(); }
+    if (!reprise) Son.jouer('sifflet');
+    return;
+  }
   if (vue.tirsAuBut) { MD.tab = vue.tirsAuBut; MD.h = MD.finBloc = 3600; majHorlogeMD(); panneauTab(); }
   else if (vue.bloc === 0) panneauMD('envoi');
   else if (vue.bloc === 6 && h0 === 1800) panneauMD('mi-temps');
@@ -1541,17 +1565,19 @@ const coucheMD = () => fermerDirect(true);
 function fermerDirect(parRetour, sansRoute) {
   if (!MD.el) return;
   if (parRetour !== true) quitterCouche(coucheMD);
-  cancelAnimationFrame(MD.raf); MD.timers.forEach(clearTimeout);
-  const fini = !!MD.fin;
+  cancelAnimationFrame(MD.raf); MD.timers.forEach(clearTimeout); clearInterval(MD.pvpT);
+  const fini = !!MD.fin, pvp = !!MD.pvp; MD.pvp = null;
   MD.el.remove(); MD.el = null; MD.fin = null;
   document.body.classList.remove('avec-intro'); Son.discret(false);
-  if (fini) JEU.rencontres = null; else if (!sansRoute) toast('Match en pause : reprends-le quand tu veux depuis Championnat');
+  if (fini) { JEU.rencontres = null; CL.data = null; }
+  else if (!sansRoute) toast(pvp ? 'Le match continue sans toi : ton adjoint coache ton équipe. Reviens vite (Jouer, Classé)' : 'Match en pause : reprends-le quand tu veux depuis Championnat');
   if (!sansRoute) route(true);
 }
 // une ligne au fil + score et stats (sans animation : reprise, ou fin simulée)
 function noterMD(x, muet) {
   MD.evs.push(x);
   if (x.ty === 'defense') MD.defB = x.v;
+  if (x.ty === 'tactique-adv' && x.def) MD.defB = x.def;
   if (x.ty === 'excl') MD.exclu[x.c] = x.t + 120;
   const fil = MD.el.querySelector('.md-fil');
   fil.insertAdjacentHTML('afterbegin', ligneMD(x, muet));
@@ -1654,6 +1680,7 @@ function majHorlogeMD() {
 function finBlocMD() {
   MD.attente = true;
   if (MD.enCours || MD.chgEnCours || MD.panneau) return;   // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend
+  if (MD.pvp) return pvpFinBloc();
   const pause = Math.round(650 / MD.vitesse);
   if (MD.tab) return MD.timers.push(setTimeout(() => panneauTab(), pause + 400));
   if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), pause + 400));
@@ -1664,6 +1691,7 @@ function finBlocMD() {
 // temps mort tout de suite (demande de Maël, 20 nov. 2026), à la seconde affichée : le serveur revient à cette seconde ; ce qui était
 // prévu après est oublié, la fin de la tranche sera jouée à la reprise (blocMD), avec la tactique choisie pendant le temps mort
 function tempsMortMD() {
+  if (MD.pvp) return pvpTempsMort();
   if (MD.enCours || MD.chgEnCours) return toast('Un instant…');
   MD.enCours = true; MD.attente = true; majMD();
   Compte.matchTempsMort(Math.floor(MD.h)).then(r => {
@@ -1689,7 +1717,7 @@ function blocMD() {
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
 }
 const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.h < 1800 ? 'p1' : 'p2';
-  return t.restants > 0 && (t[per] || 0) < 2 && MD.h > 0 && MD.h < 3600 && !(MD.h === 1800 && MD.vue.bloc === 6) && !MD.panneau; };
+  return t.restants > 0 && (t[per] || 0) < 2 && MD.h > 0 && MD.h < 3600 && !(MD.h === 1800 && MD.vue.bloc === 6) && !MD.panneau && !MD.pvp?.pause; };
 function majMD() {
   if (!MD.el) return;
   const t = MD.vue.tempsMorts || {restants: 3}, [att, def] = MD.tac.split(':');
@@ -1700,7 +1728,7 @@ function majMD() {
   tc.innerHTML = `Tactique<small>${rouges ? `🔁 ${rouges} dans le rouge` : bancMD().length ? 'et changements' : MD.vue.bloc > 0 && MD.vue.bloc < 12 ? `change à ${Math.min(60, MD.finBloc / 60)}'` : 'à tout moment'}</small>`;
   const bt = MD.el.querySelector('.md-tm');
   bt.disabled = !tmPossible() || !!MD.fin || !!MD.enCours;
-  bt.innerHTML = `Temps mort<small>${t.restants} · voir leur jeu</small>`;
+  bt.innerHTML = `Temps mort<small>${t.restants} · ${MD.pvp ? '20 s pour tous' : 'voir leur jeu'}</small>`;
   MD.el.querySelector('.md-vit').innerHTML = `×${MD.vitesse}<small>vitesse</small>`;
   const sim = MD.el.querySelector('.md-sim'), g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
   sim.disabled = !!MD.fin; sim.innerHTML = `Simuler<small>gains −${pcMoins(g)} %</small>`;
@@ -1723,7 +1751,8 @@ function majStatsMD() {
 // panneau de choix : coup d'envoi, mi-temps, temps mort (changements permis) ; pause (reprise) ; erreur réseau
 function panneauMD(type) {
   if (!MD.el) return;
-  MD.attente = true; MD.panneau = type;
+  if (!(MD.pvp && type === 'tactique')) MD.attente = true;
+  MD.panneau = type; MD.panneauBloc = MD.vue.bloc;
   const [att, def] = MD.tac.split(':');
   MD.choix = {att, def, cons: MD.cons};
   const p = MD.el.querySelector('.md-panneau'), sc = MD.vue.score || [0, 0];
@@ -1731,7 +1760,13 @@ function panneauMD(type) {
     pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, blessure: `Blessure · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
   const change = ['envoi', 'mi-temps', 'tm', 'tactique', 'pause', 'blessure'].includes(type), A = MD.adverse;
   const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 && type === 'tactique' ? ` Ton choix s’applique à <b>${Math.min(60, MD.finBloc / 60)}'</b>.` : '';
-  const intro = {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer ! Tu pourras changer de tactique toutes les 5 minutes.`,
+  const PZ = MD.pvp?.pause;
+  const intro = MD.pvp ? {envoi: `Match en direct contre <b>${nomEux()}</b> : vous choisissez en même temps. Ils commencent en <b>${NOM_DEF[MD.defB]}</b>.`,
+    'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
+    tm: PZ?.moi ? (A ? `🕵️ Leur jeu dévoilé : ils attaquent en <b>${NOM_ATT[A.attaque]}</b> et défendent en <b>${NOM_DEF[A.defense]}</b>. Élan pendant 3 minutes ⚡` : 'Ton temps mort.')
+      : `Temps mort de <b>${nomEux()}</b> : profites-en pour changer ta tactique ou faire tes changements.`,
+    tactique: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b> ; leur attaque reste cachée. Ton choix part avec la tranche suivante, le match continue.`,
+    pause: '', blessure: '', erreur: 'Oups, la connexion a coupé.'}[type] : {envoi: `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. À toi de jouer ! Tu pourras changer de tactique toutes les 5 minutes.`,
     'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
     tm: A ? `🕵️ Leur jeu dévoilé : ils attaquent en <b>${NOM_ATT[A.attaque]}</b> et défendent en <b>${NOM_DEF[A.defense]}</b>. Bonus : élan pendant 3 minutes ⚡`
       : `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>.`,
@@ -1745,19 +1780,20 @@ function panneauMD(type) {
     <div><b>${st.a.arrets}</b><small>arrêts</small><b>${st.b.arrets}</b></div><div><b>${st.a.pertes}</b><small>pertes</small><b>${st.b.pertes}</b></div></div>
     ${st.b.buts >= 3 ? `<p class="sub petit centre">Leurs buts viennent surtout : <b>${zoneB[1].toLowerCase()}</b></p>` : ''}` : '';
   p.innerHTML = `<div class="md-p-c"><h3>${titre}</h3>${bilan}<p class="sub petit">${intro}</p>
-    ${change ? `<p class="md-astuce">Coach adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}</p>` : ''}
-    ${change ? indiceIA() : ''}
+    ${MD.pvp && ['envoi', 'mi-temps', 'tm'].includes(type) ? '<p class="md-cd"></p>' : ''}
+    ${change && !MD.pvp ? `<p class="md-astuce">Coach adverse <b>${esc(MD.vue.eux.entraineur || 'réfléchi')}</b> : ${ASTUCE_IA[MD.vue.eux.entraineur] || ASTUCE_IA['réfléchi']}</p>` : ''}
+    ${change && !MD.pvp ? indiceIA() : ''}
     ${change ? `<h4>Attaque</h4><div class="md-ch">${TACT_ATT.map(([k, nom]) => `<button data-md-att="${k}"><b>${nom}</b><small>${ZONE_ATT[k]}<br>bat la ${NOM_DEF[BAT[k]]} · bute sur la ${NOM_DEF[BATTU[k]]}</small></button>`).join('')}</div>
       <h4>Défense</h4><div class="md-ch">${['06', '15', '33'].map(d => { const fort = Object.keys(BATTU).find(a => BATTU[a] === d), faible = Object.keys(BAT).find(a => BAT[a] === d);
         return `<button data-md-def="${d}"><b>${NOM_DEF[d]}</b><small>arrête ${NOM_ATT[fort].toLowerCase()}<br>souffre face ${faible === 'duels' ? 'aux duels' : faible === 'rapide' ? 'au jeu rapide' : 'à l’enclenchement'}</small></button>`; }).join('')}</div>
       <h4>Consigne</h4><div class="md-ch">${CONSIGNES.map(([k, nom, aide]) => `<button data-md-cons="${k}"><b>${nom}</b><small>${aide}</small></button>`).join('')}</div>` : ''}
     ${change && bancMD().length ? `<button class="btn ghost md-p-banc" data-md-go="banc">🔁 Changements<small>${resumeBancMD()}</small></button>` : ''}
     <div class="md-p-b">${type === 'tactique' ? '<button class="btn ghost" data-md-go="annuler">Annuler</button>'
-        : type !== 'envoi' ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
-      <button class="btn gold" data-md-go="jouer">${{envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', blessure: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
+        : type !== 'envoi' && !MD.pvp ? `<button class="btn ghost" data-md-go="sim">Simuler la fin</button>` : ''}
+      <button class="btn gold" data-md-go="jouer">${MD.pvp && type !== 'tactique' ? 'Prêt' : {envoi: 'Coup d’envoi', 'mi-temps': '2e période', tm: 'Reprendre le jeu', tactique: 'Valider', pause: 'Reprendre', blessure: 'Reprendre', erreur: 'Réessayer'}[type]}</button></div></div>`;
   p.hidden = false; MD.el.classList.add('en-pause');
   choixMD();
-  majMD();
+  majMD(); if (MD.pvp) pvpCompteur();
 }
 // ── remplaçants en match (demande de Maël, 19 nov. 2026) : chaque poste, son titulaire et son remplaçant, leur fraîcheur
 const POSTES_MD = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
@@ -1785,10 +1821,11 @@ function majBancMD() {
   const bl = POSTES_MD.find(k => blesses.has(ef[k]?.n) && ef[k]?.r && !blesses.has(ef[k].r));
   p.innerHTML = `<div class="md-p-c"><h3>Changements <small>le match continue</small></h3>
     ${bl ? `<p class="md-alerte">🚑 <b>${esc(nomCourt(ef[bl].n))}</b> est blessé(e) et joue diminué(e) : fais entrer ${esc(nomCourt(ef[bl].r))} (${bl}).</p>` : ''}
-    <p class="sub petit">Touche un poste : le remplaçant entre tout de suite. Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur : dans le rouge, il joue moins bien et risque de se blesser.</p>
+    <p class="sub petit">${MD.pvp ? 'Touche un poste : le remplaçant entre à la reprise (tranche suivante, ou fin du temps mort) ; touche-le encore pour annuler.' : 'Touche un poste : le remplaçant entre tout de suite.'} Autant de changements que tu veux, comme au handball ; sur le banc, on récupère. La barre = la fraîcheur : dans le rouge, il joue moins bien et risque de se blesser.</p>
     <div class="md-banc">${POSTES_MD.map(k => { const x = ef[k] || {};
       const bt = blesses.has(x.n), br = blesses.has(x.r);
-      return `<button class="md-bl${MD.chgPoste === k ? ' on' : ''}${bt ? ' blesse' : ''}" data-md-chg="${k}"${x.r && !br && !occupe && !MD.fin ? '' : ' disabled'}><em>${k}</em>${jr(x.n, x.note, x.f, 't' + (bt ? ' md-blesse' : ''))}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r' + (br ? ' md-blesse' : '')) : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
+      const prevu = MD.pvp && (MD.pvpPostes || []).includes(k);
+      return `<button class="md-bl${MD.chgPoste === k || prevu ? ' on' : ''}${bt ? ' blesse' : ''}" data-md-chg="${k}"${x.r && !br && !occupe && !MD.fin ? '' : ' disabled'}><em>${prevu ? k + ' ⏳' : k}</em>${jr(x.n, x.note, x.f, 't' + (bt ? ' md-blesse' : ''))}<span class="md-bfl" aria-hidden="true">⇄</span>${x.r ? jr(x.r, x.rnote, x.rf, 'r' + (br ? ' md-blesse' : '')) : '<span class="md-bj r vide"><small>pas de remplaçant</small></span>'}</button>`; }).join('')}</div>
     ${(() => { const n = postesBancTous().length;
       return n > 1 ? `<button class="btn ghost md-tous${MD.chgPoste === 'tous' ? ' on' : ''}" data-md-chg="tous"${occupe || MD.fin ? ' disabled' : ''}>⇄ Changer les ${n} joueurs de champ d’un coup<small>le gardien reste</small></button>` : ''; })()}
     <div class="md-p-b"><button class="btn gold" data-md-go="banc-fermer">Fermer</button></div></div>`;
@@ -1800,6 +1837,7 @@ function postesBancTous() {
   return POSTES_MD.filter(k => k !== 'GB' && ef[k]?.r && !blesses.has(ef[k].r));
 }
 function changerMD(poste) {
+  if (MD.pvp) return pvpChanger(poste);
   if (MD.chgEnCours || MD.fin || MD.tab) return;
   if (MD.enCours) return toast('Un instant…');
   const postes = poste === 'tous' ? postesBancTous() : [poste];
@@ -1866,6 +1904,7 @@ function clicMD(e) {
     if (type !== 'erreur') { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
     fermerPanneauMD(); majMD();
     if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
+    if (MD.pvp) return pvpJouer(type);
     if (type === 'tactique' || type === 'blessure') return reprendreMD();   // le récit reprend ; le changement de tactique part avec la tranche suivante
     return blocMD();
   }
@@ -1948,6 +1987,7 @@ function resultatMD(r) {
   if (!MD.el) return;
   fermerPanneauMD(); fermerBancMD(); MD.attente = true;
   majPieces(); celebrer(r.niveaux);
+  if (MD.pvp || r.classe) { clearInterval(MD.pvpT); CL.data = null; Compte.rafraichir().catch(() => {}); }
   MD.el.querySelector('.md-sa').textContent = r.match.a; MD.el.querySelector('.md-sb').textContent = r.match.b;
   MD.el.querySelector('.md-per').textContent = 'Fin du match';
   const res = r.match.resultat;
@@ -1957,6 +1997,262 @@ function resultatMD(r) {
   p.innerHTML = `<div class="md-p-c md-fin">${htmlFin(r)}<button class="btn gold large" data-act="fin-direct">Continuer</button></div>`;
   p.hidden = false; MD.el.classList.add('en-pause', 'fini');
   majMD();
+}
+
+// ── matchs à deux en direct (23 nov. 2026, demande de Maël : « les défis sont nazes » : en temps réel, temps morts de 20 secondes,
+// classement avec des trophées façon Clash Royale, file d'attente façon LoL avec le temps écoulé, fantôme après 2 minutes).
+// Le serveur joue le match (pvp_*) ; les deux jeux racontent chaque tranche au même rythme (×1) et interrogent le serveur toutes
+// les secondes ou deux. Les choix (tactique, consigne, changements) partent avec la tranche suivante ; un temps mort arrête le match
+// pour les deux pendant 20 s et le ramène à la seconde où il a été demandé (le fil est alors réécrit, pvpRebobiner).
+const nomEux = () => esc(MD.vue?.eux?.nom || 'L’adversaire');
+const chronoTx = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
+function pvpTick() {
+  if (!MD.el || !MD.pvp || MD.pvpReq || (MD.fin && !MD.file.length)) return;
+  pvpCompteur();
+  // pendant le récit : toutes les 2 s (un temps mort adverse) ; à l'arrêt ou en attente : chaque seconde
+  if (!MD.attente && !MD.panneau && (MD.pvpTour = (MD.pvpTour || 0) + 1) % 2) return;
+  MD.pvpReq = true;
+  Compte.pvpVue(MD.n).then(v => pvpRecevoir(v)).catch(() => {}).finally(() => { MD.pvpReq = false; });
+}
+function pvpRecevoir(v, complet) {
+  if (!MD.el || !v || v.aucun || !v.pvp) return;
+  const P = v.pvp;
+  if (P.gen !== MD.gen) {
+    // un temps mort (le sien ou celui de l'adversaire) : le match est revenu à une seconde ; tout le fil est relu
+    if (complet) return pvpRebobiner(v);
+    MD.pvpReq = true;
+    return Compte.pvpVue(0).then(w => pvpRebobiner(w)).catch(() => {}).finally(() => { MD.pvpReq = false; });
+  }
+  const avant = MD.vue.bloc;
+  MD.vue = v; MD.pvp = P; MD.pvpRecu = Date.now(); MD.pvpPostes = P.choix?.postes || [];
+  const nv = v.evenements || [];
+  if (nv.length) { MD.file.push(...nv); MD.n += nv.length; }
+  if (!P.pause) MD.finBloc = Math.max(MD.finBloc, v.bloc * 300);
+  if (P.fin && !MD.fin) { MD.fin = P.fin; MD.finBloc = 3600; clearInterval(MD.pvpT); }
+  // coup d'envoi ou mi-temps : le compte à rebours est fini, la tranche suivante est partie
+  if (['envoi', 'mi-temps'].includes(MD.panneau) && v.bloc > avant) { fermerPanneauMD(); fermerBancMD(); }
+  if (P.pause) { if (MD.panneau !== 'tm') pvpPause(); }
+  else if (MD.panneau === 'tm') { fermerPanneauMD(); fermerBancMD(); flashMD('Reprise', 'tm'); Son.jouer('sifflet'); }
+  if (MD.file.length && MD.attente && !MD.panneau) MD.attente = false;
+  pvpCompteur(); majMD(); majBancMD();
+  if (MD.attente && !MD.panneau && !MD.file.length && MD.h >= MD.finBloc && MD.fin) finBlocMD();
+}
+// le fil réécrit depuis le début : ce qui avait été raconté jusqu'à la seconde du temps mort reste, la suite est oubliée
+function pvpRebobiner(v) {
+  if (!MD.el || !v?.pvp) return;
+  // pendant un temps mort, les deux écrans se calent sur la seconde du serveur (celui qui était en retard rattrape, l'autre revient en arrière)
+  const P = v.pvp, h = P.pause ? P.pause.h : P.h, montre = P.pause ? h : Math.min(MD.h, h);
+  MD.evs = []; MD.file = []; MD.exclu = {a: 0, b: 0};
+  MD.el.querySelector('.md-fil').innerHTML = '';
+  MD.el.querySelector('.md-sa').textContent = '0'; MD.el.querySelector('.md-sb').textContent = '0';
+  for (const x of v.evenements || []) { if (x.t <= montre) noterMD(x, true); else MD.file.push(x); }
+  MD.n = (v.evenements || []).length; MD.h = montre; MD.finBloc = P.pause ? h : Math.max(h, v.bloc * 300);
+  MD.vue = v; MD.pvp = P; MD.gen = P.gen; MD.pvpRecu = Date.now(); MD.pvpPostes = P.choix?.postes || [];
+  majHorlogeMD();
+  if (P.pause) { MD.attente = true; if (!P.pause.moi) { Son.jouer('sifflet'); flashMD('Temps mort', 'tm'); } pvpPause(); }
+  majMD();
+}
+function pvpPause() {
+  fermerBancMD();
+  panneauMD('tm');
+}
+// les comptes à rebours (coup d'envoi, mi-temps, temps mort) et l'attente de l'adversaire
+function pvpCompteur() {
+  if (!MD.el || !MD.pvp) return;
+  const P = MD.pvp, ecoule = (Date.now() - (MD.pvpRecu || Date.now())) / 1000;
+  const cd = MD.el.querySelector('.md-panneau:not([hidden]) .md-cd');
+  if (cd) {
+    const reste = MD.panneau === 'tm' ? (P.pause?.reste ?? 0) - ecoule : (P.prochain ?? 0) - ecoule;
+    cd.innerHTML = `⏱️ <b>${Math.max(0, Math.ceil(reste))} s</b>${(MD.panneau === 'tm' ? P.pause?.pretEux : P.pretEux) ? ` · ${nomEux()} est prêt(e)` : ''}${(MD.panneau === 'tm' ? P.pause?.pret : MD.pvpPret) ? ' · tu es prêt(e)' : ''}`;
+  }
+  const pb = MD.el.querySelector('.md-pause-b'), attend = MD.attente && !MD.panneau && !MD.file.length && !MD.fin && MD.h >= MD.finBloc;
+  pb.hidden = !attend;
+  if (attend) pb.textContent = P.absentEux ? `${MD.vue.eux.nom} s’est absenté(e) : son adjoint joue à sa place…` : `En attente de ${MD.vue.eux.nom}…`;
+}
+function pvpEnvoyer(o = {}) {
+  return Compte.pvpChoix(MD.tac, MD.cons, o.postes ?? null, o.pret ?? null, !!o.pause, MD.n).then(v => pvpRecevoir(v))
+    .catch(e => { Son.jouer('erreur'); toast(e.message || 'Action impossible'); });
+}
+// fin du récit d'une tranche : prêt pour la suivante (elle part quand les deux sont prêts, ou à l'heure prévue)
+function pvpFinBloc() {
+  MD.attente = true;
+  if (MD.fin) return MD.timers.push(setTimeout(() => resultatMD(MD.fin), 900));
+  if (MD.pvp.pause) return;
+  if (MD.vue.bloc === 6 && MD.h >= 1800 && !MD.miTemps) { MD.miTemps = true; return panneauMD('mi-temps'); }
+  if (MD.pretEnvoye === MD.vue.bloc) return;
+  MD.pretEnvoye = MD.vue.bloc;
+  pvpCompteur();
+  pvpEnvoyer({pret: MD.vue.bloc});
+}
+// le bouton d'un panneau : prêt (coup d'envoi, mi-temps, temps mort) ou nouvelle tactique (pendant le récit, sans pause)
+function pvpJouer(type) {
+  MD.pvpPret = false;
+  if (type === 'tactique') { pvpEnvoyer(); return reprendreMD(); }
+  if (type === 'envoi') { MD.pretEnvoye = 0; pvpEnvoyer({pret: 0}); }
+  else if (type === 'mi-temps') { MD.pretEnvoye = 6; pvpEnvoyer({pret: 6}); }
+  else if (type === 'tm') pvpEnvoyer({pause: true});
+  else pvpEnvoyer();
+  MD.attente = true; pvpCompteur();
+}
+function pvpTempsMort() {
+  if (MD.enCours) return toast('Un instant…');
+  MD.enCours = true; majMD();
+  Compte.pvpTempsMort().then(v => {
+    MD.enCours = false; if (!MD.el) return;
+    MD.adverse = v.adverse; if (v.adverse?.defense) MD.defB = v.adverse.defense;
+    Son.jouer('sifflet'); flashMD('Temps mort', 'tm');
+    pvpRebobiner(v);
+  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majMD(); });
+}
+// changements : ils entrent à la reprise (tranche suivante, ou fin du temps mort) ; un second toucher annule
+function pvpChanger(poste) {
+  if (MD.fin) return;
+  const l = new Set(MD.pvpPostes || []);
+  const postes = poste === 'tous' ? postesBancTous() : [poste];
+  const tous = postes.every(k => l.has(k));
+  for (const k of postes) tous ? l.delete(k) : l.add(k);
+  MD.pvpPostes = [...l];
+  pvpEnvoyer({postes: MD.pvpPostes});
+  toast(tous ? 'Changement annulé' : `${postes.length > 1 ? 'Ils entrent' : 'Il entre'} à la reprise (tranche suivante ou fin du temps mort)`);
+  majBancMD();
+}
+
+// ── la file d'attente classée, façon LoL : le temps écoulé, le temps estimé, « Annuler » ; elle reste affichée en naviguant
+const FILE = {t: null, req: false, attente: 0, recu: 0, estime: 120, fantome: 120};
+function pvpChercher() {
+  if (FILE.t) return;
+  if (noteEquipe().n < 7) return toast('Aligne 7 joueurs dans l’onglet Équipe pour jouer');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  Object.assign(FILE, {attente: 0, recu: Date.now(), estime: 120, fantome: PARAMS.pvp_fantome_secondes ?? 120});
+  let el = $('#pvp-file');
+  if (!el) { el = document.createElement('div'); el.id = 'pvp-file'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.hidden = false; Son.jouer('clic');
+  FILE.t = setInterval(fileTick, 1000); fileTick(true);
+}
+function fileTick(forcer) {
+  const el = $('#pvp-file'); if (!el) return;
+  const ecoule = FILE.attente + (Date.now() - FILE.recu) / 1000;
+  el.innerHTML = `<span class="pf-anim" aria-hidden="true">⚔️</span><div class="pf-t"><b>${chronoTx(ecoule)}</b><small>Recherche d’un adversaire · estimé ${chronoTx(FILE.estime)}</small></div>
+    <button class="pf-x" data-act="pvp-annuler">Annuler</button>`;
+  if (FILE.req || (!forcer && Math.round(ecoule) % 2)) return;
+  FILE.req = true;
+  Compte.pvpChercher().then(r => {
+    FILE.req = false; if (!FILE.t) return;
+    if (r.match) { arreterFile(); return pvpTrouve(r.match); }
+    if (r.fantome === true && r.vue) { arreterFile(); return pvpTrouve(r.vue, true); }
+    FILE.attente = r.attente; FILE.recu = Date.now(); FILE.estime = r.estime ?? 120;
+  }).catch(e => { FILE.req = false; arreterFile(); toast(e.message || 'Recherche impossible'); });
+}
+function arreterFile(annuler) {
+  clearInterval(FILE.t); FILE.t = null;
+  const el = $('#pvp-file'); if (el) el.hidden = true;
+  if (annuler) Compte.pvpAnnuler().catch(() => {});
+}
+// « Adversaire trouvé ! » : les deux équipes face à face, puis le match
+function pvpTrouve(vue, fantome) {
+  const moi = vue.nous?.nom || S().pseudo, eux = vue.eux?.nom || '';
+  const tr = fantome ? null : vue.pvp?.adversaire?.trophees;
+  const el = document.createElement('div'); el.className = 'pvp-vs';
+  el.innerHTML = `<p class="pvp-t">${fantome ? 'Personne de disponible' : vue.pvp?.classe === false ? 'Défi accepté !' : 'Adversaire trouvé !'}</p>
+    <div class="pvp-face"><div><b>${esc(moi)}</b><small>${nb(S().pvp?.trophees ?? S().trophees ?? 0)} 🏆</small></div><i>VS</i>
+      <div><b>${esc(eux)}</b><small>${fantome ? 'joué par l’ordinateur' : tr != null ? `${nb(tr)} 🏆` : ''}</small></div></div>
+    ${fantome ? '<p class="pvp-s">Tu affrontes son équipe, coachée par l’ordinateur. Les trophées comptent.</p>' : ''}`;
+  document.body.appendChild(el);
+  Son.jouer('sifflet'); vibrer([30, 40, 60]);
+  setTimeout(() => { el.remove(); ouvrirDirect(vue); if (fantome) Compte.rafraichir().catch(() => {}); }, fantome ? 2600 : 1800);
+}
+function reprendrePvp() {
+  if (occupe) return;
+  action(Compte.pvpVue(0), v => { if (v?.pvp && v.pvp.statut === 'direct') ouvrirDirect(v, true); else { toast('Ce match est terminé'); Compte.rafraichir().then(() => route(true)).catch(() => {}); } });
+}
+
+// ── l'écran Classé : trophées, arène, saison, classement
+const CL = {data: null, charge: false, recu: 0};
+function chargerClasse() {
+  if (CL.charge || Compte.horsLigne || (CL.data && Date.now() - CL.recu < 15000)) return;
+  CL.charge = true;
+  Compte.pvpAccueil().then(d => { CL.data = d; CL.recu = Date.now();
+    if (d.saisonRecompense) toast(`🏆 Fin de saison : ${d.saisonRecompense.arene}, ta récompense est arrivée !`); })
+    .catch(e => toast(e.message)).finally(() => { CL.charge = false; if (vueCourante() === 'classe' && $('#overlay').hidden) route(true); });
+}
+function vueClasse() {
+  chargerClasse();
+  const D = CL.data, tete = `${retour('jouer', 'Jouer')}<h1>Classé</h1>`;
+  if (!D) return `${tete}<p class="sub">Chargement…</p>`;
+  const A = D.arenes || [], a = A[D.arene] || {}, suiv = A[D.arene + 1];
+  const pc = suiv ? Math.min(100, 100 * (D.trophees - a.min) / (suiv.min - a.min)) : 100;
+  const enCours = S().pvp?.match, complet = noteEquipe().n === 7;
+  const fin = new Date(D.saisonFin), jours = Math.max(0, Math.ceil((fin - Date.now()) / 864e5));
+  const rec = r => r ? RECOMP(r) : '';
+  return `${tete}
+    <div class="cl-arene"><small>Arène ${D.arene + 1}</small><b>${esc(a.nom || '')}</b><span class="cl-tr">${nb(D.trophees)} 🏆</span>
+      <span class="bar"><i style="width:${pc}%"></i></span><small>${suiv ? `${nb(suiv.min - D.trophees)} 🏆 avant ${esc(suiv.nom)}` : 'Arène la plus haute'} · rang ${D.rang}</small></div>
+    ${enCours ? '<button class="btn gold large" data-act="pvp-reprendre" style="width:100%">⚔️ Reprendre le match en direct</button>'
+      : `<button class="btn gold large" data-act="pvp-chercher" style="width:100%"${complet && !FILE.t ? '' : ' disabled'}>⚔️ ${FILE.t ? 'Recherche en cours…' : 'Trouver un adversaire'}</button>`}
+    <p class="sub petit">${complet ? '' : 'Aligne 7 joueurs dans l’onglet Équipe pour jouer. '}En direct contre un vrai joueur : vous choisissez vos tactiques en même temps, 3 temps morts de 20 s chacun.
+      Personne après ${Math.round((D.fantome || 120) / 60)} min : tu affrontes le fantôme d’un joueur proche en trophées (son équipe, coachée par l’ordinateur).
+      Victoire ${nb(D.pieces?.gagne || 0)}+ pièces selon l’arène, ${D.gainsRestants} match${D.gainsRestants > 1 ? 's' : ''} récompensé${D.gainsRestants > 1 ? 's' : ''} aujourd’hui.</p>
+    <p class="sub petit">Saison : fin dans ${jours} jour${jours > 1 ? 's' : ''}. Récompense selon ton arène ; au-dessus de ${nb(D.saisonSeuil)} 🏆, la moitié des trophées en plus repart.</p>
+    <h2>Arènes</h2><div class="cl-ars">${A.map(x => `<div class="cl-ar${x.i === D.arene ? ' on' : ''}${x.atteinte ? ' ok' : ''}"><b>${esc(x.nom)}</b><small>${nb(x.min)} 🏆</small>
+      <span>${x.recompense ? rec(x.recompense) : ''}</span>${x.atteinte && x.i ? '<em>✓</em>' : ''}</div>`).join('')}</div>
+    <h2>Classement</h2><div class="classe av-m">${(D.classement || []).map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}">${avatarHTML(x.perso)}<b>${i + 1}. ${lienJ(x.pseudo)}</b>
+      <small>${esc(x.arene || '')}</small><em>${nb(x.trophees)} 🏆</em></div>`).join('') || '<p class="sub">Personne n’a encore de trophée : sois le premier !</p>'}</div>
+    ${(D.derniers || []).length ? `<h2>Derniers matchs</h2><div class="hists">${D.derniers.map(r => `<div class="hist r-${r.resultat}"><b>${(r.score || []).join(' – ')}</b>
+      <span>${r.classe ? 'Classé' : 'Défi'} · ${r.fantome ? esc(r.adversaire) : lienJ(r.adversaire)}</span><small>${RES[r.resultat] || ''}${r.trophees != null ? ` · ${r.trophees >= 0 ? '+' : ''}${r.trophees} 🏆` : ''}</small></div>`).join('')}</div>` : ''}`;
+}
+
+// ── défi en direct entre ami(e)s : une invitation de 2 minutes ; l'invité(e) la voit dans un bandeau
+const INV = {id: null, t: null, pour: '', debut: 0, secondes: 120, req: false};
+function pvpInviter(pseudo) {
+  if (INV.t || FILE.t) return toast('Une recherche est déjà en cours');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  action(Compte.pvpInviter(pseudo), r => {
+    Object.assign(INV, {id: r.invitation, pour: r.pour, debut: Date.now(), secondes: r.secondes || 120});
+    if (!$('#overlay').hidden) cacherOverlay();
+    let el = $('#pvp-file');
+    if (!el) { el = document.createElement('div'); el.id = 'pvp-file'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.hidden = false; INV.t = setInterval(invTick, 1000); invTick();
+  });
+}
+function invTick() {
+  const el = $('#pvp-file'); if (!el || !INV.t) return;
+  const ecoule = (Date.now() - INV.debut) / 1000;
+  el.innerHTML = `<span class="pf-anim" aria-hidden="true">⚔️</span><div class="pf-t"><b>${chronoTx(ecoule)}</b><small>En attente de ${esc(INV.pour)} · ${chronoTx(Math.max(0, INV.secondes - ecoule))} pour accepter</small></div>
+    <button class="pf-x" data-act="pvp-inv-annuler">Annuler</button>`;
+  if (INV.req || Math.round(ecoule) % 2) return;
+  INV.req = true;
+  Compte.pvpAttendre(INV.id).then(r => {
+    INV.req = false; if (!INV.t) return;
+    if (r.statut === 'acceptee') { arreterInv(); return pvpTrouve(r.match); }
+    if (r.statut !== 'attente') {
+      const qui = INV.pour; arreterInv();
+      demander(`${qui} ${r.statut === 'refusee' ? 'a refusé' : 'n’a pas répondu'}. Jouer contre son équipe, coachée par l’ordinateur ?`, 'Jouer').then(oui => oui && fenetreDefi(qui));
+    }
+  }).catch(() => { INV.req = false; });
+}
+function arreterInv(annuler) {
+  if (annuler && INV.id) Compte.pvpAnnulerInvitation(INV.id).catch(() => {});
+  clearInterval(INV.t); INV.t = null; INV.id = null;
+  const el = $('#pvp-file'); if (el) el.hidden = true;
+}
+// invitations reçues : un bandeau en haut, « Accepter » ou « Refuser » (vu à chaque relecture de l'état)
+function majInvitations() {
+  const l = (S().pvp?.invitations || []).filter(x => x.reste > 0), vu = majInvitations.refusees || (majInvitations.refusees = new Set());
+  const x = l.find(i => !vu.has(i.id));
+  let el = $('#pvp-invit');
+  if (!x || MD.el || FILE.t || INV.t) { if (el) el.hidden = true; return; }
+  if (!el) { el = document.createElement('div'); el.id = 'pvp-invit'; el.setAttribute('role', 'alert'); document.body.appendChild(el); }
+  if (el.dataset.id !== x.id) { Son.jouer('notif'); vibrer([30, 40, 30]); }
+  el.dataset.id = x.id; el.hidden = false;
+  el.innerHTML = `<span aria-hidden="true">⚔️</span><p><b>${esc(x.de)}</b> te défie en direct !</p>
+    <button class="btn ghost petit" data-pvp-inv="${x.id}:0">Refuser</button><button class="btn gold petit" data-pvp-inv="${x.id}:1">Accepter</button>`;
+}
+function repondreInvitation(id, oui) {
+  const el = $('#pvp-invit'); if (el) el.hidden = true;
+  (majInvitations.refusees || (majInvitations.refusees = new Set())).add(id);
+  if (!oui) return Compte.pvpRepondre(id, false).catch(() => {});
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  action(Compte.pvpRepondre(id, true), r => { if (r.match) pvpTrouve(r.match); });
 }
 
 // ── transferts (23 nov. 2026, demande de Maël : les listes « 7 voulus / 7 à donner » ne donnaient aucun échange, il fallait un joueur
@@ -2409,8 +2705,10 @@ function fenetreDefi(pseudo) {
   ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button>
     <h3>Défier ${esc(pseudo)}</h3>
     <button class="lien voir-eq" data-voir-equipe="${esc(pseudo)}">Voir son équipe ›</button>
-    <p class="sub petit">Son équipe joue avec sa tactique. ${A.defiPieces ?? 30} pièces au gagnant.</p>
-    <div class="jouer-2"><button class="btn gold large" data-act="defi-direct">Jouer le match</button>
+    <p class="sub petit"><b>En direct</b> : ${esc(pseudo)} reçoit ton invitation (2 minutes pour accepter), vous jouez le match ensemble, chacun sa tactique, 3 temps morts de 20 s. ${A.defiPieces ?? 30} pièces au gagnant.</p>
+    <button class="btn gold large" data-act="defi-live" style="width:100%">⚔️ Défier en direct</button>
+    <p class="sub petit">Sinon, contre son équipe coachée par l’ordinateur :</p>
+    <div class="jouer-2"><button class="btn ghost" data-act="defi-direct">Jouer le match</button>
       <button class="btn ghost" data-act="defi-simuler">Simuler<small>gains −${pcMoins(gainSimule())} %</small></button></div></div>`);
 }
 const filMsgHTML = C => C ? C.messages.map(m => `<p class="msg${m.moi ? ' moi' : ''}"><span>${esc(m.texte)}</span>
@@ -3140,7 +3438,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -3222,6 +3520,12 @@ document.addEventListener('click', e => {
   if (a === 'championnat') return commencerMatch('championnat', null, false);
   if (a === 'simuler') return commencerMatch('championnat', null, true);
   if (a === 'reprendre-match') return reprendreMatch();
+  if (a === 'defi-live') { const ps = SOC.defi; cacherOverlay(); return pvpInviter(ps); }
+  if (a === 'pvp-chercher') { pvpChercher(); return route(true); }
+  if (a === 'pvp-annuler') { arreterFile(true); toast('Recherche annulée'); return route(true); }
+  if (a === 'pvp-inv-annuler') { arreterInv(true); return toast('Invitation annulée'); }
+  if (a === 'pvp-reprendre') return reprendrePvp();
+  if (d.pvpInv) { const [id, oui] = d.pvpInv.split(':'); return repondreInvitation(id, oui === '1'); }
   if (a === 'defi-direct' || a === 'defi-simuler') { const ps = SOC.defi; cacherOverlay(); return commencerMatch('defi_ami', ps, a === 'defi-simuler'); }
   if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
@@ -3380,7 +3684,7 @@ window.addEventListener('online', () => { if (Compte.horsLigne && $('#overlay').
 let tourAmis = 0;
 setInterval(() => {
   if (document.visibilityState !== 'visible' || !Compte.pret || Compte.horsLigne || occupe || document.body.classList.contains('avec-intro')) return;
-  if (!SOC.panneau && ++tourAmis % 5) return;
+  if (!SOC.panneau && !FILE.t && ++tourAmis % 2 && !(S().pvp?.invitations || []).length) return;   // toutes les 80 s (40 s fenêtre ouverte)
   Compte.rafraichir().then(() => { majEntete();
     const ami = SOC.ami;
     if (SOC.panneau === 'conv' && ami) Compte.conversation(ami).then(c => { if (SOC.panneau === 'conv' && SOC.ami === ami) { SOC.conv = c; majConversation(); majEntete(); } }).catch(() => {});
@@ -3627,7 +3931,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=89').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=90').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
