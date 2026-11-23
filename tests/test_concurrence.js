@@ -85,22 +85,31 @@ const ouvrir = async base => { const c = new Client({connectionString: url(base)
   // ── deux joueurs : la même carte prise des deux côtés au même instant
   const b = await joueur('Bob');
   await q('update profils set pieces = 100000 where user_id in ($1, $2)', [a, b]);
-  let doubles = 0, transferts = 0, fusions = 0;
+  // Alice achète au marché une carte de Bob pendant que Bob la retire de la vente (15 fois) : l'une ou l'autre, jamais les deux
+  let doubles = 0, achats = 0, retraits = 0;
   for (let tour = 0; tour < 15; tour++) {
-    const X = cartes[2], Y = cartes[3];
-    await q('delete from exemplaires where carte_id in ($1, $2)', [X, Y]); await q('delete from listes_transfert');
-    await donner(a, Y); for (let i = 0; i < 3; i++) await donner(b, X);
-    await appel(db, a, 'maj_listes_transfert', [JSON.stringify([{carte: X, palier: 'bronze'}]), JSON.stringify([{carte: Y, palier: 'bronze'}])]);
-    await appel(db, b, 'maj_listes_transfert', [JSON.stringify([{carte: Y, palier: 'bronze'}]), JSON.stringify([{carte: X, palier: 'bronze'}])]);
-    // Alice prend une des 3 cartes X de Bob pendant que Bob fusionne ses 3 cartes X
-    const [t, f] = await ensemble([[a, 'transferer', ['Bob', Y, X, 'bronze']], [b, 'fusionner', [X, 'bronze']]]);
-    transferts += t.ok; fusions += f.ok;
-    // en « équivalents Bronze » (1 Argent = 3 Bronze), il doit toujours y avoir exactement 3 cartes X et 1 carte Y dans le jeu
-    const eq = (await q("select carte_id, sum(case palier when 'argent' then 3 else 1 end)::int n from exemplaires where carte_id in ($1, $2) group by 1", [X, Y]));
-    const nX = eq.find(e => e.carte_id === X)?.n, nY = eq.find(e => e.carte_id === Y)?.n;
-    if (nX !== 3 || nY !== 1 || (t.ok && f.ok)) doubles++;
+    const X = cartes[2];
+    await q('delete from ventes'); await q('delete from exemplaires where carte_id = $1', [X]);
+    const ex = await donner(b, X, 'argent');
+    const v = await appel(db, b, 'marche_vendre', [ex, 200]);
+    const idv = (await q("select id from ventes where statut = 'ouverte'"))[0]?.id;
+    const avA = await pieces(a), avB = await pieces(b);
+    const [t, r] = await ensemble([[a, 'marche_acheter', [idv]], [b, 'marche_retirer', [idv]]]);
+    achats += t.ok; retraits += r.ok;
+    const e = (await q('select proprietaire, verrou from exemplaires where id = $1', [ex]))[0];
+    const okAchat = t.ok && !r.ok && e.proprietaire === a && !e.verrou && avA - await pieces(a) === 200 && await pieces(b) - avB === 180;
+    const okRetrait = r.ok && !t.ok && e.proprietaire === b && !e.verrou && await pieces(a) === avA && await pieces(b) === avB;
+    if (!v.ok || !(okAchat || okRetrait)) doubles++;
   }
-  verif(`transfert et fusion de la même carte au même instant (15 fois) : jamais les deux, aucune carte créée ni perdue`, doubles === 0, {doubles, transferts, fusions});
+  verif(`achat et retrait de la même vente au même instant (15 fois) : l'un ou l'autre, pièces justes, aucune carte perdue`, doubles === 0, {doubles, achats, retraits});
+  // 12 acheteurs sur la même vente : un seul l'emporte
+  { const X = cartes[3]; await q('delete from ventes');
+    const ex = await donner(b, X, 'or'); await appel(db, b, 'marche_vendre', [ex, 1000]);
+    const idv = (await q("select id from ventes where statut = 'ouverte'"))[0].id, ach = [];
+    for (let i = 0; i < N; i++) { const u = await joueur('Acheteur' + i); await q('update profils set pieces = 5000 where user_id = $1', [u]); ach.push(u); }
+    rs = await ensemble(ach.map(u => [u, 'marche_acheter', [idv]]));
+    const paye = (await q('select count(*)::int n from profils where user_id = any($1) and pieces < 5000', [ach]))[0].n;
+    verif(`${N} joueurs achètent la même carte au même instant : un seul l'obtient et paie`, reussis(rs) === 1 && paye === 1, {reussis: reussis(rs), paye}); }
 
   await appel(db, a, 'ajouter_ami', ['Bob']); await appel(db, b, 'ajouter_ami', ['Alice']);
   doubles = 0; let ventes = 0, echanges = 0;
@@ -132,18 +141,17 @@ const ouvrir = async base => { const c = new Client({connectionString: url(base)
   verif('8 joueurs ouvrent la ligue en même temps : chaque groupe fait exactement 10 équipes', reussis(rs) === 8 && groupes.every(g => g.bots + g.humains === 10)
     && groupes.reduce((t, g) => t + g.humains, 0) === 8, groupes);
 
-  // deux transferts croisés au même instant : Postgres peut en annuler un (interblocage), mais rien ne doit se dédoubler
-  const c = await joueur('Chloe'), d = await joueur('David');
-  const X = cartes[6], Y = cartes[7];
-  await q('delete from exemplaires where proprietaire in ($1, $2)', [c, d]);
-  await donner(c, X); await donner(c, X); await donner(d, Y); await donner(d, Y);
-  await appel(db, c, 'maj_listes_transfert', [JSON.stringify([{carte: Y, palier: 'bronze'}]), JSON.stringify([{carte: X, palier: 'bronze'}])]);
-  await appel(db, d, 'maj_listes_transfert', [JSON.stringify([{carte: X, palier: 'bronze'}]), JSON.stringify([{carte: Y, palier: 'bronze'}])]);
-  rs = await ensemble([[c, 'transferer', ['David', X, Y, 'bronze']], [d, 'transferer', ['Chloe', Y, X, 'bronze']]]);
-  const rep = await q('select proprietaire, carte_id, count(*)::int n from exemplaires where carte_id in ($1, $2) and proprietaire in ($3, $4) group by 1, 2', [X, Y, c, d]);
-  verif('deux transferts croisés au même instant : un seul échange, 2 cartes X et 2 cartes Y au total', reussis(rs) === 1 && rep.reduce((t, r) => t + r.n, 0) === 4
-    && rep.filter(r => r.carte_id === X).reduce((t, r) => t + r.n, 0) === 2 && (await q('select count(*)::int n from transferts_faits where a in ($1, $2)', [c, d]))[0].n === 1,
-    {reussis: reussis(rs), erreurs: rs.filter(r => !r.ok).map(r => r.erreur), rep});
+  // deux joueurs du même club donnent au même instant à une demande qui n'attend plus qu'une carte : un seul don
+  const c = await joueur('Chloe'), d = await joueur('David'), e2 = await joueur('Emma');
+  const X = cartes[6];
+  await appel(db, c, 'club_creer', ['Club C']); const clubC = (await q("select id from clubs where nom = 'Club C'"))[0].id;
+  await appel(db, d, 'club_rejoindre', [clubC]); await appel(db, e2, 'club_rejoindre', [clubC]);
+  await appel(db, c, 'club_demander', [X, 'bronze']);
+  await q('update club_demandes set voulu = 1 where user_id = $1', [c]);
+  for (const u of [d, e2]) { await donner(u, X); await donner(u, X); }
+  rs = await ensemble([[d, 'club_donner', [(await q('select id from club_demandes where user_id = $1', [c]))[0].id]], [e2, 'club_donner', [(await q('select id from club_demandes where user_id = $1', [c]))[0].id]]]);
+  const recus = (await q('select count(*)::int n from exemplaires where proprietaire = $1 and carte_id = $2', [c, X]))[0].n;
+  verif('deux dons au même instant pour la dernière carte d’une demande : un seul passe', reussis(rs) === 1 && recus === 1, {reussis: reussis(rs), recus, erreurs: rs.filter(r => !r.ok).map(r => r.erreur)});
 
   // le schéma se relance sur un vrai Postgres qui contient déjà des joueurs, des cartes, des clubs, une ligue (comme en production)
   for (const u of nouveaux.slice(0, 2)) await appel(db, u, 'ligue_jouer', [(await q("select 'b:' || (x ->> 'id') id from ligue_groupes g, jsonb_array_elements(g.bots) x limit 1"))[0].id]);

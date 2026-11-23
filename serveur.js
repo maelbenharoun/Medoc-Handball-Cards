@@ -270,11 +270,14 @@ const CompteServeur = (() => {
     matchsParis: () => rpc('matchs_paris'),
     parier: (rid, choix, mise) => rpc('parier', {p_rid: rid, p_choix: choix, p_mise: mise}),   // → {cote, gainPossible}
 
-    // ── marché des transferts ── (filtre : 'tout' | 'pour_moi' | 'mes')
-    // transferts par listes : {max, veux, donne, possibles, cherchent, donnent, historique}
-    mesTransferts: () => rpc('mes_transferts'),
-    majListesTransfert: (veux, donne) => rpc('maj_listes_transfert', {p_veux: veux, p_donne: donne}),
-    transferer: (pseudo, donne, recoit, palier) => rpc('transferer', {p_pseudo: pseudo, p_donne: donne, p_recoit: recoit, p_palier: palier}),
+    // ── transferts (23 nov. 2026) : marché à pièces, boîte à échanges, demandes au club → {marche, boite, club, historique, etat}
+    mesEchanges: () => rpc('mes_echanges'),
+    marcheVendre: (ex, prix) => rpc('marche_vendre', {p_ex: ex, p_prix: prix}),
+    marcheRetirer: id => rpc('marche_retirer', {p_vente: id}),
+    marcheAcheter: id => rpc('marche_acheter', {p_vente: id}),
+    boiteEchanger: (carte, palier) => rpc('boite_echanger', {p_carte: carte, p_palier: palier}),
+    clubDemander: (carte, palier) => rpc('club_demander', {p_carte: carte, p_palier: palier}),
+    clubDonner: id => rpc('club_donner', {p_demande: id}),
 
     // ── équipe : choix tactiques « attaque:défense » (duels | enclenchement | rapide : 06 | 15 | 33) ──
     choisirTactique: tactique => rpc('choisir_tactique', {p_tactique: tactique}),

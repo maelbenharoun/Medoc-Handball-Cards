@@ -92,7 +92,12 @@ insert into parametres values (1, '{
   "ligue_recompenses": {"1": {"or": 1, "pieces": 1000}, "2": {"bonus": 2, "pieces": 700}, "3": {"bonus": 1, "pieces": 500}, "autres": {"pieces": 200}},
   "club_membres_max": 20, "club_paliers": [25, 50, 100], "club_recompenses": [{"bonus": 1}, {"bonus": 2}, {"or": 1}],
   "albums_recompenses": {"bronze": {"pieces": 300}, "argent": {"bonus": 2}, "or": {"or": 1}, "ultime": {"or": 2, "pieces": 2000}},
-  "capitaine_bonus": 2, "staff_prix": 500
+  "capitaine_bonus": 2, "staff_prix": 500,
+  "marche_prix": {"bronze": [20, 300], "argent": [80, 1000], "or": [300, 4000], "ultime": [1200, 15000]}, "marche_taxe": 0.1,
+  "marche_ventes_max": 5, "marche_jours": 3, "marche_achats_par_jour": 5,
+  "boite_par_jour": 5, "boite_nouveau": true,
+  "club_demande_heures": 8, "club_demande_duree_heures": 24, "club_demande_nombre": {"bronze": 4, "argent": 2, "or": 1}, "club_demande_or_jours": 7,
+  "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
 
@@ -464,7 +469,7 @@ language sql immutable as $$
          ('victoire', 2, 100, 200, 'Gagne 2 matchs (championnat ou défi entre ami(e)s)'),
          ('defi', 2, 80, 150, 'Défie 2 fois tes ami(e)s'),
          ('pari', 1, 40, 80, 'Fais un pari sur un vrai match du club'),
-         ('marche', 1, 40, 100, 'Mets à jour tes listes de transferts ou fais un transfert')
+         ('marche', 1, 40, 100, 'Vends, achète, donne ou échange une carte (Social → Transferts)')
 $$;
 
 -- 3 quêtes par jour, choisies au hasard mais toujours les mêmes pour un joueur et un jour
@@ -762,6 +767,50 @@ alter table clubs_membres enable row level security;
 alter table clubs_recompenses enable row level security;
 revoke all on clubs, clubs_membres, clubs_recompenses from anon, authenticated;
 
+-- Échanges (23 nov. 2026, demande de Maël : les listes de transferts ne donnaient aucun échange avec 17 joueurs et 452 cartes-paliers ;
+-- il fallait quelqu'un qui veut ma carte ET donne celle que je veux, au même palier). Trois façons d'échanger sans attendre l'inverse :
+-- marché à pièces (ventes), boîte à échanges (boite), demandes au club (club_demandes, club_dons). Tables lues par les fonctions seulement.
+create table if not exists ventes (
+  id uuid primary key default gen_random_uuid(),
+  vendeur uuid not null references profils on delete cascade,
+  exemplaire uuid references exemplaires on delete set null,       -- bloqué (verrou « vente ») tant que la vente est ouverte
+  carte text not null references cartes, palier text not null check (palier in ('bronze', 'argent', 'or', 'ultime')), note int not null,
+  prix int not null check (prix > 0),
+  statut text not null default 'ouverte' check (statut in ('ouverte', 'vendue', 'retiree', 'expiree')),
+  acheteur uuid references profils on delete set null,
+  cree_le timestamptz not null default now(), fini_le timestamptz
+);
+create index if not exists ventes_statut on ventes (statut, cree_le);
+create index if not exists ventes_vendeur on ventes (vendeur, statut);
+create table if not exists boite (id bigserial primary key, carte text not null references cartes on delete cascade,
+  palier text not null check (palier in ('bronze', 'argent', 'or', 'ultime')), note int not null,
+  depose_par uuid references profils on delete set null, depose_le timestamptz not null default now());
+create index if not exists boite_palier on boite (palier);
+create table if not exists boite_faits (id bigserial primary key, user_id uuid not null references profils on delete cascade,
+  donne text not null, recu text not null, palier text not null, le timestamptz not null default now());
+create index if not exists boite_faits_jour on boite_faits (user_id, le);
+create table if not exists club_demandes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profils on delete cascade, club bigint not null references clubs on delete cascade,
+  carte text not null references cartes, palier text not null check (palier in ('bronze', 'argent', 'or')),
+  voulu int not null check (voulu > 0), recu int not null default 0,
+  statut text not null default 'ouverte' check (statut in ('ouverte', 'pleine', 'fermee')),
+  cree_le timestamptz not null default now(), fini_le timestamptz
+);
+create index if not exists club_demandes_club on club_demandes (club, statut);
+create index if not exists club_demandes_joueur on club_demandes (user_id, cree_le);
+create table if not exists club_dons (id bigserial primary key, demande uuid references club_demandes on delete cascade,
+  de uuid references profils on delete set null, pour uuid references profils on delete cascade,
+  carte text not null, palier text not null, le timestamptz not null default now());
+create index if not exists club_dons_de on club_dons (de, le);
+create index if not exists club_dons_pour on club_dons (pour, le);
+alter table ventes enable row level security;
+alter table boite enable row level security;
+alter table boite_faits enable row level security;
+alter table club_demandes enable row level security;
+alter table club_dons enable row level security;
+revoke all on ventes, boite, boite_faits, club_demandes, club_dons from anon, authenticated;
+
 -- Albums : une équipe complète à un palier (au moins une carte de chaque joueur en jeu, à ce palier ou mieux)
 create table if not exists albums_faits (user_id uuid not null references profils on delete cascade, equipe text not null, palier text not null,
   le timestamptz not null default now(), primary key (user_id, equipe, palier));
@@ -1000,7 +1049,17 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'social', jsonb_build_object('demandes', (select count(*) from amis a where a.pour = p.user_id and a.statut = 'attente'),
       'echanges', (select count(*) from echanges x where x.pour = p.user_id and x.statut = 'ouvert'),
       'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu),
-      'transferts', (select count(*) from transferts_faits t where t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity'))),
+      'transferts', (select count(*) from transferts_faits t where t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity'))
+        + (select count(*) from ventes v where v.vendeur = p.user_id and v.statut = 'vendue' and v.fini_le > coalesce(p.transferts_vus, '-infinity'))
+        + (select count(*) from club_dons d where d.pour = p.user_id and d.le > coalesce(p.transferts_vus, '-infinity')),
+      -- demandes de mon club que je peux remplir (un doublon libre de ce joueur à ce palier)
+      'clubDemandes', (select count(*) from club_demandes d join clubs_membres m on m.club = d.club and m.user_id = p.user_id
+        where d.statut = 'ouverte' and d.user_id <> p.user_id and d.recu < d.voulu
+          and d.cree_le > now() - make_interval(hours => parami('club_demande_duree_heures'))
+          and (select count(*) from exemplaires x where x.proprietaire = p.user_id and x.carte_id = d.carte) >= 2
+          and exists (select 1 from exemplaires x where x.proprietaire = p.user_id and x.carte_id = d.carte and x.palier = d.palier and x.verrou is null
+            and not exists (select 1 from jsonb_each_text(p.equipe) j where j.value = x.id::text)
+            and not exists (select 1 from jsonb_each_text(coalesce(p.remplacants, '{}')) j where j.value = x.id::text)))),
     'jour', jsonb_build_object(
       'championnat', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'championnat' and r.le >= debut_du_jour()),
       'seance', (select count(*) from rencontres r where r.user_id = p.user_id and r.type = 'seance' and r.le >= debut_du_jour()),
@@ -1350,7 +1409,7 @@ declare p profils := moi(); e exemplaires; gain int;
 begin
   select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
   if not found then raise exception 'Carte absente de ton club'; end if;
-  if e.verrou is not null then raise exception 'Cette carte est proposée aux transferts'; end if;
+  if e.verrou is not null then raise exception 'Cette carte est en vente au marché des transferts'; end if;
   if en_equipe(p.user_id, p_ex::text) then
     raise exception 'Cette carte joue dans ton équipe (titulaire ou remplaçant) : retire-la d’abord';
   end if;
@@ -4387,6 +4446,7 @@ begin
   if not found then return null; end if;
   perform 1 from clubs where id = m.club for update;
   delete from clubs_membres where user_id = p_uid;
+  update club_demandes set statut = 'fermee', fini_le = now() where user_id = p_uid and statut = 'ouverte';
   if not exists (select 1 from clubs_membres where club = m.club) then delete from clubs where id = m.club;
   elsif m.role = 'president' then
     update clubs_membres set role = 'president' where user_id = (select user_id from clubs_membres where club = m.club order by rejoint_le limit 1);
@@ -4492,6 +4552,243 @@ end $$;
 
 -- Catalogue : les légendes ne se lisent pas (l'admin, si) ; celles qu'on possède arrivent par etat_de
 drop policy if exists lecture on cartes;
+-- ════════════════════════════════════════════════════════════════════════════
+-- Échanges (23 nov. 2026) : marché à pièces, boîte à échanges, demandes au club
+-- ════════════════════════════════════════════════════════════════════════════
+create or replace function nombre_cartes(p_uid uuid, p_carte text) returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from exemplaires where proprietaire = p_uid and carte_id = p_carte
+$$;
+-- une carte qu'on peut céder : libre (hors équipe, banc et ventes), pas proposée à un(e) ami(e) ; la moins entraînée
+create or replace function ex_cedable(p_uid uuid, p_carte text, p_palier text) returns uuid language sql stable security definer set search_path = public as $$
+  select e.id from exemplaires e where e.proprietaire = p_uid and e.carte_id = p_carte and e.palier = p_palier and e.verrou is null
+    and not en_equipe(p_uid, e.id::text) and not exists (select 1 from echanges x where x.statut = 'ouvert' and e.id in (x.donne, x.demande))
+  order by e.note, e.xp limit 1
+$$;
+create or replace function marche_expirer() returns void language sql security definer set search_path = public as $$
+  with x as (update ventes set statut = 'expiree', fini_le = now() where statut = 'ouverte'
+    and cree_le < now() - make_interval(days => parami('marche_jours')) returning exemplaire)
+  update exemplaires set verrou = null where id in (select exemplaire from x) and verrou = 'vente'
+$$;
+create or replace function club_demande_ouverte(d club_demandes) returns boolean language sql stable security definer set search_path = public as $$
+  select d.statut = 'ouverte' and d.recu < d.voulu and d.cree_le > now() - make_interval(hours => parami('club_demande_duree_heures'))
+$$;
+create or replace function secondes_avant(p_t timestamptz) returns int language sql stable as $$
+  select greatest(0, ceil(extract(epoch from p_t - now())))::int
+$$;
+-- tout ce que montre l'écran Transferts (marché, boîte, demandes du club, historique)
+create or replace function echanges_vue(p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare pr profils; m clubs_membres; vus timestamptz; der timestamptz; der_or timestamptz;
+begin
+  select * into pr from profils where user_id = p_uid;
+  select * into m from clubs_membres where user_id = p_uid;
+  vus := coalesce(pr.transferts_vus, '-infinity');
+  select max(cree_le) into der from club_demandes where user_id = p_uid;
+  select max(cree_le) into der_or from club_demandes where user_id = p_uid and palier = 'or';
+  return jsonb_build_object(
+    'marche', jsonb_build_object(
+      'ventes', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'carte', v.carte, 'palier', v.palier, 'note', v.note, 'prix', v.prix,
+          'vendeur', o.pseudo, 'ami', sont_amis(p_uid, v.vendeur), 'expire', v.cree_le + make_interval(days => parami('marche_jours'))) order by v.cree_le desc)
+        from (select * from ventes where statut = 'ouverte' and vendeur <> p_uid order by cree_le desc limit 300) v join profils o on o.user_id = v.vendeur), '[]'),
+      'mes', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'carte', v.carte, 'palier', v.palier, 'note', v.note, 'prix', v.prix, 'statut', v.statut,
+          'acheteur', (select pseudo from profils where user_id = v.acheteur), 'expire', v.cree_le + make_interval(days => parami('marche_jours')),
+          'gain', floor(v.prix * (1 - coalesce((param('marche_taxe') #>> '{}')::numeric, 0)))::int)
+          order by v.statut <> 'ouverte', coalesce(v.fini_le, v.cree_le) desc)
+        from ventes v where v.vendeur = p_uid and (v.statut = 'ouverte' or (v.statut = 'vendue' and v.fini_le >= now() - interval '7 days'))), '[]'),
+      'prix', param('marche_prix'), 'taxe', param('marche_taxe'), 'max', parami('marche_ventes_max'), 'jours', parami('marche_jours'),
+      'achatsRestants', greatest(0, parami('marche_achats_par_jour') - (select count(*) from ventes where acheteur = p_uid and fini_le >= debut_du_jour())),
+      'achatsLimite', parami('marche_achats_par_jour')),
+    'boite', jsonb_build_object(
+      'restants', greatest(0, parami('boite_par_jour') - (select count(*) from boite_faits where user_id = p_uid and le >= debut_du_jour())),
+      'limite', parami('boite_par_jour')),
+    'club', case when m.user_id is null then null else jsonb_build_object(
+      'nom', (select nom from clubs where id = m.club),
+      'demandes', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'pseudo', o.pseudo, 'moi', d.user_id = p_uid, 'carte', d.carte, 'palier', d.palier,
+          'voulu', d.voulu, 'recu', d.recu, 'fin', d.cree_le + make_interval(hours => parami('club_demande_duree_heures')),
+          'possible', d.user_id <> p_uid and nombre_cartes(p_uid, d.carte) >= 2 and ex_cedable(p_uid, d.carte, d.palier) is not null)
+          order by d.user_id = p_uid desc, d.cree_le desc)
+        from club_demandes d join profils o on o.user_id = d.user_id where d.club = m.club and club_demande_ouverte(d)), '[]'),
+      'prochaine', secondes_avant(der + make_interval(hours => parami('club_demande_heures'))),
+      'prochaineOr', secondes_avant(der_or + make_interval(days => parami('club_demande_or_jours'))),
+      'donsRestants', greatest(0, parami('club_dons_par_jour') - (select count(*) from club_dons where de = p_uid and le >= debut_du_jour())),
+      'donsLimite', parami('club_dons_par_jour'), 'nombre', param('club_demande_nombre'), 'pieces', param('club_don_pieces'), 'xp', param('club_don_xp'),
+      'heures', parami('club_demande_heures'), 'duree', parami('club_demande_duree_heures'), 'orJours', parami('club_demande_or_jours')) end,
+    -- les 15 derniers mouvements (ventes, achats, dons, cartes reçues du club, anciens transferts)
+    'historique', coalesce((select jsonb_agg(h order by h ->> 'le' desc) from (select h from (
+        select jsonb_build_object('type', 'vente', 'avec', (select pseudo from profils where user_id = v.acheteur), 'carte', v.carte, 'palier', v.palier,
+          'prix', floor(v.prix * (1 - coalesce((param('marche_taxe') #>> '{}')::numeric, 0)))::int, 'le', v.fini_le, 'nouveau', v.fini_le > vus) h
+          from ventes v where v.vendeur = p_uid and v.statut = 'vendue'
+        union all select jsonb_build_object('type', 'achat', 'avec', (select pseudo from profils where user_id = v.vendeur), 'carte', v.carte, 'palier', v.palier,
+          'prix', v.prix, 'le', v.fini_le, 'nouveau', false) from ventes v where v.acheteur = p_uid and v.statut = 'vendue'
+        union all select jsonb_build_object('type', 'don', 'avec', (select pseudo from profils where user_id = d.pour), 'carte', d.carte, 'palier', d.palier,
+          'le', d.le, 'nouveau', false) from club_dons d where d.de = p_uid
+        union all select jsonb_build_object('type', 'recu', 'avec', (select pseudo from profils where user_id = d.de), 'carte', d.carte, 'palier', d.palier,
+          'le', d.le, 'nouveau', d.le > vus) from club_dons d where d.pour = p_uid
+        union all select jsonb_build_object('type', 'boite', 'carte', b.recu, 'donne', b.donne, 'palier', b.palier, 'le', b.le, 'nouveau', false)
+          from boite_faits b where b.user_id = p_uid
+        union all select jsonb_build_object('type', 'transfert', 'avec', (select pseudo from profils where user_id = case when t.a = p_uid then t.b else t.a end),
+          'carte', case when t.a = p_uid then t.carte_b else t.carte_a end, 'donne', case when t.a = p_uid then t.carte_a else t.carte_b end,
+          'palier', t.palier, 'le', t.le, 'nouveau', t.b = p_uid and t.le > vus) from transferts_faits t where p_uid in (t.a, t.b)
+      ) z order by h ->> 'le' desc limit 15) y), '[]'));
+end $$;
+create or replace function mes_echanges() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); r jsonb;
+begin
+  perform marche_expirer();
+  r := echanges_vue(p.user_id);
+  update profils set transferts_vus = now() where user_id = p.user_id;   -- vus : la pastille de Social s'efface
+  return r || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+
+-- ── marché à pièces (façon Ultimate Team) : une carte libre mise en vente à un prix borné par palier ; n'importe qui l'achète
+-- d'un toucher ; le vendeur reçoit le prix moins la taxe. Prix plancher = 2 fois la vente au jeu : passer des cartes d'un compte
+-- à un autre coûte toujours des pièces.
+create or replace function marche_vendre(p_ex uuid, p_prix int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); e exemplaires; b jsonb;
+begin
+  perform marche_expirer();
+  select * into e from exemplaires where id = p_ex and proprietaire = p.user_id;
+  if not found then raise exception 'Carte absente de ton club'; end if;
+  if exists (select 1 from cartes where id = e.carte_id and legende) then raise exception 'Cette carte ne se vend pas'; end if;
+  if e.verrou is not null then raise exception 'Cette carte est déjà en vente'; end if;
+  if en_equipe(p.user_id, p_ex::text) then raise exception 'Cette carte joue dans ton équipe (titulaire ou remplaçant) : retire-la d’abord'; end if;
+  if exists (select 1 from echanges x where x.statut = 'ouvert' and p_ex in (x.donne, x.demande)) then
+    raise exception 'Cette carte est proposée dans un échange entre ami(e)s';
+  end if;
+  b := param('marche_prix') -> e.palier;
+  if p_prix is null or p_prix < (b ->> 0)::int or p_prix > (b ->> 1)::int then
+    raise exception 'Prix d’une carte % : entre % et % pièces', initcap(e.palier), b ->> 0, b ->> 1;
+  end if;
+  if (select count(*) from ventes where vendeur = p.user_id and statut = 'ouverte') >= parami('marche_ventes_max') then
+    raise exception '% cartes en vente au plus : retire-en une ou attends qu’elle parte', parami('marche_ventes_max');
+  end if;
+  update exemplaires set verrou = 'vente' where id = p_ex;
+  insert into ventes (vendeur, exemplaire, carte, palier, note, prix) values (p.user_id, p_ex, e.carte_id, e.palier, e.note, p_prix);
+  perform progresser(p.user_id, 'marche');
+  perform noter(p.user_id, 'marche-vente', jsonb_build_object('carte', e.carte_id, 'palier', e.palier, 'prix', p_prix));
+  return echanges_vue(p.user_id) || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function marche_retirer(p_vente uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); v ventes;
+begin
+  update ventes set statut = 'retiree', fini_le = now() where id = p_vente and vendeur = p.user_id and statut = 'ouverte' returning * into v;
+  if not found then raise exception 'Cette vente n’est plus ouverte'; end if;
+  update exemplaires set verrou = null where id = v.exemplaire and verrou = 'vente';
+  return echanges_vue(p.user_id) || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function marche_acheter(p_vente uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); v ventes; gain int;
+begin
+  perform marche_expirer();
+  select * into v from ventes where id = p_vente for update;
+  if not found or v.statut <> 'ouverte' then raise exception 'Cette carte n’est plus en vente'; end if;
+  if v.vendeur = p.user_id then raise exception 'C’est ta propre vente'; end if;
+  if (select count(*) from ventes where acheteur = p.user_id and fini_le >= debut_du_jour()) >= parami('marche_achats_par_jour') then
+    raise exception 'Tu as déjà acheté % cartes aujourd’hui : reviens demain', parami('marche_achats_par_jour');
+  end if;
+  if p.pieces < v.prix then raise exception 'Il te faut % pièces', v.prix; end if;
+  perform 1 from profils where user_id = v.vendeur for update;   -- le vendeur est verrouillé à son tour
+  if not exists (select 1 from exemplaires where id = v.exemplaire and proprietaire = v.vendeur and verrou = 'vente') then
+    raise exception 'Cette carte n’est plus disponible';
+  end if;
+  gain := floor(v.prix * (1 - coalesce((param('marche_taxe') #>> '{}')::numeric, 0)));
+  update profils set pieces = pieces - v.prix where user_id = p.user_id;
+  update profils set pieces = pieces + gain where user_id = v.vendeur;
+  update exemplaires set proprietaire = p.user_id, verrou = null, protection = 5 where id = v.exemplaire;
+  update ventes set statut = 'vendue', acheteur = p.user_id, fini_le = now() where id = v.id;
+  perform progresser(p.user_id, 'marche'); perform progresser(v.vendeur, 'marche');
+  perform noter(p.user_id, 'marche-achat', jsonb_build_object('vente', v.id, 'carte', v.carte, 'palier', v.palier, 'prix', v.prix, 'exemplaire', v.exemplaire));
+  perform noter(v.vendeur, 'marche-vendu', jsonb_build_object('vente', v.id, 'carte', v.carte, 'palier', v.palier, 'prix', v.prix, 'gain', gain));
+  return echanges_vue(p.user_id) || jsonb_build_object('recu', v.exemplaire, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── boîte à échanges (façon Pokémon GO) : on dépose un doublon libre et on repart tout de suite avec une carte du même palier
+-- déposée par un autre joueur (un autre joueur que le sien, de préférence un qu'on n'a pas encore) ; boîte vide : le jeu en tire une
+create or replace function boite_echanger(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); ex uuid; e exemplaires; b boite; recu text; note_r int; nv uuid; nouv boolean := coalesce((param('boite_nouveau') #>> '{}')::boolean, true);
+begin
+  if p_palier is null or p_palier not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
+  if not exists (select 1 from cartes where id = p_carte and not legende) then raise exception 'Cette carte ne s’échange pas'; end if;
+  if (select count(*) from boite_faits where user_id = p.user_id and le >= debut_du_jour()) >= parami('boite_par_jour') then
+    raise exception 'Tu as fait tes % échanges de la boîte aujourd’hui : reviens demain', parami('boite_par_jour');
+  end if;
+  if nombre_cartes(p.user_id, p_carte) < 2 then raise exception 'Seulement les doublons : garde au moins une carte de ce joueur'; end if;
+  ex := ex_cedable(p.user_id, p_carte, p_palier);
+  if ex is null then raise exception 'Il te faut une carte libre de ce joueur à ce palier (hors équipe, banc et ventes)'; end if;
+  select * into e from exemplaires where id = ex;
+  select * into b from boite x where x.palier = p_palier and x.carte <> p_carte and x.depose_par is distinct from p.user_id
+      and exists (select 1 from cartes c where c.id = x.carte and c.actif and not c.legende)
+    order by case when nouv and exists (select 1 from exemplaires y where y.proprietaire = p.user_id and y.carte_id = x.carte) then 1 else 0 end, random()
+    limit 1 for update skip locked;
+  if b.id is not null then
+    delete from boite where id = b.id; recu := b.carte; note_r := b.note;
+  else
+    select c.id into recu from cartes c where c.actif and not c.legende and c.id <> p_carte
+      order by case when nouv and exists (select 1 from exemplaires y where y.proprietaire = p.user_id and y.carte_id = c.id) then 1 else 0 end, random() limit 1;
+    note_r := palier_min(p_palier);
+  end if;
+  if recu is null then raise exception 'La boîte est vide pour l’instant'; end if;
+  delete from exemplaires where id = ex;
+  insert into boite (carte, palier, note, depose_par) values (p_carte, p_palier, e.note, p.user_id);
+  insert into exemplaires (proprietaire, carte_id, palier, note, origine) values (p.user_id, recu, p_palier, note_r, 'boite') returning id into nv;
+  insert into boite_faits (user_id, donne, recu, palier) values (p.user_id, p_carte, recu, p_palier);
+  perform listes_nettoyer(p.user_id);
+  perform progresser(p.user_id, 'marche');
+  perform noter(p.user_id, 'boite', jsonb_build_object('donne', p_carte, 'recu', recu, 'palier', p_palier, 'exemplaire', nv));
+  return echanges_vue(p.user_id) || jsonb_build_object('id', nv, 'etat', etat_de(p.user_id));
+end $$;
+
+-- ── demandes au club (façon Clash Royale) : toutes les 8 h, une carte demandée à son club (Bronze ×4, Argent ×2, Or ×1 une fois par
+-- semaine) ; les membres donnent un doublon libre d'un toucher et gagnent pièces et XP ; la demande dure 24 h
+create or replace function club_demander(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m clubs_membres; n int; der timestamptz; s int;
+begin
+  select * into m from clubs_membres where user_id = p.user_id;
+  if not found then raise exception 'Rejoins d’abord un club de joueurs (Social → Clubs)'; end if;
+  n := (param('club_demande_nombre') ->> p_palier)::int;
+  if p_palier is null or n is null or n < 1 then raise exception 'On ne demande que des cartes Bronze, Argent ou Or'; end if;
+  if not exists (select 1 from cartes where id = p_carte and actif and not legende) then raise exception 'Joueur inconnu'; end if;
+  select max(cree_le) into der from club_demandes where user_id = p.user_id;
+  s := secondes_avant(der + make_interval(hours => parami('club_demande_heures')));
+  if s > 0 then raise exception 'Prochaine demande dans % h % min', s / 3600, ceil((s % 3600) / 60.0)::int; end if;
+  if p_palier = 'or' and exists (select 1 from club_demandes where user_id = p.user_id and palier = 'or'
+      and cree_le > now() - make_interval(days => parami('club_demande_or_jours'))) then
+    raise exception 'Une seule demande Or tous les % jours', parami('club_demande_or_jours');
+  end if;
+  update club_demandes set statut = 'fermee', fini_le = now() where user_id = p.user_id and statut = 'ouverte';
+  insert into club_demandes (user_id, club, carte, palier, voulu) values (p.user_id, m.club, p_carte, p_palier, n);
+  perform progresser(p.user_id, 'marche');
+  perform noter(p.user_id, 'club-demande', jsonb_build_object('carte', p_carte, 'palier', p_palier, 'voulu', n));
+  return echanges_vue(p.user_id) || jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+create or replace function club_donner(p_demande uuid) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); d club_demandes; ex uuid; v_pieces int; v_xp int; niveaux jsonb;
+begin
+  select * into d from club_demandes where id = p_demande for update;
+  if not found or not club_demande_ouverte(d) then raise exception 'Cette demande est terminée'; end if;
+  if d.user_id = p.user_id then raise exception 'C’est ta propre demande'; end if;
+  if not exists (select 1 from clubs_membres where user_id = p.user_id and club = d.club) then raise exception 'Cette demande vient d’un autre club'; end if;
+  if not exists (select 1 from clubs_membres where user_id = d.user_id and club = d.club) then raise exception 'Ce joueur a quitté le club'; end if;
+  if (select count(*) from club_dons where de = p.user_id and le >= debut_du_jour()) >= parami('club_dons_par_jour') then
+    raise exception 'Tu as déjà donné % cartes aujourd’hui : reviens demain', parami('club_dons_par_jour');
+  end if;
+  perform 1 from profils where user_id = d.user_id for update;   -- celui qui reçoit est verrouillé à son tour
+  if nombre_cartes(p.user_id, d.carte) < 2 then raise exception 'Tu ne donnes que tes doublons : garde au moins une carte de ce joueur'; end if;
+  ex := ex_cedable(p.user_id, d.carte, d.palier);
+  if ex is null then raise exception 'Il te faut une carte libre de ce joueur à ce palier (hors équipe, banc et ventes)'; end if;
+  update exemplaires set proprietaire = d.user_id, protection = 5 where id = ex;
+  update club_demandes set recu = recu + 1, statut = case when recu + 1 >= voulu then 'pleine' else statut end,
+    fini_le = case when recu + 1 >= voulu then now() else fini_le end where id = d.id;
+  insert into club_dons (demande, de, pour, carte, palier) values (d.id, p.user_id, d.user_id, d.carte, d.palier);
+  v_pieces := coalesce((param('club_don_pieces') ->> d.palier)::int, 0); v_xp := coalesce((param('club_don_xp') ->> d.palier)::int, 0);
+  update profils set pieces = pieces + v_pieces where user_id = p.user_id;
+  niveaux := gagner_xp(p.user_id, v_xp);
+  perform listes_nettoyer(p.user_id);
+  perform progresser(p.user_id, 'marche');
+  perform noter(p.user_id, 'club-don', jsonb_build_object('demande', d.id, 'carte', d.carte, 'palier', d.palier, 'pieces', v_pieces, 'exemplaire', ex));
+  perform noter(d.user_id, 'club-recu', jsonb_build_object('demande', d.id, 'carte', d.carte, 'palier', d.palier, 'exemplaire', ex));
+  return echanges_vue(p.user_id) || jsonb_build_object('pieces', v_pieces, 'xp', v_xp, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
+end $$;
+
 create policy lecture on cartes for select using (not legende
   or exists (select 1 from profils pr where pr.user_id = auth.uid() and pr.role = 'admin'));   -- sans fonction : les visiteurs lisent aussi le catalogue
 
@@ -4509,7 +4806,7 @@ grant execute on function
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), aligner_remplacants(jsonb, jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
-  mes_transferts(), maj_listes_transfert(jsonb, jsonb), transferer(text, text, text, text),
+  mes_echanges(), marche_vendre(uuid, int), marche_retirer(uuid), marche_acheter(uuid), boite_echanger(text, text), club_demander(text, text), club_donner(uuid),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),

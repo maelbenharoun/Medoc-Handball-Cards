@@ -35,7 +35,7 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   verif('la carte d’un autre joueur sur le banc : refusée', erreur(await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eq0), JSON.stringify({...remp, PIV: (await q('select id from exemplaires where proprietaire = $1 limit 1', [bo]))[0].id})])));
   // protégés comme l'équipe
   verif('un remplaçant ne se vend pas', erreur(await rpcJoueur(db, al, 'vendre', [remp.AD]), 'titulaire ou remplaçant'));
-  verif('ni ne se met dans la liste « à donner »', erreur(await rpcJoueur(db, al, 'maj_listes_transfert', ['[]', JSON.stringify([{carte: cartes.AD, palier: 'argent'}])]), 'pas de carte libre'));
+  verif('ni ne se met en vente au marché', erreur(await rpcJoueur(db, al, 'marche_vendre', [remp.AD, 500]), 'titulaire ou remplaçant'));
   verif('ni n’est une carte libre pour un échange', (await q('select carte_libre($1, $2) l', [al, remp.AD]))[0].l === false);
   // l'échange titulaire ⇄ remplaçant à un poste (même appel)
   const eq1 = {...eq0, AD: remp.AD}, remp1 = {...remp, AD: eq0.AD};
