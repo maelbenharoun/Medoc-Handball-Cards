@@ -78,19 +78,43 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   await donner(U.al, Z, 'bronze');
   verif('boîte : pas de carte libre à ce palier : refusé', erreur(await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'argent']), 'carte libre'));
   r = await rpcJoueur(db, U.al, 'boite_echanger', [Z, 'or']);
-  let recu = r.id && (await q('select carte_id, palier, proprietaire from exemplaires where id = $1', [r.id]))[0];
-  verif('boîte vide : le jeu donne une autre carte Or (pas la même), la carte déposée va dans la boîte', !r.erreur && recu.palier === 'or' && recu.carte_id !== Z
-    && recu.proprietaire === U.al && !(await proprio(exS)) && (await q("select count(*)::int n from boite where carte = $1 and palier = 'or'", [Z]))[0].n === 1, r.erreur || recu);
-  // Bob dépose un doublon Or : il reçoit la carte d'Alice (de préférence un joueur qu'il n'a pas)
+  verif('boîte vide : la carte d’Alice attend dans la boîte (rien reçu tout de suite)', !r.erreur && r.attente === true && !r.id && !(await proprio(exS))
+    && r.boite.attente.length === 1 && (await q("select statut from boite where carte = $1", [Z]))[0]?.statut === 'attente', r.erreur || r.boite);
+  // Bob dépose un doublon Or : échange immédiat avec Alice qui attendait ; Alice reçoit la carte de Bob
   await donner(U.bo, W, 'or'); await donner(U.bo, W, 'bronze');
   r = await rpcJoueur(db, U.bo, 'boite_echanger', [W, 'or']);
-  recu = (await q('select carte_id from exemplaires where id = $1', [r.id]))[0];
-  verif('boîte : Bob repart avec la carte déposée par Alice', !r.erreur && recu.carte_id === Z, r.erreur || recu);
-  verif('boîte : jamais sa propre carte (Alice ne reprend pas ce qu’elle a déposé)', (await q("select count(*)::int n from boite where depose_par = $1", [U.al]))[0].n === 0);
-  await q('delete from boite_faits'); 
+  let recu = r.id && (await q('select carte_id from exemplaires where id = $1', [r.id]))[0];
+  verif('boîte : Bob repart tout de suite avec la carte qu’Alice avait déposée', !r.erreur && recu?.carte_id === Z, r.erreur || recu);
+  verif('… et Alice, qui attendait, reçoit celle de Bob ; la boîte est vide', (await q("select count(*)::int n from exemplaires where proprietaire = $1 and carte_id = $2 and palier = 'or' and origine = 'boite'", [U.al, W]))[0].n === 1
+    && (await q('select count(*)::int n from boite')).at(0).n === 0);
+  await q("update boite_faits set le = le - interval '1 minute' where user_id = $1", [U.al]);   // l'échange s'est fait après son dépôt
+  let etA2 = await rpcJoueur(db, U.al, 'mon_etat');
+  verif('Alice est prévenue (social.boite, pastille de Social), effacé en ouvrant les Transferts', etA2.social.boite === 1 && etA2.social.transferts >= 1
+    && (await rpcJoueur(db, U.al, 'mes_echanges')).etat.social.boite === 0);
+  // personne ne dépose pendant une heure : le jeu sert Chloé, sa carte reste dans la boîte pour le suivant
+  await q('delete from boite_faits');
   for (let i = 0; i < 7; i++) await donner(U.ch, V, 'bronze');
-  for (let i = 0; i < 5; i++) await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']);
-  verif('boîte : 6e échange du jour refusé (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']), '5 échanges'));
+  r = await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']);
+  verif('Chloé dépose un Bronze : en attente', r.attente === true, r.erreur);
+  await q("update boite set depose_le = now() - interval '59 minutes'");
+  await rpcJoueur(db, U.al, 'mes_echanges');
+  verif('59 minutes : toujours en attente', (await q("select statut from boite where depose_par = $1", [U.ch]))[0].statut === 'attente');
+  await q("update boite set depose_le = now() - interval '61 minutes'"); await q("update boite_faits set le = now() - interval '61 minutes'");
+  const nCh = (await q("select count(*)::int n from exemplaires where proprietaire = $1 and origine = 'boite'", [U.ch]))[0].n;
+  etA2 = await rpcJoueur(db, U.ch, 'mon_etat');
+  const servi = (await q("select carte_id, palier, note from exemplaires where proprietaire = $1 and origine = 'boite'", [U.ch]));
+  verif('1 h plus tard : le jeu sert Chloé (une autre carte Bronze, au bas du palier), elle est prévenue ; sa carte reste dans la boîte, libre',
+    servi.length === nCh + 1 && servi.every(x => x.palier === 'bronze' && x.carte_id !== V && x.note === 50) && etA2.social.boite === 1
+    && (await q("select statut from boite where depose_par = $1", [U.ch]))[0].statut === 'libre', servi);
+  // Bob dépose un Bronze : il prend tout de suite la carte libre de Chloé, la sienne la remplace
+  const T = libres[5]; await donner(U.bo, T, 'bronze'); await donner(U.bo, T, 'bronze');
+  r = await rpcJoueur(db, U.bo, 'boite_echanger', [T, 'bronze']);
+  recu = r.id && (await q('select carte_id from exemplaires where id = $1', [r.id]))[0];
+  verif('carte libre : prise tout de suite par Bob, la sienne reste libre dans la boîte (Chloé ne reçoit rien de plus)', recu?.carte_id === V
+    && (await q("select statut from boite where carte = $1", [T]))[0]?.statut === 'libre'
+    && (await q("select count(*)::int n from exemplaires where proprietaire = $1 and origine = 'boite'", [U.ch]))[0].n === nCh + 1, r.erreur || recu);
+  for (let i = 0; i < 4; i++) await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']);
+  verif('boîte : 6e dépôt du jour refusé (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'boite_echanger', [V, 'bronze']), '5 échanges'));
 
   // ── 3. demandes au club
   verif('demande sans club : refusée', erreur(await rpcJoueur(db, U.al, 'club_demander', [X, 'bronze']), 'club'));
@@ -131,12 +155,18 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   await rpcJoueur(db, U.bo, 'club_demander', [Z, 'bronze']);   // Alice a 1 Bronze de Z (+ celle d'Alice en Or partie) → selon ses cartes
   for (let i = 0; i < 2; i++) await donner(U.al, Z, 'bronze');
   await rpcJoueur(db, U.bo, 'marche_vendre', [await donner(U.bo, cartes[40], 'or', 80), 900]);
+  // un dépôt d'Alice servi pendant son absence
+  await q("insert into boite_faits (user_id, donne, recu, palier, le, fini_le) values ($1, $2, $3, 'bronze', now() - interval '2 hours', now())", [U.al, X, Y]);
   const b = await chromium.launch(), ctx = await b.newContext({viewport: {width: 390, height: 844}, deviceScaleFactor: SP ? 2 : 1}); await sb.brancher(ctx);
   await ctx.addInitScript(() => { try { localStorage.setItem('mhc-intro', new Date().toISOString().slice(0, 10)); } catch (e) {} });
   const pg = await ctx.newPage(); const erreurs = []; pg.on('pageerror', x => erreurs.push(x.message));
+  await ctx.addInitScript(() => { window.__toasts = []; document.addEventListener('DOMContentLoaded', () => { const t = document.querySelector('#toast');
+    if (t) new MutationObserver(() => window.__toasts.push(t.textContent)).observe(t, {childList: true, characterData: true, subtree: true}); }); });
   await pg.goto(web.url); await pg.waitForSelector('form[data-form=connexion]');
   await pg.fill('[name=email]', 'al@test.fr'); await pg.fill('[name=mdp]', 'motdepasse-al'); await pg.click('button[value=connexion]');
   await pg.waitForSelector('.niveau');
+  const tBoite = await pg.waitForFunction(() => (window.__toasts || []).some(t => /Boîte à échanges : ton échange est fait/.test(t)), null, {timeout: 6000}).then(() => true, () => false);
+  verif('à l’arrivée dans le jeu : « Boîte à échanges : ton échange est fait ! »', tBoite, await pg.evaluate(() => window.__toasts));
   await pg.goto(web.url + '#social'); await pg.waitForSelector('.porte');
   verif('Social : pastille sur Transferts (une demande du club que je peux remplir)', await pg.$eval('a[href="#marche"]', a => !!a.querySelector('.pastille')));
   await pg.goto(web.url + '#marche'); await pg.waitForSelector('.tr-ong');
@@ -164,8 +194,10 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   if (SP) await pg.screenshot({path: SP + '/tr-boite.png', fullPage: true});
   const nb0 = (await q('select count(*)::int n from boite_faits where user_id = $1', [U.al]))[0].n;
   await pg.click('[data-boite]'); await pg.waitForSelector('.dmd'); await pg.click('.dmd-oui');
-  await pg.waitForSelector('.ob-pack, .ob-c', {timeout: 8000}).catch(() => {});
-  verif('« Boîte » : un échange fait et la carte reçue se dévoile comme un booster', (await q('select count(*)::int n from boite_faits where user_id = $1', [U.al]))[0].n === nb0 + 1 && !!(await pg.$('.ob-pack, .ob-c')));
+  await pg.waitForFunction(() => document.querySelector('.ob-pack, .ob-c') || /dans la boîte/.test(document.querySelector('#toast')?.textContent || ''), null, {timeout: 8000}).catch(() => {});
+  const scene = !!(await pg.$('.ob-pack, .ob-c')), toastB = await pg.$eval('#toast', x => x.textContent);
+  verif(`« Déposer » : dépôt fait, ${scene ? 'échange immédiat, la carte reçue se dévoile comme un booster' : `en attente (« ${toastB} »)`}`,
+    (await q('select count(*)::int n from boite_faits where user_id = $1', [U.al]))[0].n === nb0 + 1 && (scene || /dans la boîte/.test(toastB)));
   await pg.goto(web.url + '#marche'); await pg.reload(); await pg.waitForSelector('.tr-ong');
   // club : donner à Bob
   await pg.click('[data-tr-onglet="club"]'); await pg.waitForSelector('.dm-l');

@@ -182,6 +182,10 @@ function majEntete() {
   const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
   $('#bulle-amis').hidden = !Compte.pret; pa.hidden = !so || !Compte.pret; pa.textContent = so;
   // transferts : cartes vendues ou reçues du club pas encore vues, demandes du club que je peux remplir (Social, porte Transferts)
+  // boîte à échanges : un dépôt servi pendant l'absence (un joueur a déposé, ou l'heure d'attente est passée)
+  const bx = S().social?.boite || 0;
+  if (Compte.pret && bx > (majEntete.bx || 0)) { toast(`🎁 Boîte à échanges : ${bx > 1 ? `${bx} échanges faits` : 'ton échange est fait'} ! Social → Transferts`); Son.jouer('notif'); }
+  majEntete.bx = bx;
   const nt = nTransferts(), ps = $('#pastille-s'); ps.hidden = !nt || !Compte.pret; ps.textContent = nt;
   if (Compte.pret && so > (majEntete.so ?? so)) Son.jouer('notif');
   majEntete.so = so;
@@ -2056,8 +2060,11 @@ function fenetrePrix(id) {
 // ── boîte à échanges
 function vueBoite(D) {
   const B = D.boite, l = mesCedables(true);
-  return `<div class="daily bx-t"><p><b>🎁 Boîte à échanges</b>Dépose un doublon : tu repars tout de suite avec une autre carte du même palier, déposée par un autre joueur
-      (plutôt un joueur que tu n’as pas encore). <em>${B.restants ? `Encore ${plur(B.restants, 'échange')} aujourd’hui (${B.limite} par jour)` : 'Plus d’échange aujourd’hui : reviens demain'}</em></p></div>
+  const attente = (B.attente || []).map(x => { const c = carteDe(x.carte, x.palier); return c ? `<div class="mk-m">${carteHTML(c)}<div><b>${esc(c.nom)}</b><small>${R_LABEL[x.palier]} · dans la boîte</small>
+      <small>Échange dès qu’un autre joueur dépose une carte ${R_LABEL[x.palier]}, sinon dans ${resteTx(x.fin)} au plus tard</small></div></div>` : ''; }).join('');
+  return `<div class="daily bx-t"><p><b>🎁 Boîte à échanges</b>Dépose un doublon contre une autre carte du même palier, déposée par un autre joueur (plutôt un joueur que tu n’as pas encore).
+      S’il y en a une dans la boîte, l’échange est immédiat ; sinon ta carte attend qu’un joueur dépose la sienne, ${B.minutes || 60} min au plus, puis la boîte t’en donne une. <em>${B.restants ? `Encore ${plur(B.restants, 'échange')} aujourd’hui (${B.limite} par jour)` : 'Plus d’échange aujourd’hui : reviens demain'}</em></p></div>
+    ${attente ? `<h2>En attente dans la boîte</h2><div class="mk-ms">${attente}</div>` : ''}
     <h2>Tes doublons</h2><p class="sub petit">Touche une carte pour l’échanger. Tu gardes toujours au moins une carte de chaque joueur, et c’est la moins entraînée qui part.</p>
     <div class="pickgrid">${l.map(x => `<button class="pc" data-boite="${x.carte}:${x.palier}"${B.restants ? '' : ' disabled'}>${carteHTML(carteDe(x.carte, x.palier, x.note), {qty: x.n > 1 ? x.n : 0})}</button>`).join('')
       || '<p class="sub">Pas de doublon libre pour l’instant (cartes hors de ton équipe et de ton banc).</p>'}</div>`;
@@ -3180,8 +3187,10 @@ document.addEventListener('click', e => {
   }
   if (d.boite) {
     const [carte, palier] = d.boite.split(':'), c = PAR_ID[carte]; if (!c) return;
-    return demander(`Déposer ${c.nom} ${R_LABEL[palier]} dans la boîte et repartir avec une autre carte ${R_LABEL[palier]} ?`, 'Échanger').then(oui => oui && !occupe &&
-      action(Compte.boiteEchanger(carte, palier), r => { const avant = new Set(EX().map(e => e.carte)); majMarche(r);
+    return demander(`Déposer ${c.nom} ${R_LABEL[palier]} dans la boîte contre une autre carte ${R_LABEL[palier]} ?`, 'Déposer').then(oui => oui && !occupe &&
+      action(Compte.boiteEchanger(carte, palier), r => { const avant = new Set(EX().map(e => e.carte));
+        if (r.attente) { Son.jouer('clic'); return majMarche(r, `${c.nom} est dans la boîte : échange dès qu’un joueur dépose, ${r.minutes} min au plus 🎁`); }
+        majMarche(r);
         const e = exParId(r.id); if (e && PAR_ID[e.carte]) sceneBooster([{c: vue(e), nouveau: EX().filter(x => x.carte === e.carte).length === 1 && !avant.has(e.carte)}], 'Boîte', 'pk-hasard', {hasard: true}); }));
   }
   if (d.demander) { const c = PAR_ID[d.demander]; if (!c) return;

@@ -95,7 +95,7 @@ insert into parametres values (1, '{
   "capitaine_bonus": 2, "staff_prix": 500,
   "marche_prix": {"bronze": [50, 300], "argent": [200, 1000], "or": [750, 4000], "ultime": [3000, 15000]}, "marche_taxe": 0.1,
   "marche_ventes_max": 5, "marche_jours": 3, "marche_achats_par_jour": 5,
-  "boite_par_jour": 5, "boite_nouveau": true,
+  "boite_par_jour": 5, "boite_nouveau": true, "boite_attente_minutes": 60,
   "club_demande_heures": 8, "club_demande_duree_heures": 24, "club_demande_nombre": {"bronze": 4, "argent": 2, "or": 1}, "club_demande_or_jours": 7,
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
 }'::jsonb)
@@ -782,12 +782,15 @@ create table if not exists ventes (
 );
 create index if not exists ventes_statut on ventes (statut, cree_le);
 create index if not exists ventes_vendeur on ventes (vendeur, statut);
+-- boîte : un dépôt attend (« attente ») qu'un autre joueur dépose une carte du même palier, au plus boite_attente_minutes ; ensuite le
+-- jeu sert le déposant et sa carte reste dans la boîte (« libre ») pour le prochain. boite_faits : un dépôt et ce qu'il a rapporté.
+create table if not exists boite_faits (id bigserial primary key, user_id uuid not null references profils on delete cascade,
+  donne text not null, recu text, palier text not null, le timestamptz not null default now(), fini_le timestamptz);
 create table if not exists boite (id bigserial primary key, carte text not null references cartes on delete cascade,
   palier text not null check (palier in ('bronze', 'argent', 'or', 'ultime')), note int not null,
-  depose_par uuid references profils on delete set null, depose_le timestamptz not null default now());
-create index if not exists boite_palier on boite (palier);
-create table if not exists boite_faits (id bigserial primary key, user_id uuid not null references profils on delete cascade,
-  donne text not null, recu text not null, palier text not null, le timestamptz not null default now());
+  depose_par uuid references profils on delete set null, depose_le timestamptz not null default now(),
+  statut text not null default 'attente' check (statut in ('attente', 'libre')), fait bigint references boite_faits on delete set null);
+create index if not exists boite_palier on boite (palier, statut);
 create index if not exists boite_faits_jour on boite_faits (user_id, le);
 create table if not exists club_demandes (
   id uuid primary key default gen_random_uuid(),
@@ -1051,7 +1054,10 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu),
       'transferts', (select count(*) from transferts_faits t where t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity'))
         + (select count(*) from ventes v where v.vendeur = p.user_id and v.statut = 'vendue' and v.fini_le > coalesce(p.transferts_vus, '-infinity'))
-        + (select count(*) from club_dons d where d.pour = p.user_id and d.le > coalesce(p.transferts_vus, '-infinity')),
+        + (select count(*) from club_dons d where d.pour = p.user_id and d.le > coalesce(p.transferts_vus, '-infinity'))
+        + (select count(*) from boite_faits b where b.user_id = p.user_id and b.fini_le > b.le + interval '2 seconds' and b.fini_le > coalesce(p.transferts_vus, '-infinity')),
+      -- échanges de la boîte faits après coup (un autre joueur a déposé, ou l'heure est passée) : le jeu le dit au retour
+      'boite', (select count(*) from boite_faits b where b.user_id = p.user_id and b.fini_le > b.le + interval '2 seconds' and b.fini_le > coalesce(p.transferts_vus, '-infinity')),
       -- demandes de mon club que je peux remplir (un doublon libre de ce joueur à ce palier)
       'clubDemandes', (select count(*) from club_demandes d join clubs_membres m on m.club = d.club and m.user_id = p.user_id
         where d.statut = 'ouverte' and d.user_id <> p.user_id and d.recu < d.voulu
@@ -1209,6 +1215,7 @@ begin
     perform matchs_a_jour(auth.uid());
     perform quetes_du_jour(auth.uid());
     perform quetes_de_la_semaine(auth.uid());
+    perform boite_servir();
     update profils set parcours = parcours_nouveau(1, null, pseudo) where user_id = auth.uid() and parcours is null;
   end if;
   return coalesce(etat_de(auth.uid()), '{"profil": false}'::jsonb);
@@ -4599,7 +4606,9 @@ begin
       'achatsLimite', parami('marche_achats_par_jour')),
     'boite', jsonb_build_object(
       'restants', greatest(0, parami('boite_par_jour') - (select count(*) from boite_faits where user_id = p_uid and le >= debut_du_jour())),
-      'limite', parami('boite_par_jour')),
+      'limite', parami('boite_par_jour'), 'minutes', parami('boite_attente_minutes'),
+      'attente', coalesce((select jsonb_agg(jsonb_build_object('carte', f.donne, 'palier', f.palier, 'fin', f.le + make_interval(mins => parami('boite_attente_minutes')))
+          order by f.le) from boite_faits f where f.user_id = p_uid and f.recu is null), '[]')),
     'club', case when m.user_id is null then null else jsonb_build_object(
       'nom', (select nom from clubs where id = m.club),
       'demandes', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'pseudo', o.pseudo, 'moi', d.user_id = p_uid, 'carte', d.carte, 'palier', d.palier,
@@ -4623,8 +4632,8 @@ begin
           'le', d.le, 'nouveau', false) from club_dons d where d.de = p_uid
         union all select jsonb_build_object('type', 'recu', 'avec', (select pseudo from profils where user_id = d.de), 'carte', d.carte, 'palier', d.palier,
           'le', d.le, 'nouveau', d.le > vus) from club_dons d where d.pour = p_uid
-        union all select jsonb_build_object('type', 'boite', 'carte', b.recu, 'donne', b.donne, 'palier', b.palier, 'le', b.le, 'nouveau', false)
-          from boite_faits b where b.user_id = p_uid
+        union all select jsonb_build_object('type', 'boite', 'carte', b.recu, 'donne', b.donne, 'palier', b.palier, 'le', b.fini_le,
+          'nouveau', b.fini_le > b.le + interval '2 seconds' and b.fini_le > vus) from boite_faits b where b.user_id = p_uid and b.recu is not null
         union all select jsonb_build_object('type', 'transfert', 'avec', (select pseudo from profils where user_id = case when t.a = p_uid then t.b else t.a end),
           'carte', case when t.a = p_uid then t.carte_b else t.carte_a end, 'donne', case when t.a = p_uid then t.carte_a else t.carte_b end,
           'palier', t.palier, 'le', t.le, 'nouveau', t.b = p_uid and t.le > vus) from transferts_faits t where p_uid in (t.a, t.b)
@@ -4634,6 +4643,7 @@ create or replace function mes_echanges() returns jsonb language plpgsql securit
 declare p profils := moi(); r jsonb;
 begin
   perform marche_expirer();
+  perform boite_servir();
   r := echanges_vue(p.user_id);
   update profils set transferts_vus = now() where user_id = p.user_id;   -- vus : la pastille de Social s'efface
   return r || jsonb_build_object('etat', etat_de(p.user_id));
@@ -4701,10 +4711,37 @@ begin
   return echanges_vue(p.user_id) || jsonb_build_object('recu', v.exemplaire, 'etat', etat_de(p.user_id));
 end $$;
 
--- ── boîte à échanges (façon Pokémon GO) : on dépose un doublon libre et on repart tout de suite avec une carte du même palier
--- déposée par un autre joueur (un autre joueur que le sien, de préférence un qu'on n'a pas encore) ; boîte vide : le jeu en tire une
+-- ── boîte à échanges (façon Pokémon GO) : on dépose un doublon libre ; s'il y a dans la boîte une carte du même palier déposée par un
+-- autre joueur (jamais la même carte, de préférence un joueur qu'on n'a pas), l'échange se fait tout de suite, d'abord avec quelqu'un
+-- qui attend (il reçoit notre carte). Sinon notre carte attend dans la boîte (demande de Maël, 23 nov. 2026 : « pour éviter que la
+-- boîte soit toujours vide, ne la remplis qu'au bout d'une heure ») : un autre joueur peut la prendre pendant boite_attente_minutes ;
+-- passé ce temps, le jeu nous sert une carte du même palier et la nôtre reste dans la boîte pour le suivant. Le jeu prévient
+-- (pastille, social.boite) quand un échange s'est fait pendant notre absence.
+create or replace function boite_carte_jeu(p_uid uuid, p_sauf text) returns text language sql volatile security definer set search_path = public as $$
+  select c.id from cartes c where c.actif and not c.legende and c.id <> p_sauf
+  order by case when coalesce((param('boite_nouveau') #>> '{}')::boolean, true) and exists (select 1 from exemplaires y where y.proprietaire = p_uid and y.carte_id = c.id)
+    then 1 else 0 end, random() limit 1
+$$;
+-- les dépôts qui attendent depuis plus d'une heure : le jeu sert le déposant (appelé par les actions, mon_etat et pg_cron)
+create or replace function boite_servir() returns int language plpgsql security definer set search_path = public as $$
+declare b boite; v_recu text; n int := 0;
+begin
+  for b in select * from boite where statut = 'attente' and depose_le < now() - make_interval(mins => parami('boite_attente_minutes'))
+      order by depose_le for update skip locked loop
+    if b.depose_par is not null and exists (select 1 from profils where user_id = b.depose_par) then
+      v_recu := boite_carte_jeu(b.depose_par, b.carte);
+      if v_recu is null then continue; end if;
+      insert into exemplaires (proprietaire, carte_id, palier, note, origine) values (b.depose_par, v_recu, b.palier, palier_min(b.palier), 'boite');
+      update boite_faits set recu = v_recu, fini_le = now() where id = b.fait;
+      perform noter(b.depose_par, 'boite-recu', jsonb_build_object('donne', b.carte, 'recu', v_recu, 'palier', b.palier, 'par', 'jeu'));
+    end if;
+    update boite set statut = 'libre' where id = b.id;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
 create or replace function boite_echanger(p_carte text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); ex uuid; e exemplaires; b boite; recu text; note_r int; nv uuid; nouv boolean := coalesce((param('boite_nouveau') #>> '{}')::boolean, true);
+declare p profils := moi(); ex uuid; e exemplaires; b boite; nv uuid; f bigint; nouv boolean := coalesce((param('boite_nouveau') #>> '{}')::boolean, true);
 begin
   if p_palier is null or p_palier not in ('bronze', 'argent', 'or', 'ultime') then raise exception 'Palier inconnu'; end if;
   if not exists (select 1 from cartes where id = p_carte and not legende) then raise exception 'Cette carte ne s’échange pas'; end if;
@@ -4714,26 +4751,40 @@ begin
   if nombre_cartes(p.user_id, p_carte) < 2 then raise exception 'Seulement les doublons : garde au moins une carte de ce joueur'; end if;
   ex := ex_cedable(p.user_id, p_carte, p_palier);
   if ex is null then raise exception 'Il te faut une carte libre de ce joueur à ce palier (hors équipe, banc et ventes)'; end if;
+  perform boite_servir();
   select * into e from exemplaires where id = ex;
+  delete from exemplaires where id = ex;
+  insert into boite_faits (user_id, donne, palier) values (p.user_id, p_carte, p_palier) returning id into f;
+  -- une carte d'un autre joueur, du même palier : d'abord quelqu'un qui attend, puis un joueur que je n'ai pas encore
   select * into b from boite x where x.palier = p_palier and x.carte <> p_carte and x.depose_par is distinct from p.user_id
       and exists (select 1 from cartes c where c.id = x.carte and c.actif and not c.legende)
-    order by case when nouv and exists (select 1 from exemplaires y where y.proprietaire = p.user_id and y.carte_id = x.carte) then 1 else 0 end, random()
+    order by (x.statut = 'attente') desc,
+      case when nouv and exists (select 1 from exemplaires y where y.proprietaire = p.user_id and y.carte_id = x.carte) then 1 else 0 end, x.depose_le
     limit 1 for update skip locked;
-  if b.id is not null then
-    delete from boite where id = b.id; recu := b.carte; note_r := b.note;
-  else
-    select c.id into recu from cartes c where c.actif and not c.legende and c.id <> p_carte
-      order by case when nouv and exists (select 1 from exemplaires y where y.proprietaire = p.user_id and y.carte_id = c.id) then 1 else 0 end, random() limit 1;
-    note_r := palier_min(p_palier);
+  if b.id is null then
+    -- personne pour l'instant : ma carte attend dans la boîte
+    insert into boite (carte, palier, note, depose_par, fait) values (p_carte, p_palier, e.note, p.user_id, f);
+    perform listes_nettoyer(p.user_id);
+    perform progresser(p.user_id, 'marche');
+    perform noter(p.user_id, 'boite-depot', jsonb_build_object('donne', p_carte, 'palier', p_palier));
+    return echanges_vue(p.user_id) || jsonb_build_object('attente', true, 'minutes', parami('boite_attente_minutes'), 'etat', etat_de(p.user_id));
   end if;
-  if recu is null then raise exception 'La boîte est vide pour l’instant'; end if;
-  delete from exemplaires where id = ex;
-  insert into boite (carte, palier, note, depose_par) values (p_carte, p_palier, e.note, p.user_id);
-  insert into exemplaires (proprietaire, carte_id, palier, note, origine) values (p.user_id, recu, p_palier, note_r, 'boite') returning id into nv;
-  insert into boite_faits (user_id, donne, recu, palier) values (p.user_id, p_carte, recu, p_palier);
+  delete from boite where id = b.id;
+  insert into exemplaires (proprietaire, carte_id, palier, note, origine) values (p.user_id, b.carte, p_palier, b.note, 'boite') returning id into nv;
+  update boite_faits set recu = b.carte, fini_le = now() where id = f;
+  if b.statut = 'attente' and b.depose_par is not null then
+    -- il attendait : il reçoit ma carte (le jeu le lui dira), et rien ne reste dans la boîte
+    perform 1 from profils where user_id = b.depose_par for update;
+    insert into exemplaires (proprietaire, carte_id, palier, note, origine) values (b.depose_par, p_carte, p_palier, e.note, 'boite');
+    update boite_faits set recu = p_carte, fini_le = now() where id = b.fait;
+    perform noter(b.depose_par, 'boite-recu', jsonb_build_object('donne', b.carte, 'recu', p_carte, 'palier', p_palier, 'par', 'joueur'));
+  else
+    -- carte déjà « libre » (son déposant a été servi par le jeu) : la mienne la remplace pour le suivant
+    insert into boite (carte, palier, note, depose_par, statut, fait) values (p_carte, p_palier, e.note, p.user_id, 'libre', f);
+  end if;
   perform listes_nettoyer(p.user_id);
   perform progresser(p.user_id, 'marche');
-  perform noter(p.user_id, 'boite', jsonb_build_object('donne', p_carte, 'recu', recu, 'palier', p_palier, 'exemplaire', nv));
+  perform noter(p.user_id, 'boite', jsonb_build_object('donne', p_carte, 'recu', b.carte, 'palier', p_palier, 'exemplaire', nv));
   return echanges_vue(p.user_id) || jsonb_build_object('id', nv, 'etat', etat_de(p.user_id));
 end $$;
 
@@ -4835,6 +4886,7 @@ begin
     create extension if not exists pg_cron;
     perform cron.schedule('mhc-matchs-demande', '0 */3 * * *', 'select public.synchro_matchs_demander()');
     perform cron.schedule('mhc-matchs-lecture', '5,15,25 */3 * * *', 'select public.synchro_matchs_lire()');
+    perform cron.schedule('mhc-boite', '*/5 * * * *', 'select public.boite_servir()');
   end if;
 end $cron$;
 -- Annonces ouvertes entre paliers différents (avant la règle du même palier) : retirées, la carte est rendue
