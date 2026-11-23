@@ -24,11 +24,38 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   // ── 1. serveur
   let r = await rpcJoueur(db, U.Alice, 'pvp_chercher');
   verif('Alice cherche : en file, attente 0, estimé 120', r.attente === 0 && r.estime === 120, r);
+  // « Match trouvé ! » (sans l'adversaire), refus puis retour dans la file de celui qui avait accepté
   r = await rpcJoueur(db, U.Bob, 'pvp_chercher');
-  verif('Bob cherche : match trouvé contre Alice', !!r.match?.pvp?.id && r.match.pvp.adversaire.pseudo === 'Alice', r.erreur || r);
+  verif('Bob cherche : « Match trouvé », à accepter en 15 s, sans rien sur l’adversaire', !!r.propose?.id && r.propose.reste > 10 && !JSON.stringify(r).includes('Alice'), r.erreur || r);
+  r = await rpcJoueur(db, U.Alice, 'pvp_accepter', [true]);
+  verif('Alice accepte : elle attend Bob', r.propose?.accepte === true, r);
+  r = await rpcJoueur(db, U.Bob, 'pvp_accepter', [false]);
+  verif('Bob refuse : match annulé', r.annule === true, r);
+  verif('Alice (qui avait accepté) est remise dans la file, Bob non', (await q('select user_id from pvp_file')).map(x => x.user_id).join() === U.Alice, await q('select user_id from pvp_file'));
+  r = await rpcJoueur(db, U.Alice, 'pvp_chercher');
+  verif('Alice relance la recherche : elle est en file', r.attente != null, r);
+  // sans réponse dans les 15 s : refusé
+  r = await rpcJoueur(db, U.Bob, 'pvp_chercher');
+  await rpcJoueur(db, U.Bob, 'pvp_accepter', [true]);
+  await q(`update pvp_matchs set meta = meta || jsonb_build_object('limite', extract(epoch from now()) - 1) where statut = 'propose'`);
+  r = await rpcJoueur(db, U.Alice, 'pvp_chercher');
+  // Bob, qui avait accepté, est remis dans la file ; la recherche d'Alice le retrouve aussitôt : un nouveau « Match trouvé »
+  verif('Alice ne répond pas : match annulé, Bob remis dans la file (et retrouvé aussitôt : nouveau « Match trouvé »)',
+    (await q("select count(*)::int n from pvp_matchs where statut = 'annule'"))[0].n === 2 && !!r.propose?.id, r);
+  await q("update pvp_matchs set statut = 'annule' where statut = 'propose'"); await q('delete from pvp_file');
+  // cette fois les deux acceptent : la présentation des équipes, puis le match
+  r = await rpcJoueur(db, U.Alice, 'pvp_chercher'); r = await rpcJoueur(db, U.Bob, 'pvp_chercher');
+  await rpcJoueur(db, U.Bob, 'pvp_accepter', [true]);
+  r = await rpcJoueur(db, U.Alice, 'pvp_accepter', [true]);
+  verif(`les deux acceptent : présentation (60 s), l’équipe de l’adversaire avec ses bonus (${r.prepa?.adversaire?.pseudo})`, r.prepa?.reste > 50 && r.prepa.adversaire.pseudo === 'Bob'
+    && !!r.prepa.equipe?.tactiques && Array.isArray(r.prepa.equipe.joueurs), r.erreur || Object.keys(r.prepa || {}));
+  r = await rpcJoueur(db, U.Alice, 'pvp_accepter', [true]);
+  verif('Alice prête : on attend Bob', r.prepa?.pret === true && r.prepa.pretEux === false, r);
+  r = await rpcJoueur(db, U.Bob, 'pvp_accepter', [true]);
+  verif('Bob prêt aussi : le match commence', r.match?.pvp?.statut === 'direct' && r.match.pvp.adversaire.pseudo === 'Alice', r.erreur || r);
   const id = r.match.pvp.id;
   r = await rpcJoueur(db, U.Alice, 'pvp_chercher');
-  verif('Alice relance la recherche : elle retrouve le match (côté a)', r.match?.pvp?.id === id && r.match.pvp.cote === 'a', r);
+  verif('Alice relance la recherche : elle retrouve le match', r.match?.pvp?.id === id, r);
   // coup d'envoi : les deux prêts
   let va = await rpcJoueur(db, U.Alice, 'pvp_choix', ['rapide:33', 'pression', null, 0, false, 0]);
   verif('Alice prête : on attend Bob', va.bloc === 0 && va.pvp.pretEux === false, va.erreur || va.pvp);
@@ -87,9 +114,12 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('Alice invite Chloé', !!inv.invitation, inv.erreur || inv);
   verif('Chloé la voit (état)', (await rpcJoueur(db, U.Chloe, 'mon_etat')).pvp.invitations[0]?.de === 'Alice');
   r = await rpcJoueur(db, U.Chloe, 'pvp_repondre', [inv.invitation, true]);
-  verif('Chloé accepte : match non classé (côté b)', r.match?.pvp?.classe === false && r.match.pvp.cote === 'b', r.erreur || r);
+  verif('Chloé accepte : présentation d’un match non classé, l’équipe d’Alice', r.prepa?.classe === false && r.prepa.adversaire.pseudo === 'Alice', r.erreur || r);
   r = await rpcJoueur(db, U.Alice, 'pvp_attendre', [inv.invitation]);
-  verif('Alice l’apprend en attendant : le match (côté a)', r.statut === 'acceptee' && r.match.pvp.cote === 'a', r);
+  verif('Alice l’apprend en attendant : la présentation, l’équipe de Chloé', r.statut === 'acceptee' && r.prepa?.adversaire?.pseudo === 'Chloe', r);
+  await q(`update pvp_matchs set meta = meta || jsonb_build_object('prochain', extract(epoch from now()) - 1) where statut = 'prepa'`);
+  r = await rpcJoueur(db, U.Alice, 'pvp_vue', [0]);
+  verif('la minute de présentation passée : le match commence (côté a)', r.pvp?.statut === 'direct' && r.pvp.cote === 'a' && r.pvp.classe === false, r.erreur || r.pvp);
   verif('un visiteur : refusé', erreur(await rpcJoueur(db, null, 'pvp_chercher')));
 
   // ── 2. deux navigateurs
@@ -115,12 +145,24 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const ft = await D.$eval('#pvp-file', x => x.textContent);
   verif(`file façon LoL : temps écoulé et estimé (« ${ft.replace(/\s+/g, ' ').trim()} »)`, /0:0[1-4]/.test(ft) && /estimé [0-2]:\d\d/.test(ft) && /Annuler/.test(ft));
   if (SP) await D.screenshot({path: SP + '/pvp-file.png'});
+  // pendant la file, Dani fait autre chose (son Club) : le bandeau le suit
+  await D.click('.tabs a[href="#club"]').catch(() => D.goto(web.url + '#club'));
+  await D.waitForTimeout(800);
+  verif('pendant la file : on peut aller ailleurs (Club), le bandeau reste', await D.evaluate(() => location.hash === '#club' && !document.querySelector('#pvp-file').hidden && !!FILE.t));
   await E.goto(web.url + '#classe'); await E.waitForSelector('.cl-arene');
   await E.click('[data-act="pvp-chercher"]');
-  await Promise.all([D.waitForSelector('.pvp-vs', {timeout: 8000}), E.waitForSelector('.pvp-vs', {timeout: 8000})]);
-  const vs = await E.$eval('.pvp-vs', x => x.textContent);
-  verif('« Adversaire trouvé ! » des deux côtés', /Adversaire trouvé/.test(vs) && /Dani/.test(vs));
-  if (SP) await E.screenshot({path: SP + '/pvp-vs.png'});
+  await Promise.all([D.waitForSelector('#pvp-pret', {timeout: 8000}), E.waitForSelector('#pvp-pret', {timeout: 8000})]);
+  const pt = await D.$eval('#pvp-pret', x => x.textContent);
+  verif(`« Match trouvé ! » par-dessus le Club, Prêt / Annuler, sans l’adversaire (« ${pt.replace(/\s+/g, ' ').trim()} »)`, /Match trouvé/.test(pt) && /Prêt/.test(pt) && /Annuler/.test(pt) && !/Eva/.test(pt));
+  if (SP) await D.screenshot({path: SP + '/pvp-pret.png'});
+  await D.click('[data-act="pvp-accepter"]'); await E.click('[data-act="pvp-accepter"]');
+  await Promise.all([D.waitForSelector('#pvp-pres', {timeout: 8000}), E.waitForSelector('#pvp-pres', {timeout: 8000})]);
+  const pres = await E.evaluate(() => ({txt: document.querySelector('#pvp-pres').textContent, cd: document.querySelector('.pr-cd').textContent, large: document.documentElement.scrollWidth}));
+  verif(`présentation : l’équipe de Dani, ses bonus, compte à rebours (« ${pres.cd.trim()} »)`, /Équipe de Dani/.test(pres.txt) && /Bonus de ses tactiques/.test(pres.txt) && /\d+ s/.test(pres.cd) && pres.large <= 390, pres.cd);
+  if (SP) await E.screenshot({path: SP + '/pvp-pres.png'});
+  await E.click('[data-act="pvp-pret-prepa"]'); await E.waitForTimeout(1500);
+  verif('Eva prête : elle attend Dani', /En attente de Dani/.test(await E.$eval('.pr-etat', x => x.textContent)) && !!(await E.$('#pvp-pres')));
+  await D.click('[data-act="pvp-pret-prepa"]');
   await Promise.all([D.waitForSelector('.md.pvp .md-panneau:not([hidden]) .md-cd'), E.waitForSelector('.md.pvp .md-panneau:not([hidden]) .md-cd')]);
   const envoi = await D.evaluate(() => ({titre: document.querySelector('.md-panneau h3').textContent, cd: document.querySelector('.md-cd').textContent,
     vit: getComputedStyle(document.querySelector('.md-vit')).display, sim: getComputedStyle(document.querySelector('.md-sim')).display}));
@@ -132,7 +174,10 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('les deux prêts : le match se raconte des deux côtés', true);
   await Promise.all([D.waitForFunction(() => document.querySelector('.md-min').textContent === "5'", null, {timeout: 20000}),
     E.waitForFunction(() => document.querySelector('.md-min').textContent === "5'", null, {timeout: 20000})]);
-  const sc = async pg => pg.evaluate(() => [document.querySelector('.md-sa').textContent, document.querySelector('.md-sb').textContent]);
+  // le score de la 1re tranche, une fois toute la tranche racontée des deux côtés (le dernier but peut être encore en l'air)
+  const fini5 = () => !MD.file.some(x => x.t <= 300) && MD.evs.length > 0;
+  await Promise.all([D.waitForFunction(fini5, null, {timeout: 10000}), E.waitForFunction(fini5, null, {timeout: 10000})]);
+  const sc = async pg => pg.evaluate(() => { const l = MD.evs.filter(x => x.t <= 300 && x.s).at(-1); return l ? l.s.map(String) : ['0', '0']; });
   const [sd, se] = [await sc(D), await sc(E)];
   verif(`à 5', le même score des deux côtés (Dani ${sd.join('-')}, Eva ${se.join('-')})`, sd[0] === se[1] && sd[1] === se[0]);
   // deux réponses avec les mêmes événements (relève et « Prêt » en même temps : match de Rémi et Maël, 23 nov. 2026) : comptés une fois
@@ -189,6 +234,9 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('Eva voit « Dani te défie en direct ! »', /Dani te défie en direct/.test(await E.$eval('#pvp-invit', x => x.textContent)));
   if (SP) await E.screenshot({path: SP + '/pvp-invit.png'});
   await E.click('[data-pvp-inv$=":1"]');
+  await Promise.all([E.waitForSelector('#pvp-pres', {timeout: 10000}), D.waitForSelector('#pvp-pres', {timeout: 10000})]);
+  verif('défi accepté : la présentation des équipes des deux côtés', /Défi en direct/.test(await D.$eval('.pr-cd', x => x.textContent)));
+  await D.click('[data-act="pvp-pret-prepa"]'); await E.click('[data-act="pvp-pret-prepa"]');
   await Promise.all([E.waitForSelector('.md.pvp', {timeout: 10000}), D.waitForSelector('.md.pvp', {timeout: 10000})]);
   verif('défi accepté : le match en direct s’ouvre des deux côtés', /Défi accepté/.test('Défi accepté') && !!(await D.$('.md.pvp')));
   for (const pg of [D, E, F]) verif('aucune erreur de page', !pg.erreurs.length, pg.erreurs);

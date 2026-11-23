@@ -123,11 +123,11 @@ function celebrer(niveaux) {
 }
 
 // ── vues ────────────────────────────────────────────────────────────────────────
-const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, classe: vueClasse, pieces: vuePieces, defis: vueDefis,
+const VUES = {accueil: vueAccueil, club: vueClub, equipe: vueEquipe, jouer: vueJouer, championnat: vueChampionnat, classe: vueClasse, salon: vueSalon, pieces: vuePieces, defis: vueDefis,
   ligue: vueLigue, pronos: vuePronos, clubs: vueClubs, albums: vueAlbums, staff: vueStaff,
   social: vueSocial, classement: vueClassement, marche: vueMarche, paris: vueParis, compte: vueCompte};
 // sous-pages : l'onglet qui reste allumé, et le retour
-const ONGLET = {championnat: 'jouer', classe: 'jouer', pieces: 'jouer', defis: 'jouer', ligue: 'jouer', pronos: 'social', clubs: 'social', albums: 'club', staff: 'club', classement: 'social', marche: 'social', paris: 'social'};
+const ONGLET = {championnat: 'jouer', classe: 'jouer', salon: 'social', pieces: 'jouer', defis: 'jouer', ligue: 'jouer', pronos: 'social', clubs: 'social', albums: 'club', staff: 'club', classement: 'social', marche: 'social', paris: 'social'};
 const retour = (h, l) => `<a class="retour" href="#${h}">‹ ${l}</a>`;
 // onglet demandé dans l'adresse (#club…) ; tout le reste, dont les retours de connexion, mène à l'accueil
 function vueCourante() {
@@ -1479,6 +1479,9 @@ function texteMD(x) {
     tactique: `${x.adj ? 'Ton adjoint passe en' : 'Tu passes en'} <b>${NOM_ATT[String(x.v).split(':')[0]] || ''}</b> · <b>${NOM_DEF[String(x.v).split(':')[1]] || ''}</b>${x.cons && x.cons !== 'normal' ? ` · ${x.cons === 'pression' ? 'pression' : 'prudent'}` : ''}`,
     attaque: `${esc(MD.vue?.eux?.nom || '')} change d’attaque : regarde d’où partent ses tirs`,
     consigne: `${esc(MD.vue?.eux?.nom || '')} passe en jeu ${x.v === 'pression' ? 'sous <b>pression</b>' : x.v === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}`,
+    momentum: `🔥 <b>${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}</b> prend le momentum !`,
+    'momentum-fin': x.par === 'mi-temps' ? 'La mi-temps fait retomber le momentum'
+      : `⏱️ Le temps mort ${x.v ? 'casse le momentum' : 'coupe l’élan'} de <b>${esc((x.c === 'b' ? MD.vue?.eux?.nom : MD.vue?.nous?.nom) || '')}</b>`,
     'mi-temps': 'Mi-temps', defense: `${esc(MD.vue?.eux?.nom || '')} change de défense : <b>${NOM_DEF[x.v] || ''}</b>`,
     'tactique-adv': `${esc(MD.vue?.eux?.nom || '')} ${[x.def ? `passe en défense <b>${NOM_DEF[x.def] || ''}</b>` : '', x.att ? 'change d’attaque : regarde d’où partent ses tirs' : '',
       x.cons ? `joue ${x.cons === 'pression' ? 'sous <b>pression</b>' : x.cons === 'prudent' ? '<b>prudent</b>' : '<b>normal</b>'}` : ''].filter(Boolean).join(', ') || 'change de tactique'}`,
@@ -1511,6 +1514,10 @@ function ouvrirDirect(vue, reprise) {
       <div class="md-mn"><b class="md-min">0'</b><small class="md-per">1re période</small></div>
       <div class="md-eq b"><small>${esc(vue.eux.nom)}</small><b class="md-sb">0</b><i class="md-ex b" hidden>2'</i></div>
       <button class="md-x" aria-label="Quitter le match (il reste en pause)">✕</button></div>
+    <div class="md-mom" aria-label="Momentum"><span class="mm-pips a"><i></i><i></i><i></i></span>
+      <div class="mm-zone"><div class="mm-rail"><span class="mm-m a"><i class="mm-f"></i></span><span class="mm-m b"><i class="mm-f"></i></span><i class="mm-c"></i></div>
+        <div class="mm-feu"><i class="mm-plein"></i><span class="mm-fl">${'<i></i>'.repeat(10)}</span><b class="mm-badge">🔥 MOMENTUM</b></div></div>
+      <span class="mm-pips b"><i></i><i></i><i></i></span><i class="mm-onde"></i></div>
     <div class="md-terrain"><svg viewBox="-1.5 -1.5 43 23" aria-hidden="true">
       <rect class="md-sol" x="0" y="0" width="40" height="20" rx=".3"/>
       <path class="md-zone" d="M40 2.5 A6 6 0 0 0 34 8.5 V11.5 A6 6 0 0 0 40 17.5 Z M0 2.5 A6 6 0 0 1 6 8.5 V11.5 A6 6 0 0 1 0 17.5 Z"/>
@@ -1530,7 +1537,7 @@ function ouvrirDirect(vue, reprise) {
   const h0 = Math.max(vue.bloc * 300, Math.round((vue.minute || 0) * 60));
   Object.assign(MD, {el, vue, evs: [], file: [], h: h0, finBloc: h0, attente: true, fin: null, tab: null, tabSel: null, timers: [], ts: 0,
     tac: vue.nous.tactique, cons: vue.nous.consigne || 'normal', defB: vue.eux.defense, vitesse: vitesseMD(), onglet: 'direct',
-    exclu: {a: 0, b: 0}, pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
+    exclu: {a: 0, b: 0}, mom: momVide(), pts: Object.fromEntries([...el.querySelectorAll('[data-pt]')].map(g => [g.dataset.pt, g])), svg: el.querySelector('svg')});
   if (!/^(duels|enclenchement|rapide):(06|15|33)$/.test(MD.tac)) MD.tac = `${tactiqueActuelle().att}:${tactiqueActuelle().def}`;
   // match à deux en direct : même écran, rythme ×1 imposé, pas de « Simuler » ; le serveur est interrogé toutes les secondes ou deux
   Object.assign(MD, {pvp: vue.pvp || null, gen: vue.pvp?.gen ?? 0, n: (vue.evenements || []).length, pvpRecu: Date.now(), pvpPostes: vue.pvp?.choix?.postes || [],
@@ -1576,8 +1583,49 @@ function fermerDirect(parRetour, sansRoute) {
   if (!sansRoute) route(true);
 }
 // une ligne au fil + score et stats (sans animation : reprise, ou fin simulée)
+// momentum (demande de Maël, 23 nov. 2026) : la barre suit les événements racontés, en direct : chaque action la remplit ou la vide
+// un peu (m = sa valeur après l'action, + = nous) ; « momentum » = elle se bloque (toute la barre s'enflamme), « momentum-fin » = un
+// temps mort ou la mi-temps la casse
+const momVide = () => ({v: 0, lock: null, serie: {c: null, n: 0}});
+function momNoter(x, muet) {
+  const M = MD.mom || (MD.mom = momVide());
+  const avant = M.v;
+  if (typeof x.m === 'number' && !M.lock) M.v = x.m;
+  if (x.ty === 'but' || x.ty === '7m-but') {
+    M.serie = M.serie.c === x.c ? {c: x.c, n: M.serie.n + 1} : {c: x.c, n: 1};
+  } else if (x.ty === 'momentum') {
+    M.lock = x.c; if (typeof x.m === 'number') M.v = x.m;
+    if (!muet) { momOnde(x.c); vibrer([30, 40, 90]); }
+  } else if (x.ty === 'momentum-fin') {
+    if (!muet && x.v) momEclats(x.c || M.lock);
+    Object.assign(M, momVide());
+  } else if (x.ty === 'mi-temps') Object.assign(M, momVide());
+  else if (M.v === avant) return;
+  majMom();
+}
+function majMom() {
+  const el = MD.el?.querySelector('.md-mom'); if (!el) return;
+  const M = MD.mom || momVide();
+  el.querySelector('.mm-m.a .mm-f').style.transform = `scaleX(${Math.max(0, M.v) / 100})`;
+  el.querySelector('.mm-m.b .mm-f').style.transform = `scaleX(${Math.max(0, -M.v) / 100})`;
+  el.classList.toggle('lock-a', M.lock === 'a'); el.classList.toggle('lock-b', M.lock === 'b');
+  for (const c of ['a', 'b']) el.querySelectorAll(`.mm-pips.${c} i`).forEach((p, i) => p.classList.toggle('on', M.serie.c === c && i < M.serie.n));
+}
+function momOnde(c) {
+  const o = MD.el?.querySelector('.mm-onde'); if (!o) return;
+  o.className = `mm-onde ${c}`; void o.offsetWidth; o.classList.add('go');
+}
+function momEclats(c) {
+  const el = MD.el?.querySelector('.md-mom'); if (!el || !c) return;
+  for (let i = 0; i < 12; i++) {
+    const e = document.createElement('i'); e.className = `mm-eclat ${c}`;
+    e.style.setProperty('--dx', Math.round(Math.random() * 140 - 70) + 'px'); e.style.setProperty('--dy', Math.round(Math.random() * 50 - 34) + 'px');
+    el.appendChild(e); setTimeout(() => e.remove(), 800);
+  }
+}
 function noterMD(x, muet) {
   MD.evs.push(x);
+  momNoter(x, muet);
   if (x.ty === 'defense') MD.defB = x.v;
   if (x.ty === 'tactique-adv' && x.def) MD.defB = x.def;
   if (x.ty === 'excl') MD.exclu[x.c] = x.t + 120;
@@ -1618,6 +1666,9 @@ function animerMD(x, D) {
   const tir = TIRS_MD.includes(x.ty), c = x.c;
   MD.svg.style.setProperty('--md-dur', Math.round(Math.max(90, Math.min(520, D * .3))) + 'ms');
   const fin = () => { noterMD(x); sonMD(x); };
+  // le momentum se bloque au but qui vient d'être raconté : on attend que le ballon soit au fond
+  if (x.ty === 'momentum') return MD.timers.push(setTimeout(() => { if (!MD.el) return; fin();
+    flashMD(`🔥 Momentum<small>${esc((x.c === 'b' ? MD.vue.eux.nom : MD.vue.nous.nom) || '')}</small>`, x.c === 'b' ? 'b' : 'a'); }, Math.max(450, D * .85)));
   if (!tir && x.ty !== 'perte') {
     fin();
     if (x.ty === 'excl') flashMD(`2 minutes<small>${esc(nomCourt(x.n))}</small>`, 'ex');
@@ -1625,6 +1676,7 @@ function animerMD(x, D) {
     else if (x.ty === 'attaque') flashMD('Nouvelle attaque<small>à deviner</small>', 'b');
     else if (x.ty === 'consigne') flashMD(x.v === 'pression' ? 'Ils pressent !' : x.v === 'prudent' ? 'Ils gèrent' : 'Jeu normal', 'b');
     else if (x.ty === 'mi-temps') { flashMD('Mi-temps', 'tm'); formationDepart(); }
+    else if (x.ty === 'momentum-fin' && x.v && x.par === 'tm') flashMD('Momentum cassé', 'tm');
     else if (x.ty === 'defense') flashMD(`Défense ${NOM_DEF[x.v] || ''}`, 'tm');
     else if (x.ty === 'changement') flashMD(`Changement<small>${esc(nomCourt(x.n))} entre</small>`, 'tm');
     else if (x.ty === 'blessure') {   // le match s'arrête et le banc s'ouvre : il faut le remplacer (il joue diminué en attendant)
@@ -1654,7 +1706,7 @@ function animerMD(x, D) {
 }
 function sonMD(x) {
   const s = {but: x.c === 'a' ? 'but' : 'encaisse', '7m-but': x.c === 'a' ? 'but' : 'encaisse', arret: 'arret', '7m-arret': 'arret', poteau: 'poteau',
-    dehors: 'rate', excl: 'sifflet', 'temps-mort': 'sifflet', 'mi-temps': 'buzzer'}[x.ty];
+    dehors: 'rate', excl: 'sifflet', 'temps-mort': 'sifflet', 'mi-temps': 'buzzer', momentum: x.c === 'a' ? 'montee' : 'notif', 'momentum-fin': x.v ? 'dechire' : null}[x.ty];
   if (s && MD.vitesse < 4 || ['but', '7m-but', 'mi-temps'].includes(x.ty) && s) Son.jouer(s);
 }
 function boucleMD(ts) {
@@ -1663,7 +1715,8 @@ function boucleMD(ts) {
   if (!MD.attente) {
     MD.h = Math.min(MD.h + dt * MD.vitesse / MS_SEC, MD.finBloc);
     while (MD.file.length && MD.file[0].t <= MD.h && !MD.attente) {
-      const x = MD.file.shift(), suivant = MD.file[0]?.t ?? x.t + 30;
+      // durée jusqu'à la prochaine seconde différente (un but et le momentum, ou une exclusion, tombent à la même seconde)
+      const x = MD.file.shift(), suivant = MD.file.find(y => y.t > x.t)?.t ?? x.t + 30;
       animerMD(x, Math.max(120, Math.min(1500, (suivant - x.t) * MS_SEC / MD.vitesse * .95)));
     }
     majHorlogeMD();
@@ -2050,7 +2103,7 @@ function pvpRebobiner(v) {
   if (!MD.el || !v?.pvp) return;
   // pendant un temps mort, les deux écrans se calent sur la seconde du serveur (celui qui était en retard rattrape, l'autre revient en arrière)
   const P = v.pvp, h = P.pause ? P.pause.h : P.h, montre = P.pause ? h : Math.min(MD.h, h);
-  MD.evs = []; MD.file = []; MD.exclu = {a: 0, b: 0};
+  MD.evs = []; MD.file = []; MD.exclu = {a: 0, b: 0}; MD.mom = momVide();
   MD.el.querySelector('.md-fil').innerHTML = '';
   MD.el.querySelector('.md-sa').textContent = '0'; MD.el.querySelector('.md-sb').textContent = '0';
   for (const x of v.evenements || []) { if (x.t <= montre) noterMD(x, true); else MD.file.push(x); }
@@ -2142,14 +2195,99 @@ function fileTick(forcer) {
   const ecoule = FILE.attente + (Date.now() - FILE.recu) / 1000;
   el.innerHTML = `<span class="pf-anim" aria-hidden="true">⚔️</span><div class="pf-t"><b>${chronoTx(ecoule)}</b><small>Recherche d’un adversaire · estimé ${chronoTx(FILE.estime)}</small></div>
     <button class="pf-x" data-act="pvp-annuler">Annuler</button>`;
-  if (FILE.req || (!forcer && Math.round(ecoule) % 2)) return;
+  if (FILE.req || (!forcer && !$('#pvp-pret') && Math.round(ecoule) % 2)) return;   // match trouvé : chaque seconde
   FILE.req = true;
   Compte.pvpChercher().then(r => {
     FILE.req = false; if (!FILE.t) return;
-    if (r.match) { arreterFile(); return pvpTrouve(r.match); }
-    if (r.fantome === true && r.vue) { arreterFile(); return pvpTrouve(r.vue, true); }
+    if (r.propose) return pvpPropose(r.propose);
+    if (r.prepa) { arreterFile(); return pvpPrepa(r.prepa); }
+    if (r.match) { arreterFile(); fermerPropose(); return ouvrirDirect(r.match); }
+    if (r.fantome === true && r.vue) { arreterFile(); fermerPropose(); return pvpTrouve(r.vue, true); }
+    // l'adversaire a refusé (ou n'a pas répondu) alors qu'on avait accepté : retour dans la file
+    if ($('#pvp-pret')) { fermerPropose(); toast('L’adversaire n’a pas accepté : tu restes dans la file'); }
     FILE.attente = r.attente; FILE.recu = Date.now(); FILE.estime = r.estime ?? 120;
   }).catch(e => { FILE.req = false; arreterFile(); toast(e.message || 'Recherche impossible'); });
+}
+// « Match trouvé ! » (demande de Maël, 23 nov. 2026, comme dans LoL) : par-dessus tout le jeu, sans montrer l'adversaire, 15 s pour
+// accepter ; sans réponse, c'est un refus ; si l'autre refuse, on reste dans la file
+function pvpPropose(P) {
+  let el = $('#pvp-pret');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'pvp-pret'; el.setAttribute('role', 'alertdialog'); document.body.appendChild(el);
+    Son.jouer('notif'); vibrer([60, 60, 120]);
+    FILE.pretFin = Date.now() + (P.reste ?? 15) * 1000; FILE.pretOk = false;
+    clearInterval(FILE.pretT); FILE.pretT = setInterval(() => majPropose(), 250);
+  }
+  FILE.pretOk = FILE.pretOk || P.accepte;
+  majPropose();
+}
+function majPropose() {
+  const el = $('#pvp-pret'); if (!el) return clearInterval(FILE.pretT);
+  const reste = Math.max(0, (FILE.pretFin - Date.now()) / 1000);
+  if (reste <= 0 && !FILE.pretOk) { refuserPropose(true); return; }   // pas de réponse : refusé
+  // la fenêtre est dessinée une fois ; seuls le rond et les secondes changent (un bouton redessiné sans cesse rate les touchers)
+  if (!el.firstChild) el.innerHTML = `<div class="pp-boite"><p class="pp-titre">⚔️ Match trouvé !</p><div class="pp-rond"><b></b></div>
+    <div class="pp-btns"><button class="btn gold large" data-act="pvp-accepter">Prêt</button><button class="btn ghost" data-act="pvp-refuser">Annuler</button></div></div>`;
+  const rond = el.querySelector('.pp-rond'); rond.style.setProperty('--p', (reste / 15).toFixed(3)); rond.firstChild.textContent = Math.ceil(reste);
+  const btns = el.querySelector('.pp-btns');
+  if (FILE.pretOk && btns) btns.outerHTML = '<p class="pp-att">Prêt ✓ · en attente de l’adversaire…</p>';
+}
+function fermerPropose() { clearInterval(FILE.pretT); $('#pvp-pret')?.remove(); }
+function accepterPropose() {
+  FILE.pretOk = true; majPropose(); Son.jouer('clic');
+  Compte.pvpAccepter(true).then(r => {
+    if (r.prepa) { arreterFile(); pvpPrepa(r.prepa); }
+    else if (r.annule) { fermerPropose(); toast('Match annulé'); }
+  }).catch(e => toast(e.message || 'Action impossible'));
+}
+function refuserPropose(silence) {
+  fermerPropose(); arreterFile();
+  Compte.pvpAccepter(false).catch(() => {});
+  toast(silence ? 'Tu n’as pas répondu : match refusé, tu sors de la file' : 'Match refusé');
+}
+// présentation (demande de Maël) : l'équipe adverse, ses stats et ses bonus, une minute au plus ou jusqu'à ce que les deux soient prêts
+const PREPA = {t: null, fin: 0, req: false, d: null};
+function pvpPrepa(P) {
+  fermerPropose();
+  PREPA.d = P; PREPA.fin = Date.now() + (P.reste ?? 60) * 1000;
+  let el = $('#pvp-pres');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'pvp-pres'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Présentation du match');
+    document.body.appendChild(el); document.body.classList.add('avec-intro');
+    Son.jouer('sifflet'); vibrer([30, 40, 60]);
+    el.innerHTML = `<div class="pr-haut"><div class="pr-vs"><div><b>${esc(S().pseudo)}</b><small>${nb(S().pvp?.trophees ?? 0)} 🏆</small></div><i>VS</i>
+        <div><b>${esc(P.adversaire?.pseudo || '')}</b><small>${nb(P.adversaire?.trophees ?? 0)} 🏆</small></div></div>
+      <p class="pr-cd"></p></div>
+      <div class="pr-corps"><h3>Équipe de ${esc(P.adversaire?.pseudo || '')}</h3>${P.equipe ? equipeCorpsHTML(P.equipe, true) : '<p class="sub">Équipe inconnue.</p>'}</div>
+      <div class="pr-bas"><button class="btn gold large" data-act="pvp-pret-prepa">Prêt</button><p class="pr-etat"></p></div>`;
+    clearInterval(PREPA.t); PREPA.t = setInterval(prepaTick, 1000);
+  }
+  majPrepa();
+}
+function majPrepa() {
+  const el = $('#pvp-pres'), P = PREPA.d; if (!el || !P) return;
+  const reste = Math.max(0, Math.ceil((PREPA.fin - Date.now()) / 1000));
+  el.querySelector('.pr-cd').innerHTML = `${P.classe === false ? 'Défi en direct' : 'Classé'} · le match commence dans <b>${reste} s</b>`;
+  const b = el.querySelector('[data-act="pvp-pret-prepa"]'); b.disabled = !!P.pret; b.textContent = P.pret ? 'Prêt ✓' : 'Prêt';
+  el.querySelector('.pr-etat').textContent = P.pretEux ? `${P.adversaire?.pseudo || 'L’adversaire'} est prêt(e)` : P.pret ? `En attente de ${P.adversaire?.pseudo || 'l’adversaire'}…` : '';
+}
+function prepaTick() {
+  if (!$('#pvp-pres')) return clearInterval(PREPA.t);
+  majPrepa();
+  if (PREPA.req) return;
+  PREPA.req = true;
+  Compte.pvpVue(0).then(v => { PREPA.req = false; prepaRecevoir(v); }).catch(() => { PREPA.req = false; });
+}
+function prepaRecevoir(v) {
+  if (v?.prepa) { PREPA.d = {...PREPA.d, ...v.prepa, equipe: PREPA.d?.equipe}; PREPA.fin = Date.now() + (v.prepa.reste ?? 0) * 1000; return majPrepa(); }
+  const vue = v?.match || (v?.pvp ? v : null);
+  if (vue) { fermerPrepa(); ouvrirDirect(vue); }
+  else if (v?.aucun || v?.annule) { fermerPrepa(); toast('Le match a été annulé'); }
+}
+function fermerPrepa() { clearInterval(PREPA.t); $('#pvp-pres')?.remove(); if (!MD.el) document.body.classList.remove('avec-intro'); }
+function pretPrepa() {
+  if (PREPA.d) PREPA.d.pret = true; majPrepa(); Son.jouer('clic');
+  Compte.pvpAccepter(true).then(prepaRecevoir).catch(e => toast(e.message || 'Action impossible'));
 }
 function arreterFile(annuler) {
   clearInterval(FILE.t); FILE.t = null;
@@ -2171,7 +2309,10 @@ function pvpTrouve(vue, fantome) {
 }
 function reprendrePvp() {
   if (occupe) return;
-  action(Compte.pvpVue(0), v => { if (v?.pvp && v.pvp.statut === 'direct') ouvrirDirect(v, true); else { toast('Ce match est terminé'); Compte.rafraichir().then(() => route(true)).catch(() => {}); } });
+  action(Compte.pvpVue(0), v => {
+    if (v?.prepa) return pvpPrepa(v.prepa);
+    if (v?.propose) { if (!FILE.t) pvpChercher(); return pvpPropose(v.propose); }
+    if (v?.pvp && v.pvp.statut === 'direct') ouvrirDirect(v, true); else { toast('Ce match est terminé'); Compte.rafraichir().then(() => route(true)).catch(() => {}); } });
 }
 
 // ── l'écran Classé : trophées, arène, saison, classement
@@ -2204,7 +2345,9 @@ function vueClasse() {
     <h2>Arènes</h2><div class="cl-ars">${A.map(x => `<div class="cl-ar${x.i === D.arene ? ' on' : ''}${x.atteinte ? ' ok' : ''}"><b>${esc(x.nom)}</b><small>${nb(x.min)} 🏆</small>
       <span>${x.recompense ? rec(x.recompense) : ''}</span>${x.atteinte && x.i ? '<em>✓</em>' : ''}</div>`).join('')}</div>
     <h2>Classement</h2><div class="classe av-m">${(D.classement || []).map((x, i) => `<div class="${x.moi ? 'moi-l' : ''}">${avatarHTML(x.perso)}<b>${i + 1}. ${lienJ(x.pseudo)}</b>
-      <small>${esc(x.arene || '')}</small><em>${nb(x.trophees)} 🏆</em></div>`).join('') || '<p class="sub">Personne n’a encore de trophée : sois le premier !</p>'}</div>
+      <small>${esc(x.arene || '')}</small><em>${nb(x.trophees)} 🏆</em></div>`).join('') || '<p class="sub">Personne n’a encore de trophée : sois le premier !</p>'}
+      ${D.moi && !(D.classement || []).some(x => x.moi) ? `<p class="cl-sep" aria-hidden="true">⋯</p><div class="moi-l">${avatarHTML(D.moi.perso)}<b>${D.moi.rang}. ${esc(D.moi.pseudo)}</b>
+      <small>${esc(D.moi.arene || '')}</small><em>${nb(D.moi.trophees)} 🏆</em></div>` : ''}</div>
     ${(D.derniers || []).length ? `<h2>Derniers matchs</h2><div class="hists">${D.derniers.map(r => `<div class="hist r-${r.resultat}"><b>${(r.score || []).join(' – ')}</b>
       <span>${r.classe ? 'Classé' : 'Défi'} · ${r.fantome ? esc(r.adversaire) : lienJ(r.adversaire)}</span><small>${RES[r.resultat] || ''}${r.trophees != null ? ` · ${r.trophees >= 0 ? '+' : ''}${r.trophees} 🏆` : ''}</small></div>`).join('')}</div>` : ''}`;
 }
@@ -2231,11 +2374,8 @@ function invTick() {
   INV.req = true;
   Compte.pvpAttendre(INV.id).then(r => {
     INV.req = false; if (!INV.t) return;
-    if (r.statut === 'acceptee') { arreterInv(); return pvpTrouve(r.match); }
-    if (r.statut !== 'attente') {
-      const qui = INV.pour; arreterInv();
-      demander(`${qui} ${r.statut === 'refusee' ? 'a refusé' : 'n’a pas répondu'}. Jouer contre son équipe, coachée par l’ordinateur ?`, 'Jouer').then(oui => oui && fenetreDefi(qui));
-    }
+    if (r.statut === 'acceptee') { arreterInv(); return r.prepa ? pvpPrepa(r.prepa) : r.match ? ouvrirDirect(r.match) : null; }
+    if (r.statut !== 'attente') { const qui = INV.pour; arreterInv(); toast(`${qui} ${r.statut === 'refusee' ? 'a refusé ton défi' : 'n’a pas répondu'}`); }
   }).catch(() => { INV.req = false; });
 }
 function arreterInv(annuler) {
@@ -2260,7 +2400,7 @@ function repondreInvitation(id, oui) {
   (majInvitations.refusees || (majInvitations.refusees = new Set())).add(id);
   if (!oui) return Compte.pvpRepondre(id, false).catch(() => {});
   if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat VS Ordi)');
-  action(Compte.pvpRepondre(id, true), r => { if (r.match) pvpTrouve(r.match); });
+  action(Compte.pvpRepondre(id, true), r => { if (r.prepa) pvpPrepa(r.prepa); else if (r.match) ouvrirDirect(r.match); });
 }
 
 // ── transferts (23 nov. 2026, demande de Maël : les listes « 7 voulus / 7 à donner » ne donnaient aucun échange, il fallait un joueur
@@ -2566,7 +2706,8 @@ function fenetrePari(rid, choix) {
 function vueSocial() {
   const porte = (h, ic, t, st) => `<a class="porte social" href="#${h}"><span class="porte-ic" aria-hidden="true">${ic}</span><b>${t}</b><small>${st}</small></a>`;
   return `<h1>Social</h1>
-    <div class="portes">${porte('classement', '🏅', 'Classement', 'Le niveau de poule de chaque joueur')}
+    <div class="portes">${porte('salon', '🟢', 'En ligne', `${nEnLigne() ? `${nEnLigne()} joueur${nEnLigne() > 1 ? 's' : ''} en ligne · ` : ''}le salon de tous les joueurs`)}
+    ${porte('classement', '🏅', 'Classement', 'Le niveau de poule de chaque joueur')}
     ${porte('marche', '⇄', 'Transferts', 'Marché, boîte à échanges et demandes au club').replace('</a>', nTransferts() ? `<b class="pastille">${nTransferts()}</b></a>` : '</a>')}
     ${porte('paris', '🎟️', 'Paris', 'Les vrais matchs du Médoc')}
     ${porte('pronos', '🔮', 'Pronos', 'Devine le score et le buteur des matchs du week-end')}
@@ -2574,6 +2715,46 @@ function vueSocial() {
     <p class="sub petit">Tes ami(e)s sont dans la bulle en bas à droite : messages, échanges, défis.</p>`;
 }
 const SOC = {classement: null, amis: null, charge: {}, recu: {}, ajout: '', echange: null, panneau: null, conv: null};
+// Salon « En ligne » (demande de Maël, 23 nov. 2026) : qui est là, et un fil ouvert à tous les joueurs (messages gardés 7 jours).
+// Relu toutes les 4 s tant que la page est ouverte ; seul le fil est redessiné, jamais le champ (comme la bulle des ami(e)s)
+const SAL = {msgs: [], dernier: 0, en: [], t: null, req: false, d: null};
+function vueSalon() {
+  if (!SAL.t) { SAL.t = setInterval(salonTick, 4000); salonTick(true); }
+  const D = SAL.d || {};
+  return `${retour('social', 'Social')}<h1>En ligne</h1>
+    <div class="sal-en" id="sal-en">${salonEnHTML()}</div>
+    <div class="sal-fil" id="sal-fil">${salonFilHTML()}</div>
+    ${D.muet ? '<p class="sub petit">Tu ne peux pas écrire dans le salon pour l’instant.</p>' : `<form class="ajout-ami sal-f" data-form="salon"><input class="champ" name="texte" maxlength="${D.longueur || 300}" placeholder="Écris à tous les joueurs" autocomplete="off" required>
+      <button class="btn gold" type="submit">Envoyer</button></form>`}
+    <p class="sub petit">Tout le monde peut lire le salon. Reste correct et ne donne jamais d’informations personnelles (nom, adresse, téléphone…).</p>`;
+}
+const salonEnHTML = () => SAL.en.length ? SAL.en.map(x => `<span class="sal-j${x.moi ? ' sal-moi' : ''}">${avatarHTML(x.perso)}<b>${x.moi ? 'Toi' : lienJ(x.pseudo)}</b></span>`).join('')
+  : '<p class="sub petit">Chargement…</p>';
+function salonFilHTML() {
+  if (!SAL.msgs.length) return `<p class="sub petit centre">${SAL.d ? 'Personne n’a encore écrit : lance la discussion !' : 'Chargement…'}</p>`;
+  const adm = SAL.d?.admin;
+  return SAL.msgs.map(m => `<p class="msg sal-m${m.moi ? ' moi' : ''}" data-id="${m.id}">${m.moi ? '' : `<b class="sal-p">${lienJ(m.pseudo)}</b>`}<span>${esc(m.texte)}</span>
+    <small>${new Date(m.le).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'})}${adm ? ` <button class="lien" data-sal-suppr="${m.id}">🗑</button>${m.moi ? '' : ` <button class="lien" data-sal-muet="${esc(m.pseudo)}">🔇</button>`}` : ''}</small></p>`).join('');
+}
+function salonMaj(r) {
+  if (!r) return;
+  SAL.d = r;
+  const vus = new Set(SAL.msgs.map(m => m.id)), sup = new Set(r.supprimes || []);
+  SAL.msgs = SAL.msgs.concat((r.messages || []).filter(m => !vus.has(m.id))).filter(m => !sup.has(m.id)).slice(-120);
+  SAL.dernier = Math.max(SAL.dernier, ...SAL.msgs.map(m => m.id), 0);
+  SAL.en = r.enLigne || [];
+  S().enLigne = SAL.en.filter(x => !x.moi).map(x => x.pseudo);
+  const f = $('#sal-fil'), en = $('#sal-en');
+  if (en) en.innerHTML = salonEnHTML();
+  if (f) { const bas = f.scrollHeight - f.scrollTop - f.clientHeight < 60, html = salonFilHTML(); if (f.innerHTML !== html) { f.innerHTML = html; if (bas || !f.dataset.vu) f.scrollTop = f.scrollHeight; f.dataset.vu = 1; } }
+}
+function salonTick(forcer) {
+  if (vueCourante() !== 'salon') { clearInterval(SAL.t); SAL.t = null; return; }
+  if (SAL.req || (!forcer && document.hidden)) return;
+  SAL.req = true;
+  // un message effacé par l'admin : on relit tout (rare)
+  Compte.salonLire(forcer ? 0 : SAL.dernier).then(salonMaj).catch(e => { if (forcer) toast(e.message); }).finally(() => { SAL.req = false; });
+}
 // Classement, ligue, clubs, pronos : relus à chaque visite de la page s'ils datent de plus de 15 s (la page montre d'abord ceux
 // qu'elle a, puis se met à jour). Avant, ils n'étaient chargés qu'une fois par session : les victoires du club ne bougeaient pas
 // après des défis gagnés (retour de Guilhem, 21 nov. 2026 ; le serveur les comptait bien)
@@ -2591,14 +2772,18 @@ function vueClassement() {
     <p class="sub">Le niveau de poule de chaque joueur inscrit, du plus haut au plus bas.${moi >= 0 ? ` Tu es <b>${ordinal(moi + 1)}</b>.` : ''}
       Touche un joueur pour <b>voir son équipe</b>.</p>
     ${!L ? '<p class="sub">Chargement…</p>' : `<div class="classe poules">${L.map((x, i) => `<button class="cl-l${x.moi ? ' moi-l' : ''}" data-voir-equipe="${esc(x.pseudo)}"
-      aria-label="Voir l’équipe de ${esc(x.pseudo)}"><span>${i + 1}</span><b>${esc(x.pseudo)}</b>
+      aria-label="Voir l’équipe de ${esc(x.pseudo)}"><span>${i + 1}</span><b>${esc(x.pseudo)}${x.moi ? '' : pastilleEL(x.pseudo)}</b>
       <small>${esc(x.groupe === 'Légendes' ? x.nom : x.groupe + ' · ' + x.nom)}</small><em>niv. ${x.niveau}</em><i class="cl-eq" aria-hidden="true">Équipe ›</i></button>`).join('')
       || '<p class="sub">Personne pour l’instant.</p>'}</div>`}`;
 }
 // Pseudo d'un autre joueur, partout où il s'affiche (demande de Maël, retour de Guit, 20 nov. 2026 : pas seulement depuis le
 // classement) : un toucher ouvre son équipe. Pas de lien pour soi-même ni pour un compte supprimé.
+// en ligne (demande de Maël, 23 nov. 2026) : une pastille verte pour qui a joué dans les 2 dernières minutes (etat → enLigne)
+const enLigne = pseudo => !!pseudo && (S().enLigne || []).some(x => x.toLowerCase() === String(pseudo).toLowerCase());
+const nEnLigne = () => (S().enLigne || []).length;
+const pastilleEL = pseudo => enLigne(pseudo) ? '<i class="pt-vert" title="En ligne" aria-label="en ligne"></i>' : '';
 const lienJ = pseudo => !pseudo || pseudo === 'Joueur supprimé' || pseudo.toLowerCase() === String(S().pseudo || '').toLowerCase() ? esc(pseudo || '?')
-  : `<button class="lien-j" data-voir-equipe="${esc(pseudo)}" aria-label="Voir l’équipe de ${esc(pseudo)}">${esc(pseudo)}</button>`;
+  : `<button class="lien-j" data-voir-equipe="${esc(pseudo)}" aria-label="Voir l’équipe de ${esc(pseudo)}">${esc(pseudo)}${pastilleEL(pseudo)}</button>`;
 // « Voir l'équipe » (demande de Maël) : ce que joue un autre joueur du classement, en lecture seule. Le serveur donne ses 7 alignés,
 // sa tactique, sa carte staff et sa note d'équipe calculée comme en match (equipe_publique) ; ses légendes viennent avec leur carte.
 const EQDE = {d: null, pseudo: '', ami: null};
@@ -2611,6 +2796,15 @@ function voirEquipe(pseudo, depuisFiche) {
     .then(() => { if (EQDE.d?.pseudo?.toLowerCase() !== pseudo.toLowerCase() && !$('#overlay').hidden) cacherOverlay(); });
 }
 function fenetreEquipeDe(d) {
+  ouvrirOverlay(`<div class="sheet eq-de">${EQDE.ami ? `<button class="retour" data-ami="${esc(EQDE.ami)}">‹ ${esc(EQDE.ami)}</button>` : ''}
+    <div class="eqde-t">${avatarHTML(d.perso)}<div><h3>${d.moi ? 'Ton équipe' : 'Équipe de ' + esc(d.pseudo)}</h3>
+      <small>${esc(d.groupe === 'Légendes' ? d.poule : d.groupe + ' · ' + d.poule)} · niv. ${d.niveau}</small></div></div>
+    ${equipeCorpsHTML(d)}
+    <button class="btn" data-act="fermer" style="width:100%">Fermer</button></div>`);
+}
+// l'équipe d'un autre joueur : note, collectif, tactique, terrain, staff, cartes, remplaçants, bonus des tactiques
+// (lecture : sans fiche à ouvrir, pour la présentation d'un match à deux)
+function equipeCorpsHTML(d, lecture) {
   const [ta, td] = String(d.tactique || '').split(':'), att = TACT_ATT.find(x => x[0] === ta), def = TACT_DEF.find(x => x[0] === td);
   const pl = PLACEMENTS[def ? def[0] : '06'], H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;
   const al = {};
@@ -2623,26 +2817,23 @@ function fenetreEquipeDe(d) {
     const [x1, y1] = posDe(u), [x2, y2] = posDe(v);
     return `<line class="${coequipiers(a.c, b.c) ? 'or' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join('');
   // une légende n'a pas de fiche à ouvrir chez un autre (elle n'est pas dans le catalogue du jeu)
-  const ouvre = x => x && !x.j.legende ? ` data-voir-fiche="${x.c.id}" data-de="${esc(d.pseudo)}"` : '';
-  const slots = POSTES.map(p => { const x = al[p.id], [l, t] = posDe(p.id), tag = x && !x.j.legende ? 'button' : 'div';
+  const ouvre = x => x && !x.j.legende && !lecture ? ` data-voir-fiche="${x.c.id}" data-de="${esc(d.pseudo)}"` : '';
+  const slots = POSTES.map(p => { const x = al[p.id], [l, t] = posDe(p.id), tag = x && !x.j.legende && !lecture ? 'button' : 'div';
     return `<${tag} class="slot${p.gb ? ' gb' : ''}"${ouvre(x)} style="left:${l}%;top:${t}%">${x ? vignetteHTML(x.c) : '<span class="empty">–</span>'}${x?.j.capitaine ? '<i class="cap" aria-label="capitaine">C</i>' : ''}<em${x && horsPoste(x.c, p.id) ? ' class="hors"' : ''}>${p.id}</em></${tag}>`; }).join('');
   const st = d.staff && staffDe(d.staff.id);
   // ses remplaçants et le bonus de chaque tactique (demande de Maël, 21 nov. 2026)
   const banc = POSTES.map(p => { const j = (d.remplacants || []).find(x => x.poste === p.id); if (!j) return '';
     const c = j.legende ? Compte.carteDepuisLigne?.(j.legende) : PAR_ID[j.carte] && vueExemplaire(PAR_ID[j.carte], {palier: j.palier, note: j.note}); if (!c) return '';
-    const tag = j.legende ? 'div' : 'button';
-    return `<${tag} class="eqde-c"${j.legende ? '' : ` data-voir-fiche="${c.id}" data-de="${esc(d.pseudo)}"`}>${carteHTML(c)}<small>${p.id} · remplaçant</small></${tag}>`; }).join('');
+    const tag = j.legende || lecture ? 'div' : 'button';
+    return `<${tag} class="eqde-c"${j.legende || lecture ? '' : ` data-voir-fiche="${c.id}" data-de="${esc(d.pseudo)}"`}>${carteHTML(c)}<small>${p.id} · remplaçant</small></${tag}>`; }).join('');
   const T = d.tactiques, TR = d.tactiques_r, clsB = b => b >= .06 ? 'fort' : b <= .005 ? 'nul' : '';
   const tacBloc = liste => liste.map(([k, nom, sts]) => `<div class="tac${(k === ta || k === td) ? ' on' : ''}"><b>${nom}</b><small>${NOM_STAT[sts[0]]} · ${NOM_STAT[sts[1]]}</small>
     <em class="${clsB(T[k] || 0)}">+${pc100(T[k] || 0)}</em>${TR ? `<i class="tac-r ${clsB(TR[k] || 0)}">remplaçants +${pc100(TR[k] || 0)}</i>` : ''}</div>`).join('');
   const tacs = T ? `<h2>Bonus de ses tactiques</h2><p class="sub petit">Ce que chaque tactique lui rapporte, d’après les stats de son équipe${TR ? ' (en petit : avec ses remplaçants)' : ''}. Entourées : sa tactique de départ.</p>
     <h3 class="tac-t">Attaque</h3><div class="tacs">${tacBloc(TACT_ATT)}</div><h3 class="tac-t">Défense</h3><div class="tacs">${tacBloc(TACT_DEF)}</div>` : '';
-  const cartes = POSTES.filter(p => al[p.id]).map(p => { const x = al[p.id], tag = x.j.legende ? 'div' : 'button';
+  const cartes = POSTES.filter(p => al[p.id]).map(p => { const x = al[p.id], tag = x.j.legende || lecture ? 'div' : 'button';
     return `<${tag} class="eqde-c"${ouvre(x)}>${carteHTML(x.c)}<small>${p.id}${d.notes?.[p.id] != null ? ` · ${d.notes[p.id]} en match` : ''}</small></${tag}>`; }).join('');
-  ouvrirOverlay(`<div class="sheet eq-de">${EQDE.ami ? `<button class="retour" data-ami="${esc(EQDE.ami)}">‹ ${esc(EQDE.ami)}</button>` : ''}
-    <div class="eqde-t">${avatarHTML(d.perso)}<div><h3>${d.moi ? 'Ton équipe' : 'Équipe de ' + esc(d.pseudo)}</h3>
-      <small>${esc(d.groupe === 'Légendes' ? d.poule : d.groupe + ' · ' + d.poule)} · niv. ${d.niveau}</small></div></div>
-    ${Object.keys(al).length ? `<div class="teamnote"><div class="stat"><b>${d.note ?? '–'}</b><span>note d’équipe</span></div>
+  return `${Object.keys(al).length ? `<div class="teamnote"><div class="stat"><b>${d.note ?? '–'}</b><span>note d’équipe</span></div>
       <div class="stat"><b>+${d.collectif ?? 0}</b><span>collectif</span></div>
       <div class="stat"><b class="eqde-tac">${att ? att[1] : '–'}<br>${def ? def[1] : '–'}</b><span>tactique</span></div></div>
       <div class="pitch" style="aspect-ratio:20 / ${H}">${terrainSVG()}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
@@ -2652,8 +2843,7 @@ function fenetreEquipeDe(d) {
       ${banc ? `<h2>Ses remplaçants</h2><div class="eqde-cartes">${banc}</div>` : ''}
       ${tacs}
       ${d.note == null ? '<p class="sub petit">Note d’équipe : il faut 7 joueurs alignés.</p>' : ''}`
-      : '<p class="sub">Aucun joueur aligné pour l’instant.</p>'}
-    <button class="btn" data-act="fermer" style="width:100%">Fermer</button></div>`);
+      : '<p class="sub">Aucun joueur aligné pour l’instant.</p>'}`;
 }
 // Ami(e)s (la bulle) : la liste, puis pour chaque ami(e) : message, échange, défi
 function chargerAmis() { return Compte.mesAmis().then(d => { SOC.amis = d; return d; }); }
@@ -2671,7 +2861,7 @@ function panneauAmis() {
     ${recus.length ? `<p class="sub petit">${recus.length} échange${recus.length > 1 ? 's' : ''} proposé${recus.length > 1 ? 's' : ''} : touche l’ami(e) pour répondre.</p>` : ''}
     <div class="liste-amis">${A.amis.map(x => { const r = recus.some(e => e.de === x.pseudo);
       return `<button class="ami-l" data-ami="${esc(x.pseudo)}"><i class="ami-av" aria-hidden="true">${esc(x.pseudo[0].toUpperCase())}</i>
-        <span><b>${esc(x.pseudo)}</b><small>${esc(x.nom || '')} · niveau ${x.niveau}</small></span>
+        <span><b>${esc(x.pseudo)}${pastilleEL(x.pseudo)}</b><small>${enLigne(x.pseudo) ? 'en ligne · ' : ''}${esc(x.nom || '')} · niveau ${x.niveau}</small></span>
         ${x.nonLus ? `<em class="ami-n">${x.nonLus} message${x.nonLus > 1 ? 's' : ''}</em>` : r ? '<em class="ami-n">échange</em>' : ''}</button>`; }).join('')
       || '<p class="sub petit">Pas encore d’ami(e) : ajoute un pseudo ci-dessus.</p>'}</div>
     ${A.envoyees.length ? `<p class="sub petit">En attente de réponse : ${A.envoyees.map(lienJ).join(', ')}</p>` : ''}
@@ -2803,6 +2993,7 @@ function fenetreCompte() {
     <details class="perso"><summary>Personnaliser mon profil</summary>
       <h4>Avatar</h4>${choix('avatar')}<h4>Cadre</h4>${choix('cadre')}<h4>Fond</h4>${choix('fond')}
       <p class="sub petit">Les autres les voient dans les classements, la ligue et les clubs. Débloque-en dans le passe, les albums et la ligue.</p></details>
+    <button class="son-b presence${S().invisible ? '' : ' on'}" data-act="presence" aria-pressed="${!S().invisible}"><span aria-hidden="true">🟢</span>Les autres me voient en ligne<b>${S().invisible ? 'Non' : 'Oui'}</b></button>
     <div class="sons">${[['musique', '🎵', 'Musique'], ['effets', '🔊', 'Bruitages']].map(([k, ic, l]) =>
       `<button class="son-b${Son.reglages[k] ? ' on' : ''}" data-act="son-${k}" aria-pressed="${Son.reglages[k]}"><span aria-hidden="true">${ic}</span>${l}<b>${Son.reglages[k] ? 'Oui' : 'Non'}</b></button>`).join('')}</div>
     <button class="btn ghost" data-act="deconnexion">Se déconnecter</button>
@@ -3443,8 +3634,9 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
+  const t = e.target.closest('[data-act],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
+  if (t.closest('#pvp-pres') && !t.dataset.act) return;   // présentation d'un match à deux : rien à ouvrir derrière
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
   if (d.fposte) { filtrePoste = d.fposte; return route(true); }
@@ -3527,6 +3719,12 @@ document.addEventListener('click', e => {
   if (a === 'reprendre-match') return reprendreMatch();
   if (a === 'defi-live') { const ps = SOC.defi; cacherOverlay(); return pvpInviter(ps); }
   if (a === 'pvp-chercher') { pvpChercher(); return route(true); }
+  if (a === 'presence') return action(Compte.reglerPresence(!S().invisible), () => { toast(S().invisible ? 'Tu apparais hors ligne' : 'Les autres te voient en ligne'); fenetreCompte(); });
+  if (d.salSuppr) return demander('Effacer ce message pour tout le monde ?', 'Effacer').then(oui => oui && Compte.salonSupprimer(+d.salSuppr).then(r => { SAL.msgs = []; SAL.dernier = 0; salonMaj(r); }).catch(er => toast(er.message)));
+  if (d.salMuet) return demander(`Empêcher ${d.salMuet} d’écrire dans le salon pendant 24 h ?`, 'Oui').then(oui => oui && Compte.salonMuet(d.salMuet, 24).then(r => { salonMaj(r); toast(`${d.salMuet} ne peut plus écrire pendant 24 h`); }).catch(er => toast(er.message)));
+  if (a === 'pvp-accepter') return accepterPropose();
+  if (a === 'pvp-refuser') return refuserPropose();
+  if (a === 'pvp-pret-prepa') return pretPrepa();
   if (a === 'pvp-annuler') { arreterFile(true); toast('Recherche annulée'); return route(true); }
   if (a === 'pvp-inv-annuler') { arreterInv(true); return toast('Invitation annulée'); }
   if (a === 'pvp-reprendre') return reprendrePvp();
@@ -3633,6 +3831,11 @@ document.addEventListener('submit', e => {
   if (quoi === 'profil') return action(Compte.creerProfil(d.pseudo, !!d.accord), () => { location.hash = '#accueil'; route(); });
   if (quoi === 'ami') return action(Compte.ajouterAmi(d.pseudo), r => { SOC.amis = r; SOC.ajout = '';
     toast(r.amis.some(x => x.pseudo.toLowerCase() === d.pseudo.trim().toLowerCase()) ? 'Vous êtes ami(e)s !' : 'Demande envoyée'); panneauAmis(); });
+  if (quoi === 'salon') {
+    const champ = f.querySelector('[name=texte]'), texte = champ.value;
+    return Compte.salonEcrire(texte, SAL.dernier).then(r => { champ.value = ''; salonMaj(r); const fl = $('#sal-fil'); if (fl) fl.scrollTop = fl.scrollHeight; })
+      .catch(er => toast(er.message || 'Message non envoyé'));
+  }
   if (quoi === 'message') return action(Compte.envoyerMessage(SOC.ami, d.texte), c => {   // le clavier reste ouvert : on vide le champ, seul le fil change
     SOC.conv = c; f.reset(); majConversation(); const fil = $('#fil-msg'); if (fil) fil.scrollTop = fil.scrollHeight; });
 });
@@ -3935,7 +4138,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=93').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=94').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

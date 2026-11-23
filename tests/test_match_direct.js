@@ -60,7 +60,7 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
     && r.gains?.pieces === Math.round(P.pve_pieces[res] * g) && r.gains.xp === Math.round(P.pve_xp[res] * g) && r.gains.xpCarte === Math.round(P.pve_xp_carte[res] * g),
     {gains: r.gains, attendu: [P.pve_pieces[res] * g, P.pve_xp[res] * g]});
   // l'entraîneur adverse change lui aussi sans temps mort (style « rapide »), et n'en prend que mené de 3 buts ou plus
-  let libres = 0, tms = 0, tmsMalMenes = 0;
+  let libres = 0, tms = 0, tmsMalMenes = 0, tmsMom = 0;
   const ia = (await q("select match_ia('rapide') i"))[0].i;
   for (let i = 0; i < 25; i++) {
     let x = (await q(`select match_nouveau('championnat', '{}', $1::jsonb, $1::jsonb, 'duels:06', 'normal', $2, '15') e`,
@@ -69,12 +69,13 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
     for (let k = 0; k < 12; k++) x = (await q('select match_bloc_jouer($1::jsonb) e', [JSON.stringify(x)]))[0].e;
     for (const v of x.ev) {
       if (v.c !== 'b') continue;
-      if (v.ty === 'temps-mort') { tms++; if (v.s[1] - v.s[0] > -3) tmsMalMenes++; }
+      // un temps mort pour casser notre momentum bloqué (23 nov. 2026) se prend à tout score
+      if (v.ty === 'temps-mort') { tms++; if (x.ev.some(w => w.ty === 'momentum-fin' && w.par === 'tm' && w.t === v.t)) tmsMom++; else if (v.s[1] - v.s[0] > -3) tmsMalMenes++; }
       if ((v.ty === 'defense' || v.ty === 'attaque') && v.t !== 1800 && !x.ev.some(w => w.c === 'b' && w.ty === 'temps-mort' && w.t === v.t)) libres++;
     }
   }
   verif(`l’entraîneur adverse change sans temps mort (${libres} fois en 25 matchs, contre une tactique figée)`, libres >= 5, libres);
-  verif(`il ne prend un temps mort que mené de 3 buts ou plus (${tms} temps morts)`, tmsMalMenes === 0, tmsMalMenes);
+  verif(`il ne prend un temps mort que mené de 3 buts ou plus, ou pour casser notre momentum (${tms} temps morts, dont ${tmsMom} contre le momentum)`, tmsMalMenes === 0, tmsMalMenes);
   // « Simuler » : l'adjoint (match_adjoint) contre leur défense une tranche sur deux environ ; jamais de temps mort
   let contres = 0, essais = 0, adjTm = 0, adjEv = 0;
   for (let i = 0; i < 40; i++) {

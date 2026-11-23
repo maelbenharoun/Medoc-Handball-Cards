@@ -104,10 +104,14 @@ insert into parametres values (1, '{
     {"nom": "Légendes", "min": 3300, "recompense": {"pieces": 8000, "or": 3}}],
   "pvp_trophees_base": 30, "pvp_trophees_ecart": 20, "pvp_trophees_min": 10, "pvp_trophees_max": 50,
   "classe_pieces": {"gagne": 60, "nul": 25, "perdu": 10}, "pvp_gains_par_jour": 10, "pvp_ami_pieces": 30,
-  "pvp_fantome_secondes": 120, "pvp_pause_secondes": 20, "pvp_envoi_secondes": 30, "pvp_mi_temps_secondes": 30, "pvp_tranche_secondes": 12,
+  "pvp_fantome_secondes": 120, "pvp_accepter_secondes": 15, "pvp_prepa_secondes": 60, "pvp_pause_secondes": 20, "pvp_envoi_secondes": 15, "pvp_mi_temps_secondes": 30, "pvp_tranche_secondes": 12,
   "pvp_marge_secondes": 3, "pvp_absent_secondes": 30, "pvp_invitation_secondes": 120,
   "pvp_saison_seuil": 1000, "pvp_saison_recompenses": [{"pieces": 200}, {"pieces": 400, "bonus": 1}, {"pieces": 800, "bonus": 2}, {"pieces": 1200, "or": 1},
     {"pieces": 2000, "or": 1}, {"pieces": 3000, "or": 2}, {"pieces": 5000, "or": 3}],
+  "momentum_valeurs": {"but": 20, "but_dessus": 28, "7m-but": 14, "arret": 12, "7m-arret": 20, "perte": 10, "rate": 5, "excl": 10},
+  "momentum_max": 100, "momentum_effet": 0.10,
+  "en_ligne_minutes": 2, "salon_longueur": 300, "salon_intervalle_secondes": 3, "salon_par_jour": 200, "salon_jours": 7,
+  "momentum_ia": {"hasard": 0.3, "lent": 0.5, "reflechi": 0.75, "rapide": 0.9, "legende": 1},
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
 }'::jsonb)
 on conflict (id) do update set valeurs = excluded.valeurs || parametres.valeurs;
@@ -273,10 +277,28 @@ create table if not exists pvp_matchs (
   a uuid references profils on delete set null, b uuid references profils on delete set null,
   classe boolean not null default true,
   etat jsonb not null, meta jsonb not null default '{}',
-  statut text not null default 'direct' check (statut in ('direct', 'fini')),
+  statut text not null default 'direct' check (statut in ('propose', 'prepa', 'direct', 'fini', 'annule')),
   attente int, resultat jsonb,
   cree_le timestamptz not null default now(), maj timestamptz not null default now()
 );
+-- En ligne et salon (demande de Maël, 23 nov. 2026) : une pastille verte pour qui a joué dans les 2 dernières minutes (sauf s'il a
+-- choisi d'apparaître hors ligne) ; un salon de discussion ouvert à tous les joueurs, messages gardés 7 jours, modéré par l'admin
+alter table profils add column if not exists vu_le timestamptz;
+alter table profils add column if not exists invisible boolean not null default false;
+alter table profils add column if not exists salon_muet timestamptz;
+create table if not exists salon_messages (
+  id bigserial primary key,
+  user_id uuid not null references profils on delete cascade,
+  texte text not null,
+  supprime boolean not null default false,
+  le timestamptz not null default now()
+);
+create index if not exists salon_messages_le on salon_messages (le);
+alter table salon_messages enable row level security;
+revoke all on salon_messages from anon, authenticated;
+-- 23 nov. 2026 : « Match trouvé » à accepter (propose), présentation des équipes (prepa), match refusé (annule)
+alter table pvp_matchs drop constraint if exists pvp_matchs_statut_check;
+alter table pvp_matchs add constraint pvp_matchs_statut_check check (statut in ('propose', 'prepa', 'direct', 'fini', 'annule'));
 create index if not exists pvp_matchs_a on pvp_matchs (a, statut);
 create index if not exists pvp_matchs_b on pvp_matchs (b, statut);
 create table if not exists pvp_invitations (id uuid primary key default gen_random_uuid(),
@@ -1081,8 +1103,12 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'equipe', p.equipe, 'remplacants', p.remplacants, 'tactique', p.tactique, 'compos', coalesce(p.compos, '[]'),
     'matchDirect', (select jsonb_build_object('type', d.etat ->> 'type', 'adversaire', d.etat #>> '{b,nom}', 'minute', (d.etat ->> 't')::int / 60,
       'score', d.etat -> 'score') from matchs_direct d where d.user_id = p.user_id),
+    'invisible', p.invisible,
+    'enLigne', (select coalesce(jsonb_agg(x.pseudo order by lower(x.pseudo)), '[]') from (select x.pseudo from profils x
+      where x.vu_le > now() - make_interval(mins => parami('en_ligne_minutes')) and not x.invisible and x.pseudo is not null and x.user_id <> p.user_id
+      order by x.vu_le desc limit 200) x),
     'pvp', jsonb_build_object('trophees', p.trophees,
-      'match', (select m.id from pvp_matchs m where m.statut = 'direct' and p.user_id in (m.a, m.b) order by m.cree_le desc limit 1),
+      'match', (select m.id from pvp_matchs m where m.statut in ('propose', 'prepa', 'direct') and p.user_id in (m.a, m.b) order by m.cree_le desc limit 1),
       'file', (select extract(epoch from f.entree) from pvp_file f where f.user_id = p.user_id),
       'invitations', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'de', pr.pseudo,
           'reste', greatest(0, parami('pvp_invitation_secondes') - floor(extract(epoch from now() - i.cree_le))::int)) order by i.cree_le)
@@ -1268,6 +1294,7 @@ begin
     perform quetes_de_la_semaine(auth.uid());
     perform boite_servir();
     update profils set parcours = parcours_nouveau(1, null, pseudo) where user_id = auth.uid() and parcours is null;
+    update profils set vu_le = now() where user_id = auth.uid();   -- en ligne
   end if;
   return coalesce(etat_de(auth.uid()), '{"profil": false}'::jsonb);
 end $$;
@@ -2203,7 +2230,17 @@ declare a jsonb := e -> 'a'; b jsonb := e -> 'b'; att text := b ->> 'attaque'; d
   cons text := coalesce(b ->> 'consigne', 'normal'); ncons text; tm boolean := false;
   ia jsonb := coalesce(e -> 'ia', match_ia('reflechi')); p numeric := (ia ->> 'anticipe')::numeric; reac numeric := (ia ->> 'reac')::numeric;
   aa text := a ->> 'attaque'; ad text := a ->> 'defense'; aa2 text; ad2 text; x text; v numeric; vmax numeric; ud numeric; ua numeric; u numeric; nch int; nb int;
+  casse boolean := false;
 begin
+  -- notre momentum bloqué : il prend un temps mort pour le casser, s'il lui en reste (plus ou moins vite selon son style, momentum_ia)
+  if not p_mi_temps and e ->> 'momv' = 'a' and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2 and t > 0 and t < 3600
+    and random() < coalesce((param('momentum_ia') ->> coalesce(ia ->> 'style', 'reflechi'))::numeric, .75) then
+    tmb := tmb || jsonb_build_object('restants', (tmb ->> 'restants')::int - 1, per, (tmb ->> per)::int + 1);
+    b := b || jsonb_build_object('elan', t + 180, 'fatigue', greatest(0, (b ->> 'fatigue')::numeric - .02));
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'temps-mort', 's', e -> 'score'));
+    e := match_mom_casser(e || jsonb_build_object('tmb', tmb, 'b', b), 'b', 'tm');
+    casse := true;
+  end if;
   ncons := case when bl >= 8 and ecart <= -4 then 'pression' when bl >= 9 and ecart >= 5 then 'prudent' when ecart > -2 and cons = 'pression' then 'normal' else cons end;
   if ia ? 'hasard' then
     -- imprévisible : il ne lit pas le jeu, il change au hasard de temps en temps
@@ -2214,7 +2251,7 @@ begin
       if random() >= (ia #>> '{mi,0}')::numeric then ndef := def; end if;
       if random() >= (ia #>> '{mi,1}')::numeric then natt := att; end if;
     elsif random() < reac then
-      tm := ecart <= -3 and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2;
+      tm := not casse and ecart <= -3 and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2;
       if random() < .5 then ndef := def; else natt := att; end if;
     else
       return e;
@@ -2264,7 +2301,7 @@ begin
       if ia ? 'continu' then
         if u <= 0 or random() >= reac then natt := att; ndef := def; ncons := cons; end if;   -- Légendes : à chaque tranche, sans temps mort
       elsif random() < reac * u then
-        tm := ecart <= -3 and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2;   -- mené : il prend aussi un temps mort, pour l'élan
+        tm := not casse and ecart <= -3 and (tmb ->> 'restants')::int > 0 and (tmb ->> per)::int < 2;   -- mené : il prend aussi un temps mort, pour l'élan
       else
         natt := att; ndef := def; ncons := cons;   -- pas de changement (sauf s'il varie son attaque, plus bas)
       end if;
@@ -2293,7 +2330,7 @@ begin
     tmb := tmb || jsonb_build_object('restants', (tmb ->> 'restants')::int - 1, per, (tmb ->> per)::int + 1);
     b := b || jsonb_build_object('elan', t + 180, 'fatigue', greatest(0, (b ->> 'fatigue')::numeric - .02));
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'temps-mort', 's', e -> 'score'));
-    e := e || jsonb_build_object('tmb', tmb);
+    e := match_mom_casser(e || jsonb_build_object('tmb', tmb), 'b', 'tm');
   end if;
   if ndef <> def then e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'defense', 'v', ndef, 's', e -> 'score')); end if;
   if natt <> att then e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', 'b', 'ty', 'attaque', 's', e -> 'score')); end if;
@@ -2472,6 +2509,9 @@ declare x text; y text; eqx jsonb; eqy jsonb; t int; duree int; p numeric; ps nu
   m numeric := (param('match_contre') #>> '{}')::numeric; base numeric := parami('match_base');
   k numeric := (param('match_coef') #>> '{}')::numeric; POSS constant numeric := 55;
   exd numeric := coalesce((param('exclusion_defense') #>> '{}')::numeric, 1.25); exa numeric := coalesce((param('exclusion_attaque') #>> '{}')::numeric, 1);
+  mval jsonb := coalesce(param('momentum_valeurs'), '{}'); dm numeric;
+  mmax numeric := coalesce((param('momentum_max') #>> '{}')::numeric, 100); meff numeric := coalesce((param('momentum_effet') #>> '{}')::numeric, 0);
+  mom numeric; mlock boolean;
 begin
   t := (e ->> 't')::int; sc := e -> 'score';
   while t < p_fin loop
@@ -2494,6 +2534,10 @@ begin
     if (eqx ->> 'exclu')::int > t then p := p * exa; end if;
     if (eqx ->> 'elan')::int > t then p := p * 1.05; end if;
     if (eqy ->> 'elan')::int > t then p := p * .95; end if;
+    -- momentum (demande de Maël, 23 nov. 2026) : l'équipe qui l'a bloqué marque plus facilement (+10 %), l'autre moins (−10 %),
+    -- jusqu'à un temps mort de l'autre équipe ou la mi-temps (match_mom_casser)
+    if e ->> 'momv' = x then p := p * (1 + meff); elsif e ->> 'momv' = y then p := p * (1 - meff); end if;
+    mlock := false;
     if contre_pour = x then p := p * 1.35; zn := 'contre'; else zn := zone_tirage(eqx ->> 'attaque'); end if;
     e := e - 'contre';
     perte := case cx when 'prudent' then .08 when 'pression' then .13 else .11 end;
@@ -2528,11 +2572,41 @@ begin
       eqx := jsonb_set(eqx, '{stats,buts}', to_jsonb((eqx #>> '{stats,buts}')::int + 1));
       eqx := jsonb_set(eqx, array['stats', 'zones', zn], to_jsonb((eqx -> 'stats' -> 'zones' ->> zn)::int + 1));
     end if;
-    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', x, 'ty', ty, 'n', nom, 'g', gb, 'z', zn, 's', sc, 'x', eqx #> '{stats,xg}'));
+    -- chaque action pousse la barre de momentum (demande de Maël, 23 nov. 2026) : un but vers l'équipe qui marque (plus quand son
+    -- attaque a le dessus sur leur défense), un arrêt, une perte de balle ou un tir raté vers l'équipe qui défend (momentum_valeurs) ;
+    -- à 100, elle se bloque (momv) et ne bouge plus jusqu'à ce qu'on la casse
+    dm := null;
+    if not e ? 'momv' then
+      dm := case ty when 'but' then case when ctr > 0 then coalesce((mval ->> 'but_dessus')::numeric, 28) else coalesce((mval ->> 'but')::numeric, 20) end
+        when '7m-but' then coalesce((mval ->> '7m-but')::numeric, 14) when 'arret' then -coalesce((mval ->> 'arret')::numeric, 12)
+        when '7m-arret' then -coalesce((mval ->> '7m-arret')::numeric, 20) when 'perte' then -coalesce((mval ->> 'perte')::numeric, 10)
+        else -coalesce((mval ->> 'rate')::numeric, 5) end;
+      mom := least(mmax, greatest(-mmax, coalesce((e ->> 'mom')::numeric, 0) + case x when 'a' then 1 else -1 end * dm));
+      e := e || jsonb_build_object('mom', mom);
+      mlock := abs(mom) >= mmax;
+    end if;
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || (jsonb_build_object('t', t, 'c', x, 'ty', ty, 'n', nom, 'g', gb, 'z', zn, 's', sc, 'x', eqx #> '{stats,xg}')
+      || case when dm is not null then jsonb_build_object('m', e -> 'mom') else '{}'::jsonb end));
+    if mlock then
+      e := e || jsonb_build_object('momv', case when mom > 0 then 'a' else 'b' end);
+      e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', e ->> 'momv', 'ty', 'momentum', 'm', e -> 'mom', 's', sc));
+    end if;
     -- faute en défense : 2 minutes (plus souvent sous pression, moins en jouant prudent)
     if ty <> 'perte' and random() < .045 * (case cy when 'pression' then 1.6 when 'prudent' then .6 else 1 end) and (eqy ->> 'exclu')::int <= t then
       eqy := jsonb_set(eqy, '{exclu}', to_jsonb(t + 120)); eqy := jsonb_set(eqy, '{stats,excl}', to_jsonb((eqy #>> '{stats,excl}')::int + 1));
-      e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', y, 'ty', 'excl', 'n', joueur_zone(eqy -> 'joueurs', 'champ'), 's', sc));
+      mlock := false; dm := null;
+      if not e ? 'momv' then   -- l'équipe restée à 6 gagne du momentum
+        dm := coalesce((mval ->> 'excl')::numeric, 10);
+        mom := least(mmax, greatest(-mmax, coalesce((e ->> 'mom')::numeric, 0) + case x when 'a' then 1 else -1 end * dm));
+        e := e || jsonb_build_object('mom', mom);
+        mlock := abs(mom) >= mmax;
+      end if;
+      e := jsonb_set(e, '{ev}', (e -> 'ev') || (jsonb_build_object('t', t, 'c', y, 'ty', 'excl', 'n', joueur_zone(eqy -> 'joueurs', 'champ'), 's', sc)
+        || case when dm is not null then jsonb_build_object('m', e -> 'mom') else '{}'::jsonb end));
+      if mlock then
+        e := e || jsonb_build_object('momv', case when mom > 0 then 'a' else 'b' end);
+        e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', t, 'c', e ->> 'momv', 'ty', 'momentum', 'm', e -> 'mom', 's', sc));
+      end if;
     end if;
     -- fatigue : par minute jouée, selon la consigne ; sur le banc, on récupère (match_fatiguer, match_fat)
     eqx := match_fatiguer(eqx, duree);
@@ -2565,6 +2639,22 @@ begin
   end loop;
   return e || jsonb_build_object('t', t, 'score', sc);
 end $$;
+-- le momentum retombe : à la mi-temps (tout), ou sur un temps mort de l'équipe p_par quand la barre penche vers l'autre équipe
+-- (bloquée ou non) ; événement « momentum-fin » (v = elle était bloquée)
+create or replace function match_mom_casser(e jsonb, p_par text, p_cause text) returns jsonb language plpgsql immutable as $$
+declare mom numeric := coalesce((e ->> 'mom')::numeric, 0); v text := e ->> 'momv'; adv text := case p_par when 'a' then 'b' else 'a' end;
+begin
+  if p_cause = 'mi-temps' then
+    if mom = 0 and v is null then return e; end if;
+    e := (e - 'momv') || jsonb_build_object('mom', 0);
+    return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', v, 'ty', 'momentum-fin', 'par', 'mi-temps', 'm', 0,
+      'v', v is not null, 's', e -> 'score'));
+  end if;
+  if not (adv = 'a' and mom > 0 or adv = 'b' and mom < 0) then return e; end if;
+  e := (e - 'momv') || jsonb_build_object('mom', 0);
+  return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', adv, 'ty', 'momentum-fin', 'par', 'tm', 'm', 0,
+    'v', v is not null, 's', e -> 'score'));
+end $$;
 -- un bloc de 5 minutes ; à la mi-temps, l'adversaire peut s'adapter et l'équipe récupère un peu
 -- Une tranche : on garde l'état du match à son début (debut, sans le fil ; debut_n = longueur du fil à ce moment ; servi = quand elle
 -- a été jouée, servi_t = sa première seconde) pour pouvoir y revenir : un changement de joueurs se fait à la seconde où on le
@@ -2587,6 +2677,7 @@ begin
   e := jsonb_set(e, '{bloc}', to_jsonb(b + 1));
   if b + 1 = 6 then
     e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', 1800, 'ty', 'mi-temps', 's', e -> 'score'));
+    e := match_mom_casser(e, null, 'mi-temps');
     e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,mt}')::numeric) else match_fat(e -> 'a', 0, 0, .5) end,
       'b', case when e -> 'b' ? 'fcfg' then match_fat(e -> 'b', 0, 0, 1, (e #>> '{b,fcfg,mt}')::numeric) when e -> 'b' ? 'fo' then match_fat(e -> 'b', 0, 0, 0) else match_fat(e -> 'b', 0, 0, .5) end);
     if not e ? 'pvp' then e := match_ordi(e, true); end if;   -- en match à deux, chaque équipe a son entraîneur humain
@@ -2603,6 +2694,7 @@ declare d jsonb := e -> 'debut'; n0 int := (e ->> 'debut_n')::int; t0 int; dt nu
   st jsonb := jsonb_build_object('a', e #> '{debut,a,stats}', 'b', e #> '{debut,b,stats}');
   ex jsonb := jsonb_build_object('a', coalesce((e #>> '{debut,a,exclu}')::int, 0), 'b', coalesce((e #>> '{debut,b,exclu}')::int, 0));
   der jsonb; prochain jsonb; c text; o text; balle text; contre text; bl jsonb := '[]'; blb jsonb := '[]'; ra jsonb; rb jsonb; kbl text; POSS constant text[] := array['but', '7m-but', '7m-arret', 'arret', 'poteau', 'dehors', 'perte'];
+  mom numeric := coalesce((e #>> '{debut,mom}')::numeric, 0); momv text := e #>> '{debut,momv}';
 begin
   t0 := (d ->> 't')::int; dt := greatest(0, h - t0); sc := d -> 'score'; balle := d ->> 'balle'; contre := d ->> 'contre';
   for x in select v from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k > n0 order by k loop
@@ -2627,6 +2719,8 @@ begin
     if x ->> 'ty' = any(POSS) then der := x; end if;
     if x ->> 'ty' = 'blessure' then if c = 'b' then blb := blb || to_jsonb(x ->> 'p'); else bl := bl || to_jsonb(x ->> 'p'); end if; end if;
     if x ? 'x' and c in ('a', 'b') then st := jsonb_set(st, array[c, 'xg'], x -> 'x'); end if;
+    if x ? 'm' then mom := (x ->> 'm')::numeric; end if;
+    if x ->> 'ty' = 'momentum' then momv := c; elsif x ->> 'ty' = 'momentum-fin' then momv := null; end if;
   end loop;
   if der is not null then
     balle := case der ->> 'c' when 'a' then 'b' else 'a' end;
@@ -2638,11 +2732,12 @@ begin
   for kbl in select jsonb_array_elements_text(bl) loop ra := match_blesser(ra, kbl); end loop;
   rb := match_fatiguer((d -> 'b') || jsonb_build_object('stats', st -> 'b', 'exclu', (ex ->> 'b')::int), dt);
   for kbl in select jsonb_array_elements_text(blb) loop rb := match_blesser(rb, kbl); end loop;   -- match à deux : l'autre équipe aussi
-  return d || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
-    't', h, 'score', sc, 'balle', balle,
+  return (d - 'momv') || jsonb_build_object('ev', (select coalesce(jsonb_agg(v order by k), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(v, k) where k <= n0) || garde,
+    't', h, 'score', sc, 'balle', balle, 'mom', mom,
     'a', ra,
     'b', rb,
-    'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t');
+    'debut', e -> 'debut', 'debut_n', n0, 'servi', e -> 'servi', 'servi_t', e -> 'servi_t')
+    || case when momv is not null then jsonb_build_object('momv', momv) else '{}'::jsonb end;
 end $$;
 -- ce que le jeu voit d'un match en cours : tout, sauf l'attaque adverse (à deviner) et les forces exactes
 create or replace function match_vue(e jsonb, p_depuis int default 0) returns jsonb language sql stable security definer set search_path = public as $$
@@ -2751,7 +2846,12 @@ end $$;
 -- défense et ta consigne et ne prend pas de temps mort : moins bien qu'un joueur attentif, mieux qu'une tactique figée.
 create or replace function match_adjoint(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare d text := e #>> '{b,defense}'; ma text := e #>> '{a,defense}'; att text;
+  t int := (e ->> 't')::int; per text := case when (e ->> 't')::int < 1800 then 'p1' else 'p2' end;
 begin
+  -- leur momentum bloqué : il prend un temps mort pour le casser, s'il nous en reste
+  if e ->> 'momv' = 'b' and t > 0 and t < 3600 and (e #>> '{tm,restants}')::int > 0 and coalesce((e -> 'tm' ->> per)::int, 0) < 2 then
+    e := match_tm_prendre(e);
+  end if;
   if d is null or ma is null or random() >= coalesce((param('match_simule_lecture') #>> '{}')::numeric, 0) then return e; end if;
   select y into att from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, d) = 1;
   if att is null or att = e #>> '{a,attaque}' then return e; end if;
@@ -2909,8 +3009,9 @@ begin
   e := jsonb_set(e, '{tm}', (e -> 'tm') || jsonb_build_object('restants', (e #>> '{tm,restants}')::int - 1, per, (e -> 'tm' ->> per)::int + 1));
   e := jsonb_set(e, '{a,elan}', to_jsonb((e ->> 't')::int + 180));
   e := e || jsonb_build_object('a', case when e -> 'a' ? 'fcfg' then match_fat(e -> 'a', 0, 0, 1, (e #>> '{a,fcfg,tm}')::numeric) else match_fat(e -> 'a', -.02, 0) end);
-  return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'temps-mort', 's', e -> 'score',
+  e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'temps-mort', 's', e -> 'score',
     'va', e #>> '{b,attaque}', 'vd', e #>> '{b,defense}'));
+  return match_mom_casser(e, 'a', 'tm');   -- il casse le momentum de l'adversaire
 end $$;
 -- la tactique et la consigne du joueur pour la tranche suivante : il peut en changer à chaque tranche, sans temps mort
 -- (demande de Maël, 14 nov. 2026 ; avant : seulement au coup d'envoi, à la mi-temps et sur un temps mort)
@@ -3020,6 +3121,7 @@ end $$;
 create or replace function pvp_miroir_ev(x jsonb) returns jsonb language sql immutable as $$
   select x || case when x ->> 'c' in ('a', 'b') then jsonb_build_object('c', case x ->> 'c' when 'a' then 'b' else 'a' end) else '{}'::jsonb end
     || case when jsonb_typeof(x -> 's') = 'array' then jsonb_build_object('s', jsonb_build_array(x #> '{s,1}', x #> '{s,0}')) else '{}'::jsonb end
+    || case when jsonb_typeof(x -> 'm') = 'number' then jsonb_build_object('m', -(x ->> 'm')::numeric) else '{}'::jsonb end
 $$;
 create or replace function pvp_miroir(e jsonb) returns jsonb language plpgsql immutable as $$
 declare r jsonb;
@@ -3030,6 +3132,9 @@ begin
   if e ? 'score' then r := r || jsonb_build_object('score', jsonb_build_array(e #> '{score,1}', e #> '{score,0}')); end if;
   if e ->> 'balle' in ('a', 'b') then r := r || jsonb_build_object('balle', case e ->> 'balle' when 'a' then 'b' else 'a' end); end if;
   if e ->> 'contre' in ('a', 'b') then r := r || jsonb_build_object('contre', case e ->> 'contre' when 'a' then 'b' else 'a' end); end if;
+  if e ? 'mom' then r := r || jsonb_build_object('mom', -coalesce((e ->> 'mom')::numeric, 0)); end if;
+  r := r - 'momv';
+  if e ->> 'momv' in ('a', 'b') then r := r || jsonb_build_object('momv', case e ->> 'momv' when 'a' then 'b' else 'a' end); end if;
   if jsonb_typeof(e -> 'ev') = 'array' then
     r := r || jsonb_build_object('ev', (select coalesce(jsonb_agg(pvp_miroir_ev(x) order by i), '[]') from jsonb_array_elements(e -> 'ev') with ordinality z(x, i)));
   end if;
@@ -3284,8 +3389,8 @@ begin
 end $$;
 -- le match à deux du joueur (en cours, ou fini depuis moins de 10 minutes : le jeu montre le résultat)
 create or replace function pvp_mon_match(p_uid uuid) returns pvp_matchs language sql stable security definer set search_path = public as $$
-  select * from pvp_matchs m where p_uid in (m.a, m.b) and (m.statut = 'direct' or m.maj > now() - interval '10 minutes')
-  order by (m.statut = 'direct') desc, m.cree_le desc limit 1
+  select * from pvp_matchs m where p_uid in (m.a, m.b) and m.statut <> 'annule' and (m.statut in ('propose', 'prepa', 'direct') or m.maj > now() - interval '10 minutes')
+  order by (m.statut in ('propose', 'prepa', 'direct')) desc, m.cree_le desc limit 1
 $$;
 -- Ordre des verrous : le match d'abord, puis les profils (moi(), et les deux profils à la fin du match) : deux joueurs qui
 -- interrogent le même match au même instant ne se bloquent jamais l'un l'autre
@@ -3297,6 +3402,10 @@ begin
   p := moi();
   if m.id is null then return jsonb_build_object('aucun', true); end if;
   c := case when m.a = p.user_id then 'a' else 'b' end;
+  if m.statut in ('propose', 'prepa') then
+    m := pvp_phase_maj(m.id);
+    if m.statut <> 'direct' then return pvp_phase_json(m, c); end if;
+  end if;
   if m.statut = 'direct' then
     update pvp_matchs set meta = jsonb_set(meta, array['vu', c], to_jsonb(pvp_maintenant())) where id = m.id;
     perform pvp_avancer(m.id);
@@ -3401,9 +3510,154 @@ begin
   return jsonb_build_object('match', r, 'adversaire', e #>> '{b,nom}', 'classe', true, 'fantome', true, 'note', e #> '{a,note}', 'noteAdversaire', e #> '{b,note}',
     'gains', jsonb_build_object('pieces', g, 'xp', x, 'trophees', tr -> 'delta'), 'trophees', tr, 'niveaux', niveaux, 'etat', etat_de(p_uid));
 end $$;
-create or replace function pvp_chercher() returns jsonb language plpgsql security definer set search_path = public as $$
-declare p profils := moi(); m pvp_matchs; f pvp_file; o pvp_file; att int; v_id uuid; v jsonb; est int;
+-- Salon « En ligne » : la liste de qui est là et les messages (les plus récents, 80 au plus), lisibles par tous les joueurs connectés
+create or replace function salon_vue(p profils, p_depuis bigint) returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'messages', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'pseudo', pr.pseudo, 'perso', perso_public(s.user_id), 'texte', s.texte, 'le', s.le,
+        'moi', s.user_id = p.user_id) order by s.id), '[]')
+      from (select * from salon_messages s where s.id > coalesce(p_depuis, 0) and not s.supprime and s.le > now() - make_interval(days => parami('salon_jours'))
+        order by s.id desc limit 80) s join profils pr on pr.user_id = s.user_id),
+    'supprimes', (select coalesce(jsonb_agg(s.id), '[]') from salon_messages s where s.supprime and s.le > now() - make_interval(days => parami('salon_jours'))),
+    'enLigne', (select coalesce(jsonb_agg(jsonb_build_object('pseudo', x.pseudo, 'perso', perso_public(x.user_id), 'niveau', x.niveau, 'moi', x.user_id = p.user_id)
+        order by x.user_id <> p.user_id, lower(x.pseudo)), '[]')
+      from (select * from profils x where x.pseudo is not null and (x.user_id = p.user_id or x.vu_le > now() - make_interval(mins => parami('en_ligne_minutes')) and not x.invisible)
+        order by x.vu_le desc limit 100) x),
+    'muet', case when p.salon_muet > now() then p.salon_muet end, 'admin', p.role = 'admin', 'longueur', parami('salon_longueur'))
+$$;
+create or replace function salon_lire(p_depuis bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
 begin
+  update profils set vu_le = now() where user_id = p.user_id;
+  return salon_vue(p, p_depuis);
+end $$;
+create or replace function salon_ecrire(p_texte text, p_depuis bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); t text := btrim(regexp_replace(coalesce(p_texte, ''), '\s+', ' ', 'g')); d timestamptz;
+begin
+  if p.salon_muet > now() then raise exception 'Tu ne peux plus écrire dans le salon pour l’instant'; end if;
+  if t = '' then raise exception 'Message vide'; end if;
+  if char_length(t) > parami('salon_longueur') then raise exception 'Message trop long (% caractères au plus)', parami('salon_longueur'); end if;
+  select max(le) into d from salon_messages where user_id = p.user_id;
+  if d > now() - make_interval(secs => parami('salon_intervalle_secondes')) then raise exception 'Doucement : un message toutes les % secondes', parami('salon_intervalle_secondes'); end if;
+  if (select count(*) from salon_messages where user_id = p.user_id and le >= debut_du_jour()) >= parami('salon_par_jour') then
+    raise exception 'Tu as écrit % messages aujourd’hui : reviens demain', parami('salon_par_jour');
+  end if;
+  insert into salon_messages (user_id, texte) values (p.user_id, t);
+  delete from salon_messages where le < now() - make_interval(days => parami('salon_jours'));
+  update profils set vu_le = now() where user_id = p.user_id;
+  return salon_vue(p, p_depuis);
+end $$;
+-- modération (admin) : effacer un message ; empêcher un joueur d'écrire pendant p_heures (0 = de nouveau permis)
+create or replace function salon_supprimer(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  if p.role <> 'admin' then raise exception 'Réservé à l’admin'; end if;
+  update salon_messages set supprime = true where id = p_id;
+  return salon_vue(p, 0);
+end $$;
+create or replace function salon_muet(p_pseudo text, p_heures int) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  if p.role <> 'admin' then raise exception 'Réservé à l’admin'; end if;
+  update profils set salon_muet = case when coalesce(p_heures, 0) > 0 then now() + make_interval(hours => least(p_heures, 24 * 30)) end
+    where lower(pseudo) = lower(p_pseudo);
+  if not found then raise exception 'Joueur inconnu'; end if;
+  return salon_vue(p, 0);
+end $$;
+-- apparaître hors ligne (fenêtre du compte)
+create or replace function regler_presence(p_invisible boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  update profils set invisible = coalesce(p_invisible, false) where user_id = p.user_id;
+  return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+-- Avant le match (demande de Maël, 23 nov. 2026, comme dans LoL) : « Match trouvé ! » à accepter en 15 s, sans voir l'adversaire
+-- (propose) ; un refus ou un silence annule le match et remet dans la file celui qui avait accepté ; puis une présentation des deux
+-- équipes, 60 s au plus ou jusqu'à ce que les deux soient prêts (prepa) ; puis le match (direct). On peut faire autre chose pendant la file.
+create or replace function pvp_phase_maj(p_id uuid) returns pvp_matchs language plpgsql security definer set search_path = public as $$
+declare m pvp_matchs; t numeric := pvp_maintenant(); s text; u uuid;
+begin
+  select * into m from pvp_matchs where id = p_id for update;
+  if not found then return m; end if;
+  if m.statut = 'propose' then
+    if coalesce((m.meta #>> '{accepte,a}')::boolean, false) and coalesce((m.meta #>> '{accepte,b}')::boolean, false) then
+      m.statut := 'prepa'; m.meta := m.meta || jsonb_build_object('prochain', t + parami('pvp_prepa_secondes'), 'pret_prepa', '{}'::jsonb);
+    elsif t >= coalesce((m.meta ->> 'limite')::numeric, 0) then
+      foreach s in array array['a', 'b'] loop
+        u := case s when 'a' then m.a else m.b end;
+        if u is not null and coalesce((m.meta #>> array['accepte', s])::boolean, false) then
+          insert into pvp_file (user_id, trophees, entree) select u, x.trophees, now() - make_interval(secs => coalesce(m.attente, 0)) from profils x where x.user_id = u
+            on conflict (user_id) do update set vu = now();
+        end if;
+      end loop;
+      m.statut := 'annule';
+    end if;
+  elsif m.statut = 'prepa' then
+    if coalesce((m.meta #>> '{pret_prepa,a}')::boolean, false) and coalesce((m.meta #>> '{pret_prepa,b}')::boolean, false)
+      or t >= coalesce((m.meta ->> 'prochain')::numeric, 0) then
+      m.statut := 'direct';
+      m.meta := m.meta || jsonb_build_object('prochain', t + parami('pvp_envoi_secondes'), 'vu', jsonb_build_object('a', t, 'b', t));
+    end if;
+  end if;
+  update pvp_matchs set statut = m.statut, meta = m.meta, maj = now() where id = m.id;
+  return m;
+end $$;
+-- ce que le jeu voit avant le match : à accepter (rien sur l'adversaire), présentation (son équipe, ses stats, ses bonus), ou le match
+create or replace function pvp_phase_json(m pvp_matchs, p_cote text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare t numeric := pvp_maintenant(); o text := case p_cote when 'a' then 'b' else 'a' end; adv profils;
+begin
+  if m.statut = 'propose' then
+    return jsonb_build_object('propose', jsonb_build_object('id', m.id, 'reste', greatest(0, round((m.meta ->> 'limite')::numeric - t, 1)),
+      'accepte', coalesce((m.meta #>> array['accepte', p_cote])::boolean, false)));
+  elsif m.statut = 'prepa' then
+    select * into adv from profils where user_id = case p_cote when 'a' then m.b else m.a end;
+    return jsonb_build_object('prepa', jsonb_build_object('id', m.id, 'classe', m.classe, 'reste', greatest(0, round((m.meta ->> 'prochain')::numeric - t, 1)),
+      'pret', coalesce((m.meta #>> array['pret_prepa', p_cote])::boolean, false), 'pretEux', coalesce((m.meta #>> array['pret_prepa', o])::boolean, false),
+      'adversaire', jsonb_build_object('pseudo', adv.pseudo, 'trophees', adv.trophees, 'perso', perso_public(adv.user_id)),
+      'equipe', case when adv.pseudo is not null then equipe_publique(adv.pseudo) end));
+  elsif m.statut = 'annule' then
+    return jsonb_build_object('annule', true);
+  end if;
+  return jsonb_build_object('match', pvp_vue_json(m, p_cote, 0));
+end $$;
+-- accepter (ou refuser) le match trouvé ; pendant la présentation : « Prêt »
+create or replace function pvp_accepter(p_oui boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; c text; o text; u uuid;
+begin
+  m := pvp_mon_match(auth.uid());
+  if m.id is null or m.statut not in ('propose', 'prepa') then raise exception 'Pas de match à accepter'; end if;
+  m := pvp_phase_maj(m.id);   -- le match d'abord, puis le profil (voir pvp_vue)
+  p := moi();
+  c := case when m.a = p.user_id then 'a' else 'b' end; o := case c when 'a' then 'b' else 'a' end;
+  if m.statut = 'propose' then
+    if not coalesce(p_oui, false) then
+      u := case o when 'a' then m.a else m.b end;   -- l'autre retourne dans la file s'il avait accepté
+      if u is not null and coalesce((m.meta #>> array['accepte', o])::boolean, false) then
+        insert into pvp_file (user_id, trophees, entree) select u, x.trophees, now() - make_interval(secs => coalesce(m.attente, 0)) from profils x where x.user_id = u
+          on conflict (user_id) do update set vu = now();
+      end if;
+      update pvp_matchs set statut = 'annule', maj = now() where id = m.id;
+      delete from pvp_file where user_id = p.user_id;
+      return jsonb_build_object('annule', true);
+    end if;
+    update pvp_matchs set meta = jsonb_set(meta, array['accepte', c], 'true') where id = m.id;
+  elsif m.statut = 'prepa' and coalesce(p_oui, false) then
+    update pvp_matchs set meta = jsonb_set(meta, '{pret_prepa}', coalesce(meta -> 'pret_prepa', '{}') || jsonb_build_object(c, true)) where id = m.id;
+  end if;
+  m := pvp_phase_maj(m.id);
+  return pvp_phase_json(m, c);
+end $$;
+create or replace function pvp_chercher() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils; m pvp_matchs; f pvp_file; o pvp_file; att int; v_id uuid; v jsonb; est int;
+begin
+  -- un match à accepter ou en présentation : sa phase (le match d'abord, puis le profil : voir pvp_vue)
+  m := pvp_mon_match(auth.uid());
+  if m.id is not null and m.statut in ('propose', 'prepa') then
+    m := pvp_phase_maj(m.id);
+    p := moi();
+    if m.statut in ('propose', 'prepa') then return pvp_phase_json(m, case when m.a = p.user_id then 'a' else 'b' end); end if;
+  else
+    p := moi();
+  end if;
   perform pvp_saison_maj(p.user_id);
   select * into p from profils where user_id = p.user_id;
   -- déjà dans un match à deux : on y va
@@ -3430,9 +3684,12 @@ begin
     -- celui qui attendait depuis le plus longtemps est a
     if o.entree <= f.entree then v_id := pvp_nouveau(o.user_id, p.user_id, true, greatest(att, floor(extract(epoch from now() - o.entree))::int));
     else v_id := pvp_nouveau(p.user_id, o.user_id, true, att); end if;
+    -- « Match trouvé ! » : les deux doivent accepter
+    update pvp_matchs set statut = 'propose', meta = meta || jsonb_build_object('accepte', jsonb_build_object('a', false, 'b', false),
+      'limite', pvp_maintenant() + parami('pvp_accepter_secondes')) where pvp_matchs.id = v_id;
     select * into m from pvp_matchs where pvp_matchs.id = v_id;
     perform noter(p.user_id, 'pvp-trouve', jsonb_build_object('match', v_id, 'attente', att));
-    return jsonb_build_object('match', pvp_vue_json(m, case when m.a = p.user_id then 'a' else 'b' end, 0));
+    return pvp_phase_json(m, case when m.a = p.user_id then 'a' else 'b' end);
   end if;
   if att >= parami('pvp_fantome_secondes') then
     delete from pvp_file where user_id = p.user_id;
@@ -3468,8 +3725,11 @@ begin
     'pieces', param('classe_pieces'), 'fantome', parami('pvp_fantome_secondes'),
     'classement', coalesce((select jsonb_agg(t order by t.trophees desc, lower(t.pseudo)) from (
       select x.pseudo, x.trophees, param('pvp_arenes') -> pvp_arene(x.trophees) ->> 'nom' arene, x.user_id = p.user_id moi, perso_public(x.user_id) perso
-      from profils x where x.trophees > 0 or x.user_id = p.user_id order by x.trophees desc limit 50) t), '[]'),
+      from profils x where x.trophees > 0 order by x.trophees desc, lower(x.pseudo) limit 10) t), '[]'),
+    -- le top 10, puis le joueur à son rang s'il n'y est pas (demande de Maël, 23 nov. 2026)
     'rang', (select count(*) + 1 from profils x where x.trophees > p.trophees),
+    'moi', jsonb_build_object('pseudo', p.pseudo, 'trophees', p.trophees, 'arene', param('pvp_arenes') -> pvp_arene(p.trophees) ->> 'nom',
+      'perso', perso_public(p.user_id), 'rang', (select count(*) + 1 from profils x where x.trophees > p.trophees)),
     'derniers', coalesce((select jsonb_agg(jsonb_build_object('adversaire', x.adversaire, 'score', x.score, 'resultat', x.resultat,
         'trophees', x.detail -> 'trophees', 'fantome', coalesce((x.detail ->> 'fantome')::boolean, false), 'classe', coalesce((x.detail ->> 'classe')::boolean, true), 'le', x.le) order by x.le desc)
       from (select * from rencontres x where x.user_id = p.user_id and x.type = 'pvp' order by x.le desc limit 8) x), '[]'));
@@ -3500,8 +3760,8 @@ begin
     update pvp_invitations set statut = 'expiree' where id = i.id; i.statut := 'expiree';
   end if;
   if i.statut = 'acceptee' then
-    select * into m from pvp_matchs where id = i.match;
-    return jsonb_build_object('statut', 'acceptee', 'match', pvp_vue_json(m, 'a', 0));
+    m := pvp_phase_maj(i.match);
+    return jsonb_build_object('statut', 'acceptee') || pvp_phase_json(m, 'a');
   end if;
   return jsonb_build_object('statut', i.statut, 'attente', ecoule, 'secondes', parami('pvp_invitation_secondes'),
     'pour', (select pseudo from profils where user_id = i.pour));
@@ -3518,13 +3778,16 @@ begin
     return jsonb_build_object('ok', true);
   end if;
   perform 1 from profils where user_id in (p.user_id, i.de) order by user_id for update;
-  if (pvp_mon_match(p.user_id)).statut = 'direct' or (pvp_mon_match(i.de)).statut = 'direct' then raise exception 'Un de vous deux a déjà un match en cours'; end if;
+  if (pvp_mon_match(p.user_id)).statut in ('propose', 'prepa', 'direct') or (pvp_mon_match(i.de)).statut in ('propose', 'prepa', 'direct') then raise exception 'Un de vous deux a déjà un match en cours'; end if;
   if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat VS Ordi)'; end if;
   delete from pvp_file where user_id in (p.user_id, i.de);
   v_id := pvp_nouveau(i.de, p.user_id, false, null);
+  -- les deux ont déjà dit oui : directement la présentation des équipes
+  update pvp_matchs set statut = 'prepa', meta = meta || jsonb_build_object('prochain', pvp_maintenant() + parami('pvp_prepa_secondes'), 'pret_prepa', '{}'::jsonb)
+    where pvp_matchs.id = v_id;
   update pvp_invitations set statut = 'acceptee', match = v_id where pvp_invitations.id = i.id;
   select * into m from pvp_matchs where pvp_matchs.id = v_id;
-  return jsonb_build_object('match', pvp_vue_json(m, 'b', 0));
+  return pvp_phase_json(m, 'b');
 end $$;
 create or replace function pvp_annuler_invitation(p_invitation uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi();
@@ -3547,6 +3810,7 @@ declare m pvp_matchs; n int := 0; e jsonb; meta jsonb;
 begin
   delete from pvp_file where vu < now() - interval '1 minute';
   update pvp_invitations set statut = 'expiree' where statut = 'attente' and cree_le < now() - make_interval(secs => parami('pvp_invitation_secondes'));
+  for m in select * from pvp_matchs where statut in ('propose', 'prepa') for update skip locked loop perform pvp_phase_maj(m.id); end loop;
   for m in select * from pvp_matchs where statut = 'direct' and maj < now() - interval '30 seconds' for update skip locked loop
     if m.maj < now() - interval '10 minutes' then
       e := m.etat; meta := m.meta || jsonb_build_object('pause', null, 'vu', jsonb_build_object('a', 0, 'b', 0));
@@ -4794,6 +5058,8 @@ update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs
 -- 21 nov. 2026 (Maël) : prendre le dessus compte double, 10 % de chances de marquer en plus ou en moins (match_contre 0,05 → 0,10) :
 -- il doit compter plus que le plus gros bonus de tactique (10 % d'attaque ≈ +7 à 8 % de chances) ; seulement si encore à 0,05
 update parametres set valeurs = valeurs || '{"match_contre": 0.10}' where (valeurs ->> 'match_contre')::numeric = 0.05;
+-- 23 nov. 2026 : après la présentation des équipes (60 s), le coup d'envoi n'attend plus que 15 s (30 avant)
+update parametres set valeurs = valeurs || '{"pvp_envoi_secondes": 15}' where (valeurs ->> 'pvp_envoi_secondes')::int = 30;
 -- primes des Légendes (demande de Maël, 23 nov. 2026) : la première victoire contre une Légende ne change pas (5 000 à 10 000 pièces),
 -- les suivantes rapportent la moitié de la première prime de base (2 500 au lieu de 1 000) ; seulement si la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"parcours_legendes_rejouer_pieces": 2500}' where (valeurs ->> 'parcours_legendes_rejouer_pieces')::int in (1000, 1500);
@@ -5493,7 +5759,8 @@ grant execute on function
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), aligner_remplacants(jsonb, jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
-  pvp_chercher(), pvp_annuler(), pvp_vue(int), pvp_choix(text, text, jsonb, int, boolean, int), pvp_temps_mort(), pvp_accueil(),
+  salon_lire(bigint), salon_ecrire(text, bigint), salon_supprimer(bigint), salon_muet(text, int), regler_presence(boolean),
+  pvp_chercher(), pvp_annuler(), pvp_accepter(boolean), pvp_vue(int), pvp_choix(text, text, jsonb, int, boolean, int), pvp_temps_mort(), pvp_accueil(),
   pvp_inviter(text), pvp_attendre(uuid), pvp_repondre(uuid, boolean), pvp_annuler_invitation(uuid),
   mes_echanges(), marche_vendre(uuid, int), marche_retirer(uuid), marche_acheter(uuid), boite_echanger(text, text), club_demander(text, text), club_donner(uuid),
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),

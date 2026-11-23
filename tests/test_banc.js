@@ -164,7 +164,7 @@ const SP = process.argv[2];
   const hTm = await p.evaluate(() => { const h = MD.h; document.querySelector('.md-tm').click(); return h; });
   await p.waitForFunction(() => /Temps mort/.test(document.querySelector('.md-panneau:not([hidden]) h3')?.textContent || ''), null, {timeout: 10000});
   const eTm = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
-  verif('temps mort au toucher : pris à la minute affichée, pas en fin de tranche', eTm.t < 600 && Math.abs(eTm.t - hTm) < 40 && eTm.ev.at(-1).ty === 'temps-mort', {t: eTm.t, hTm});
+  verif('temps mort au toucher : pris à la minute affichée, pas en fin de tranche', eTm.t < 600 && Math.abs(eTm.t - hTm) < 40 && eTm.ev.slice(-2).some(x => x.ty === 'temps-mort'), {t: eTm.t, hTm});   // suivi de « momentum-fin » s'il casse le leur;
   await p.click('[data-md-att=rapide]'); await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 620, null, {timeout: 20000});
   verif('après le temps mort : la tactique choisie s’applique tout de suite', /Tu passes en/.test(await p.textContent('.md-fil')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.blocs.length >= 2);

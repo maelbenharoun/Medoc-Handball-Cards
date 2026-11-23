@@ -274,6 +274,12 @@ const CompteServeur = (() => {
     // ── matchs à deux en direct (23 nov. 2026) : file classée, match partagé, invitations entre ami(e)s
     pvpChercher: () => rpc('pvp_chercher'),
     pvpAnnuler: () => rpc('pvp_annuler'),
+    pvpAccepter: oui => rpc('pvp_accepter', {p_oui: !!oui}),
+    salonLire: depuis => rpc('salon_lire', {p_depuis: depuis || 0}),
+    salonEcrire: (texte, depuis) => rpc('salon_ecrire', {p_texte: texte, p_depuis: depuis || 0}),
+    salonSupprimer: id => rpc('salon_supprimer', {p_id: id}),
+    salonMuet: (pseudo, heures) => rpc('salon_muet', {p_pseudo: pseudo, p_heures: heures}),
+    reglerPresence: invisible => rpc('regler_presence', {p_invisible: !!invisible}),
     pvpVue: depuis => rpc('pvp_vue', {p_depuis: depuis || 0}),
     pvpChoix: (tac, cons, postes, pret, pretPause, depuis) => rpc('pvp_choix', {p_tactique: tac ?? null, p_consigne: cons ?? null,
       p_postes: postes ?? null, p_pret: pret ?? null, p_pret_pause: !!pretPause, p_depuis: depuis || 0}),
