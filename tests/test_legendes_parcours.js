@@ -72,5 +72,12 @@ const fs = require('fs');
   const np = (await q("select parcours_nouveau(9, null, 'Alice') p"))[0].p;
   const f = np.equipes.slice(1).map(e => e.f);
   verif('Nationale 1 : adversaires entre 83 et 91', Math.min(...f) >= 82.5 && Math.max(...f) <= 91.5, f);
+  // victoires des plus hauts niveaux (demande de Maël, 23 nov. 2026) : JO 170, Légendes 200 pièces ; nul, défaite et autres niveaux comme avant
+  const gainA = async (niv, res, pg = 1) => { await poser((await q("select parcours_nouveau($1, null, 'Alice') p", [niv]))[0].p);
+    return (await q(`select championnat_conclure($1, 'duels:06', $2::jsonb, $2::jsonb, $3::jsonb, $4) r`,
+      [al, fa, JSON.stringify(res === 'gagne' ? {a: 30, b: 20, resultat: 'gagne'} : {a: 20, b: 30, resultat: 'perdu'}), pg]))[0].r.gains.pieces; };
+  const g = {monde: await gainA(11, 'gagne'), jo: await gainA(12, 'gagne'), leg: await gainA(13, 'gagne'), legPerdu: await gainA(13, 'perdu'), legSimule: await gainA(13, 'gagne', .95)};
+  verif(`victoire : Mondial ${g.monde}, JO ${g.jo}, Légendes ${g.leg} (simulée ${g.legSimule}) ; défaite aux Légendes ${g.legPerdu}`,
+    g.monde === 105 && g.jo === 170 && g.leg === 200 && g.legSimule === 190 && g.legPerdu === 20, g);
   process.exit(bilan() ? 1 : 0);
 })();

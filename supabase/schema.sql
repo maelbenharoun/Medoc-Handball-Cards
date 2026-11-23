@@ -38,6 +38,7 @@ insert into parametres values (1, '{
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
   "pve_xp_carte": {"gagne": 30, "nul": 20, "perdu": 10},
   "pve_pieces": {"gagne": 60, "nul": 30, "perdu": 10},
+  "championnat_victoire": {"12": 170, "13": 200},
   "pvp_xp": {"gagne": 40, "nul": 20, "perdu": 10},
   "pvp_pieces": {"gagne": 80, "nul": 40, "perdu": 20},
   "pvp_trophees": {"gagne": 20, "nul": 5, "perdu": -10},
@@ -1996,6 +1997,13 @@ begin
   p_gain := p_gain * coalesce((param('championnat_gain') #>> '{}')::numeric, 1);
   xp := round((param('pve_xp') ->> res)::int * p_gain); xpc := round((param('pve_xp_carte') ->> res)::int * p_gain);
   v_pieces := round((param('pve_pieces') ->> res)::int * mult * p_gain * (1 + staff_val(p_uid, 'manager') / 100.0));   -- manager
+  -- victoires des plus hauts niveaux (demande de Maël, 23 nov. 2026 : on n'y gagne plus qu'un match sur deux, ils rapportaient moins
+  -- que le Championnat du monde) : pièces d'une victoire jouée en direct fixées par niveau (championnat_victoire : JO 170, Légendes 200,
+  -- au lieu de 113 et 120) ; simulée, ×0,95 comme les autres ; le Manager s'ajoute
+  if res = 'gagne' and param('championnat_victoire') ? niv::text then
+    v_pieces := round((param('championnat_victoire') ->> niv::text)::int * p_gain / coalesce((param('championnat_gain') #>> '{}')::numeric, 1)
+      * (1 + staff_val(p_uid, 'manager') / 100.0));
+  end if;
   update profils set tactique = p_tactique, parcours = pc, pieces = pieces + v_pieces + recompense,
     bonus = bonus + bonus_b, bonus_or = bonus_or + bonus_o where user_id = p.user_id;
   -- les remplaçants gagnent la même expérience que les titulaires (retour de Guilhem, 21 nov. 2026 : « les remplaçants ne prennent
