@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-21",
+ "maj": "2026-11-23",
  "saison": "2026-2027",
  "equipes": {
   "-15F": {
@@ -727,6 +727,79 @@
        ]
       ],
       "a": []
+     }
+    },
+    {
+     "rid": "2692272",
+     "date": "2026-11-21",
+     "home": "1829455",
+     "away": "medoc",
+     "hs": 42,
+     "as": 29,
+     "sheet": {
+      "a": [
+       [
+        "Louis Pepin",
+        "1",
+        0
+       ],
+       [
+        "Quentin Chacun",
+        "2",
+        10
+       ],
+       [
+        "Kais Jean-Alphonse",
+        "3",
+        1
+       ],
+       [
+        "Sacha Lucas",
+        "4",
+        2
+       ],
+       [
+        "Ralph-Louis Epee Bokambe",
+        "5",
+        1
+       ],
+       [
+        "Ewen Tanniou",
+        "6",
+        6
+       ],
+       [
+        "Camille Daroux Luca",
+        "7",
+        0
+       ],
+       [
+        "Raphael Chevet",
+        "8",
+        4
+       ],
+       [
+        "Loris Benita",
+        "9",
+        2
+       ],
+       [
+        "Samuel Mathivat Dulas",
+        "10",
+        1
+       ],
+       [
+        "Romeo Rouze Le Gall",
+        "11",
+        1
+       ],
+       [
+        "Leo Fortinon Falliere",
+        "12",
+        1
+       ]
+      ],
+      "h": []
      }
     }
    ]
