@@ -963,6 +963,23 @@
   {
    "lundi": "2026-11-16",
    "equipes": {
+    "-15G": {
+     "carte": "raphael-chevet",
+     "nom": "Raphaël Chevet",
+     "buts": 4,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-21",
+      "adv": "Girondins De Bordeaux Bastide 2",
+      "score": [
+       29,
+       42
+      ],
+      "lieu": "ext"
+     }
+    },
     "-18F1": {
      "carte": "marie-dalibot",
      "nom": "Marie Dalibot",
@@ -1135,6 +1152,10 @@
   "2692269": {
    "carte": "quentin-chacun",
    "buts": 9
+  },
+  "2692272": {
+   "carte": "quentin-chacun",
+   "buts": 10
   },
   "2706344": {
    "carte": "emma-guerrier-tournier",
