@@ -262,7 +262,8 @@ const CompteServeur = (() => {
     match7m: (entrees, depuis) => rpc('match_7m', {p_entrees: entrees, p_depuis: depuis || 0}),   // jet de 7 m au mini-jeu → {tir, vue}
     pvp7m: (entrees, depuis) => rpc('pvp_7m', {p_entrees: entrees, p_depuis: depuis || 0}),
     // tirs au but après un nul (tournoi, Légendes) : 5 tireurs dans l'ordre et le gardien (exemplaires) → comme la fin d'un match
-    matchTirsAuBut: (tireurs, gardien) => rpc('match_tirs_au_but', {p_tireurs: tireurs, p_gardien: gardien}),
+    matchTirsAuBut: (tireurs, gardien, jouer) => rpc('match_tirs_au_but', {p_tireurs: tireurs, p_gardien: gardien, p_jouer: !!jouer}),
+    matchTabTir: entrees => rpc('match_tab_tir', {p_entrees: entrees}),
     miniPreparer: jeu => rpc('mini_preparer', {p_jeu: jeu}),                   // arrêt réflexe : {indice: {colonne, hauteur}}
     miniJouer: (jeu, entrees) => rpc('mini_jouer', {p_jeu: jeu, p_entrees: entrees}),   // → {resultat, reussi, reponse, pieces, bonus, essais, restants}
     tirer7m: (x, y, puissance) => rpc('tirer_7m', {p_x: x, p_y: y, p_puissance: puissance}),   // mini-jeu → {resultat, x, y, vitesse, gardien, pieces, bonus, tirs, restants}

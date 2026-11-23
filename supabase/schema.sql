@@ -1925,11 +1925,13 @@ begin
     exit when i > 40;
   end loop;
   if a = b then a := a + 1; end if;
-  return (e - 'tab_attente') || jsonb_build_object('tab', jsonb_build_object('a', a, 'b', b, 'tirs', seq, 'gardien', gnom,
+  return (e - 'tab_attente' - 'tab_jeu') || jsonb_build_object('tab', jsonb_build_object('a', a, 'b', b, 'tirs', seq, 'gardien', gnom,
     'adversaire', adv));
 end $$;
--- le choix du joueur, depuis le menu des tirs au but : 5 tireurs différents (moins s'il n'en a pas assez), son gardien à part
-create or replace function match_tirs_au_but(p_tireurs text[], p_gardien text) returns jsonb language plpgsql security definer set search_path = public as $$
+-- le choix du joueur, depuis le menu des tirs au but : 5 tireurs différents (moins s'il n'en a pas assez), son gardien à part ;
+-- p_jouer (demande de Maël, 24 nov. 2026) : la séance se joue tir par tir aux mini-jeux (match_tab_tir) au lieu d'être tirée d'un coup
+drop function if exists match_tirs_au_but(text[], text);
+create or replace function match_tirs_au_but(p_tireurs text[], p_gardien text, p_jouer boolean default false) returns jsonb language plpgsql security definer set search_path = public as $$
 declare p profils := moi(); cur matchs_direct; e jsonb; js jsonb; nmax int; n int := jsonb_array_length(coalesce((select etat -> 'ev' from matchs_direct where user_id = auth.uid()), '[]'));
 begin
   select * into cur from matchs_direct where user_id = p.user_id for update;
@@ -1945,8 +1947,90 @@ begin
      or exists (select 1 from unnest(p_tireurs) t where t = p_gardien or not exists (select 1 from jsonb_array_elements(js) x where x ->> 'id' = t)) then
     raise exception 'Choisis % tireurs différents de ton équipe (pas ton gardien)', nmax;
   end if;
+  if p_jouer then
+    e := match_tab_preparer(e, p_tireurs, p_gardien);
+    update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
+    return jsonb_build_object('tabJeu', match_tab_vue(e));
+  end if;
   e := match_tab_jouer(e, p_tireurs, p_gardien);
   return match_conclure(p.user_id, e, coalesce((e ->> 'tab_gain')::numeric, 1)) || jsonb_build_object('vue', match_vue(e, n));
+end $$;
+-- tirs au but joués aux mini-jeux (demande de Maël, 24 nov. 2026) : on tire et l'adversaire tire chacun son tour (nous d'abord), 5 chacun
+-- puis mort subite avec les mêmes tireurs dans l'ordre ; notre tir = mini-jeu du jet de 7 m contre leur gardien, leur tir = mini-jeu de
+-- l'arrêt (même duel que les jets de 7 m du match, sept_duel : TIR de nos tireurs, MEN et RÉF de notre gardien, l'adversaire à sa note)
+create or replace function match_tab_preparer(e jsonb, p_tireurs text[], p_gardien text) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare cand jsonb := match_tab_candidats(e); js jsonb := cand -> 'joueurs'; adv jsonb := cand -> 'adversaire'; t text;
+  noms jsonb := '[]'; tirs jsonb := '[]'; gbn numeric; gnom text;
+begin
+  select (x ->> 'gb')::numeric, x ->> 'nom' into gbn, gnom from jsonb_array_elements(js) x where x ->> 'id' = p_gardien;
+  foreach t in array p_tireurs loop
+    select noms || to_jsonb(x ->> 'nom'), tirs || (x -> 'tir') into noms, tirs from jsonb_array_elements(js) x where x ->> 'id' = t;
+  end loop;
+  e := e || jsonb_build_object('tab_jeu', jsonb_build_object('noms', noms, 'tirs', tirs, 'gardien', gnom, 'gb', coalesce(gbn, 50), 'adv', adv,
+    'na', 0, 'nb', 0, 'a', 0, 'b', 0, 'seq', '[]'::jsonb));
+  return match_tab_prochain(e);
+end $$;
+-- le tir suivant : le nôtre (tireur suivant, contre leur gardien) ou le leur (où et à quelle vitesse, contre notre gardien)
+create or replace function match_tab_prochain(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare tj jsonb := e -> 'tab_jeu'; na int := (tj ->> 'na')::int; nb int := (tj ->> 'nb')::int; n int := jsonb_array_length(tj -> 'noms'); k jsonb;
+  vt numeric; vg numeric;
+begin
+  if na <= nb then   -- à nous
+    k := jsonb_build_object('qui', 'a', 'n', tj -> 'noms' ->> (na % n), 'tir', tj -> 'tirs' -> (na % n), 'gb', tj #> '{adv,gb}', 'num', na + 1);
+  else
+    vt := (tj #>> '{adv,tir}')::numeric; vg := (tj ->> 'gb')::numeric;
+    k := jsonb_build_object('qui', 'b', 'n', 'Tireur ' || (nb % 5 + 1), 'tir', vt, 'gb', vg, 'num', nb + 1,
+      'col', case when random() < .35 then 'g' when random() < .54 then 'd' else 'c' end, 'hau', case when random() < .5 then 'h' else 'b' end,
+      'duree', greatest(480, least(1100, round(900 - 6 * (vt - vg) - random() * 150))));
+  end if;
+  return jsonb_set(e, '{tab_jeu,k}', k);
+end $$;
+-- ce que le jeu voit de la séance (le tir à arrêter compris, comme pour un jet de 7 m du match)
+create or replace function match_tab_vue(e jsonb) returns jsonb language sql stable as $$
+  select jsonb_build_object('a', tj -> 'a', 'b', tj -> 'b', 'na', tj -> 'na', 'nb', tj -> 'nb', 'seq', tj -> 'seq', 'gardien', tj -> 'gardien',
+    'adversaire', tj #> '{adv,nom}', 'k', tj -> 'k', 'max', least(5, jsonb_array_length(tj -> 'noms')))
+  from (select e -> 'tab_jeu' tj) z
+$$;
+-- un tir de la séance : p_entrees = notre tir (x, y, puissance) ou notre arrêt (colonne, hauteur, temps), selon le tour
+create or replace function match_tab_tir(p_entrees jsonb) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; tj jsonb; k jsonb; d jsonb; but boolean; na int; nb int; a int; b int; seq jsonb; fini boolean;
+  n0 int; lim int := 5;
+begin
+  select * into cur from matchs_direct where user_id = p.user_id for update;
+  if not found then raise exception 'Pas de match en cours'; end if;
+  e := cur.etat; tj := e -> 'tab_jeu';
+  if tj is null then raise exception 'Pas de tirs au but à jouer'; end if;
+  if jsonb_typeof(p_entrees) is distinct from 'object' then raise exception 'Tir invalide'; end if;
+  n0 := jsonb_array_length(coalesce(e -> 'ev', '[]'));
+  k := tj -> 'k';
+  if k ->> 'qui' = 'a' then
+    if not (p_entrees ? 'x' and p_entrees ? 'y' and p_entrees ? 'puissance') then raise exception 'Tir invalide'; end if;
+    d := sept_duel(k, p_entrees - 'long', null);
+  else
+    if not coalesce(p_entrees ->> 'colonne' in ('g', 'c', 'd') and p_entrees ->> 'hauteur' in ('h', 'b'), false) then raise exception 'Arrêt invalide'; end if;
+    d := sept_duel(k, null, p_entrees);
+  end if;
+  but := d ->> 'resultat' = 'but';
+  na := (tj ->> 'na')::int; nb := (tj ->> 'nb')::int; a := (tj ->> 'a')::int; b := (tj ->> 'b')::int; seq := tj -> 'seq';
+  if k ->> 'qui' = 'a' then
+    na := na + 1; a := a + but::int; seq := seq || jsonb_build_object('n', k ->> 'n', 'a', but);
+  else
+    nb := nb + 1; b := b + but::int;
+    seq := jsonb_set(seq, array[(jsonb_array_length(seq) - 1)::text], (seq -> (jsonb_array_length(seq) - 1)) || jsonb_build_object('b', but));
+  end if;
+  -- 5 tirs chacun, même avec moins de tireurs (ils tirent dans l'ordre), puis mort subite
+  fini := (na <= lim and nb <= lim and (a > b + (lim - nb) or b > a + (lim - na)))
+       or (na > lim and na = nb and a <> b) or (na = lim and nb = lim and a <> b) or na > 40;
+  tj := tj || jsonb_build_object('na', na, 'nb', nb, 'a', a, 'b', b, 'seq', seq);
+  d := d || jsonb_build_object('qui', k ->> 'qui', 'n', k ->> 'n');
+  if not fini then
+    e := match_tab_prochain(jsonb_set(e, '{tab_jeu}', tj));
+    update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
+    return jsonb_build_object('tir', d, 'tabJeu', match_tab_vue(e));
+  end if;
+  if a = b then a := a + 1; end if;
+  e := (e - 'tab_attente' - 'tab_jeu') || jsonb_build_object('tab', jsonb_build_object('a', a, 'b', b, 'tirs', seq, 'gardien', tj ->> 'gardien', 'adversaire', tj -> 'adv'));
+  return match_conclure(p.user_id, e, coalesce((e ->> 'tab_gain')::numeric, 1)) || jsonb_build_object('vue', match_vue(e, n0), 'tir', d, 'joue', true);
 end $$;
 -- Un match du parcours : la journée de la poule, le tour du tournoi ou une manche contre les Légendes
 create or replace function championnat_conclure(p_uid uuid, p_tactique text, fa jsonb, fb_m jsonb, r jsonb, p_gain numeric) returns jsonb
@@ -2732,14 +2816,13 @@ end $$;
 -- le jet de 7 m tiré : p_tir = le tir du joueur contre le gardien de l'ordinateur ({x, y, puissance}, formule du mini-jeu corrigée par
 -- les niveaux), ou {"long": true} (trop long) ; p_gb = la parade du joueur ({colonne, hauteur, temps}) contre le tir prévu (sept.col, hau,
 -- duree) ; les deux nuls : tiré par la formule du moteur (simulation). Le résultat au fil (et la barre de momentum), sept_der pour le jeu.
-create or replace function match_7m_resoudre(e jsonb, p_tir jsonb, p_gb jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
-declare s jsonb := e -> 'sept'; x text; y text; eqx jsonb; eqy jsonb; t int; sc jsonb; res text; d jsonb := '{}'; ev jsonb; pt jsonb;
-  niv_t numeric; niv_g numeric; vit numeric; gx numeric; gy numeric; portee numeric; px numeric; py numeric; tps numeric; pen numeric;
-  mval jsonb := coalesce(param('momentum_valeurs'), '{}');
+-- un duel tireur-gardien de 7 m (jet de 7 m en match, tirs au but joués aux mini-jeux) : s = {tir, gb} et, pour un tir à arrêter,
+-- {col, hau, duree} ; p_tir = notre tir (x, y, puissance) contre le gardien de l'ordinateur, p_gb = notre arrêt (colonne, hauteur, temps),
+-- ni l'un ni l'autre = tiré par la formule ; renvoie {resultat} et le détail pour l'animation
+create or replace function sept_duel(s jsonb, p_tir jsonb, p_gb jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare res text; d jsonb := '{}'; pt jsonb; niv_t numeric := (s ->> 'tir')::numeric; niv_g numeric := (s ->> 'gb')::numeric;
+  vit numeric; gx numeric; gy numeric; portee numeric; px numeric; py numeric; tps numeric; pen numeric;
 begin
-  if s is null then return e; end if;
-  x := s ->> 'c'; y := case x when 'a' then 'b' else 'a' end; eqx := e -> x; eqy := e -> y; t := (s ->> 't')::int; sc := e -> 'score';
-  niv_t := (s ->> 'tir')::numeric; niv_g := (s ->> 'gb')::numeric;
   if coalesce((p_tir ->> 'long')::boolean, false) then
     res := 'long';
   elsif p_tir is not null then
@@ -2764,6 +2847,17 @@ begin
     pen := least(.88, greatest(.55, .75 + .01 * (niv_t - niv_g)));
     res := case when random() < pen then 'but' when random() < .7 then 'arret' when random() < .5 then 'poteau' else 'dehors' end;
   end if;
+  return d || jsonb_build_object('resultat', res);
+end $$;
+create or replace function match_7m_resoudre(e jsonb, p_tir jsonb, p_gb jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare s jsonb := e -> 'sept'; x text; y text; eqx jsonb; eqy jsonb; t int; sc jsonb; res text; d jsonb := '{}'; ev jsonb; pt jsonb;
+  niv_t numeric; niv_g numeric; vit numeric; gx numeric; gy numeric; portee numeric; px numeric; py numeric; tps numeric; pen numeric;
+  mval jsonb := coalesce(param('momentum_valeurs'), '{}');
+begin
+  if s is null then return e; end if;
+  x := s ->> 'c'; y := case x when 'a' then 'b' else 'a' end; eqx := e -> x; eqy := e -> y; t := (s ->> 't')::int; sc := e -> 'score';
+  niv_t := (s ->> 'tir')::numeric; niv_g := (s ->> 'gb')::numeric;
+  d := sept_duel(s, p_tir, p_gb); res := d ->> 'resultat'; d := d - 'resultat';
   if res = 'long' then
     eqx := jsonb_set(eqx, '{stats,pertes}', to_jsonb((eqx #>> '{stats,pertes}')::int + 1));
     ev := jsonb_build_object('t', t, 'c', x, 'ty', 'perte', 'n', s -> 'n', 'long', true, 's', sc);
@@ -2897,7 +2991,8 @@ create or replace function match_vue(e jsonb, p_depuis int default 0) returns js
         (select case when (l ->> 'n')::int >= 2 then jsonb_build_object('att', (l ->> 'att')::int, 'def', (l ->> 'def')::int) end from ia_lecture(e -> 'blocs') l) end,
       'stats', e -> 'b' -> 'stats'),
     'evenements', coalesce((select jsonb_agg(x) from jsonb_array_elements(e -> 'ev') with ordinality z(x, i) where i > p_depuis), '[]'),
-    'tirsAuBut', case when coalesce((e ->> 'tab_attente')::boolean, false) then match_tab_candidats(e) end)
+    'tirsAuBut', case when coalesce((e ->> 'tab_attente')::boolean, false) and not e ? 'tab_jeu' then match_tab_candidats(e) end,
+    'tabJeu', case when e ? 'tab_jeu' then match_tab_vue(e) end)
 $$;
 -- le résultat, dans le format d'avant (a, b, buts, résultat) + les événements et les stats
 create or replace function match_resultat(e jsonb) returns jsonb language sql stable as $$
@@ -5981,7 +6076,7 @@ grant execute on function
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
-  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
+  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),

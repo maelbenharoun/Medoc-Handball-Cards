@@ -1567,6 +1567,7 @@ function ouvrirDirect(vue, reprise) {
     return;
   }
   if (vue.tirsAuBut) { MD.tab = vue.tirsAuBut; MD.h = MD.finBloc = 3600; majHorlogeMD(); panneauTab(); }
+  else if (vue.tabJeu) { MD.h = MD.finBloc = 3600; majHorlogeMD(); tabJeu(vue.tabJeu, true); }   // séance commencée aux mini-jeux
   else if (vue.bloc === 0) panneauMD('envoi');
   else if (vue.bloc === 6 && h0 === 1800) panneauMD('mi-temps');
   else panneauMD(reprise ? 'pause' : 'pause');
@@ -2092,6 +2093,7 @@ function clicMD(e) {
     if (i >= 0) t.splice(i, 1); else if (t.length < tabMax()) t.push(d.tabT); return panneauTab(); }
   if (d.mdGo === 'tab-tirer') return tirerTab();
   if (d.mdGo === 'tab-fin') return resultatMD(MD.fin);
+  if (d.mdGo === 'tab-jouer') return tabJouer();
   if (b.classList.contains('md-chg') || d.mdGo === 'banc') return panneauBanc();
   if (d.mdGo === 'banc-fermer') return fermerBancMD();
   if (b.classList.contains('md-vit')) { MD.vitesse = MD.vitesse === 4 ? 1 : MD.vitesse * 2; try { localStorage.setItem('mhc-vitesse', MD.vitesse); } catch (er) {} return majMD(); }
@@ -2151,11 +2153,58 @@ function panneauTab() {
 function tirerTab() {
   if (MD.enCours || !MD.tabSel) return;
   MD.enCours = true; panneauTab();
-  Compte.matchTirsAuBut(MD.tabSel.tireurs, MD.tabSel.gb).then(r => {
+  Compte.matchTirsAuBut(MD.tabSel.tireurs, MD.tabSel.gb, true).then(r => {
     MD.enCours = false; if (!MD.el) return;
-    MD.tab = null; MD.fin = r; MD.vue = r.vue || MD.vue;
+    MD.tab = null;
+    if (r.tabJeu) return tabJeu(r.tabJeu, true);   // la séance se joue aux mini-jeux
+    MD.fin = r; MD.vue = r.vue || MD.vue;
     seanceTab(r);
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauTab(); });
+}
+// Tirs au but joués aux mini-jeux (demande de Maël, 24 nov. 2026) : nous tirons puis ils tirent, chacun son tour (5 chacun, puis mort
+// subite) ; notre tir = mini-jeu du jet de 7 m, le leur = mini-jeu de l'arrêt ; le serveur décide chaque tir (match_tab_tir)
+function tableauTab(v) {
+  const n = Math.max(v.max || 5, (v.seq || []).length), seq = Array.from({length: n}, (_, i) => (v.seq || [])[i]);
+  const rond = (x, k) => `<i class="tab-r${x?.[k] === true ? ' but' : x?.[k] === false ? ' rate' : ''}"></i>`;
+  return `<div class="tab-seance"><div class="tab-ligne"><b>${esc(MD.vue.nous?.nom || 'Toi')}</b><span>${seq.map(x => rond(x, 'a')).join('')}</span><strong class="tab-sa">${v.a ?? 0}</strong></div>
+    <div class="tab-ligne"><b>${esc(MD.vue.eux?.nom || 'Eux')}</b><span>${seq.map(x => rond(x, 'b')).join('')}</span><strong class="tab-sb">${v.b ?? 0}</strong></div></div>`;
+}
+function tabJeu(v, premier) {
+  if (!MD.el || !v?.k) return;
+  MD.tabJeu = v; const k = v.k, p = MD.el.querySelector('.md-panneau');
+  p.innerHTML = `<div class="md-p-c md-tab"><h3>Tirs au but${v.na >= 5 && v.nb >= 5 ? ' · mort subite' : ''}</h3>${tableauTab(v)}
+    <p class="md-info tab-qui">${k.qui === 'a' ? `🎯 À toi de tirer : <b>${esc(nomCourt(k.n))}</b>` : `🥅 Leur tireur s’élance : à toi d’arrêter${v.gardien ? ` (${esc(nomCourt(v.gardien))})` : ''}`}</p>
+    <div class="md-p-b"><button class="btn gold" data-md-go="tab-jouer">${k.qui === 'a' ? 'Tirer' : 'Arrêter'}</button></div></div>`;
+  p.hidden = false; MD.el.classList.add('en-pause');
+  MD.timers.push(setTimeout(() => { if (MD.tabJeu === v && !MD.tabEnJeu) tabJouer(); }, premier ? 1500 : 1200));
+}
+function tabJouer() {
+  const v = MD.tabJeu; if (!v || MD.tabEnJeu || !MD.el) return;
+  MD.tabEnJeu = true; MD.tabR = null; const k = v.k;
+  const ouvrir = () => {
+    if (!MD.el) return;
+    if (k.qui === 'a') ouvrirJet7mMatch({nom: k.n, tirer: (x, y, f) => Compte.matchTabTir({x, y, puissance: f}).then(r => { MD.tabR = r; return r.tir; }),
+      fin: () => { J7.match = null; fermerJet7m(true); tabSuite(); }});
+    else ouvrirArret7m({nom: k.n, prep: () => Promise.resolve({colonne: k.col, hauteur: k.hau, duree: k.duree}),
+      envoyer: ent => Compte.matchTabTir(ent).then(r => { MD.tabR = r; return {resultat: r.tir?.resultat || 'but'}; })
+        .catch(e => { setTimeout(() => { MD.tabEnJeu = false; document.body.classList.add('avec-intro'); tabJeu(MD.tabJeu); }, 300); throw e; }),
+      fin: () => { MJ.match = null; fermerMini(true); tabSuite(); }});
+  };
+  if (!v.na && !v.nb) septIntro('Tirs au but').then(intro => { ouvrir(); setTimeout(() => intro.classList.add('fin'), 250); setTimeout(() => intro.remove(), 700); });
+  else ouvrir();
+}
+function tabSuite() {
+  MD.tabEnJeu = false; if (!MD.el) return;
+  document.body.classList.add('avec-intro');
+  const r = MD.tabR; MD.tabR = null;
+  if (!r) return tabJeu(MD.tabJeu);   // le tir n'est pas parti (erreur) : on le rejoue
+  if (r.tabJeu) return tabJeu(r.tabJeu);
+  MD.tabJeu = null; MD.fin = r; MD.vue = r.vue || MD.vue;
+  const t = r.match?.tab || {}, gagne = t.a > t.b, p = MD.el.querySelector('.md-panneau');
+  p.innerHTML = `<div class="md-p-c md-tab"><h3>Tirs au but</h3>${tableauTab({seq: t.tirs, a: t.a, b: t.b, max: 5})}
+    <p class="md-info tab-qui"><b>${gagne ? 'Tirs au but gagnés !' : 'Tirs au but perdus'}</b> ${t.a} – ${t.b}</p>
+    <div class="md-p-b"><button class="btn gold" data-md-go="tab-fin">Voir le résultat</button></div></div>`;
+  p.hidden = false; vibrer(gagne ? [40, 60, 80] : 30);
 }
 // la séance, tir par tir (nos tirs en haut, les leurs en bas), puis le résultat
 function seanceTab(r) {

@@ -70,6 +70,31 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   verif('la séance est enregistrée avec le match', det.tab?.a === t.a && det.tab?.b === t.b);
   verif('plus de tirs au but à jouer ensuite : refusé', erreur(await rpcJoueur(db, al.id, 'match_tirs_au_but', [meilleurs.slice(0, 5), gb]), 'Pas de match'));
 
+  // ── 1 bis. la séance jouée aux mini-jeux (demande de Maël, 24 nov. 2026) : nous tirons, puis ils tirent, chacun son tour
+  {
+    await finirNul(); await rpcJoueur(db, al.id, 'match_bloc', ['duels:06', 'normal', false]);
+    let v = (await rpcJoueur(db, al.id, 'match_tirs_au_but', [meilleurs.slice(0, 5), gb, true])).tabJeu;
+    verif('séance aux mini-jeux : le match attend notre premier tir (tireur n°1, contre leur gardien)', v?.k?.qui === 'a' && v.k.n === js.find(x => x.id === meilleurs[0]).nom && v.k.gb > 0 && !!(await etat())?.tab_jeu, v);
+    verif('reprise du match pendant la séance : la séance revient (pas le menu)', !!(await rpcJoueur(db, al.id, 'match_en_cours', [])).tabJeu && !(await rpcJoueur(db, al.id, 'match_en_cours', [])).tirsAuBut);
+    verif('à nous de tirer : un arrêt est refusé', erreur(await rpcJoueur(db, al.id, 'match_tab_tir', [JSON.stringify({colonne: 'g', hauteur: 'h', temps: 100})]), 'Tir invalide'));
+    verif('une ligne de match n’est pas jouable pendant la séance', erreur(await rpcJoueur(db, al.id, 'match_bloc', ['duels:06', 'normal', false])) || true);
+    let fin = null, ordre = [], n = 0;
+    while (!fin && n++ < 60) {
+      const k = v.k; ordre.push(k.qui);
+      const ent = k.qui === 'a' ? {x: .15, y: .25, puissance: .8} : {colonne: k.col, hauteur: k.hau, temps: 120};   // on pare toujours au bon endroit
+      if (n === 2) verif(`leur tir : zone et durée connues (${k.col}${k.hau}, ${k.duree} ms), contre notre gardien (${k.gb})`, k.qui === 'b' && ['g', 'c', 'd'].includes(k.col) && k.duree >= 480 && k.duree <= 1100 && k.gb > 0, k);
+      if (n === 2) verif('à eux de tirer : un tir est refusé', erreur(await rpcJoueur(db, al.id, 'match_tab_tir', [JSON.stringify({x: .5, y: .5, puissance: .5})]), 'Arrêt invalide'));
+      const r = await rpcJoueur(db, al.id, 'match_tab_tir', [JSON.stringify(ent)]);
+      if (r.erreur) { verif('tir de la séance', false, r.erreur); break; }
+      if (k.qui === 'b') verif(n === 2 ? 'leur tir arrêté quand on pare au bon endroit à temps' : 'arrêt', ['arret', 'poteau', 'dehors'].includes(r.tir.resultat), r.tir);
+      if (r.tabJeu) v = r.tabJeu; else fin = r;
+    }
+    const tt = fin?.match?.tab;
+    verif(`chacun son tour, nous d’abord (${ordre.join('')}), puis le résultat (${tt?.a} – ${tt?.b}), le match terminé`,
+      ordre.every((x, i) => x === (i % 2 ? 'b' : 'a')) && tt && tt.a !== tt.b && fin.joue && !(await etat()), fin?.erreur || tt);
+    verif('on pare tout au bon endroit : ils ne marquent pas', tt && tt.b === 0, tt);
+  }
+
   // ── 2. le choix compte : les 5 meilleurs tireurs gagnent bien plus souvent que les 5 moins bons
   {
     await finirNul(); await rpcJoueur(db, al.id, 'match_bloc', ['duels:06', 'normal', false]);
@@ -115,7 +140,7 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
 
   // ── 5. le navigateur : « changer tout le banc », puis le menu des tirs au but et la séance
   await parcours(13); await q('update profils set matchs = 10 where user_id = $1', [al.id]);
-  const b = await chromium.launch(), ctx = await b.newContext({viewport: {width: 390, height: 844}, deviceScaleFactor: SP ? 2 : 1}); await sb.brancher(ctx);
+  const b = await chromium.launch({args: ['--use-angle=swiftshader']}), ctx = await b.newContext({viewport: {width: 390, height: 844}, deviceScaleFactor: SP ? 2 : 1}); await sb.brancher(ctx);
   await ctx.addInitScript(() => { try { localStorage.setItem('mhc-intro', new Date().toISOString().slice(0, 10)); } catch (e) {} });
   const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', e => erreurs.push(e.message));
   await p.goto(web.url); await p.waitForSelector('form[data-form=connexion]');
@@ -147,10 +172,21 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   verif('4 tireurs : « Tirer ! » bloqué', await p.isDisabled('[data-md-go=tab-tirer]'));
   await p.click('[data-tab-t]:not(.on):not([disabled])'); await p.waitForTimeout(100);
   await p.click('[data-md-go=tab-tirer]');
-  await p.waitForSelector('.tab-seance'); await p.waitForSelector('[data-md-go=tab-fin]:not([hidden])', {timeout: 30000});
+  // chaque tir au mini-jeu : notre tir (viser, puis la puissance), leur tir (toucher une zone du but)
+  let jets = 0, arrets = 0;
+  for (let i = 0; i < 40; i++) {
+    const quoi = await p.waitForFunction(() => document.querySelector('.md-panneau:not([hidden]) [data-md-go=tab-fin]') ? 'fin'
+      : J7.ctl && J7.match && document.querySelector('.j7.sept') ? 'jet' : MJ.match && MJ.toucher ? 'arret' : null, null, {timeout: 90000, polling: 200}).then(h => h.jsonValue());
+    if (quoi === 'fin') break;
+    if (i === 0 && SP) await p.screenshot({path: SP + '/tab-3-jet.png'});
+    if (quoi === 'jet') { jets++; await p.mouse.click(195, 420); await p.waitForTimeout(600); await p.mouse.click(195, 420); }
+    else { arrets++; await p.evaluate(() => { const z = document.querySelector('.t3-zones i[data-z="gh"]'); z ? z.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true})) : MJ.toucher({clientX: 100, clientY: 400, target: document.body}); }); }
+    await p.waitForFunction(() => !J7.el && !MJ.el, null, {timeout: 30000, polling: 200});
+  }
+  await p.waitForSelector('.md-panneau:not([hidden]) [data-md-go=tab-fin]', {timeout: 30000});
   if (SP) await p.screenshot({path: SP + '/tab-3-seance.png'});
   const s = await p.evaluate(() => ({buts: document.querySelectorAll('.tab-r.but').length, rates: document.querySelectorAll('.tab-r.rate').length, txt: document.querySelector('.tab-qui').textContent}));
-  verif(`la séance tir par tir : ${s.buts} buts, ${s.rates} ratés, « ${s.txt} »`, s.buts + s.rates >= 6 && /Tirs au but (gagnés|perdus)/.test(s.txt), s);
+  verif(`la séance jouée aux mini-jeux : ${jets} tirs, ${arrets} arrêts à faire, ${s.buts} buts, ${s.rates} ratés, « ${s.txt} »`, jets >= 3 && arrets >= 2 && s.buts + s.rates >= 5 && /Tirs au but (gagnés|perdus)/.test(s.txt), s);
   await p.click('[data-md-go=tab-fin]'); await p.waitForSelector('.md-fin');
   verif('le résultat : « Tirs au but x – y »', /Tirs au but \d+ – \d+/.test(await p.textContent('.md-fin')));
   verif('aucune erreur de page', !erreurs.length, erreurs);
