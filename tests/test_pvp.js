@@ -135,6 +135,17 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const sc = async pg => pg.evaluate(() => [document.querySelector('.md-sa').textContent, document.querySelector('.md-sb').textContent]);
   const [sd, se] = [await sc(D), await sc(E)];
   verif(`à 5', le même score des deux côtés (Dani ${sd.join('-')}, Eva ${se.join('-')})`, sd[0] === se[1] && sd[1] === se[0]);
+  // deux réponses avec les mêmes événements (relève et « Prêt » en même temps : match de Rémi et Maël, 23 nov. 2026) : comptés une fois
+  const dup = await D.evaluate(async () => { const n0 = MD.n, f0 = MD.file.length; const v = await Compte.pvpVue(Math.max(0, MD.n - 4));
+    pvpRecevoir(v); return {n0, n1: MD.n, f0, f1: MD.file.length, srv: v.pvp.n}; });
+  verif(`une réponse en double n'ajoute rien deux fois (${JSON.stringify(dup)})`, dup.n1 === dup.srv && dup.f1 - dup.f0 === dup.srv - dup.n0);
+  // « Tactique » laissé ouvert en fin de tranche : le récit continue (avant, il restait bloqué jusqu'à la fermeture)
+  await E.click('.md-tac'); await E.waitForSelector('.md-panneau:not([hidden])');
+  const fin0 = await E.evaluate(() => MD.finBloc);
+  await E.waitForFunction(f => MD.h > f && MD.panneau === 'tactique', fin0, {timeout: 30000}).catch(() => {});
+  const tacE = await E.evaluate(f => ({h: MD.h, f, pan: MD.panneau}), fin0);
+  verif(`« Tactique » ouvert en fin de tranche : le match continue (${Math.round(tacE.h)} > ${tacE.f})`, tacE.h > tacE.f && tacE.pan === 'tactique', tacE);
+  await E.click('.md-panneau [data-md-go="jouer"]');
   // temps mort d’Eva pendant la 2e tranche
   await E.waitForFunction(() => { const m = parseInt(document.querySelector('.md-min').textContent); return m >= 6 && !document.querySelector('.md-tm').disabled; }, null, {timeout: 20000});
   await E.click('.md-tm');

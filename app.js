@@ -1681,7 +1681,8 @@ function majHorlogeMD() {
 // (la mi-temps est obligatoire : le match s'arrête à 30' sur un écran à part, même sans rien changer)
 function finBlocMD() {
   MD.attente = true;
-  if (MD.enCours || MD.chgEnCours || MD.panneau) return;   // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend
+  // une tranche ou un changement déjà demandés, ou un panneau ouvert : on attend (sauf « Tactique » d'un match à deux, qui n'arrête pas le jeu)
+  if (MD.enCours || MD.chgEnCours || MD.panneau && !(MD.pvp && MD.panneau === 'tactique')) return;
   if (MD.pvp) return pvpFinBloc();
   const pause = Math.round(650 / MD.vitesse);
   if (MD.tab) return MD.timers.push(setTimeout(() => panneauTab(), pause + 400));
@@ -2025,17 +2026,22 @@ function pvpRecevoir(v, complet) {
     MD.pvpReq = true;
     return Compte.pvpVue(0).then(w => pvpRebobiner(w)).catch(() => {}).finally(() => { MD.pvpReq = false; });
   }
-  const avant = MD.vue.bloc;
+  // deux réponses peuvent apporter les mêmes événements (la relève et « Prêt » en même temps, à la mi-temps : match de Rémi et Maël,
+  // 23 nov. 2026) : le serveur donne le total (P.n), on ne garde que ce qui est nouveau ; une réponse plus ancienne est ignorée
+  const nv = v.evenements || [], debut = (P.n ?? MD.n + nv.length) - nv.length;
+  if ((P.n ?? 0) < MD.n) return;
+  if (debut > MD.n) return;   // un trou : la relève suivante redemande la suite depuis MD.n
+  const avant = MD.vue.bloc, neufs = nv.slice(MD.n - debut);
   MD.vue = v; MD.pvp = P; MD.pvpRecu = Date.now(); MD.pvpPostes = P.choix?.postes || [];
-  const nv = v.evenements || [];
-  if (nv.length) { MD.file.push(...nv); MD.n += nv.length; }
+  if (neufs.length) { MD.file.push(...neufs); MD.n = debut + nv.length; }
   if (!P.pause) MD.finBloc = Math.max(MD.finBloc, v.bloc * 300);
   if (P.fin && !MD.fin) { MD.fin = P.fin; MD.finBloc = 3600; clearInterval(MD.pvpT); }
   // coup d'envoi ou mi-temps : le compte à rebours est fini, la tranche suivante est partie
   if (['envoi', 'mi-temps'].includes(MD.panneau) && v.bloc > avant) { fermerPanneauMD(); fermerBancMD(); }
   if (P.pause) { if (MD.panneau !== 'tm') pvpPause(); }
   else if (MD.panneau === 'tm') { fermerPanneauMD(); fermerBancMD(); flashMD('Reprise', 'tm'); Son.jouer('sifflet'); }
-  if (MD.file.length && MD.attente && !MD.panneau) MD.attente = false;
+  // le panneau « Tactique » ne met pas le match à deux en pause : le récit continue derrière
+  if (MD.file.length && MD.attente && (!MD.panneau || MD.panneau === 'tactique')) MD.attente = false;
   pvpCompteur(); majMD(); majBancMD();
   if (MD.attente && !MD.panneau && !MD.file.length && MD.h >= MD.finBloc && MD.fin) finBlocMD();
 }
@@ -3929,7 +3935,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=92').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=93').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
