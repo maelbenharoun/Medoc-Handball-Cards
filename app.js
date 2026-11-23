@@ -975,9 +975,9 @@ function blocCompos() {
   const cs = S().compos || [], n = o => Object.keys(o || {}).length;
   const tac = t => { const [a, d] = String(t || '').split(':'); return NOM_ATT[a] && NOM_DEF[d] ? `${NOM_ATT[a]} + ${NOM_DEF[d]}` : ''; };
   return `<h3 class="banc-t">Mes compos <small>équipe, banc, capitaine, tactique et staff</small></h3>
-    <div class="compos">${[1, 2, 3].map(i => { const c = cs[i - 1];
-      return `<div class="compo${c ? '' : ' vide'}"><span class="compo-t"><b>Compo ${i}</b><small>${c ? `${n(c.equipe)} titulaires · ${n(c.remplacants)} remplaçants${tac(c.tactique) ? ' · ' + tac(c.tactique) : ''}` : 'vide'}</small></span>
-        <span class="compo-b">${c ? `<button class="btn gold" data-compo-charger="${i}">Charger</button>` : ''}<button class="btn ghost" data-compo-enr="${i}">${c ? 'Remplacer' : 'Enregistrer'}</button></span></div>`; }).join('')}</div>`;
+    <div class="cps">${[1, 2, 3].map(i => { const c = cs[i - 1];
+      return `<div class="cps-l${c ? '' : ' vide'}"><span class="cps-t"><b>Compo ${i}</b><small>${c ? `${n(c.equipe)} titulaires · ${n(c.remplacants)} remplaçants${tac(c.tactique) ? ' · ' + tac(c.tactique) : ''}` : 'vide'}</small></span>
+        <span class="cps-b">${c ? `<button class="btn gold" data-compo-charger="${i}">Charger</button>` : ''}<button class="btn ghost" data-compo-enr="${i}">${c ? 'Remplacer' : 'Enregistrer'}</button></span></div>`; }).join('')}</div>`;
 }
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
@@ -2038,12 +2038,16 @@ function vueVentes(D) {
     <div class="mk-l" id="mk-liste">${listeVentesHTML(M)}</div>`;
 }
 // choisir la carte à vendre : mes cartes libres une par une (on peut vendre une carte entraînée), puis le prix
+const listeVendreHTML = () => { const q = (MKT.vRecherche || '').trim().toLowerCase();
+  const l = EX().filter(e => libreEx(e) && (!MKT.vPalier || e.palier === MKT.vPalier) && (!MKT.vEquipe || deLEquipe(PAR_ID[e.carte], MKT.vEquipe))
+    && (!q || PAR_ID[e.carte].nom.toLowerCase().includes(q))).sort(rangEx);
+  return l.map(e => `<button class="pc" data-mk-choisir="${e.id}">${carteHTML(vue(e))}</button>`).join('') || '<p class="sub petit">Aucune carte libre avec ces filtres.</p>'; };
 function fenetreVendre() {
-  const l = EX().filter(e => libreEx(e) && (!MKT.vPalier || e.palier === MKT.vPalier)).sort(rangEx);
   ouvrirOverlay(`<div class="sheet compo"><h3>Vendre une carte</h3>
     <p class="sub petit">Tes cartes hors de l’équipe et du banc. Touche celle à vendre.</p>
-    ${filtresPalier('mk-vpalier', MKT.vPalier)}
-    <div class="pickgrid">${l.map(e => `<button class="pc" data-mk-choisir="${e.id}">${carteHTML(vue(e))}</button>`).join('') || '<p class="sub">Pas de carte libre à ce palier.</p>'}</div>
+    ${filtresPalier('mk-vpalier', MKT.vPalier)}${filtresEquipe('mk-vequipe', MKT.vEquipe || '')}
+    <input class="champ" type="search" placeholder="Nom du joueur" value="${esc(MKT.vRecherche || '')}" data-mk-vrecherche autocomplete="off" spellcheck="false">
+    <div class="pickgrid" id="mk-vliste">${listeVendreHTML()}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
 }
 function fenetrePrix(id) {
@@ -3135,7 +3139,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],.grid .card');
+  const t = e.target.closest('[data-act],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-ligue],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   const a = t.dataset.act, d = t.dataset;
   if (d.filtre) { filtre = d.filtre; return route(true); }
@@ -3156,6 +3160,7 @@ document.addEventListener('click', e => {
   if (d.mkPalier) { MKT.palier = d.mkPalier === '*' ? '' : d.mkPalier; return route(true); }
   if (d.mkEquipe) { MKT.equipe = d.mkEquipe === '*' ? '' : d.mkEquipe; return route(true); }
   if (d.mkVpalier) { MKT.vPalier = d.mkVpalier === '*' ? '' : d.mkVpalier; return fenetreVendre(); }
+  if (d.mkVequipe) { MKT.vEquipe = d.mkVequipe === '*' ? '' : d.mkVequipe; return fenetreVendre(); }
   if (d.mkChoisir) return fenetrePrix(d.mkChoisir);
   if (d.dmPalier) { MKT.dPalier = d.dmPalier; return fenetreDemande(); }
   if (d.dmEquipe) { MKT.dEquipe = d.dmEquipe === '*' ? '' : d.dmEquipe; return fenetreDemande(); }
@@ -3332,6 +3337,7 @@ document.addEventListener('input', e => {
     return;
   }
   if (t.dataset.mkRecherche !== undefined) { MKT.recherche = t.value; $('#mk-liste').innerHTML = listeVentesHTML(MKT.data.marche); return; }
+  if (t.dataset.mkVrecherche !== undefined) { MKT.vRecherche = t.value; $('#mk-vliste').innerHTML = listeVendreHTML(); return; }
   if (t.dataset.dmRecherche !== undefined) { MKT.dRecherche = t.value; $('#dm-liste').innerHTML = listeDemandeHTML(); return; }
   if (t.dataset.mkPrix !== undefined) { const v = +t.value; document.querySelectorAll('[data-mk-prix]').forEach(el => { if (el !== t) el.value = v; });
     $('#mk-gain').textContent = nb(Math.max(0, Math.floor(v * (1 - +t.dataset.mkPrix)))); return; }
@@ -3620,7 +3626,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=87').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=88').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

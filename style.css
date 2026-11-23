@@ -1411,14 +1411,14 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .md-ch button { position: relative; }
 .md-astuce { margin: 0 0 4px; padding: 8px 10px; border-radius: 12px; background: #18263a; font-size: .74rem; color: #bcd3ea; line-height: 1.35; }
 /* tirs au but : le menu (gardien, 5 tireurs dans l'ordre) et la séance tir par tir */
-.compos { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; }
-.compo { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); }
-.compo.vide { opacity: .8; border-style: dashed; }
-.compo-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.compo-t b { font-size: .86rem; }
-.compo-t small { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.compo-b { display: flex; gap: 6px; flex: none; }
-.compo-b .btn { padding: 7px 10px; font-size: .78rem; min-height: 0; }
+.cps { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; }
+.cps-l { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); }
+.cps-l.vide { opacity: .8; border-style: dashed; }
+.cps-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cps-t b { font-size: .86rem; }
+.cps-t small { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cps-b { display: flex; gap: 6px; flex: none; }
+.cps-b .btn { padding: 7px 10px; font-size: .78rem; min-height: 0; }
 .tab-l { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 4px 0 10px; }
 .tab-j { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--bg2); color: var(--ink); text-align: left; min-width: 0; }

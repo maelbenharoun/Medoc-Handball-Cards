@@ -181,6 +181,8 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('« Acheter » : la carte est à Alice, 900 pièces payées', avA - await pieces(U.al) === 900);
   // vendre une carte
   await pg.click('[data-act="mk-vendre"]'); await pg.waitForSelector('[data-mk-choisir]');
+  const cols = await pg.$eval('.sheet .pickgrid', g => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+  verif(`« Vendre une carte » : les cartes en grille (${cols} par ligne à 390 px), pas en une seule colonne`, cols >= 3, cols);
   await pg.click('[data-mk-choisir]'); await pg.waitForSelector('.mk-pr');
   const borne = await pg.$eval('.mk-pr input[type=number]', i => +i.max);
   await pg.fill('.mk-pr input[type=number]', String(borne));

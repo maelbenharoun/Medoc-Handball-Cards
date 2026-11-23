@@ -67,13 +67,13 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   await pg.goto(web.url); await pg.waitForSelector('form[data-form=connexion]');
   await pg.fill('[name=email]', 'alice@test.fr'); await pg.fill('[name=mdp]', 'motdepasse-alice'); await pg.click('button[value=connexion]');
   await pg.waitForSelector('.niveau');
-  await pg.goto(web.url + '#equipe'); await pg.waitForSelector('.compos');
-  const v = await pg.evaluate(() => ({n: document.querySelectorAll('.compo').length, vides: document.querySelectorAll('.compo.vide').length, charger: document.querySelectorAll('[data-compo-charger]').length,
-    txt: document.querySelector('.compos').textContent, large: document.documentElement.scrollWidth}));
+  await pg.goto(web.url + '#equipe'); await pg.waitForSelector('.cps');
+  const v = await pg.evaluate(() => ({n: document.querySelectorAll('.cps-l').length, vides: document.querySelectorAll('.cps-l.vide').length, charger: document.querySelectorAll('[data-compo-charger]').length,
+    txt: document.querySelector('.cps').textContent, large: document.documentElement.scrollWidth}));
   verif(`3 emplacements, 2 remplis (« Charger »), 1 vide ; pas de débordement`, v.n === 3 && v.vides === 1 && v.charger === 2 && /Jeu rapide \+ 3-3/.test(v.txt) && v.large <= 390, v);
-  await pg.evaluate(() => document.querySelector('.compos').scrollIntoView({block: 'center'}));
+  await pg.evaluate(() => document.querySelector('.cps').scrollIntoView({block: 'center'}));
   if (SP) await pg.screenshot({path: SP + '/compos-1.png'});
-  await pg.click('[data-compo-enr="3"]'); await pg.waitForFunction(() => !document.querySelector('.compo:nth-child(3)').classList.contains('vide'), null, {timeout: 8000}).catch(() => {});
+  await pg.click('[data-compo-enr="3"]'); await pg.waitForFunction(() => !document.querySelector('.cps-l:nth-child(3)').classList.contains('vide'), null, {timeout: 8000}).catch(() => {});
   verif('« Enregistrer » sur l’emplacement vide : compo 3 enregistrée', !!(await prof()).compos[2]);
   await pg.click('[data-compo-enr="1"]'); await pg.waitForSelector('.dmd'); await pg.click('.dmd-non'); await pg.waitForTimeout(300);
   verif('« Remplacer » demande d’abord une confirmation', !!(await pg.$('[data-compo-enr="1"]')));
