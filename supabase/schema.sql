@@ -3411,7 +3411,7 @@ begin
     delete from pvp_file where user_id = p.user_id;
     return jsonb_build_object('match', pvp_vue_json(m, case when m.a = p.user_id then 'a' else 'b' end, 0));
   end if;
-  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat VS Ordi)'; end if;
   perform verifier_equipe(p.user_id, p.equipe);
   insert into pvp_file (user_id, trophees) values (p.user_id, p.trophees)
     on conflict (user_id) do update set vu = now(), trophees = excluded.trophees;
@@ -3480,7 +3480,7 @@ declare p profils := moi(); a profils := ami_de(p_pseudo); v_id uuid;
 begin
   if not sont_amis(p.user_id, a.user_id) then raise exception 'Vous n’êtes pas ami(e)s'; end if;
   if (pvp_mon_match(p.user_id)).statut = 'direct' then raise exception 'Tu as déjà un match en cours'; end if;
-  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat VS Ordi)'; end if;
   perform verifier_equipe(p.user_id, p.equipe);
   if (select count(*) from jsonb_object_keys(a.equipe)) < 7 then raise exception '% n’a pas encore d’équipe complète', a.pseudo; end if;
   update pvp_invitations set statut = 'annulee' where de = p.user_id and statut = 'attente';
@@ -3518,7 +3518,7 @@ begin
   end if;
   perform 1 from profils where user_id in (p.user_id, i.de) order by user_id for update;
   if (pvp_mon_match(p.user_id)).statut = 'direct' or (pvp_mon_match(i.de)).statut = 'direct' then raise exception 'Un de vous deux a déjà un match en cours'; end if;
-  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat)'; end if;
+  if exists (select 1 from matchs_direct where user_id = p.user_id) then raise exception 'Termine d’abord ton match en cours (Championnat VS Ordi)'; end if;
   delete from pvp_file where user_id in (p.user_id, i.de);
   v_id := pvp_nouveau(i.de, p.user_id, false, null);
   update pvp_invitations set statut = 'acceptee', match = v_id where pvp_invitations.id = i.id;

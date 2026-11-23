@@ -1123,7 +1123,7 @@ function vueJouer() {
   return `<h1>Jouer</h1>
     <a class="porte classe" href="#classe"><span class="porte-ic" aria-hidden="true">⚔️</span><b>Classé</b>
       <small>${pv.match ? '<em class="md-porte">Match en direct en cours : reprends-le</em> · ' : ''}${nb(pv.trophees ?? e.trophees ?? 0)} 🏆 · en direct contre un vrai joueur, trophées et arènes</small></a>
-    <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat</b>
+    <a class="porte championnat" href="#championnat"><span class="porte-ic" aria-hidden="true">🏆</span><b>Championnat VS Ordi</b>
       <small>${e.matchDirect ? '<em class="md-porte">Match en cours : reprends-le</em> · ' : ''}${pc ? `${esc(pc.type === 'legendes' ? pc.nom : pc.groupe + ' · ' + pc.nom)} · ` : ''}${e.matchMax ? `${matchsDispo(e)}/${e.matchMax} match${matchsDispo(e) > 1 ? 's' : ''} en réserve (${rechargeMatch()})` : `${matchsDispo(e)} match${matchsDispo(e) > 1 ? 's' : ''} aujourd’hui`} · de la Promotion aux Légendes</small></a>
     <a class="porte pieces" href="#pieces"><span class="porte-ic" aria-hidden="true"><i class="coin"></i></span><b>Gagner des pièces</b>
       <small>Jet de 7 m, arrêt réflexe, contre-attaque, tir en suspension · ${essais} essai${essais > 1 ? 's' : ''} aujourd’hui</small></a>
@@ -1140,7 +1140,7 @@ function vueChampionnat() {
   const histo = (JEU.rencontres || []).slice(0, 8).map(r => `<div class="hist r-${r.resultat}"><b>${r.score ? r.score.join(' – ') : ''}</b>
     <span>${{championnat: 'Championnat', defi: 'Défi', defi_ami: 'Défi ami(e)', defense_ami: 'Défi ami(e) reçu'}[r.type] || 'Défendu'} · ${r.type === 'championnat' || r.type === 'ligue' ? esc(r.adversaire) : lienJ(r.adversaire)}</span><small>${RES[r.resultat] || ''}</small></div>`).join('');
   const T = tactiqueActuelle(), ta = TACT_ATT.find(x => x[0] === T.att)[1], td = TACT_DEF.find(x => x[0] === T.def)[1];
-  return `${retour('jouer', 'Jouer')}<h1>Championnat</h1>
+  return `${retour('jouer', 'Jouer')}<h1>Championnat VS Ordi</h1>
     ${complet ? '' : '<div class="daily hors"><p><b>Ton équipe n’est pas complète</b>Aligne 7 joueurs dans l’onglet Équipe pour jouer des matchs.</p></div>'}
     <p class="sub petit">Tactique : <b>${ta}</b> et <b>${td}</b>${T.choisie ? '' : ' (par défaut)'} · <a href="#equipe">changer dans l’onglet Équipe</a></p>
     ${blocParcours(e, complet && matchsDispo(e) > 0, note, matchsDispo(e))}
@@ -1570,7 +1570,7 @@ function fermerDirect(parRetour, sansRoute) {
   MD.el.remove(); MD.el = null; MD.fin = null;
   document.body.classList.remove('avec-intro'); Son.discret(false);
   if (fini) { JEU.rencontres = null; CL.data = null; }
-  else if (!sansRoute) toast(pvp ? 'Le match continue sans toi : ton adjoint coache ton équipe. Reviens vite (Jouer, Classé)' : 'Match en pause : reprends-le quand tu veux depuis Championnat');
+  else if (!sansRoute) toast(pvp ? 'Le match continue sans toi : ton adjoint coache ton équipe. Reviens vite (Jouer, Classé)' : 'Match en pause : reprends-le quand tu veux depuis Championnat VS Ordi');
   if (!sansRoute) route(true);
 }
 // une ligne au fil + score et stats (sans animation : reprise, ou fin simulée)
@@ -2122,7 +2122,7 @@ const FILE = {t: null, req: false, attente: 0, recu: 0, estime: 120, fantome: 12
 function pvpChercher() {
   if (FILE.t) return;
   if (noteEquipe().n < 7) return toast('Aligne 7 joueurs dans l’onglet Équipe pour jouer');
-  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat VS Ordi)');
   Object.assign(FILE, {attente: 0, recu: Date.now(), estime: 120, fantome: PARAMS.pvp_fantome_secondes ?? 120});
   let el = $('#pvp-file');
   if (!el) { el = document.createElement('div'); el.id = 'pvp-file'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
@@ -2205,7 +2205,7 @@ function vueClasse() {
 const INV = {id: null, t: null, pour: '', debut: 0, secondes: 120, req: false};
 function pvpInviter(pseudo) {
   if (INV.t || FILE.t) return toast('Une recherche est déjà en cours');
-  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat VS Ordi)');
   action(Compte.pvpInviter(pseudo), r => {
     Object.assign(INV, {id: r.invitation, pour: r.pour, debut: Date.now(), secondes: r.secondes || 120});
     if (!$('#overlay').hidden) cacherOverlay();
@@ -2251,7 +2251,7 @@ function repondreInvitation(id, oui) {
   const el = $('#pvp-invit'); if (el) el.hidden = true;
   (majInvitations.refusees || (majInvitations.refusees = new Set())).add(id);
   if (!oui) return Compte.pvpRepondre(id, false).catch(() => {});
-  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat VS Ordi)');
   action(Compte.pvpRepondre(id, true), r => { if (r.match) pvpTrouve(r.match); });
 }
 
@@ -2699,7 +2699,7 @@ function ficheAmi(pseudo) {
 }
 // défier un(e) ami(e) : en direct (tactique, temps morts) ou simulé ; son équipe joue avec sa tactique à lui (elle)
 function fenetreDefi(pseudo) {
-  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat)');
+  if (S().matchDirect) return toast('Termine d’abord ton match en cours (Jouer, Championnat VS Ordi)');
   SOC.defi = pseudo; SOC.panneau = 'defi';
   const A = SOC.amis || {};
   ouvrirOverlay(`<div class="sheet amis-p"><button class="retour" data-ami="${esc(pseudo)}">‹ ${esc(pseudo)}</button>
@@ -3927,7 +3927,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=90').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=91').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
