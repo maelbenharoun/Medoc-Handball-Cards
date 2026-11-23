@@ -37,9 +37,10 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   r = await rpcJoueur(db, al, 'match_temps_mort', [150]);
   let e = await etat();
   verif('temps mort à la seconde demandée (2\'30), au milieu de la tranche déjà jouée', !r.erreur && r.reprise === 150 && e.t === 150 && e.tm.restants === 2
-    && e.ev.at(-1).ty === 'temps-mort' && e.ev.at(-1).t === 150 && r.adverse?.defense === e.b.defense, r.erreur || r.reprise);
+    && e.ev.some(x => x.ty === 'temps-mort' && x.t === 150) && r.adverse?.defense === e.b.defense, r.erreur || r.reprise);
   const gardes = e0.ev.filter(x => x.t <= 150);
-  verif('ce qui était raconté avant reste, la suite prévue est oubliée', JSON.stringify(e.ev.slice(0, gardes.length)) === JSON.stringify(gardes) && e.ev.length === gardes.length + 1);
+  verif('ce qui était raconté avant reste, la suite prévue est oubliée', JSON.stringify(e.ev.slice(0, gardes.length)) === JSON.stringify(gardes)
+    && e.ev.length === gardes.length + 1 + (e.ev.at(-1).ty === 'momentum-fin' ? 1 : 0));   // + « momentum-fin » s'il casse leur momentum
   verif('élan pendant 3 minutes à partir du temps mort', e.a.elan === 150 + 180);
   r = await rpcJoueur(db, al, 'match_bloc', ['rapide:33', 'pression', false]);
   e = await etat();
