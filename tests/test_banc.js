@@ -168,6 +168,17 @@ const SP = process.argv[2];
   await p.click('[data-md-att=rapide]'); await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 620, null, {timeout: 20000});
   verif('après le temps mort : la tactique choisie s’applique tout de suite', /Tu passes en/.test(await p.textContent('.md-fil')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.blocs.length >= 2);
+  // capture de Maël (24 nov. 2026) : blessure en toute fin de match, le changement est refusé (« Le match est fini ») : le remplacement
+  // n'est plus exigé, « Reprendre » marche de nouveau (avant : plus rien de possible)
+  const finB = await p.evaluate(async () => {
+    const poste = Object.keys(MD.vue.nous.effectif || {}).find(k => k !== 'GB') || 'AG';
+    MD.blessePoste = poste; MD.blesseNom = 'Test'; panneauMD('blessure');
+    const vrai = Compte.matchChanger; Compte.matchChanger = () => Promise.reject(new Error('Le match est fini'));
+    changerMD(poste); await new Promise(r => setTimeout(r, 400)); Compte.matchChanger = vrai;
+    return {libre: MD.blessePoste === null, panneau: MD.panneau};
+  });
+  verif('blessure en fin de match, changement refusé : le remplacement n’est plus exigé, le panneau se ferme', finB.libre && finB.panneau !== 'blessure', finB);
+  if (await p.$('.md-panneau:not([hidden])')) await p.evaluate(() => fermerPanneauMD());
   await p.click('.md-sim'); await p.click('.dmd-oui'); await p.waitForSelector('.md-fin', {timeout: 20000});
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();

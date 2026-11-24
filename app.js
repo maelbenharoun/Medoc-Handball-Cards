@@ -2052,7 +2052,11 @@ function changerMD(poste) {
     if (r.reprise > MD.h + 30) toast(`${postes.length > 1 ? 'Ils entrent' : 'Il entre'} à ${Math.floor(r.reprise / 60)}'`);
     majBancMD(); majMD();
     if (!MD.panneau && !MD.file.length && MD.h >= MD.finBloc) finBlocMD();
-  }).catch(e => { MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); majBancMD(); });
+  }).catch(e => { MD.chgEnCours = false; MD.chgPoste = null; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible');
+    // le changement est refusé (fin du match…) : le remplacement d'un blessé n'est plus exigé, sinon plus rien n'est possible (capture de
+    // Maël, 24 nov. 2026 : blessure à la 59e, « Le match est fini » au changement, « Reprendre » refusé)
+    if (MD.blessePoste) { MD.blessePoste = null; fermerBancMD(); if (MD.panneau === 'blessure') { fermerPanneauMD(); reprendreMD(); } }
+    majBancMD(); });
 }
 function choixMD() {
   const p = MD.el.querySelector('.md-panneau'), c = MD.choix;
@@ -2100,7 +2104,8 @@ function clicMD(e) {
   if (d.mdGo === 'jouer') {
     const type = MD.panneau;
     // blessure : le remplacement est obligatoire quand il y a un remplaçant (demande de Maël, 24 nov. 2026)
-    if (type === 'blessure' && MD.blessePoste && !MD.pvp) { Son.jouer('erreur'); toast('Fais d’abord entrer son remplaçant'); return panneauBanc(); }
+    // (à la fin du match, plus de changement possible : on n'exige plus le remplacement)
+    if (type === 'blessure' && MD.blessePoste && !MD.pvp && !(MD.vue?.bloc >= 12 && MD.h >= MD.finBloc - 5)) { Son.jouer('erreur'); toast('Fais d’abord entrer son remplaçant'); return panneauBanc(); }
     if (type !== 'erreur') { MD.tac = `${MD.choix.att}:${MD.choix.def}`; MD.cons = MD.choix.cons; }
     fermerPanneauMD(); majMD();
     if (type === 'envoi' || type === 'mi-temps') Son.jouer('sifflet');
@@ -4395,7 +4400,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=101').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=102').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
