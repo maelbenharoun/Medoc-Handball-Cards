@@ -2746,9 +2746,11 @@ begin
     return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', v, 'ty', 'momentum-fin', 'par', 'mi-temps', 'm', 0,
       'v', v is not null, 's', e -> 'score'));
   end if;
-  if not (adv = 'a' and mom > 0 or adv = 'b' and mom < 0) then return e; end if;
+  -- un temps mort, de l'une ou l'autre équipe, ramène la barre au centre (demande de Maël, 24 nov. 2026 ; avant, seulement celle qui
+  -- penchait vers l'adversaire de l'équipe qui le prenait)
+  if mom = 0 and v is null then return e; end if;
   e := (e - 'momv') || jsonb_build_object('mom', 0);
-  return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', adv, 'ty', 'momentum-fin', 'par', 'tm', 'm', 0,
+  return jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', coalesce(v, case when mom > 0 then 'a' else 'b' end), 'ty', 'momentum-fin', 'par', 'tm', 'm', 0,
     'v', v is not null, 's', e -> 'score'));
 end $$;
 -- Jets de 7 m joués au mini-jeu (demande de Maël, 23 nov. 2026). sept = {c (qui tire), t, n (tireur), g (gardien), tir, gb (niveaux),

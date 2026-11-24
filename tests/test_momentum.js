@@ -1,5 +1,5 @@
 // Momentum (demande de Maël, 23 nov. 2026) : une barre partagée que chaque but pousse (30, 40 si l'attaque a le dessus), bloquée à 100
-// (+10 % / −10 % de chances de marquer) jusqu'à un temps mort adverse ou la mi-temps ; l'ordinateur et l'adjoint la cassent avec un
+// (+10 % / −10 % de chances de marquer) jusqu'à un temps mort ou la mi-temps ; l'ordinateur et l'adjoint la cassent avec un
 // temps mort. Serveur (moteur, sur beaucoup de matchs), puis la barre dans l'écran du match (390 px).
 //   node tests/test_momentum.js [dossier des captures]
 const {chromium} = require('playwright');
@@ -68,15 +68,19 @@ const BUTS = ['but', '7m-but'];
   verif(`bloqué pour nous : nos buts « mérités » ×${(avec / sans).toFixed(2)} (≈ 1,10), les leurs ×${(euxA / euxS).toFixed(2)} (≈ 0,90)`,
     avec / sans > 1.06 && avec / sans < 1.14 && euxA / euxS > .86 && euxA / euxS < .94, {avec, sans, euxA, euxS});
 
-  // ── 3. un temps mort casse le momentum de l'autre équipe, pas le sien ; rembobiner retrouve la barre
+  // ── 3. un temps mort ramène la barre au centre (des deux côtés) ; rembobiner retrouve la barre
   let x = await nouveau('reflechi');
   x = await bloc(x); x = await bloc(x);
   x.mom = -100; x.momv = 'b';
   let r = (await q('select match_tm_prendre($1::jsonb) e', [JSON.stringify(x)]))[0].e;
   verif('notre temps mort casse leur momentum (barre au centre, « momentum-fin »)', r.mom === 0 && !r.momv && r.ev.at(-1).ty === 'momentum-fin' && r.ev.at(-1).c === 'b' && r.ev.at(-1).v === true, r.ev.at(-1));
+  // (demande de Maël, 24 nov. 2026) : un temps mort ramène toujours la barre au centre, même celle qui penchait de notre côté
   x.mom = 100; x.momv = 'a';
   r = (await q('select match_tm_prendre($1::jsonb) e', [JSON.stringify(x)]))[0].e;
-  verif('notre temps mort ne casse pas notre momentum', r.mom === 100 && r.momv === 'a');
+  verif('notre temps mort ramène aussi notre momentum au centre', r.mom === 0 && !r.momv && r.ev.at(-1).ty === 'momentum-fin' && r.ev.at(-1).c === 'a', r.ev.at(-1));
+  x.mom = 45; delete x.momv;
+  r = (await q('select match_tm_prendre($1::jsonb) e', [JSON.stringify(x)]))[0].e;
+  verif('une barre qui penche (sans être bloquée) revient aussi au centre', r.mom === 0 && r.ev.at(-1).ty === 'momentum-fin' && r.ev.at(-1).v === false, r.ev.at(-1));
   // rembobiner au milieu d'une tranche où la barre s'est bloquée
   let trouve = false;
   for (let i = 0; i < 30 && !trouve; i++) {
