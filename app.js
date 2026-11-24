@@ -178,7 +178,8 @@ function majEntete() {
   const n = (S().boosters || 0) + (S().bonus || 0) + (S().bonusOr || 0) + (S().depart === false ? 1 : 0);
   const pastille = $('#pastille'); pastille.hidden = !n || !Compte.pret; pastille.textContent = n;
   // quêtes : une icône en haut à droite, avec une pastille quand une récompense attend
-  const q = [...(S().quetes || []), ...(S().quetesSemaine || [])].filter(x => x.progres >= x.objectif && !x.reclamee).length + (passePret() ? 1 : 0);
+  const q = [...(S().quetes || []), ...(S().quetesSemaine || [])].filter(x => x.progres >= x.objectif && !x.reclamee).length + (passePret() ? 1 : 0)
+    + (S().club?.paliers || []).filter(p => p.atteint && !p.reclame).length;
   $('#quetes-b').hidden = !Compte.pret; const pq = $('#pastille-q'); pq.hidden = !q || !Compte.pret; pq.textContent = q;
   // ami(e)s : la bulle, avec une pastille pour les demandes, les échanges proposés et les messages non lus
   const so = (S().social?.demandes || 0) + (S().social?.echanges || 0) + (S().social?.messages || 0), pa = $('#pastille-a');
@@ -366,9 +367,21 @@ const queteHTML = (q, attr) => { const fini = q.progres >= q.objectif;
 function fenetreQuetes() {
   const quetes = (S().quetes || []).map(q => queteHTML(q, 'data-quete')).join(''), sem = (S().quetesSemaine || []).map(q => queteHTML(q, 'data-quete-s')).join('');
   ouvrirOverlay(`<div class="sheet quetes-s"><h3>Quêtes du jour</h3><div class="quetes">${quetes || '<p class="sub">Reviens demain pour de nouvelles quêtes.</p>'}</div>
+    ${blocClubQuetes()}
     ${sem ? `<h3>Quêtes de la semaine</h3><p class="sub petit">Jusqu’au ${S().finSemaine ? dateCourte(S().finSemaine) : 'dimanche'} · grosses récompenses 💪</p><div class="quetes">${sem}</div>` : ''}
     ${blocPasse()}
     <button class="btn" data-act="fermer">Fermer</button></div>`);
+}
+
+// l'objectif du club dans les quêtes (demande de Maël, 24 nov. 2026) : victoires de la semaine de tous les membres, 3 paliers à récupérer
+function blocClubQuetes() {
+  const c = S().club;
+  if (!c) return `<h3>🛡️ Objectif du club</h3><p class="sub petit">Rejoins un club de joueurs : vos victoires s’additionnent chaque semaine, avec des récompenses à la clé.</p>
+    <button class="btn ghost" data-act="vers-clubs" style="width:100%">Trouver un club</button>`;
+  const ps = c.paliers || [];
+  return `<h3>🛡️ Objectif du club · ${esc(c.nom)}</h3><p class="sub petit">${plur(c.victoires || 0, 'victoire')} cette semaine (championnat, Classé, défis), tous les membres ensemble</p>
+    <div class="cl-pal">${ps.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * (c.victoires || 0) / p.objectif)}%"></i></span>
+      ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>`;
 }
 
 // ── pour ne pas tourner en rond (demande de Maël, d'après les jeux du genre) : joueurs de la semaine (vrais matchs du club),
@@ -635,9 +648,10 @@ function vueClubs() {
     <div class="cl-liste">${liste || '<p class="sub">Aucun club pour l’instant : crée le premier !</p>'}</div>`;
   const c = d.club;
   return `${retour('social', 'Social')}<h1>${esc(c.nom)}</h1>
-    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, défis que tu lances, depuis ton arrivée dans le club)</p>
+    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, Classé, défis en direct, depuis ton arrivée dans le club)</p>
     <div class="cl-pal">${c.paliers.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * c.victoires / p.objectif)}%"></i></span>
       ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>
+    ${blocChatClub()}
     <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${lienJ(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
       <small>niv. ${m.niveau}</small><em>${plur(m.victoires, 'victoire')}</em></div>`).join('')}</div>
     <h2>Classement des clubs</h2><div class="cl-liste">${liste}</div>
@@ -2598,7 +2612,7 @@ function chargerMarche() {
     .catch(e => { if (!MKT.data) MKT.data = {marche: {ventes: [], mes: [], prix: {}}, boite: {restants: 0, limite: 0}, club: null, historique: []}; toast(e.message); })
     .finally(() => { MKT.charge = false; majEntete(); if (vueCourante() === 'marche' && $('#overlay').hidden) route(true); });
 }
-const majMarche = (d, msg) => { MKT.data = d; MKT.recu = Date.now(); if (msg) toast(msg); if (!$('#overlay').hidden) cacherOverlay(); route(true); };
+const majMarche = (d, msg) => { MKT.data = d; MKT.recu = Date.now(); if (msg) toast(msg); if (!$('#overlay').hidden) cacherOverlay(); route(true); if (vueCourante() === 'clubs') clubChatTick(true); };
 const dureeTx = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.min(59, Math.ceil(s % 3600 / 60))).padStart(2, '0')}` : `${Math.max(1, Math.ceil(s / 60))} min`;
 const resteTx = t => dureeTx(Math.max(0, (new Date(t) - Date.now()) / 1000));
 const libreEx = e => !e.verrou && !dansEquipe(e.id) && PAR_ID[e.carte] && !PAR_ID[e.carte].legende;
@@ -2934,6 +2948,50 @@ function salonTick(forcer) {
   SAL.req = true;
   // un message effacé par l'admin : on relit tout (rare)
   Compte.salonLire(forcer ? 0 : SAL.dernier).then(salonMaj).catch(e => { if (forcer) toast(e.message); }).finally(() => { SAL.req = false; });
+}
+// Chat du club (demande de Maël, 24 nov. 2026) : les messages des membres, les demandes de cartes (à donner d'un toucher) et les dons, dans
+// un seul fil. Relu toutes les 4 s tant que la page du club est ouverte ; seul le fil est redessiné, jamais le champ (comme le salon)
+const CCH = {msgs: [], dernier: 0, d: null, t: null, req: false};
+function blocChatClub() {
+  if (!CCH.t) { CCH.t = setInterval(clubChatTick, 4000); clubChatTick(true); }
+  const D = CCH.d || {}, C = D.club || {};
+  const demander = C.prochaine > 0 ? `<small class="sub">Prochaine demande de carte dans ${dureeTx(C.prochaine)}</small>`
+    : `<button class="btn ghost petit" data-act="cc-demander">🃏 Demander une carte</button>`;
+  return `<h2>💬 Chat du club</h2>
+    <div class="sal-fil cc-fil" id="cc-fil">${clubFilHTML()}</div>
+    ${D.muet ? '<p class="sub petit">Tu ne peux pas écrire pour l’instant.</p>' : `<form class="ajout-ami sal-f" data-form="chat-club"><input class="champ" name="texte" maxlength="${D.longueur || 300}" placeholder="Écris à ton club" autocomplete="off" required>
+      <button class="btn gold" type="submit">Envoyer</button></form>`}
+    <div class="cc-act">${demander}<small class="sub">Seuls les membres du club lisent ce fil.</small></div>`;
+}
+function clubFilHTML() {
+  const D = CCH.d; if (!D) return '<p class="sub petit centre">Chargement…</p>';
+  const C = D.club || {}, h = d => new Date(d).toLocaleString('fr-FR', {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+  const items = [
+    ...CCH.msgs.map(m => ({t: +new Date(m.le), html: `<p class="msg sal-m${m.moi ? ' moi' : ''}">${m.moi ? '' : `<b class="sal-p">${lienJ(m.pseudo)}</b>`}<span>${esc(m.texte)}</span>
+      <small>${h(m.le)}${m.peutEffacer ? ` <button class="lien" data-cc-suppr="${m.id}">🗑</button>` : ''}</small></p>`})),
+    ...(D.dons || []).map(x => ({t: +new Date(x.le), html: `<p class="cc-sys">🎁 ${x.moi ? 'Tu as' : `${lienJ(x.de || 'Un joueur')} a`} donné <b>${esc(PAR_ID[x.carte]?.nom || 'une carte')}</b> (${R_LABEL[x.palier]}) à ${x.pourMoi ? 'toi' : lienJ(x.pour || '?')}</p>`})),
+    ...(C.demandes || []).map(x => { const c = carteDe(x.carte, x.palier); if (!c) return null;
+      const debut = +new Date(x.fin) - (C.duree || 24) * 3600e3;
+      return {t: debut, html: `<div class="cc-dem${x.moi ? ' moi' : ''}${x.possible ? ' ok' : ''}">${vignetteHTML(c)}<div class="dm-d"><b>${x.moi ? 'Ta demande' : `${lienJ(x.pseudo)} demande`}</b>
+        <small>${esc(c.nom)} · ${R_LABEL[x.palier]}</small><span class="bar"><i style="width:${100 * x.recu / x.voulu}%"></i></span><small>${x.recu}/${x.voulu} reçue${x.recu > 1 ? 's' : ''} · encore ${resteTx(x.fin)}</small></div>
+        ${x.moi ? '' : `<button class="btn gold petit" data-donner="${x.id}"${x.possible && C.donsRestants ? '' : ' disabled'}>Donner<small>+${nb(C.pieces?.[x.palier] || 0)} <i class="coin"></i></small></button>`}</div>`}; })
+  ].filter(Boolean).sort((a, b) => a.t - b.t);
+  return items.length ? items.map(x => x.html).join('') : '<p class="sub petit centre">Personne n’a encore écrit : lance la discussion !</p>';
+}
+function clubChatMaj(r) {
+  if (!r) return;
+  CCH.d = r;
+  const vus = new Set(CCH.msgs.map(m => m.id)), sup = new Set(r.supprimes || []);
+  CCH.msgs = CCH.msgs.concat((r.messages || []).filter(m => !vus.has(m.id))).filter(m => !sup.has(m.id)).slice(-150);
+  CCH.dernier = Math.max(CCH.dernier, ...CCH.msgs.map(m => m.id), 0);
+  const f = $('#cc-fil');
+  if (f) { const bas = f.scrollHeight - f.scrollTop - f.clientHeight < 60, html = clubFilHTML(); if (f.innerHTML !== html) { f.innerHTML = html; if (bas || !f.dataset.vu) f.scrollTop = f.scrollHeight; f.dataset.vu = 1; } }
+}
+function clubChatTick(forcer) {
+  if (vueCourante() !== 'clubs' || !SOC.clubs?.club) { clearInterval(CCH.t); CCH.t = null; return; }
+  if (CCH.req || (!forcer && document.hidden)) return;
+  CCH.req = true;
+  Compte.clubChat(forcer ? 0 : CCH.dernier).then(r => { if (forcer) { CCH.msgs = []; CCH.dernier = 0; } clubChatMaj(r); }).catch(e => { if (forcer) toast(e.message); }).finally(() => { CCH.req = false; });
 }
 // Classement, ligue, clubs, pronos : relus à chaque visite de la page s'ils datent de plus de 15 s (la page montre d'abord ceux
 // qu'elle a, puis se met à jour). Avant, ils n'étaient chargés qu'une fois par session : les victoires du club ne bougeaient pas
@@ -3814,7 +3872,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
+  const t = e.target.closest('[data-act],[data-cc-suppr],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   if (t.closest('#pvp-pres') && !t.dataset.act) return;   // présentation d'un match à deux : rien à ouvrir derrière
   const a = t.dataset.act, d = t.dataset;
@@ -3823,6 +3881,11 @@ document.addEventListener('click', e => {
   if (d.slot) return choisir(d.slot);
   if (t.classList.contains('card') && !t.classList.contains('locked')) return fiche(t.dataset.id);
   if (a === 'fermer') { SOC.panneau = null; return fermerOverlay(); }
+  if (a === 'vers-clubs') {   // depuis les quêtes : la fenêtre se ferme, sa place dans l'historique devient la page des clubs (comme les onglets)
+    const i = COUCHES.lastIndexOf(coucheOverlay); if (i >= 0) COUCHES.splice(i, 1);
+    cacherOverlay(true); try { history.replaceState(null, '', '#clubs'); } catch (er) { location.hash = '#clubs'; return; }
+    return route();
+  }
   if (a === 'moi') return fenetreCompte();
   if (a === 'quetes') return fenetreQuetes();
   if (a === 'amis') { SOC.amis = null; return panneauAmis(); }
@@ -3842,6 +3905,7 @@ document.addEventListener('click', e => {
   if (d.dmEquipe) { MKT.dEquipe = d.dmEquipe === '*' ? '' : d.dmEquipe; return fenetreDemande(); }
   if (a === 'mk-vendre') return fenetreVendre();
   if (a === 'dm-demander') { MKT.dRecherche = ''; return fenetreDemande(); }
+  if (a === 'cc-demander') { MKT.dRecherche = ''; MKT.data = {...(MKT.data || {}), club: CCH.d?.club}; return fenetreDemande(); }   // depuis le chat du club
   if (d.pfiltre) { PARIS.filtre = d.pfiltre; return route(true); }
   if (d.pari) { const [rid, choix] = d.pari.split(':'); return fenetrePari(rid, choix); }
   if (d.fiche) return fenetreFiche(d.fiche);
@@ -3900,6 +3964,7 @@ document.addEventListener('click', e => {
   if (a === 'defi-live') { const ps = SOC.defi; cacherOverlay(); return pvpInviter(ps); }
   if (a === 'pvp-chercher') { pvpChercher(); return route(true); }
   if (a === 'presence') return action(Compte.reglerPresence(!S().invisible), () => { toast(S().invisible ? 'Tu apparais hors ligne' : 'Les autres te voient en ligne'); fenetreCompte(); });
+  if (d.ccSuppr) return demander('Effacer ce message du chat du club ?', 'Effacer').then(oui => oui && Compte.clubChatSupprimer(+d.ccSuppr).then(r => { CCH.msgs = []; CCH.dernier = 0; clubChatMaj(r); }).catch(er => toast(er.message)));
   if (d.salSuppr) return demander('Effacer ce message pour tout le monde ?', 'Effacer').then(oui => oui && Compte.salonSupprimer(+d.salSuppr).then(r => { SAL.msgs = []; SAL.dernier = 0; salonMaj(r); }).catch(er => toast(er.message)));
   if (d.salMuet) return demander(`Empêcher ${d.salMuet} d’écrire dans le salon pendant 24 h ?`, 'Oui').then(oui => oui && Compte.salonMuet(d.salMuet, 24).then(r => { salonMaj(r); toast(`${d.salMuet} ne peut plus écrire pendant 24 h`); }).catch(er => toast(er.message)));
   if (a === 'pvp-accepter') return accepterPropose();
@@ -3929,7 +3994,8 @@ document.addEventListener('click', e => {
   if (a === 'club-creer') { const nom = $('#club-nom')?.value || ''; return action(Compte.clubCreer(nom), r => { SOC.clubs = r; Son.jouer('recompense'); toast('Club créé 🛡️'); route(true); }); }
   if (d.clubRejoindre) return action(Compte.clubRejoindre(+d.clubRejoindre), r => { SOC.clubs = r; toast('Bienvenue au club !'); route(true); });
   if (a === 'club-quitter') return demander('Quitter ton club ?', 'Quitter').then(oui => oui && !occupe && action(Compte.clubQuitter(), r => { SOC.clubs = r; route(true); }));
-  if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true); });
+  if (d.clubPalier) return action(Compte.clubReclamer(+d.clubPalier), r => { SOC.clubs = r; Son.jouer('recompense'); toast(`+${texteRecomp(r.recompense)}`); route(true);
+    if ($('#overlay .quetes-s')) fenetreQuetes(); });
   if (d.album) { const [eq, pal] = d.album.split(':'); return action(Compte.reclamerAlbum(eq, pal), r => { Son.jouer('recompense'); toast(`Album fini ! +${texteRecomp(r.recompense)}`); route(true); }); }
   if (d.staffFusion) { const [id, pal] = d.staffFusion.split(':');
     return action(Compte.fusionnerStaff(id, pal), r => { Son.jouer('recompense'); toast(`${staffDe(r.staff)?.personne || staffDe(r.staff)?.nom || 'Staff'} passe ${R_LABEL[r.palier]} ✨`); route(true); }); }
@@ -4013,6 +4079,11 @@ document.addEventListener('submit', e => {
   if (quoi === 'salon') {
     const champ = f.querySelector('[name=texte]'), texte = champ.value;
     return Compte.salonEcrire(texte, SAL.dernier).then(r => { champ.value = ''; salonMaj(r); const fl = $('#sal-fil'); if (fl) fl.scrollTop = fl.scrollHeight; })
+      .catch(er => toast(er.message || 'Message non envoyé'));
+  }
+  if (quoi === 'chat-club') {
+    const champ = f.querySelector('[name=texte]'), texte = champ.value;
+    return Compte.clubChat(CCH.dernier, texte).then(r => { champ.value = ''; clubChatMaj(r); const fl = $('#cc-fil'); if (fl) fl.scrollTop = fl.scrollHeight; })
       .catch(er => toast(er.message || 'Message non envoyé'));
   }
   if (quoi === 'message') return action(Compte.envoyerMessage(SOC.ami, d.texte), c => {   // le clavier reste ouvert : on vide le champ, seul le fil change
@@ -4326,7 +4397,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=100').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=101').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

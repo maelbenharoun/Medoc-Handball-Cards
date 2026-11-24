@@ -240,6 +240,8 @@ const CompteServeur = (() => {
     clubRejoindre: id => rpc('club_rejoindre', {p_club: id}),
     clubQuitter: () => rpc('club_quitter'),
     clubReclamer: palier => rpc('club_reclamer', {p_palier: palier}),
+    clubChat: (depuis, texte) => rpc('club_chat', {p_depuis: depuis || 0, p_texte: texte ?? null}),   // chat du club : messages, demandes, dons
+    clubChatSupprimer: id => rpc('club_chat_supprimer', {p_id: id}),
     reclamerAlbum: (equipe, palier) => rpc('reclamer_album', {p_equipe: equipe, p_palier: palier}),
     choisirCapitaine: ex => rpc('choisir_capitaine', {p_ex: ex || null}),
     fusionnerStaff: (id, palier) => rpc('fusionner_staff', {p_staff: id, p_palier: palier}),   // 3 identiques → palier suivant

@@ -112,6 +112,7 @@ insert into parametres values (1, '{
   "momentum_max": 100, "momentum_effet": 0.10,
   "sept_chance": 0.34, "sept_max_mi_temps": 1, "sept_tir_secondes": 12, "sept_gardien_secondes": 8,
   "en_ligne_minutes": 2, "salon_longueur": 300, "salon_intervalle_secondes": 3, "salon_par_jour": 200, "salon_jours": 7,
+  "club_chat_longueur": 300, "club_chat_intervalle_secondes": 3, "club_chat_par_jour": 200, "club_chat_jours": 7,
   "momentum_ia": {"hasard": 0.3, "lent": 0.5, "reflechi": 0.75, "rapide": 0.9, "legende": 1},
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
 }'::jsonb)
@@ -829,6 +830,12 @@ create table if not exists clubs_membres (user_id uuid primary key references pr
   role text not null default 'membre' check (role in ('president', 'membre')), rejoint_le timestamptz not null default now());
 create table if not exists clubs_recompenses (user_id uuid not null references profils on delete cascade, lundi date not null, palier int not null,
   primary key (user_id, lundi, palier));
+-- chat du club (demande de Maël, 24 nov. 2026) : les membres parlent entre eux ; les demandes de cartes et les dons s'y affichent aussi
+create table if not exists club_messages (id bigserial primary key, club bigint not null references clubs on delete cascade,
+  user_id uuid not null references profils on delete cascade, texte text not null, supprime boolean not null default false, le timestamptz not null default now());
+create index if not exists club_messages_club on club_messages (club, id);
+alter table club_messages enable row level security;
+revoke all on club_messages from anon, authenticated;
 alter table clubs enable row level security;
 alter table clubs_membres enable row level security;
 alter table clubs_recompenses enable row level security;
@@ -1094,6 +1101,16 @@ create or replace function mini_jour(m jsonb) returns jsonb language sql stable 
   select case when m ->> 'jour' = aujourdhui()::text then m else jsonb_build_object('jour', aujourdhui()::text) end
 $$;
 
+-- le club du joueur, l'objectif de la semaine et ses paliers (null hors d'un club) ; en plpgsql : etat_de (sql) est créé avant club_victoires
+create or replace function club_objectif(p_uid uuid) returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  return (select jsonb_build_object('id', c.id, 'nom', c.nom, 'victoires', club_victoires(c.id),
+        'paliers', (select jsonb_agg(jsonb_build_object('palier', i, 'objectif', (o #>> '{}')::int, 'recompense', param('club_recompenses') -> (i - 1)::int,
+            'atteint', club_victoires(c.id) >= (o #>> '{}')::int,
+            'reclame', exists (select 1 from clubs_recompenses x where x.user_id = p_uid and x.lundi = lundi_courant() and x.palier = i)) order by i)
+          from jsonb_array_elements(param('club_paliers')) with ordinality t(o, i)))
+      from clubs c join clubs_membres m on m.club = c.id where m.user_id = p_uid);
+end $$;
 create or replace function etat_de(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'profil', true, 'pseudo', p.pseudo, 'role', p.role, 'pieces', p.pieces,
@@ -1172,7 +1189,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'persoCatalogue', (select jsonb_agg(jsonb_build_object('id', k.id, 'type', k.type, 'nom', k.nom, 'condition', k.condition)) from perso_catalogue() k),
     'ligue', jsonb_build_object('division', p.ligue_div, 'nom', ligue_nom(p.ligue_div), 'meilleure', p.ligue_meilleure,
       'bilan', case when p.ligue_bilan is not null and not coalesce((p.ligue_bilan ->> 'vu')::boolean, false) then p.ligue_bilan end),
-    'club', (select jsonb_build_object('id', c.id, 'nom', c.nom) from clubs c join clubs_membres m on m.club = c.id where m.user_id = p.user_id),
+    'club', club_objectif(p.user_id),   -- l'objectif de la semaine du club et ses paliers, montrés aussi dans les quêtes (demande de Maël, 24 nov. 2026)
     'choixCoach', jsonb_build_object('prix', parami('choix_coach_prix'), 'parJour', parami('choix_coach_par_jour'),
       'faits', (select count(*) from mouvements m where m.user_id = p.user_id and m.quoi = 'choix-coach' and m.le >= debut_du_jour()),
       'attente', (select jsonb_build_object('poste', x.poste, 'cartes', x.cartes) from choix_coach x where x.user_id = p.user_id)))
@@ -5698,6 +5715,57 @@ begin
   perform noter(p.user_id, 'club-recompense', jsonb_build_object('palier', p_palier, 'recompense', r));
   return mon_club() || jsonb_build_object('recompense', r, 'etat', etat_de(p.user_id));
 end $$;
+-- Chat du club (demande de Maël, 24 nov. 2026) : les messages des membres, les demandes de cartes ouvertes (à donner d'un toucher) et les
+-- dons des 3 derniers jours, dans un même fil ; relu toutes les 4 s par le jeu (p_depuis = dernier message reçu)
+create or replace function club_chat_vue(p profils, p_depuis bigint) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare m clubs_membres; pres boolean;
+begin
+  select * into m from clubs_membres where user_id = p.user_id;
+  if m.user_id is null then raise exception 'Rejoins un club pour discuter avec ses membres'; end if;
+  pres := m.role = 'president' or p.role = 'admin';
+  return jsonb_build_object(
+    'messages', coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'pseudo', o.pseudo, 'moi', x.user_id = p.user_id, 'texte', x.texte, 'le', x.le,
+        'peutEffacer', pres or x.user_id = p.user_id) order by x.id)
+      from (select * from club_messages where club = m.club and not supprime and id > coalesce(p_depuis, 0) order by id desc limit 100) x
+      join profils o on o.user_id = x.user_id), '[]'),
+    'supprimes', coalesce((select jsonb_agg(id) from club_messages where club = m.club and supprime and le > now() - interval '1 day'), '[]'),
+    'dons', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'de', (select pseudo from profils where user_id = d.de), 'pour', (select pseudo from profils where user_id = d.pour),
+        'moi', d.de = p.user_id, 'pourMoi', d.pour = p.user_id, 'carte', d.carte, 'palier', d.palier, 'le', d.le) order by d.le)
+      from (select dn.* from club_dons dn join club_demandes q on q.id = dn.demande where q.club = m.club and dn.le > now() - interval '3 days' order by dn.le desc limit 40) d), '[]'),
+    'club', club_demandes_vue(p.user_id),
+    'longueur', parami('club_chat_longueur'), 'muet', coalesce(p.salon_muet > now(), false));
+end $$;
+create or replace function club_chat(p_depuis bigint, p_texte text default null) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); m clubs_membres; t text := btrim(regexp_replace(coalesce(p_texte, ''), '\s+', ' ', 'g')); d timestamptz;
+begin
+  select * into m from clubs_membres where user_id = p.user_id;
+  if m.user_id is null then raise exception 'Rejoins un club pour discuter avec ses membres'; end if;
+  if p_texte is not null then
+    if p.salon_muet > now() then raise exception 'Tu ne peux plus écrire pour l’instant'; end if;
+    if t = '' then raise exception 'Message vide'; end if;
+    if char_length(t) > parami('club_chat_longueur') then raise exception 'Message trop long (% caractères au plus)', parami('club_chat_longueur'); end if;
+    select max(le) into d from club_messages where user_id = p.user_id;
+    if d > now() - make_interval(secs => parami('club_chat_intervalle_secondes')) then raise exception 'Doucement : un message toutes les % secondes', parami('club_chat_intervalle_secondes'); end if;
+    if (select count(*) from club_messages where user_id = p.user_id and le >= debut_du_jour()) >= parami('club_chat_par_jour') then
+      raise exception 'Tu as écrit % messages aujourd’hui : reviens demain', parami('club_chat_par_jour');
+    end if;
+    insert into club_messages (club, user_id, texte) values (m.club, p.user_id, t);
+    delete from club_messages where club = m.club and le < now() - make_interval(days => parami('club_chat_jours'));
+  end if;
+  update profils set vu_le = now() where user_id = p.user_id;
+  return club_chat_vue(p, p_depuis);
+end $$;
+-- effacer un message du chat : le sien, ou n'importe lequel pour le (la) président(e) du club et l'admin
+create or replace function club_chat_supprimer(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); x club_messages; m clubs_membres;
+begin
+  select * into x from club_messages where id = p_id;
+  select * into m from clubs_membres where user_id = p.user_id;
+  if x.id is null or m.club is distinct from x.club then raise exception 'Message introuvable'; end if;
+  if not (x.user_id = p.user_id or m.role = 'president' or p.role = 'admin') then raise exception 'Seul(e) le (la) président(e) du club peut effacer ce message'; end if;
+  update club_messages set supprime = true where id = p_id;
+  return club_chat_vue(p, 0);
+end $$;
 
 -- ── albums
 create or replace function reclamer_album(p_equipe text, p_palier text) returns jsonb language plpgsql security definer set search_path = public as $$
@@ -5802,6 +5870,26 @@ create or replace function secondes_avant(p_t timestamptz) returns int language 
   select greatest(0, ceil(extract(epoch from p_t - now())))::int
 $$;
 -- tout ce que montre l'écran Transferts (marché, boîte, demandes du club, historique)
+-- les demandes de cartes du club et ce qu'il me reste à faire (onglet Club des transferts, chat du club)
+create or replace function club_demandes_vue(p_uid uuid) returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare m clubs_membres; der timestamptz; der_or timestamptz;
+begin
+  select * into m from clubs_membres where user_id = p_uid;
+  select max(cree_le) into der from club_demandes where user_id = p_uid;
+  select max(cree_le) into der_or from club_demandes where user_id = p_uid and palier = 'or';
+  return case when m.user_id is null then null else jsonb_build_object(
+      'nom', (select nom from clubs where id = m.club),
+      'demandes', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'pseudo', o.pseudo, 'moi', d.user_id = p_uid, 'carte', d.carte, 'palier', d.palier,
+          'voulu', d.voulu, 'recu', d.recu, 'fin', d.cree_le + make_interval(hours => parami('club_demande_duree_heures')),
+          'possible', d.user_id <> p_uid and nombre_cartes_palier(p_uid, d.carte, d.palier) >= 2 and ex_cedable(p_uid, d.carte, d.palier) is not null)
+          order by d.user_id = p_uid desc, d.cree_le desc)
+        from club_demandes d join profils o on o.user_id = d.user_id where d.club = m.club and club_demande_ouverte(d)), '[]'),
+      'prochaine', secondes_avant(der + make_interval(hours => parami('club_demande_heures'))),
+      'prochaineOr', secondes_avant(der_or + make_interval(days => parami('club_demande_or_jours'))),
+      'donsRestants', greatest(0, parami('club_dons_par_jour') - (select count(*) from club_dons where de = p_uid and le >= debut_du_jour())),
+      'donsLimite', parami('club_dons_par_jour'), 'nombre', param('club_demande_nombre'), 'pieces', param('club_don_pieces'), 'xp', param('club_don_xp'),
+      'heures', parami('club_demande_heures'), 'duree', parami('club_demande_duree_heures'), 'orJours', parami('club_demande_or_jours')) end;
+end $$;
 create or replace function echanges_vue(p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
 declare pr profils; m clubs_membres; vus timestamptz; der timestamptz; der_or timestamptz;
 begin
@@ -5828,18 +5916,7 @@ begin
       'limite', parami('boite_par_jour'), 'minutes', parami('boite_attente_minutes'),
       'attente', coalesce((select jsonb_agg(jsonb_build_object('carte', f.donne, 'palier', f.palier, 'fin', f.le + make_interval(mins => parami('boite_attente_minutes')))
           order by f.le) from boite_faits f where f.user_id = p_uid and f.recu is null), '[]')),
-    'club', case when m.user_id is null then null else jsonb_build_object(
-      'nom', (select nom from clubs where id = m.club),
-      'demandes', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'pseudo', o.pseudo, 'moi', d.user_id = p_uid, 'carte', d.carte, 'palier', d.palier,
-          'voulu', d.voulu, 'recu', d.recu, 'fin', d.cree_le + make_interval(hours => parami('club_demande_duree_heures')),
-          'possible', d.user_id <> p_uid and nombre_cartes_palier(p_uid, d.carte, d.palier) >= 2 and ex_cedable(p_uid, d.carte, d.palier) is not null)
-          order by d.user_id = p_uid desc, d.cree_le desc)
-        from club_demandes d join profils o on o.user_id = d.user_id where d.club = m.club and club_demande_ouverte(d)), '[]'),
-      'prochaine', secondes_avant(der + make_interval(hours => parami('club_demande_heures'))),
-      'prochaineOr', secondes_avant(der_or + make_interval(days => parami('club_demande_or_jours'))),
-      'donsRestants', greatest(0, parami('club_dons_par_jour') - (select count(*) from club_dons where de = p_uid and le >= debut_du_jour())),
-      'donsLimite', parami('club_dons_par_jour'), 'nombre', param('club_demande_nombre'), 'pieces', param('club_don_pieces'), 'xp', param('club_don_xp'),
-      'heures', parami('club_demande_heures'), 'duree', parami('club_demande_duree_heures'), 'orJours', parami('club_demande_or_jours')) end,
+    'club', club_demandes_vue(p_uid),
     -- les 15 derniers mouvements (ventes, achats, dons, cartes reçues du club, anciens transferts)
     'historique', coalesce((select jsonb_agg(h order by h ->> 'le' desc) from (select h from (
         select jsonb_build_object('type', 'vente', 'avec', (select pseudo from profils where user_id = v.acheteur), 'carte', v.carte, 'palier', v.palier,
@@ -6083,7 +6160,7 @@ grant execute on function
   choisir_tactique(text), classement_poules(), ajouter_ami(text), repondre_ami(text, boolean), retirer_ami(text), mes_amis(), club_ami(text),
   proposer_echange(text, uuid, uuid), repondre_echange(uuid, boolean), annuler_echange(uuid), conversation(text), envoyer_message(text, text),
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
-  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
+  match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), club_chat(bigint, text), club_chat_supprimer(bigint), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text),

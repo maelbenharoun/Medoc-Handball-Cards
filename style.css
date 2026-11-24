@@ -1109,7 +1109,7 @@ body.avec-intro { overflow: hidden; }
 .bulle-amis .pastille { top: -3px; left: auto; right: -3px; }
 body.avec-intro .bulle-amis { display: none; }
 /* salon « En ligne » : la bulle des ami(e)s cachait le bouton « Envoyer » (capture de Maël, 24 nov. 2026) */
-body:has(form[data-form=salon]) .bulle-amis { display: none; }
+body:has(form[data-form=salon]) .bulle-amis, body:has(form[data-form=chat-club]) .bulle-amis { display: none; }   /* et le chat du club */
 button.retour { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
 .amis-p h3 small { display: block; margin-top: 2px; }
 .liste-amis { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
@@ -2231,3 +2231,15 @@ body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
 @keyframes si-trait-g { from { transform: translateX(-110%); } to { transform: translateX(160%); } }
 @keyframes si-trait-d { from { transform: translateX(110%); } to { transform: translateX(-160%); } }
 @media (prefers-reduced-motion: reduce) { .si-7m, .si-l i { animation: none; } }
+
+/* chat du club (24 nov. 2026) : messages, demandes de cartes à donner d'un toucher, dons */
+.cc-fil { height: min(50vh, 440px); }
+.cc-sys { align-self: center; max-width: 92%; margin: 2px 0; padding: 5px 10px; border-radius: 99px; background: rgba(255, 255, 255, .06); font-size: .78rem; color: var(--muted); text-align: center; }
+.cc-sys b { color: var(--ink); }
+.cc-dem { display: flex; align-items: center; gap: 8px; align-self: flex-start; width: 92%; padding: 8px; border-radius: 14px; background: rgba(227, 178, 60, .08); border: 1px solid rgba(227, 178, 60, .35); }
+.cc-dem.moi { align-self: flex-end; background: rgba(63, 140, 255, .1); border-color: rgba(63, 140, 255, .35); }
+.cc-dem .vig { flex: none; width: 52px; }
+.cc-dem .dm-d { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cc-dem .dm-d small { color: var(--muted); font-size: .72rem; }
+.cc-dem .btn { flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.cc-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
