@@ -1560,15 +1560,19 @@ const momVide = () => ({v: 0, lock: null, serie: {c: null, n: 0}});
 function momNoter(x, muet) {
   const M = MD.mom || (MD.mom = momVide());
   const avant = M.v;
-  if (typeof x.m === 'number' && !M.lock) M.v = x.m;
+  // un événement d'avant le dernier temps mort, raconté en retard (le blocage attend que le ballon soit au fond, ~0,5 s) : il ne
+  // touche plus la barre (retour de Guilhem, 24 nov. 2026 : temps mort juste avant leur momentum, la barre restait bloquée à l'écran)
+  const avantCoupe = M.coupe != null && x.t != null && x.t <= M.coupe && x.ty !== 'momentum-fin' && x.ty !== 'mi-temps';
+  if (typeof x.m === 'number' && !M.lock && !avantCoupe) M.v = x.m;
   if (x.ty === 'but' || x.ty === '7m-but') {
     M.serie = M.serie.c === x.c ? {c: x.c, n: M.serie.n + 1} : {c: x.c, n: 1};
   } else if (x.ty === 'momentum') {
+    if (avantCoupe) return;
     M.lock = x.c; if (typeof x.m === 'number') M.v = x.m;
     if (!muet) { momOnde(x.c); vibrer([30, 40, 90]); }
   } else if (x.ty === 'momentum-fin') {
     if (!muet && x.v) momEclats(x.c || M.lock);
-    Object.assign(M, momVide());
+    Object.assign(M, momVide(), x.par === 'tm' ? {coupe: x.t} : {});
   } else if (x.ty === 'mi-temps') Object.assign(M, momVide());
   else if (M.v === avant) return;
   majMom();
@@ -1874,6 +1878,7 @@ function tempsMortMD() {
   }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); reprendreMD(); majMD(); });
 }
 function blocMD() {
+  if (MD.vue?.sept && !MD.sept) return septMD(MD.vue.sept);   // temps mort ou changement pris juste avant un jet de 7 m : le jet d'abord
   MD.attente = true; MD.enCours = true; majMD();
   Compte.matchBloc(MD.tac, MD.cons, false).then(r => {
     MD.enCours = false; if (!MD.el) return;

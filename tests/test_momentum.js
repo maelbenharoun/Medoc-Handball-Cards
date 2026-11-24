@@ -138,6 +138,12 @@ const BUTS = ['but', '7m-but'];
   await pg.waitForTimeout(700);
   e1 = await etat();
   verif('cassée par un temps mort : la barre revient au centre', /matrix\(0,/.test(e1.a) && !e1.lockA && e1.pips === 0, e1);
+  // retour de Guilhem (24 nov. 2026) : temps mort juste avant leur momentum ; le blocage, raconté en retard (~0,5 s après le but),
+  // arrivait après la réponse du temps mort et rebloquait la barre à l'écran
+  await pg.evaluate(() => { noterMD({t: 118, c: 'b', ty: 'but', n: 'Y', s: [3, 1], m: -100}, true); noterMD({t: 118, c: 'b', ty: 'momentum', m: -100, s: [3, 1]}); });
+  await pg.waitForTimeout(700);
+  e1 = await etat();
+  verif('un blocage d’avant le temps mort, raconté en retard, ne rebloque pas la barre', /matrix\(0,/.test(e1.b || e1.a) && !e1.lockA && !e1.lockB, e1);
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); process.exit(bilan() ? 1 : 0);
 })();
