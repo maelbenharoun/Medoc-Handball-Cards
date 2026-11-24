@@ -112,6 +112,7 @@ insert into parametres values (1, '{
   "momentum_max": 100, "momentum_effet": 0.10,
   "sept_chance": 0.34, "sept_max_mi_temps": 1, "sept_tir_secondes": 12, "sept_gardien_secondes": 8,
   "en_ligne_minutes": 2, "salon_longueur": 300, "salon_intervalle_secondes": 3, "salon_par_jour": 200, "salon_jours": 7,
+  "match_pause_max_secondes": 180,
   "club_chat_longueur": 300, "club_chat_intervalle_secondes": 3, "club_chat_par_jour": 200, "club_chat_jours": 7,
   "momentum_ia": {"hasard": 0.3, "lent": 0.5, "reflechi": 0.75, "rapide": 0.9, "legende": 1},
   "club_dons_par_jour": 10, "club_don_pieces": {"bronze": 20, "argent": 60, "or": 250}, "club_don_xp": {"bronze": 5, "argent": 15, "or": 50}
@@ -2912,7 +2913,7 @@ begin
   if b >= 12 then return e; end if;
   e := e || jsonb_build_object('blocs', coalesce(e -> 'blocs', '[]') || jsonb_build_object('aa', e #>> '{a,attaque}', 'ad', e #>> '{a,defense}',
     'ba', e #>> '{b,attaque}', 'bd', e #>> '{b,defense}'));
-  e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'),
+  e := (e - 'pause') || jsonb_build_object('debut', e - 'debut' - 'ev' - 'pause', 'debut_n', jsonb_array_length(e -> 'ev'),
     'servi', extract(epoch from clock_timestamp()), 'servi_t', (e ->> 't')::int);
   return match_bloc_suite(e);
 end $$;
@@ -3155,14 +3156,45 @@ create or replace function match_seconde(e jsonb, p_seconde int) returns int lan
 declare fin int := (e ->> 't')::int; h int := least(fin, greatest(0, coalesce(p_seconde, fin)));
 begin
   if not (e ? 'debut') or ((e ->> 'bloc')::int < 1 and not e ? 'sept') then return fin; end if;   -- 7 m en attente dans la 1re tranche : on peut y revenir
-  return least(fin, greatest(h, (e #>> '{debut,t}')::int,
-    (e ->> 'servi_t')::int + floor((extract(epoch from clock_timestamp()) - (e ->> 'servi')::numeric) * 25)::int));
+  return least(fin, greatest(h, (e #>> '{debut,t}')::int, match_recit(e)));
+end $$;
+-- jusqu'où le récit a pu aller : 25 secondes de match par seconde depuis que la tranche est servie ; récit arrêté par un panneau
+-- (Tactique, blessure : match_pause), l'horloge s'arrête à la seconde du récit, au plus match_pause_max_secondes (retour de Rémi,
+-- 24 nov. 2026 : quelques secondes dans « Tactique » et le changement était placé à la fin de la tranche, le récit sautait de 5 minutes)
+create or replace function match_recit(e jsonb) returns int language plpgsql stable security definer set search_path = public as $$
+declare maint numeric := extract(epoch from clock_timestamp()); mx numeric := coalesce(parami('match_pause_max_secondes'), 180);
+begin
+  if jsonb_typeof(e -> 'pause') = 'object' then
+    return (e #>> '{pause,t}')::int + floor(greatest(0, maint - (e #>> '{pause,le}')::numeric - mx) * 25)::int;
+  end if;
+  return (e ->> 'servi_t')::int + floor((maint - (e ->> 'servi')::numeric) * 25)::int;
+end $$;
+-- le jeu arrête le récit (p_seconde = la seconde affichée, jamais avant ce qu'il a pu montrer) ou le relance (null)
+create or replace function match_pause(p_seconde int default null) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); cur matchs_direct; e jsonb; h int;
+begin
+  select * into cur from matchs_direct where user_id = p.user_id for update;
+  if not found then return null; end if;
+  e := cur.etat;
+  if not (e ? 'servi') or (e ->> 'bloc')::int >= 12 and not e ? 'sept' and (e ->> 't')::int >= 3600 then return null; end if;
+  if p_seconde is null then
+    if jsonb_typeof(e -> 'pause') <> 'object' then return jsonb_build_object('pause', false); end if;
+    h := least((e ->> 't')::int, greatest((e #>> '{debut,t}')::int, match_recit(e)));
+    e := (e - 'pause') || jsonb_build_object('servi', extract(epoch from clock_timestamp()), 'servi_t', h);
+  elsif jsonb_typeof(e -> 'pause') = 'object' then
+    return jsonb_build_object('pause', true, 't', (e #>> '{pause,t}')::int);   -- déjà arrêté : la pause ne se prolonge pas
+  else
+    h := match_seconde(e, p_seconde);
+    e := e || jsonb_build_object('pause', jsonb_build_object('t', h, 'le', extract(epoch from clock_timestamp())));
+  end if;
+  update matchs_direct set etat = e, maj = now() where user_id = p.user_id;
+  return jsonb_build_object('pause', p_seconde is not null, 't', h);
 end $$;
 -- une tranche interrompue (temps mort pris au milieu) : on garde l'état du moment pour pouvoir y revenir, puis la fin de la tranche
 create or replace function match_reprendre_tranche(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
 begin
   if (e ->> 't')::int <= (e ->> 'bloc')::int * 300 then return e; end if;
-  e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'),
+  e := (e - 'pause') || jsonb_build_object('debut', e - 'debut' - 'ev' - 'pause', 'debut_n', jsonb_array_length(e -> 'ev'),
     'servi', extract(epoch from clock_timestamp()), 'servi_t', (e ->> 't')::int);
   return match_bloc_suite(e);
 end $$;
@@ -3377,6 +3409,9 @@ begin
     e := match_changer_e(e, p.user_id, ps);
     e := e || jsonb_build_object('debut', e - 'debut' - 'ev', 'debut_n', jsonb_array_length(e -> 'ev'));
     e := match_bloc_suite(e);
+    -- le récit repart de h (et reste arrêté là si le panneau est ouvert)
+    e := e || jsonb_build_object('servi', extract(epoch from clock_timestamp()), 'servi_t', h)
+      || case when jsonb_typeof(cur.etat -> 'pause') = 'object' then jsonb_build_object('pause', (cur.etat -> 'pause') || jsonb_build_object('t', h)) else '{}'::jsonb end;
   else
     -- au bout de ce qui est joué (fin de tranche, ou pendant un temps mort pris au milieu) : le changement s'ajoute là
     n := jsonb_array_length(e -> 'ev');
@@ -6162,7 +6197,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), club_chat(bigint, text), club_chat_supprimer(bigint), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), match_pause(int), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

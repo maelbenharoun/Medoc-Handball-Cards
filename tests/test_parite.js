@@ -68,7 +68,7 @@ const STAFF = ['prepa', 'kine', 'ailiers', 'manager', 'gardiens', 'base', 'polyv
 
   // ── 3. des équipes au hasard : note de chaque joueur à son poste, collectif, note d'équipe, moyennes, bonus des tactiques
   const peut = (c, slot) => slot === 'GB' ? c.postes.includes('GB') : !c.postes.length || c.postes.some(x => x !== 'GB');
-  const diffs = {notes: [], collectif: [], equipe: [], moyennes: [], bonus: []}; let maxBonus = 0, vus = {hors: 0, forme: 0, cap: 0, staff: 0, legende: 0, plus99: 0};
+  const diffs = {notes: [], collectif: [], equipe: [], moyennes: [], bonus: [], force: []}; let maxBonus = 0, vus = {hors: 0, forme: 0, cap: 0, staff: 0, legende: 0, plus99: 0};
   for (let k = 0; k < N; k++) {
     const pris = new Set(), equipe = {}, ex = [];
     const memeEquipe = alea() < .4 ? parmi(['SF1', 'SF2', 'SG1', 'SG2']) : null;   // souvent des coéquipiers : le collectif joue
@@ -97,7 +97,8 @@ const STAFF = ['prepa', 'kine', 'ailiers', 'manager', 'gardiens', 'base', 'polyv
       await Compte.rafraichir(); if (typeof integrerLegendes === 'function') integrerLegendes();
       const T = tactiqueActuelle(), m = moyennesEquipe();
       return {notes: Object.fromEntries(POSTES.map(x => { const c = aligne(x.id); return [x.id, c ? noteAuPoste(c, x.id) : null]; })), eq: noteEquipe(), moy: m,
-        att: bonusTactique(m, TACT_ATT.find(x => x[0] === T.att)[2]), def: bonusTactique(m, TACT_DEF.find(x => x[0] === T.def)[2]), forme: (S().semaine?.joueurs || []).length};
+        att: bonusTactique(m, TACT_ATT.find(x => x[0] === T.att)[2]), def: bonusTactique(m, TACT_DEF.find(x => x[0] === T.def)[2]), forme: (S().semaine?.joueurs || []).length,
+        force: forceEquipe(Object.fromEntries(POSTES.map(x => [x.id, aligne(x.id)])), T)};
     });
     const cas = {k, tactique, staff, cap: cap && SLOTS.find(s => equipe[s] === cap), forme: forme.map(e => e.slot), ex: ex.map(e => `${e.slot}:${e.carte}:${e.note}`)};
     for (const s of SLOTS) if (jeu.notes[s] !== srv.notes[s]) diffs.notes.push({...cas, poste: s, jeu: jeu.notes[s], serveur: srv.notes[s]});
@@ -106,6 +107,7 @@ const STAFF = ['prepa', 'kine', 'ailiers', 'manager', 'gardiens', 'base', 'polyv
     for (const s in srv.moyennes) if (Math.round(jeu.moy[s] * 10) / 10 !== +srv.moyennes[s]) diffs.moyennes.push({...cas, stat: s, jeu: jeu.moy[s], serveur: +srv.moyennes[s]});
     for (const [c, v] of [['attaque', jeu.att], ['defense', jeu.def]]) { const d = Math.abs(v - +srv.bonus[c]); maxBonus = Math.max(maxBonus, d);
       if (d > 1e-9) diffs.bonus.push({...cas, cote: c, jeu: v, serveur: +srv.bonus[c]}); }
+    if (jeu.force.att !== +srv.att || jeu.force.def !== +srv.def) diffs.force.push({...cas, jeu: [jeu.force.att, jeu.force.def], serveur: [+srv.att, +srv.def]});
     vus.hors += ex.some(e => { const c = cartes.find(x => x.id === e.carte); return e.slot !== 'GB' && c.postes.length && !c.postes.includes(e.slot); });
     vus.forme += forme.length > 0 && jeu.forme > 0; vus.cap += !!cap; vus.staff += !!staff; vus.legende += ex.some(e => e.carte === 'legende-test'); vus.plus99 += Object.values(srv.notes).some(v => v > 99);
   }
@@ -115,6 +117,7 @@ const STAFF = ['prepa', 'kine', 'ailiers', 'manager', 'gardiens', 'base', 'polyv
   verif('collectif : aucune différence', !diffs.collectif.length, {differences: diffs.collectif.length, exemples: diffs.collectif.slice(0, 2)});
   verif('note d’équipe : aucune différence (noteEquipe / force_equipe)', !diffs.equipe.length, {differences: diffs.equipe.length, exemples: diffs.equipe.slice(0, 3)});
   verif('moyennes des 6 stats de l’équipe : aucune différence (moyennesEquipe / force_equipe)', !diffs.moyennes.length, {differences: diffs.moyennes.length, exemples: diffs.moyennes.slice(0, 3)});
+  verif('force en match (attaque, défense) : aucune différence (forceEquipe, pour « Aligner automatiquement » / force_equipe)', !diffs.force.length, {differences: diffs.force.length, exemples: diffs.force.slice(0, 3)});
   verif('bonus des tactiques : aucune différence (bonusTactique / tactique_bonus)', !diffs.bonus.length, {differences: diffs.bonus.length, plusGrand: maxBonus, exemples: diffs.bonus.slice(0, 3)});
 
   // ── 4. défis de composition : la même sélection de cartes, acceptée ou refusée des deux côtés

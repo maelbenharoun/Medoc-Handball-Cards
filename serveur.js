@@ -256,7 +256,8 @@ const CompteServeur = (() => {
     matchCommencer: (type, cible, tactique, consigne, simuler) => rpc('match_commencer', {p_type: type, p_cible: cible, p_tactique: tactique, p_consigne: consigne, p_simuler: !!simuler}),
     matchBloc: (tactique, consigne, tempsMort) => rpc('match_bloc', {p_tactique: tactique, p_consigne: consigne, p_temps_mort: !!tempsMort}),   // fin : + match, gains…
     matchTempsMort: seconde => rpc('match_temps_mort', {p_seconde: seconde ?? null}),   // temps mort tout de suite, à la seconde du récit : élan + tactique adverse → {vue, adverse, reprise}
-    matchChanger: (postes, seconde) => rpc('match_changer', {p_postes: postes, p_seconde: seconde}),   // changements tout de suite, à la seconde que montre le récit → {vue, reprise}
+    matchChanger: (postes, seconde) => rpc('match_changer', {p_postes: postes, p_seconde: seconde}),
+    matchPause: seconde => rpc('match_pause', {p_seconde: seconde ?? null}),   // récit arrêté par un panneau (seconde affichée) ou relancé (null)   // changements tout de suite, à la seconde que montre le récit → {vue, reprise}
     matchEnCours: () => rpc('match_en_cours'),
     matchSimulerFin: () => rpc('match_simuler_fin'),
     match7m: (entrees, depuis) => rpc('match_7m', {p_entrees: entrees, p_depuis: depuis || 0}),   // jet de 7 m au mini-jeu → {tir, vue}

@@ -925,11 +925,14 @@ function moyennesEquipe(qui = aligne) {
 }
 function bonusTactique(m, stats) {
   if (!m) return 0;
-  // comme le serveur : moyennes arrondies au dixième, bonus arrondi au millième (sinon « 2 % » ici et « 3 % » en match)
-  const r = k => Math.round(m[k] * 10) / 10;
-  const tout = Object.keys(m).reduce((a, k) => a + r(k), 0) / 6, spe = (r(stats[0]) + r(stats[1])) / 2 / tout - 1;
+  // comme le serveur : moyennes arrondies au dixième, bonus arrondi au millième (sinon « 2 % » ici et « 3 % » en match) ; calcul
+  // exact en dixièmes entiers (le serveur calcule en décimal exact : en flottant, 0,0175 tombait parfois du mauvais côté)
+  const r = k => Math.round(m[k] * 10), T = Object.keys(m).reduce((a, k) => a + r(k), 0), AB = r(stats[0]) + r(stats[1]);
+  if (!T) return 0;
   const base = PARAMS.tactique_bonus_base ?? .02, max = PARAMS.tactique_bonus_max ?? .1, pente = PARAMS.tactique_pente ?? .4;
-  return Math.round(Math.max(0, Math.min(max, base + pente * spe)) * 1000) / 1000;
+  // spe = (A + B) / 2 / (total / 6) − 1 = (3 (A + B) − T) / T ; bonus en millièmes
+  const mil = (Math.round(base * 1000) * T + Math.round(pente * 1000) * (3 * AB - T)) / T;
+  return Math.round(Math.max(0, Math.min(Math.round(max * 1000), mil))) / 1000;
 }
 const pc100 = x => Math.round(x * 100) + ' %';
 // vignette d'un joueur aligné : sa photo (ou ses initiales) dans un rond aux couleurs du palier, et son nom
@@ -1054,6 +1057,43 @@ function bancAuto(equipe, meilleurs) {
   }
   return banc;
 }
+// force en match d'une équipe {poste: carte} : attaque + défense, même calcul que force_equipe (schema.sql) : stats à la note du poste
+// (plafonnées à 99), collectif, bonus de la tactique, staff adjoint et défense (tests/test_parite.js compare les deux)
+function forceEquipe(eq, tac = tactiqueActuelle()) {
+  const champ = ['tir', 'pas', 'def', 'men', 'phy', 'vit'], m = Object.fromEntries(champ.map(k => [k, 0]));
+  let att = 0, def = 0, arr = 0;
+  for (const [slot, c] of Object.entries(eq)) {
+    const mo = moyenneExacte(noteAuPoste(c, slot)), s = k => borne(mo * (1 + (c.ecarts?.[k] || 0) / 40), 1, 99);
+    if (slot === 'GB') { arr = .30 * s('ref') + .20 * s('pla') + .15 * s('men') + .15 * s('rel') + .10 * s('phy') + .10 * s('vit'); continue; }
+    att += (.25 * s('tir') + .20 * s('pas') + .15 * s('vit') + .15 * s('men') + .15 * s('phy') + .10 * s('def')) / 6;
+    def += (.25 * s('def') + .20 * s('phy') + .15 * s('men') + .15 * s('vit') + .15 * s('pas') + .10 * s('tir')) / 6;
+    for (const k of champ) m[k] += s(k) / 6;
+  }
+  const coll = collectifDe(Object.values(eq)), nds = x => 50 + (x - 40) * 49 / 40;
+  const ba = bonusTactique(m, TACT_ATT.find(t => t[0] === tac.att)[2]), bd = bonusTactique(m, TACT_DEF.find(t => t[0] === tac.def)[2]);
+  const fa = Math.round((nds(att) + coll) * (1 + ba) * (1 + .01 * staffVal('adjoint')) * 10) / 10;
+  const fd = Math.round((nds(.6 * def + .4 * arr) + coll) * (1 + bd) * (1 + .01 * staffVal('defense')) * 10) / 10;
+  return {att: fa, def: fd, total: fa + fd};
+}
+// à partir d'une équipe {poste: exemplaire}, on remplace un joueur ou on en échange deux tant que l'équipe gagne en force
+function ameliorerEquipe(depart, meilleurs) {
+  const carte = id => meilleurs.find(c => c.ex.id === id) || (exParId(id) && PAR_ID[exParId(id).carte] ? vue(exParId(id)) : null);
+  let eq = Object.fromEntries(POSTES.map(p => [p.id, carte(depart[p.id])]).filter(([k, c]) => c && peutJouer(c, k)));
+  if (Object.keys(eq).length < 7 || new Set(Object.values(eq).map(c => c.id)).size < 7) return null;
+  const slots = POSTES.map(p => p.id);
+  let f = forceEquipe(eq).total;
+  for (let tour = 0; tour < 14; tour++) {
+    let mieux = null;
+    const essayer = e2 => { const f2 = forceEquipe(e2).total; if (f2 > (mieux ? mieux.f : f) + 1e-6) mieux = {f: f2, eq: e2}; };
+    for (const s of slots) {
+      for (const c of meilleurs) if (peutJouer(c, s) && !Object.values(eq).some(x => x.id === c.id)) essayer({...eq, [s]: c});
+      for (const t of slots) if (t > s && peutJouer(eq[t], s) && peutJouer(eq[s], t)) essayer({...eq, [s]: eq[t], [t]: eq[s]});
+    }
+    if (!mieux) break;
+    eq = mieux.eq; f = mieux.f;
+  }
+  return {f, choix: Object.fromEntries(Object.entries(eq).map(([k, c]) => [k, c.ex.id]))};
+}
 function autoEquipe() {
   // le meilleur exemplaire de chaque joueur, puis la meilleure répartition (malus hors poste compris)
   const meilleurs = Object.values(EX().filter(e => !e.verrou && PAR_ID[e.carte]).reduce((m, e) => {
@@ -1080,7 +1120,10 @@ function autoEquipe() {
     const t = terrain(g), total = t.total + (g ? g.ovr : 0);
     if (total > mieux.total) mieux = {total, choix: g ? {GB: g.ex.id, ...t.choix} : t.choix};
   }
-  const equipe = mieux.choix, banc = bancAuto(equipe, meilleurs);
+  // puis la plus forte en match avec la tactique choisie (retour de Guilhem, 24 nov. 2026 : la « meilleure » équipe, la plus grosse
+  // somme de notes, avait de moins bons bonus de tactique que son équipe habituelle) ; jamais moins forte que l'équipe actuelle
+  const essais = [ameliorerEquipe(mieux.choix, meilleurs), ameliorerEquipe(S().equipe || {}, meilleurs)].filter(Boolean);
+  const equipe = essais.length ? essais.reduce((a, e) => e.f > a.f ? e : a).choix : mieux.choix, banc = bancAuto(equipe, meilleurs);
   action(Compte.alignerRemplacants(equipe, banc), () => { toast(Object.keys(banc).length ? 'Ta meilleure équipe et ses remplaçants sont alignés' : 'Ta meilleure équipe est alignée'); route(true); });
 }
 
@@ -1584,8 +1627,9 @@ function momNoter(x, muet) {
     if (!muet) { momOnde(x.c); vibrer([30, 40, 90]); }
   } else if (x.ty === 'momentum-fin') {
     if (!muet && x.v) momEclats(x.c || M.lock);
-    Object.assign(M, momVide(), x.par === 'tm' ? {coupe: x.t} : {});
-  } else if (x.ty === 'mi-temps') Object.assign(M, momVide());
+    Object.assign(M, momVide(), {coupe: x.t});
+  } else if (x.ty === 'mi-temps') Object.assign(M, momVide(), {coupe: x.t});   // un momentum pris juste avant 30', noté 0,5 s après le
+  // but, arrivait après la mi-temps et restait affiché (retour de Rémi et Guilhem, 24 nov. 2026)
   else if (M.v === avant) return;
   majMom();
 }
@@ -1797,6 +1841,7 @@ function animerMD(x, D) {
   if (x.ty === 'sept') { noterMD(x); return septMD(x); }   // jet de 7 m joué au mini-jeu
   // le momentum se bloque au but qui vient d'être raconté : on attend que le ballon soit au fond
   if (x.ty === 'momentum') return MD.timers.push(setTimeout(() => { if (!MD.el) return; fin();
+    if (MD.mom?.coupe != null && x.t <= MD.mom.coupe) return;   // déjà cassé (temps mort, mi-temps) : pas d'annonce
     flashMD(`🔥 Momentum<small>${esc((x.c === 'b' ? MD.vue.eux.nom : MD.vue.nous.nom) || '')}</small>`, x.c === 'b' ? 'b' : 'a'); }, Math.max(450, D * .85)));
   if (!tir && x.ty !== 'perte') {
     fin();
@@ -1893,9 +1938,10 @@ function tempsMortMD() {
 }
 function blocMD() {
   if (MD.vue?.sept && !MD.sept) return septMD(MD.vue.sept);   // temps mort ou changement pris juste avant un jet de 7 m : le jet d'abord
-  MD.attente = true; MD.enCours = true; majMD();
+  MD.attente = true; MD.enCours = true; MD.pauseSrv = false; majMD();   // le serveur lève sa pause en servant la tranche
   Compte.matchBloc(MD.tac, MD.cons, false).then(r => {
     MD.enCours = false; if (!MD.el) return;
+    if (PAUSES_MD.includes(MD.panneau)) MD.timers.push(setTimeout(() => PAUSES_MD.includes(MD.panneau) && pauseSrv(true), 0));   // panneau ouvert pendant la demande
     MD.vue = r.vue; MD.file.push(...(r.vue.evenements || [])); MD.finBloc = r.vue.sept ? r.vue.sept.t : r.vue.bloc * 300;
     if (r.match) { MD.fin = r; MD.finBloc = 3600; }
     if (r.tirsAuBut) { MD.tab = r.tirsAuBut; MD.finBloc = 3600; }   // nul en tournoi ou contre une Légende : tirs au but
@@ -1943,9 +1989,18 @@ function majStatsMD() {
     <p class="sub petit">🕵️ D’où tirent-ils ? Arrières = duels, pivot = enclenchement, ailes et contres = jeu rapide.</p>`;
 }
 // panneau de choix : coup d'envoi, mi-temps, temps mort (changements permis) ; pause (reprise) ; erreur réseau
+// récit arrêté par un panneau : le serveur arrête aussi son horloge (match_pause), sinon un changement fait au bout de quelques secondes
+// était placé plus loin, jusqu'à la fin de la tranche (retour de Rémi, 24 nov. 2026 : « ça envoie direct à la 20e, et la fatigue avec »)
+const PAUSES_MD = ['tactique', 'blessure', 'pause'];
+function pauseSrv(on) {
+  if (!MD.el || MD.pvp || MD.fin || MD.tab) return;
+  if (on) { MD.pauseSrv = true; Compte.matchPause(Math.floor(MD.h)).catch(() => {}); }
+  else if (MD.pauseSrv) { MD.pauseSrv = false; Compte.matchPause(null).catch(() => {}); }
+}
 function panneauMD(type) {
   if (!MD.el) return;
   if (!(MD.pvp && type === 'tactique')) MD.attente = true;
+  if (PAUSES_MD.includes(type) && !MD.pauseSrv) pauseSrv(true);
   MD.panneau = type; MD.panneauBloc = MD.vue.bloc;
   const [att, def] = MD.tac.split(':');
   MD.choix = {att, def, cons: MD.cons};
@@ -1953,7 +2008,8 @@ function panneauMD(type) {
   const titre = {envoi: 'Coup d’envoi', 'mi-temps': `Mi-temps · ${sc[0]} – ${sc[1]}`, tm: `Temps mort · ${Math.floor(MD.h / 60)}'`, tactique: 'Tactique',
     pause: `Match en pause · ${Math.floor(MD.h / 60)}'`, blessure: `Blessure · ${Math.floor(MD.h / 60)}'`, erreur: 'Connexion perdue'}[type];
   const change = ['envoi', 'mi-temps', 'tm', 'tactique', 'pause', 'blessure'].includes(type), A = MD.adverse;
-  const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 && type === 'tactique' ? ` Ton choix s’applique à <b>${Math.min(60, MD.finBloc / 60)}'</b>.` : '';
+  // une tranche déjà demandée (elle part avec la tactique d'avant) : le choix s'applique à la suivante
+  const quand = MD.vue.bloc > 0 && MD.vue.bloc < 12 && type === 'tactique' ? ` Ton choix s’applique à <b>${Math.min(60, (MD.finBloc + (MD.enCours && !MD.pvp ? 300 : 0)) / 60)}'</b>.` : '';
   const PZ = MD.pvp?.pause;
   const intro = MD.pvp ? {envoi: `Match en direct contre <b>${nomEux()}</b> : vous choisissez en même temps. Ils commencent en <b>${NOM_DEF[MD.defB]}</b>.`,
     'mi-temps': `Ils défendent en <b>${NOM_DEF[MD.defB]}</b>. Change ce que tu veux 🔄`,
@@ -2066,6 +2122,7 @@ function choixMD() {
 }
 // après le panneau Tactique : le récit reprend là où il était (ou la tranche suivante est demandée s'il était fini)
 function reprendreMD() {
+  pauseSrv(false);
   if (MD.enCours) return;
   if (!MD.file.length && MD.h >= MD.finBloc) return finBlocMD();
   MD.attente = false;
@@ -4222,7 +4279,10 @@ function nouveauTir() {
   el.querySelector('.j7-aide').textContent = 'Touche pour viser';
   // plus rapide à chaque tir
   // viseur 20 % plus lent (Maël, 20 nov. 2026 : « les penaltys sont trop durs ») : période × 1,25
-  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: 1.25 * Math.max(1.2, 1.7 - n * .117), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0});
+  Object.assign(J7, {phase: 'visee', t0: performance.now(), tx: 1.25 * Math.max(1.2, 1.7 - n * .117), py: Math.max(.44, .62 - n * .04), x: .5, y: .4, puissance: 0,
+    // départ et tracé différents à chaque tir (retour de Rémi, 24 nov. 2026 : le viseur partait toujours du même point et refaisait le
+    // même circuit, on l'attendait au même endroit) : phases au hasard, rapport des deux périodes de 0,64 à 0,78, sens au hasard
+    phx: Math.random() * 2 * Math.PI, phy: Math.random() * 2 * Math.PI, ry: .64 + Math.random() * .14, sx: Math.random() < .5 ? 1 : -1});
   el.querySelector('.j7-niveau').style.bottom = '0%';
   boucleJet7m();
 }
@@ -4232,7 +4292,7 @@ function boucleJet7m() {
   const pas = now => {
     const t = (now - J7.t0) / 1000;
     if (J7.phase === 'visee') {   // trajet qui couvre tout le but et ses abords (deux périodes qui ne se recoupent pas)
-      J7.x = .5 + .68 * Math.sin(2 * Math.PI * t / J7.tx); J7.y = .38 + .64 * Math.sin(2 * Math.PI * t / (J7.tx * .71) + 1.3);
+      J7.x = .5 + .68 * J7.sx * Math.sin(2 * Math.PI * t / J7.tx + J7.phx); J7.y = .38 + .64 * Math.sin(2 * Math.PI * t / (J7.tx * J7.ry) + J7.phy);
       v.style.left = (J7.x * 100) + '%'; v.style.top = (J7.y * 100) + '%';
     } else if (J7.phase === 'puissance') { J7.puissance = vaEtVient(t, J7.py); niv.style.bottom = (J7.puissance * 100) + '%'; }
     else return;
@@ -4400,7 +4460,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=102').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=103').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

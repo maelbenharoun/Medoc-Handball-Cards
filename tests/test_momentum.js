@@ -144,6 +144,16 @@ const BUTS = ['but', '7m-but'];
   await pg.waitForTimeout(700);
   e1 = await etat();
   verif('un blocage d’avant le temps mort, raconté en retard, ne rebloque pas la barre', /matrix\(0,/.test(e1.b || e1.a) && !e1.lockA && !e1.lockB, e1);
+  // retour de Rémi et Guilhem (24 nov. 2026) : but et momentum à 29'59, raconté après la mi-temps : la barre restait bloquée à la pause
+  await pg.evaluate(() => { noterMD({t: 1799, c: 'b', ty: 'but', n: 'Y', s: [15, 15], m: -100}, true);
+    noterMD({t: 1800, ty: 'mi-temps', s: [15, 15]}); noterMD({t: 1799, c: 'b', ty: 'momentum', m: -100, s: [15, 15]}); });
+  await pg.waitForTimeout(700);
+  e1 = await etat();
+  verif('mi-temps : un momentum raconté après la pause ne rebloque pas la barre', /matrix\(0,/.test(e1.b || e1.a) && !e1.lockA && !e1.lockB, e1);
+  await pg.evaluate(() => noterMD({t: 1830, c: 'a', ty: 'but', n: 'X', s: [16, 15], m: 20}, true));
+  await pg.waitForTimeout(300);
+  e1 = await etat();
+  verif('2e période : la barre repart normalement', !/matrix\(0,/.test(e1.a), e1);
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); process.exit(bilan() ? 1 : 0);
 })();

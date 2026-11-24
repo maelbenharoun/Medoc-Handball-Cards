@@ -71,8 +71,19 @@ const SP = process.argv[2];
   await p.click('#overlay [data-act=fermer]'); await p.waitForTimeout(300);
   // aligner automatiquement : l'équipe et le banc
   await p.goto(web.url + '#equipe'); await p.waitForSelector('[data-act=auto]');
+  const forceAvant = await p.evaluate(() => forceEquipe(Object.fromEntries(POSTES.map(x => [x.id, aligne(x.id)]).filter(([, c]) => c))).total);
+  const tAuto = Date.now();
   await p.click('[data-act=auto]');
   await p.waitForFunction(() => Object.keys(S().remplacants || {}).length === 7, null, {timeout: 10000});
+  const fAuto = await p.evaluate(() => {
+    const eq = Object.fromEntries(POSTES.map(x => [x.id, aligne(x.id)])), f = forceEquipe(eq).total;
+    // la plus grosse somme de notes, à titre de comparaison
+    const somme = Object.entries(eq).reduce((a, [k, c]) => a + noteAuPoste(c, k), 0);
+    return {f, somme};
+  });
+  // retour de Guilhem (24 nov. 2026) : l'équipe « meilleure » avait de moins bons bonus de tactique que la sienne ; elle est maintenant
+  // la plus forte en match (attaque + défense, tactique comprise) et jamais moins forte que l'équipe d'avant
+  verif(`« Aligner automatiquement » : la force en match ne baisse jamais (${forceAvant.toFixed(1)} → ${fAuto.f.toFixed(1)}), en ${Date.now() - tAuto} ms`, fAuto.f >= forceAvant - 1e-6, {forceAvant, fAuto});
   const pr = await prof(), cT = (await q('select carte_id from exemplaires where id::text = any($1)', [Object.values(pr.equipe)])).map(x => x.carte_id);
   const cR = (await q('select carte_id from exemplaires where id::text = any($1)', [Object.values(pr.remplacants)])).map(x => x.carte_id);
   verif('« Aligner automatiquement » : 7 titulaires et 7 remplaçants, chaque joueur une fois', Object.keys(pr.equipe).length === 7 && Object.keys(pr.remplacants).length === 7
@@ -168,6 +179,34 @@ const SP = process.argv[2];
   await p.click('[data-md-att=rapide]'); await p.click('[data-md-go=jouer]');
   await p.waitForFunction(() => MD.h > 620, null, {timeout: 20000});
   verif('après le temps mort : la tactique choisie s’applique tout de suite', /Tu passes en/.test(await p.textContent('.md-fil')) && (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.blocs.length >= 2);
+  // retour de Rémi (24 nov. 2026) : quelques secondes dans « Tactique », puis un changement : il était placé à la fin de la tranche et le
+  // récit sautait de plusieurs minutes (le serveur comptait le temps passé dans le panneau comme du récit)
+  await p.waitForFunction(() => !MD.panneau && !MD.enCours && !MD.attente && MD.h % 300 > 40 && MD.h % 300 < 200 && MD.h < 3300, null, {timeout: 30000});
+  await p.evaluate(() => document.querySelector('.md-tac').click());
+  const hPan = await p.evaluate(() => MD.h);
+  await new Promise(r => setTimeout(r, 600));
+  let eP = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
+  verif('« Tactique » ouvert : le serveur arrête son horloge à la seconde du récit', eP.pause && Math.abs(eP.pause.t - hPan) <= 5, {pause: eP.pause, hPan});
+  // 30 s passées dans le panneau
+  await q(`update matchs_direct set etat = etat || jsonb_build_object('servi', (etat ->> 'servi')::numeric - 30,
+    'pause', (etat -> 'pause') || jsonb_build_object('le', (etat #>> '{pause,le}')::numeric - 30)) where user_id = $1`, [al.id]);
+  const posteC = await p.evaluate(() => { const ef = MD.vue.nous.effectif || {}; return POSTES_MD.find(k => k !== 'GB' && ef[k]?.r); });
+  const nChg = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.ev.filter(x => x.ty === 'changement').length;
+  await p.evaluate(k => changerMD(k), posteC);
+  await p.waitForFunction(() => !MD.chgEnCours, null, {timeout: 10000});
+  eP = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
+  const chgP = eP.ev.filter(x => x.ty === "changement")[nChg];
+  const hApres = await p.evaluate(() => MD.h);
+  verif(`30 s dans « Tactique » puis un changement : il entre à la seconde affichée (${Math.floor(hPan / 60)}'), le récit ne saute pas`,
+    !!chgP && Math.abs(chgP.t - hPan) <= 5 && Math.abs(hApres - hPan) <= 5, {hPan, chg: chgP?.t, hApres, poste: posteC});
+  await p.click('.md-panneau [data-md-go=annuler]');
+  await new Promise(r => setTimeout(r, 600));
+  eP = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
+  verif('le panneau fermé : l’horloge du serveur repart de là', !eP.pause && Math.abs(eP.servi_t - hPan) <= 5, {servi_t: eP.servi_t, pause: eP.pause});
+  // sans la pause (téléphone d'avant), le serveur garde sa limite : pas de retour plus tôt que ce que le récit a pu montrer
+  await q(`update matchs_direct set etat = etat || jsonb_build_object('servi', (etat ->> 'servi')::numeric - 60) where user_id = $1`, [al.id]);
+  const lim = await rpc(db, al.id, 'match_changer', [JSON.stringify([posteC]), 0]);
+  verif('sans pause : un changement « à 0 » est placé plus loin (fin de la tranche jouée)', !lim.erreur && lim.reprise >= hPan, lim.erreur || lim.reprise);
   // capture de Maël (24 nov. 2026) : blessure en toute fin de match, le changement est refusé (« Le match est fini ») : le remplacement
   // n'est plus exigé, « Reprendre » marche de nouveau (avant : plus rien de possible)
   const finB = await p.evaluate(async () => {
