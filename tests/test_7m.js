@@ -185,6 +185,22 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   await pg.waitForFunction(() => MD.evs.some(x => x.joue || x.long), null, {timeout: 10000}).catch(() => {});
   const fin = await pg.evaluate(() => ({res: MD.evs.filter(x => x.joue || x.long).map(x => x.ty), h: MD.h, t: MD.evs.find(x => x.ty === 'sept')?.t}));
   verif(`le mini-jeu se ferme, le résultat est au fil (${fin.res.join(', ')}) et le match reprend`, fin.res.length >= 1, fin);
+  // retour de Rémi (24 nov. 2026) : un match repris avec un jet de 7 m en attente restait bloqué (« Reprendre » demandait la suite,
+  // refusée tant que le jet n'était pas tiré) ; maintenant le jet s'ouvre
+  await pg.click('.md-x').catch(() => {}); await pg.waitForTimeout(800);
+  const uC = (await q("select user_id from profils where pseudo = 'Chloe'"))[0].user_id;
+  for (let i = 0; i < 14; i++) {
+    const e = (await q('select etat from matchs_direct where user_id = $1', [uC]))[0]?.etat;
+    if (!e || e.sept) break;
+    await rpcJoueur(db, uC, 'match_bloc', ['duels:06', 'normal', false]);
+  }
+  const enAttente = !!(await q('select etat from matchs_direct where user_id = $1', [uC]))[0]?.etat?.sept;
+  if (enAttente) {
+    await pg.goto(web.url + '#championnat'); await pg.waitForSelector('[data-act=reprendre-match]'); await pg.click('[data-act=reprendre-match]');
+    await pg.waitForSelector('.md-panneau:not([hidden]) [data-md-go="jouer"]'); await pg.click('[data-md-go="jouer"]');
+    const ouvert = await pg.waitForSelector('.sept-intro, .j7.sept, .mj.sept', {timeout: 60000}).then(() => true).catch(() => false);
+    verif('match repris avec un jet de 7 m en attente : « Reprendre » ouvre le jet (plus de blocage)', ouvert);
+  } else verif('match repris avec un jet de 7 m en attente (pas de 7 m tiré cette fois)', true);
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); process.exit(bilan() ? 1 : 0);
 })();

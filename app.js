@@ -1694,7 +1694,9 @@ function septArreter() {
     prep: () => S7.col ? Promise.resolve({colonne: S7.col, hauteur: S7.hau, duree: S7.duree}) : new Promise(res => { MD.septPrep = res; }),
     envoyer: ent => MD.pvp
       ? Compte.pvp7m(ent, MD.n).then(v => { const t = v.tir; pvpRecevoir(v); return {resultat: t?.resultat || septResultat(v.evenements) || 'but'}; })
-      : Compte.match7m(ent, MD.n).then(r => { MD.septVue = r.vue; return {resultat: r.tir?.resultat || 'but'}; }),
+      : Compte.match7m(ent, MD.n).then(r => { MD.septVue = r.vue; return {resultat: r.tir?.resultat || 'but'}; })
+        // l'envoi a échoué (réseau) : le mini-jeu se ferme sans finir ; le 7 m reste à jouer et se rouvre (avant : écran bloqué)
+        .catch(e => { setTimeout(() => { if (!MD.el) return; MJ.match = null; MD.sept = null; MD.attente = false; document.body.classList.add('avec-intro'); majMD(); reprendreMD(); }, 400); throw e; }),
     fin: () => septFin()});
 }
 function septFin() {
@@ -1887,7 +1889,14 @@ function blocMD() {
     if (r.tirsAuBut) { MD.tab = r.tirsAuBut; MD.finBloc = 3600; }   // nul en tournoi ou contre une Légende : tirs au but
     if (!MD.panneau) MD.attente = false;
     majMD(); majBancMD();
-  }).catch(e => { MD.enCours = false; if (!MD.el) return; Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
+  }).catch(e => { MD.enCours = false; if (!MD.el) return;
+    // un jet de 7 m attend sur le serveur et l'écran ne le savait pas (match repris, écran d'avant la v99) : on relit le match et on le
+    // joue, au lieu de redemander la suite en boucle (retour de Rémi, 24 nov. 2026 : bloqué en plein match « à cause d'un penalty »)
+    if (/Jet de 7 m/.test(e.message || '')) return Compte.matchEnCours().then(v => {
+      if (!MD.el) return;
+      if (v?.sept) { MD.vue = v; MD.finBloc = v.sept.t; septMD(v.sept); } else panneauMD('erreur');
+    }).catch(() => MD.el && panneauMD('erreur'));
+    Son.jouer('erreur'); toast(e.message || 'Action impossible'); panneauMD('erreur'); });
 }
 const tmPossible = () => { const t = MD.vue.tempsMorts || {}, per = MD.h < 1800 ? 'p1' : 'p2';
   return t.restants > 0 && (t[per] || 0) < 2 && MD.h > 0 && MD.h < 3600 && !(MD.h === 1800 && MD.vue.bloc === 6) && !MD.panneau && !MD.pvp?.pause; };
@@ -4317,7 +4326,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=99').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=100').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
