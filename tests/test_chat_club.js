@@ -64,6 +64,7 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   const A = await ouvrir('Alice'), B = await ouvrir('Bob');
   await A.goto(web.url + '#clubs'); await A.waitForSelector('#cc-fil .cc-dem', {timeout: 10000});
   verif('page du club : le chat, avec la demande de Bob et un bouton « Donner »', !!(await A.$('#cc-fil .cc-dem [data-donner]:not([disabled])')));
+  verif('page du club : plus les paliers de l’objectif (seulement dans les quêtes, demande de Maël)', !(await A.$('#view .cl-pal')) && /dans les quêtes/.test(await A.textContent('#view')));
   await B.goto(web.url + '#clubs'); await B.waitForSelector('form[data-form="chat-club"]');
   await B.fill('form[data-form="chat-club"] [name=texte]', 'Qui a une Bronze en trop ?'); await B.click('form[data-form="chat-club"] button');
   await B.waitForFunction(() => /Bronze en trop/.test(document.querySelector('#cc-fil').textContent), null, {timeout: 6000});

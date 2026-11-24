@@ -648,9 +648,7 @@ function vueClubs() {
     <div class="cl-liste">${liste || '<p class="sub">Aucun club pour l’instant : crée le premier !</p>'}</div>`;
   const c = d.club;
   return `${retour('social', 'Social')}<h1>${esc(c.nom)}</h1>
-    <p class="sub">${c.membres.length}/${c.max} membres · objectif commun de la semaine : <b>${plur(c.victoires, 'victoire')}</b> (championnat, Classé, défis en direct, depuis ton arrivée dans le club)</p>
-    <div class="cl-pal">${c.paliers.map(p => `<div class="${p.atteint ? 'ok' : ''}"><b>${p.objectif}</b><span class="bar"><i style="width:${Math.min(100, 100 * c.victoires / p.objectif)}%"></i></span>
-      ${RECOMP(p.recompense || {})}${p.reclame ? '<em>✓</em>' : p.atteint ? `<button class="btn gold petit" data-club-palier="${p.palier}">Récupérer</button>` : ''}</div>`).join('')}</div>
+    <p class="sub">${c.membres.length}/${c.max} membres · l’objectif de la semaine du club et ses récompenses sont dans les quêtes 🎯</p>
     ${blocChatClub()}
     <h2>Membres</h2><div class="classe av-m">${c.membres.map(m => `<div class="${m.moi ? 'moi-l' : ''}">${avatarHTML(m.perso)}<b>${lienJ(m.pseudo)}${m.role === 'president' ? ' 👑' : ''}</b>
       <small>niv. ${m.niveau}</small><em>${plur(m.victoires, 'victoire')}</em></div>`).join('')}</div>
