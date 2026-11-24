@@ -346,13 +346,18 @@ function fusionnerFixes(sc) {
   }
 }
 
+// vieux téléphones (demande de Maël, 24 nov. 2026 : « jouables même avec des vieux téléphones ») : la 3D est dessinée à la résolution
+// de l'écran (pas ×2 ou ×3 : 4 à 9 fois moins de pixels), avec des ombres simples ; si les images arrivent encore trop lentement
+// (moins de ~35 par seconde une fois la scène lancée), elle passe en mode léger (sans ombres, résolution réduite), retenu pour les
+// parties suivantes (localStorage « mhc-3d »)
+const LEGER = () => { try { return localStorage.getItem('mhc-3d') === 'leger'; } catch (e) { return false; } };
 class Salle {
   constructor(R) {
-    this.R = R;
-    const r = this.r = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.R = R; this.leger = LEGER(); this.mesure = [];
+    const r = this.r = new THREE.WebGLRenderer({antialias: !this.leger, powerPreference: 'high-performance'});
+    r.setPixelRatio(this.leger ? .75 : 1);
     r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = .9;
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.enabled = !this.leger; r.shadowMap.type = THREE.PCFShadowMap;
     r.domElement.className = 't3-gl';
     const sc = this.sc = new THREE.Scene(); sc.background = new THREE.Color('#151a21');
     // éclairage de salle : reflets doux venus de partout (environnement), un grand projecteur qui donne les ombres
@@ -470,7 +475,19 @@ class Salle {
   // compile les matériaux et fait un premier rendu avant de lancer l'horloge du jeu (sinon le premier affichage saute)
   prechauffer() { this.r.compile(this.sc, this.cam); this.maj(0); this.horloge = performance.now(); }
   cacherJoueurs(sauf) { for (const [k, j] of Object.entries(this.joueurs)) j.g.visible = sauf.includes(k); }
-  pas() { const t = performance.now(), dt = Math.min(.05, (t - this.horloge) / 1000); this.horloge = t; return dt; }
+  pas() {
+    const t = performance.now(), brut = t - this.horloge, dt = Math.min(.05, brut / 1000); this.horloge = t;
+    // les 20 premières images (compilation, chargement) ne comptent pas ; puis 40 images : trop lentes = mode léger
+    if (!this.leger && this.mesure.length < 60 && brut > 0 && brut < 1000) { this.mesure.push(brut);
+      if (this.mesure.length === 60) { const m = this.mesure.slice(20).sort((a, b) => a - b)[20]; if (m > 28) this.alleger(); } }
+    return dt;
+  }
+  alleger() {
+    this.leger = true; try { localStorage.setItem('mhc-3d', 'leger'); } catch (e) {}
+    this.r.shadowMap.enabled = false; this.r.setPixelRatio(.75);
+    this.sc.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });
+    this.w = 0; this.taille();
+  }
   maj(dt, cible) {
     for (const j of Object.values(this.joueurs)) if (j.g.visible) j.maj(dt);
     for (const b of this.buts) b.maj(dt);
@@ -550,7 +567,6 @@ export async function gardien(sc, n) {
     const g0 = S.ecran(1.5, 2, 0), g1 = S.ecran(-1.5, 0, 0);
     Object.assign(q('.t3-zones').style, {left: g0.x + 'px', top: g0.y + 'px', width: (g1.x - g0.x) + 'px', height: (g1.y - g0.y) + 'px'});
   };
-  if (MJ.match) S.r.setPixelRatio(1);   // jet de 7 m en match : téléphones lents (voir jet7m)
   S.w = 0; S.taille();
   q('.t3-zones').innerHTML = ['g', 'c', 'd'].map(c => ['h', 'b'].map(h => `<i data-z="${c}${h}"></i>`).join('')).join('');
   // à l'écran, la gauche du but est du côté des x positifs (on regarde vers le terrain)
@@ -894,10 +910,8 @@ export async function jet7m(J7, z) {
     const g0 = S.ecran(-1.5, 2, 0), g1 = S.ecran(1.5, 0, 0);
     Object.assign(but.style, {left: g0.x + 'px', top: g0.y + 'px', width: (g1.x - g0.x) + 'px', height: (g1.y - g0.y) + 'px'});
   };
-  // téléphones lents (retour de Guilhem, 24 nov. 2026 : « injouable quand le téléphone lag ») : en match, la scène est dessinée à la
-  // résolution de l'écran (pas ×2), et pendant la visée elle n'est redessinée que 4 fois par seconde (rien n'y bouge) : le viseur et la
-  // jauge, qui ne sont pas en 3D, restent fluides
-  if (J7.match) S.r.setPixelRatio(1);
+  // téléphones lents (retour de Guilhem, 24 nov. 2026 : « injouable quand le téléphone lag ») : pendant la visée, la scène n'est
+  // redessinée que 4 fois par seconde (rien n'y bouge) : le viseur et la jauge, qui ne sont pas en 3D, restent fluides
   S.w = 0; S.taille();
   let etat = null, enMain = true, fige = false, rendu = 0;
   const placer = () => {

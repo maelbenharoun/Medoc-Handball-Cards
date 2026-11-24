@@ -1,5 +1,5 @@
 // Pseudo d'un autre joueur = lien vers son équipe, partout où il s'affiche (demande de Maël, retour de Guit, 20 nov. 2026 : pas
-// seulement depuis le classement) : fiche d'un(e) ami(e) (avec retour vers elle), membres d'un club, ligue, derniers matchs, transferts.
+// seulement depuis le classement) : fiche d'un(e) ami(e) (avec retour vers elle), membres d'un club, derniers matchs, transferts.
 //   node tests/test_liens_equipe.js [dossier des captures]
 const {chromium} = require('playwright');
 const FS = require('./fauxsupabase');
@@ -21,7 +21,6 @@ const SP = process.argv[2];
   const idClub = club?.club?.id ?? club?.id ?? (await q('select id from clubs limit 1'))[0]?.id;
   await rpc(db, bo.id, 'club_rejoindre', [idClub]);
   await q("insert into rencontres (user_id, type, adversaire, score, resultat) values ($1, 'defi_ami', 'Bob', '{28,25}', 'gagne'), ($1, 'championnat', 'Lacanau', '{30,22}', 'gagne')", [al.id]);
-  await rpc(db, al.id, 'mes_ligue'); await rpc(db, bo.id, 'mes_ligue');
   const b = await chromium.launch();
   const ctx = await b.newContext({viewport: {width: 390, height: 844}}); await sb.brancher(ctx);
   const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', e => erreurs.push(e.message));
@@ -63,11 +62,9 @@ const SP = process.argv[2];
   await p.goto(web.url + '#championnat'); await p.waitForSelector('.hists', {timeout: 8000}).catch(() => {});
   const liensMatchs = await p.$$eval('.hists .lien-j', l => l.map(x => x.textContent));
   verif('derniers matchs : lien sur Bob (défi), pas sur une équipe de l’ordinateur', liensMatchs.length >= 1 && liensMatchs.every(x => x === 'Bob'), liensMatchs);
-  // 4. ligue : les joueurs du groupe (s'ils y sont ensemble), jamais l'ordinateur
-  await p.goto(web.url + '#ligue'); await p.waitForSelector('.lg-l', {timeout: 8000}).catch(() => {});
-  const ligue = await p.evaluate(() => ({liens: [...document.querySelectorAll('.lg-l .lien-j')].map(x => x.textContent),
-    bots: [...document.querySelectorAll('.lg-l')].filter(l => l.querySelector('.bot') && l.querySelector('.lien-j')).length}));
-  verif('ligue : aucun lien sur l’ordinateur, Bob en lien s’il est dans le groupe', !ligue.bots && ligue.liens.every(x => x === 'Bob'), ligue);
+  // 4. la ligue de la semaine est retirée (Maël, 24 nov. 2026) : plus de porte, un vieux lien #ligue mène à Jouer
+  await p.goto(web.url + '#ligue'); await p.waitForSelector('.porte[href="#championnat"]', {timeout: 8000});
+  verif('plus de ligue : #ligue montre Jouer, sans porte « Ligue de la semaine »', !(await p.$('.porte.ligue')) && !/Ligue de la semaine/.test(await p.textContent('#view')));
   // 5. transferts : l'historique
   const [ca, cb] = (await q("select id from cartes where actif order by id limit 2")).map(x => x.id);
   await q("insert into transferts_faits (a, b, carte_a, carte_b, palier) values ($1, $2, $3, $4, 'bronze')", [bo.id, al.id, ca, cb]);

@@ -235,8 +235,6 @@ const CompteServeur = (() => {
     choixCoachChoisir: i => rpc('choix_coach_choisir', {p_i: i}),               // place touchée après le mélange → {id, places, cartes}
     mesPronostics: () => rpc('mes_pronostics'),                                 // matchs à pronostiquer, résultats, classements
     pronostiquer: (rid, dom, ext, buteur) => rpc('pronostiquer', {p_rid: rid, p_dom: dom, p_ext: ext, p_buteur: buteur || null}),
-    mesLigue: () => rpc('mes_ligue'),                                           // groupe de la semaine, classement, bilan
-    ligueJouer: adv => rpc('ligue_jouer', {p_adv: adv}),                        // 'u:…' (joueur) ou 'b:…' (ordinateur) → {match, points, ligue}
     monClub: texte => rpc('mon_club', {p_texte: texte || null}),
     clubCreer: nom => rpc('club_creer', {p_nom: nom}),
     clubRejoindre: id => rpc('club_rejoindre', {p_club: id}),

@@ -136,10 +136,7 @@ const ouvrir = async base => { const c = new Client({connectionString: url(base)
     {reussis: reussis(rs)});
 
   for (const u of nouveaux) { await appel(db, u, 'ouvrir_depart'); }
-  rs = await ensemble(nouveaux.map(u => [u, 'mes_ligue', []]));
-  const groupes = await q('select g.id, jsonb_array_length(g.bots) bots, (select count(*)::int from ligue_membres m where m.groupe = g.id) humains from ligue_groupes g');
-  verif('8 joueurs ouvrent la ligue en même temps : chaque groupe fait exactement 10 équipes', reussis(rs) === 8 && groupes.every(g => g.bots + g.humains === 10)
-    && groupes.reduce((t, g) => t + g.humains, 0) === 8, groupes);
+  // (la ligue de la semaine est retirée du jeu, 24 nov. 2026)
 
   // deux joueurs du même club donnent au même instant à une demande qui n'attend plus qu'une carte : un seul don
   const c = await joueur('Chloe'), d = await joueur('David'), e2 = await joueur('Emma');
@@ -153,8 +150,7 @@ const ouvrir = async base => { const c = new Client({connectionString: url(base)
   const recus = (await q('select count(*)::int n from exemplaires where proprietaire = $1 and carte_id = $2', [c, X]))[0].n;
   verif('deux dons au même instant pour la dernière carte d’une demande : un seul passe', reussis(rs) === 1 && recus === 1, {reussis: reussis(rs), recus, erreurs: rs.filter(r => !r.ok).map(r => r.erreur)});
 
-  // le schéma se relance sur un vrai Postgres qui contient déjà des joueurs, des cartes, des clubs, une ligue (comme en production)
-  for (const u of nouveaux.slice(0, 2)) await appel(db, u, 'ligue_jouer', [(await q("select 'b:' || (x ->> 'id') id from ligue_groupes g, jsonb_array_elements(g.bots) x limit 1"))[0].id]);
+  // le schéma se relance sur un vrai Postgres qui contient déjà des joueurs, des cartes, des clubs (comme en production)
   const avantRelance = (await q('select (select count(*) from exemplaires)::int ex, (select count(*) from rencontres)::int re, (select count(*) from profils)::int pr'))[0];
   const relance = await db.query(SCHEMA()).then(() => null, e => e.message);
   const apresRelance = (await q('select (select count(*) from exemplaires)::int ex, (select count(*) from rencontres)::int re, (select count(*) from profils)::int pr'))[0];

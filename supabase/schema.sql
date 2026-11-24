@@ -968,12 +968,12 @@ $$;
 -- ── personnalisation : ce qui est débloqué se calcule (rien à enregistrer)
 create or replace function perso_catalogue() returns table (id text, type text, nom text, condition text) language sql immutable as $$
   values ('logo', 'avatar', 'Logo du club', ''), ('maillot', 'avatar', 'Maillot de Médoc', ''), ('ballon', 'avatar', 'Ballon', ''),
-         ('gardien', 'avatar', 'Cage', 'Niveau 5'), ('trophee', 'avatar', 'Trophée', 'Atteindre la division 4 de la ligue'),
+         ('gardien', 'avatar', 'Cage', 'Niveau 5'), ('trophee', 'avatar', 'Trophée', 'Atteindre l’arène National en Classé'),
          ('couronne', 'avatar', 'Couronne', 'Posséder une légende du club'),
          ('simple', 'cadre', 'Simple', ''), ('bronze', 'cadre', 'Bronze', 'Finir un album Bronze'), ('argent', 'cadre', 'Argent', 'Finir un album Argent'),
          ('or', 'cadre', 'Or', 'Finir un album Or'), ('ultime', 'cadre', 'Ultime', 'Palier 30 du passe de saison'), ('legende', 'cadre', 'Légende', 'Posséder une légende du club'),
          ('nuit', 'fond', 'Nuit', ''), ('parquet', 'fond', 'Parquet', 'Palier 10 du passe de saison'), ('tribune', 'fond', 'Tribune', 'Palier 20 du passe de saison'),
-         ('club', 'fond', 'Couleurs du club', 'Être dans un club'), ('elite', 'fond', 'Élite', 'Atteindre la division 1 de la ligue')
+         ('club', 'fond', 'Couleurs du club', 'Être dans un club'), ('elite', 'fond', 'Élite', 'Atteindre l’arène Légendes en Classé')
 $$;
 create or replace function perso_debloques(p_uid uuid) returns text[] language sql stable security definer set search_path = public as $$
   with p as (select * from profils where user_id = p_uid),
@@ -981,7 +981,8 @@ create or replace function perso_debloques(p_uid uuid) returns text[] language s
        leg as (select exists (select 1 from exemplaires e join cartes c on c.id = e.carte_id where e.proprietaire = p_uid and c.legende) v)
   select array_agg(k.id) from perso_catalogue() k, p, passe_max, leg where case k.id
     when 'gardien' then p.niveau >= 5
-    when 'trophee' then p.ligue_meilleure <= 4
+    -- la ligue de la semaine est retirée (Maël, 24 nov. 2026) : ces deux décors viennent du Classé (ce qui a été gagné en ligue reste)
+    when 'trophee' then p.ligue_meilleure <= 4 or p.trophees_max >= coalesce((param('pvp_arenes') -> 2 ->> 'min')::int, 700)
     when 'couronne' then leg.v
     when 'bronze' then exists (select 1 from albums_faits where user_id = p_uid and palier = 'bronze')
     when 'argent' then exists (select 1 from albums_faits where user_id = p_uid and palier = 'argent')
@@ -991,7 +992,7 @@ create or replace function perso_debloques(p_uid uuid) returns text[] language s
     when 'parquet' then passe_max.m >= 10
     when 'tribune' then passe_max.m >= 20
     when 'club' then exists (select 1 from clubs_membres where user_id = p_uid)
-    when 'elite' then p.ligue_meilleure <= 1
+    when 'elite' then p.ligue_meilleure <= 1 or p.trophees_max >= coalesce((param('pvp_arenes') -> 6 ->> 'min')::int, 3300)
     else true end
 $$;
 -- ce que les autres voient de mon profil (classements, ligue, club) : seulement des choix débloqués
@@ -6081,7 +6082,7 @@ grant execute on function
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
   ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), choix_coach_preparer(text), choix_coach_choisir(int),
-  mes_pronostics(), pronostiquer(text, int, int, text), mes_ligue(), ligue_jouer(text),
+  mes_pronostics(), pronostiquer(text, int, int, text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),
   admin_publier_cartes(jsonb, boolean), admin_publier_staff(jsonb), catalogue_staff(), est_admin()
