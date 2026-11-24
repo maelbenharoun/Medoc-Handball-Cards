@@ -964,6 +964,21 @@ function blocCompos() {
       return `<div class="cps-l${c ? '' : ' vide'}"><span class="cps-t"><b>Compo ${i}</b><small>${c ? `${n(c.equipe)} titulaires · ${n(c.remplacants)} remplaçants${tac(c.tactique) ? ' · ' + tac(c.tactique) : ''}` : 'vide'}</small></span>
         <span class="cps-b">${c ? `<button class="btn gold" data-compo-charger="${i}">Charger</button>` : ''}<button class="btn ghost" data-compo-enr="${i}">${c ? 'Remplacer' : 'Enregistrer'}</button></span></div>`; }).join('')}</div>`;
 }
+// force en match (demande de Maël, 24 nov. 2026, après la question de Rémi : « full 99 + une légende et 3 points de moins ») : la note
+// d'équipe s'arrête à 99, pas l'attaque et la défense du match (forceEquipe = force_equipe : tactique, collectif, staff) ; et la
+// tactique qui donnerait le plus
+function blocForce(T) {
+  const eq = Object.fromEntries(POSTES.map(p => [p.id, aligne(p.id)]));
+  if (Object.values(eq).some(c => !c)) return '';
+  const F = forceEquipe(eq, T);
+  let top = null;
+  for (const [a] of TACT_ATT) for (const [d] of TACT_DEF) { const f = forceEquipe(eq, {att: a, def: d}); if (!top || f.total > top.f.total + 1e-9) top = {a, d, f}; }
+  const ecart = Math.round(top.f.total - F.total), nomT = (a, d) => `${TACT_ATT.find(x => x[0] === a)[1]} + ${TACT_DEF.find(x => x[0] === d)[1]}`;
+  return `<div class="teamnote force-m"><div class="stat"><b>${Math.round(F.att)}</b><span>⚔️ attaque en match</span></div>
+    <div class="stat"><b>${Math.round(F.def)}</b><span>🛡️ défense en match</span></div></div>
+    <p class="sub petit force-t">Avec ta tactique (${nomT(T.att, T.def)}), ton staff et ton collectif : la note d’équipe s’arrête à 99, pas la force.
+      ${ecart >= 1 ? `<button class="lien-force" data-tac-top="${top.a}:${top.d}">Ta meilleure tactique : <b>${nomT(top.a, top.d)}</b> (+${ecart})</button>` : '<b>C’est ta meilleure tactique.</b>'}</p>`;
+}
 function vueEquipe() {
   const t = noteEquipe(), T = tactiqueActuelle(), m = moyennesEquipe(), pl = PLACEMENTS[T.def];
   const H = TERRAIN_H + TERRAIN_B, px = x => (x + 10) / 20 * 100, py = y => (TERRAIN_H - y) / H * 100;   // en % du terrain
@@ -989,6 +1004,7 @@ function vueEquipe() {
     <p class="sub">Touche un poste pour aligner un joueur. Hors de son poste : −${malusHors()}. Des coéquipiers ensemble : bonus 🤝</p>
     <div class="teamnote"><div class="stat"><b>${t.note || '–'}</b><span>note d’équipe</span></div>
     <div class="stat"><b>+${t.collectif}</b><span>collectif</span></div><div class="stat"><b>${t.n}/7</b><span>postes</span></div></div>
+    ${blocForce(T)}
     <p class="pitch-dispo">Placement en défense <b>${def[1]}</b><small>à changer dans Tactique, plus bas</small></p>
     <div class="pitch" style="aspect-ratio:20 / ${H}">${terrain}<svg class="liens" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${liens}</svg>${slots}</div>
     <p class="sub petit">Liens dorés : des coéquipiers de la même équipe côte à côte (le bonus collectif). <b>C</b> : ton capitaine, +${PARAMS.capitaine_bonus ?? 2} en match.${S().capitaine ? '' : ' Nomme-le en touchant son poste.'}</p>
@@ -3932,7 +3948,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-cc-suppr],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
+  const t = e.target.closest('[data-act],[data-cc-suppr],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-tac-top],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   if (t.closest('#pvp-pres') && !t.dataset.act) return;   // présentation d'un match à deux : rien à ouvrir derrière
   const a = t.dataset.act, d = t.dataset;
@@ -3982,6 +3998,7 @@ document.addEventListener('click', e => {
     const [cle, v] = d.tac.split(':'), T = tactiqueActuelle(); T[cle] = v;
     return action(Compte.choisirTactique(`${T.att}:${T.def}`), () => route(true));
   }
+  if (d.tacTop) return action(Compte.choisirTactique(d.tacTop), () => { toast('Meilleure tactique choisie'); route(true); });
   if (d.mkMettre) { const prix = Math.round(+($('.mk-pr input[type=number]')?.value || 0));
     return action(Compte.marcheVendre(d.mkMettre, prix), r => { Son.jouer('clic'); majMarche(r, 'Carte mise en vente 🪙'); }); }
   if (d.mkRetirer) return action(Compte.marcheRetirer(d.mkRetirer), r => majMarche(r, 'Vente retirée : la carte revient dans ton club'));
@@ -4460,7 +4477,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=103').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=104').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

@@ -89,6 +89,12 @@ const SP = process.argv[2];
   verif('« Aligner automatiquement » : 7 titulaires et 7 remplaçants, chaque joueur une fois', Object.keys(pr.equipe).length === 7 && Object.keys(pr.remplacants).length === 7
     && new Set([...cT, ...cR]).size === 14);
   await p.waitForSelector('.banc-s:not(.vide)');
+  // la force en match sous la note d'équipe (demande de Maël, 24 nov. 2026) : les mêmes chiffres que le serveur, et la meilleure tactique
+  // (sans tactique choisie, le match part en Duels + 0-6 : tactiqueActuelle)
+  const fSrv = (await q(`select force_equipe(equipe, case when tactique ~ '^(duels|enclenchement|rapide):(06|15|33)$' then tactique else 'duels:06' end) f from profils where user_id = $1`, [al.id]))[0].f;
+  const fJeu = await p.evaluate(() => [...document.querySelectorAll('.force-m .stat b')].map(x => +x.textContent));
+  verif(`onglet Équipe : attaque ${fJeu[0]} et défense ${fJeu[1]} en match, comme le serveur, sans déborder`, fJeu[0] === Math.round(fSrv.att) && fJeu[1] === Math.round(fSrv.def)
+    && /meilleure tactique/.test(await p.textContent('.force-t')) && !(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)), {fJeu, srv: [fSrv.att, fSrv.def]});
   if (SP) { await p.evaluate(() => document.querySelector('.banc').scrollIntoView({block: 'center'})); await p.waitForTimeout(500); await p.screenshot({path: SP + '/banc-1-equipe.png'}); }
   // en match : le bouton « Banc », le panneau des changements
   await p.goto(web.url + '#championnat'); await p.waitForSelector('[data-act=championnat]');
@@ -190,7 +196,7 @@ const SP = process.argv[2];
   // 30 s passées dans le panneau
   await q(`update matchs_direct set etat = etat || jsonb_build_object('servi', (etat ->> 'servi')::numeric - 30,
     'pause', (etat -> 'pause') || jsonb_build_object('le', (etat #>> '{pause,le}')::numeric - 30)) where user_id = $1`, [al.id]);
-  const posteC = await p.evaluate(() => { const ef = MD.vue.nous.effectif || {}; return POSTES_MD.find(k => k !== 'GB' && ef[k]?.r); });
+  const posteC = await p.evaluate(() => postesBancTous()[0]);   // un remplaçant valide (pas le blessé du match)
   const nChg = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat.ev.filter(x => x.ty === 'changement').length;
   await p.evaluate(k => changerMD(k), posteC);
   await p.waitForFunction(() => !MD.chgEnCours, null, {timeout: 10000});

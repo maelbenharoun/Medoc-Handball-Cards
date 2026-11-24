@@ -243,6 +243,11 @@ h2 { font-size: 1.05rem; font-weight: 800; margin: 26px 0 10px; letter-spacing: 
 .sub.warn { color: #ff9b8f; margin-top: -4px; }
 .teamnote { display: flex; gap: 10px; }
 .teamnote .stat { flex: 1; }
+.force-m { margin-top: 8px; }
+.force-m .stat { border-color: rgba(232, 182, 84, .35); }
+.force-t { margin: 6px 2px 0; }
+.lien-force { display: block; margin-top: 4px; padding: 0; background: none; border: 0; color: var(--accent); font: inherit; text-align: left;
+  text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
 
 /* ── overlays */
 #overlay { position: fixed; inset: 0; z-index: 50; background: rgba(4, 5, 7, .92); backdrop-filter: blur(6px);
