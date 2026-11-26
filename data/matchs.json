@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-24",
+ "maj": "2026-11-26",
  "matchs": [
   {
    "equipe": "SF1",
@@ -3438,23 +3438,6 @@
   {
    "equipe": "SG1",
    "competition": "Excellence Régionale Masculine · Poule B",
-   "rid": "2645787",
-   "j": 10,
-   "date": "2026-12-12",
-   "heure": null,
-   "dom": "Pessacais 2",
-   "ext": "Pana Loisirs",
-   "medoc": null,
-   "p": [
-    0.848,
-    0.032,
-    0.121
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SG1",
-   "competition": "Excellence Régionale Masculine · Poule B",
    "rid": "2645788",
    "j": 10,
    "date": "2026-12-12",
@@ -3534,6 +3517,23 @@
     0.39,
     0.053,
     0.557
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SG1",
+   "competition": "Excellence Régionale Masculine · Poule B",
+   "rid": "2645787",
+   "j": 10,
+   "date": "2026-12-12",
+   "heure": "19:00",
+   "dom": "Pessacais 2",
+   "ext": "Pana Loisirs",
+   "medoc": null,
+   "p": [
+    0.848,
+    0.032,
+    0.121
    ],
    "score": null
   },
@@ -4254,23 +4254,6 @@
   {
    "equipe": "SF1",
    "competition": "Excellence Régionale Féminine · Poule B",
-   "rid": "2647859",
-   "j": 12,
-   "date": "2027-01-23",
-   "heure": null,
-   "dom": "Montpon-Ménestérol",
-   "ext": "Médoc Handball",
-   "medoc": "ext",
-   "p": [
-    0.562,
-    0.053,
-    0.386
-   ],
-   "score": null
-  },
-  {
-   "equipe": "SF1",
-   "competition": "Excellence Régionale Féminine · Poule B",
    "rid": "2647860",
    "j": 12,
    "date": "2027-01-23",
@@ -4571,6 +4554,23 @@
     0.476,
     0.058,
     0.467
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647859",
+   "j": 12,
+   "date": "2027-01-23",
+   "heure": "19:00",
+   "dom": "Montpon-Ménestérol",
+   "ext": "Médoc Handball",
+   "medoc": "ext",
+   "p": [
+    0.562,
+    0.053,
+    0.386
    ],
    "score": null
   },
@@ -5085,23 +5085,6 @@
    "score": null
   },
   {
-   "equipe": "SF1",
-   "competition": "Excellence Régionale Féminine · Poule B",
-   "rid": "2647873",
-   "j": 14,
-   "date": "2027-02-06",
-   "heure": null,
-   "dom": "Montpon-Ménestérol",
-   "ext": "Coulounieix-Chamiers",
-   "medoc": null,
-   "p": [
-    0.968,
-    0.009,
-    0.024
-   ],
-   "score": null
-  },
-  {
    "equipe": "SF2",
    "competition": "+16 Féminines Honneur · Poule Unique",
    "rid": "2636336",
@@ -5404,6 +5387,23 @@
     0.746,
     0.044,
     0.21
+   ],
+   "score": null
+  },
+  {
+   "equipe": "SF1",
+   "competition": "Excellence Régionale Féminine · Poule B",
+   "rid": "2647873",
+   "j": 14,
+   "date": "2027-02-06",
+   "heure": "21:00",
+   "dom": "Montpon-Ménestérol",
+   "ext": "Coulounieix-Chamiers",
+   "medoc": null,
+   "p": [
+    0.968,
+    0.009,
+    0.024
    ],
    "score": null
   },

@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-23",
+ "maj": "2026-11-26",
  "saison": "2026-2027",
  "equipes": {
   "-15F": {
@@ -373,6 +373,59 @@
        ]
       ],
       "a": []
+     }
+    },
+    {
+     "rid": "2691919",
+     "date": "2026-11-22",
+     "home": "1828750",
+     "away": "medoc",
+     "hs": 52,
+     "as": 20,
+     "sheet": {
+      "a": [
+       [
+        "Paloma Boudaud",
+        "3",
+        4
+       ],
+       [
+        "Mae Bornes",
+        "14",
+        4
+       ],
+       [
+        "Joane Labeyrie",
+        "18",
+        4
+       ],
+       [
+        "Anah Mougnol",
+        "22",
+        0
+       ],
+       [
+        "Pauline Rautureau",
+        "24",
+        5
+       ],
+       [
+        "Emma Quillaud Nicolle",
+        "26",
+        1
+       ],
+       [
+        "Edwyna Coudray",
+        "29",
+        1
+       ],
+       [
+        "Lola Dartois",
+        "55",
+        1
+       ]
+      ],
+      "h": []
      }
     }
    ]
