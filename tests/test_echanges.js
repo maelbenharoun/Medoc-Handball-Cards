@@ -37,6 +37,14 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   let r = await rpcJoueur(db, U.al, 'marche_vendre', [exA, 200]);
   verif('mise en vente : carte bloquée, visible chez les autres, pas chez soi', !r.erreur && (await proprio(exA)).verrou === 'vente' && r.marche.mes.length === 1
     && r.marche.ventes.length === 0 && (await rpcJoueur(db, U.bo, 'mes_echanges')).marche.ventes.some(v => v.carte === X && v.prix === 200 && v.vendeur === 'Alice'), r.erreur);
+  // pas de limite de mises en vente (demande de Maël, 26 nov. 2026 ; 5 au plus avant)
+  const extra = [];
+  for (const c of cartes.slice(-7)) extra.push(await donner(U.al, c));
+  const okExtra = [];
+  for (const ex of extra) okExtra.push(!(await rpcJoueur(db, U.al, 'marche_vendre', [ex, 60])).erreur);
+  verif('8 cartes en vente en même temps : aucune limite', okExtra.every(Boolean) && +(await q("select count(*) n from ventes where statut = 'ouverte'"))[0].n === 8, okExtra);
+  for (const v of await q("select id from ventes where statut = 'ouverte' and exemplaire = any($1::uuid[])", [extra])) await rpcJoueur(db, U.al, 'marche_retirer', [v.id]);
+  await q('delete from exemplaires where id = any($1::uuid[])', [extra]);
   const idv = (await q("select id from ventes where statut = 'ouverte'"))[0].id;
   verif('une carte en vente : ni vendue au jeu, ni fusionnée, ni alignée, ni proposée à un ami, ni remise en vente',
     erreur(await rpcJoueur(db, U.al, 'vendre', [exA])) && erreur(await rpcJoueur(db, U.al, 'marche_vendre', [exA, 300]), 'déjà en vente')
@@ -65,7 +73,10 @@ const erreur = (r, motif) => !!r?.erreur && (!motif || r.erreur.includes(motif))
   verif('vente de plus de 3 jours : expirée, carte rendue', !r.marche.ventes.some(v => v.carte === Y) && !(await proprio(exR)).verrou
     && (await q("select count(*)::int n from ventes where exemplaire = $1 and statut = 'expiree'", [exR]))[0].n === 1, r.marche.ventes.map(v => v.carte));
   for (let i = 0; i < 5; i++) await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[20 + i]), 50]);
-  verif('6e vente ouverte : refusée (5 au plus)', erreur(await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[26]), 50]), '5 cartes'));
+  // la limite reste réglable (0 = aucune, le réglage du jeu depuis le 26 nov. 2026)
+  await q(`update parametres set valeurs = valeurs || '{"marche_ventes_max": 5}'`);
+  verif('limite réglée à 5 : la 6e vente ouverte est refusée', erreur(await rpcJoueur(db, U.ch, 'marche_vendre', [await donner(U.ch, cartes[26]), 50]), '5 cartes'));
+  await q(`update parametres set valeurs = valeurs || '{"marche_ventes_max": 0}'`);
   const ventesC = (await q("select id from ventes where vendeur = $1 and statut = 'ouverte'", [U.ch])).map(x => x.id);
   for (const v of ventesC.slice(0, 4)) await rpcJoueur(db, U.bo, 'marche_acheter', [v]);
   verif('6e achat de la journée : refusé (5 au plus)', erreur(await rpcJoueur(db, U.bo, 'marche_acheter', [ventesC[4]]), 'déjà acheté 5'));

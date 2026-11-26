@@ -2804,9 +2804,9 @@ function vueVentes(D) {
       ${v.statut === 'ouverte' ? `<button class="btn ghost petit" data-mk-retirer="${v.id}">Retirer</button>` : ''}</div>`; }).join('');
   const ouvertes = M.mes.filter(v => v.statut === 'ouverte').length;
   return `<p class="sub">Mets tes cartes en vente au prix que tu veux, achète celles des autres d’un toucher. Le jeu garde ${Math.round((M.taxe || 0) * 100)} % du prix.</p>
-    <h2>Mes ventes <small class="tr-c">${ouvertes}/${M.max}</small></h2>
+    <h2>Mes ventes <small class="tr-c">${M.max > 0 ? `${ouvertes}/${M.max}` : ouvertes}</small></h2>
     ${mes ? `<div class="mk-ms">${mes}</div>` : ''}
-    <button class="btn gold" data-act="mk-vendre" style="width:100%"${ouvertes >= M.max ? ' disabled' : ''}>Vendre une carte</button>
+    <button class="btn gold" data-act="mk-vendre" style="width:100%"${M.max > 0 && ouvertes >= M.max ? ' disabled' : ''}>Vendre une carte</button>
     <h2>En vente <small class="tr-c">${plur(M.achatsRestants, 'achat')} possible${M.achatsRestants > 1 ? 's' : ''} aujourd’hui</small></h2>
     ${filtresPalier('mk-palier', MKT.palier)}${filtresEquipe('mk-equipe', MKT.equipe)}
     <div class="mk-r"><input class="champ" type="search" placeholder="Nom du joueur" value="${esc(MKT.recherche)}" data-mk-recherche autocomplete="off" spellcheck="false">

@@ -95,7 +95,7 @@ insert into parametres values (1, '{
   "albums_recompenses": {"bronze": {"pieces": 300}, "argent": {"bonus": 2}, "or": {"or": 1}, "ultime": {"or": 2, "pieces": 2000}},
   "capitaine_bonus": 2, "staff_prix": 500,
   "marche_prix": {"bronze": [50, 300], "argent": [200, 1000], "or": [750, 4000], "ultime": [3000, 15000]}, "marche_taxe": 0.1,
-  "marche_ventes_max": 5, "marche_jours": 3, "marche_achats_par_jour": 5,
+  "marche_ventes_max": 0, "marche_jours": 3, "marche_achats_par_jour": 5,
   "boite_par_jour": 5, "boite_nouveau": true, "boite_attente_minutes": 60,
   "club_demande_heures": 8, "club_demande_duree_heures": 24, "club_demande_nombre": {"bronze": 4, "argent": 2, "or": 1}, "club_demande_or_jours": 7,
   "pvp_arenes": [{"nom": "Départemental", "min": 0}, {"nom": "Régional", "min": 300, "recompense": {"pieces": 500, "bonus": 1}},
@@ -5449,6 +5449,8 @@ update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' wher
 -- « Simuler » aussi fort qu'un joueur attentif, mais 15 % de gains en moins (demande de Maël, 26 nov. 2026 : « le concept est naze »)
 update parametres set valeurs = valeurs || '{"match_simule_lecture": 1}' where (valeurs ->> 'match_simule_lecture')::numeric = 0.35;
 update parametres set valeurs = valeurs || '{"match_simule_gain": 0.85}' where (valeurs ->> 'match_simule_gain')::numeric = 0.95;
+-- mises en vente au marché sans limite (demande de Maël, 26 nov. 2026)
+update parametres set valeurs = valeurs || '{"marche_ventes_max": 0}' where (valeurs ->> 'marche_ventes_max')::int = 5;
 -- 20 nov. 2026 (fatigue de chaque joueur) : au plus 1 blessure par match (Maël : « 2 blessures par match c'est trop ») ; seulement si
 -- la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs ->> 'blessures_max')::int = 2;
@@ -6027,7 +6029,8 @@ begin
   if p_prix is null or p_prix < (b ->> 0)::int or p_prix > (b ->> 1)::int then
     raise exception 'Prix d’une carte % : entre % et % pièces', initcap(e.palier), b ->> 0, b ->> 1;
   end if;
-  if (select count(*) from ventes where vendeur = p.user_id and statut = 'ouverte') >= parami('marche_ventes_max') then
+  -- 0 = pas de limite (demande de Maël, 26 nov. 2026 : « ne limite pas les mises en vente de cartes »)
+  if parami('marche_ventes_max') > 0 and (select count(*) from ventes where vendeur = p.user_id and statut = 'ouverte') >= parami('marche_ventes_max') then
     raise exception '% cartes en vente au plus : retire-en une ou attends qu’elle parte', parami('marche_ventes_max');
   end if;
   update exemplaires set verrou = 'vente' where id = p_ex;
