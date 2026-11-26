@@ -294,6 +294,12 @@ const CompteServeur = (() => {
     pvpRepondre: (id, oui) => rpc('pvp_repondre', {p_invitation: id, p_oui: !!oui}),
     pvpAnnulerInvitation: id => rpc('pvp_annuler_invitation', {p_invitation: id}),
     mesEchanges: () => rpc('mes_echanges'),
+    // légendes en double (demande de Maël, 26 nov. 2026) : contre un Ultime au choix, ou une légende contre une légende
+    mesLegendes: () => rpc('mes_legendes'),
+    legendeUltime: (carte, choix) => rpc('legende_ultime', {p_carte: carte, p_choix: choix}),
+    legendeProposer: (carte, pseudo, voulue) => rpc('legende_proposer', {p_carte: carte, p_pseudo: pseudo, p_voulue: voulue}),
+    legendeRepondre: (id, oui) => rpc('legende_repondre', {p_id: id, p_oui: !!oui}),
+    legendeAnnuler: id => rpc('legende_annuler', {p_id: id}),
     marcheVendre: (ex, prix) => rpc('marche_vendre', {p_ex: ex, p_prix: prix}),
     marcheRetirer: id => rpc('marche_retirer', {p_vente: id}),
     marcheAcheter: id => rpc('marche_acheter', {p_vente: id}),

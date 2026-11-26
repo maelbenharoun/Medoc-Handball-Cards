@@ -2255,3 +2255,27 @@ body:has(#overlay:not([hidden]) .amis-p) .tabs { z-index: 60; }
 .cc-dem .dm-d small { color: var(--muted); font-size: .72rem; }
 .cc-dem .btn { flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
 .cc-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
+/* Légendes en double (demande de Maël, 26 nov. 2026) : contre un Ultime au choix, ou une légende contre une légende */
+.leg-bandeau { background: linear-gradient(120deg, #3a2c0c, #17140c 70%); border-color: rgb(255 226 140 / .45); }
+.leg-bandeau p { color: #eadcb4; }
+.leg-double { margin: 14px 0; padding: 12px 14px; border-radius: 14px; border: 1px solid rgb(255 226 140 / .45); background: rgb(255 226 140 / .07); }
+.leg-double p { margin: 0 0 10px; font-size: .88rem; color: #eadcb4; }
+.leg-double b { display: block; color: var(--ink); }
+.leg-double .btn { width: 100%; }
+.leg-f h4, .leg-u h4 { margin: 16px 0 8px; }
+.leg-d { padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); margin-bottom: 12px; }
+.leg-d h4 { margin-top: 0; }
+.leg-d > .btn { width: 100%; margin-bottom: 4px; }
+.leg-l { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+.leg-l > .card { flex-shrink: 0; }
+.leg-l p { margin: 0 0 8px; font-size: .88rem; }
+.leg-l .btn { white-space: normal; text-align: left; }
+.leg-b { display: flex; gap: 8px; }
+.leg-e { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.leg-e p { margin: 0; font-size: .86rem; }
+.leg-cherche { width: 100%; box-sizing: border-box; margin: 6px 0 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg2); color: var(--ink); font: inherit; }
+.leg-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; justify-items: center; margin-bottom: 14px; }
+.leg-c { padding: 0; border: 0; background: none; cursor: pointer; }
+.leg-c[hidden] { display: none; }

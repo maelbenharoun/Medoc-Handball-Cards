@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "exclusion_defense": 1.5, "exclusion_attaque": 0.8, "match_ordi_reaction": 0.4, "match_simule_gain": 0.85, "match_simule_lecture": 1, "pvp_adjoint_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_gardien": 0.33, "fatigue_ordi": 4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "exclusion_defense": 1.5, "exclusion_attaque": 0.8, "match_ordi_reaction": 0.4, "match_simule_gain": 0.85, "match_simule_lecture": 1, "pvp_adjoint_lecture": 0.35, "legende_echange_jours": 3, "legende_echanges_max": 3, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_gardien": 0.33, "fatigue_ordi": 4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -398,6 +398,19 @@ create table if not exists echanges (
   cree_le timestamptz not null default now(), fini_le timestamptz
 );
 create index if not exists echanges_pour on echanges (pour, statut);
+-- échanges de légendes en double (demande de Maël, 26 nov. 2026) : une légende qu'on a en double contre une légende qu'on n'a pas,
+-- proposée à un joueur qui l'a (lue seulement par les fonctions du jeu)
+create table if not exists legende_echanges (
+  id bigserial primary key,
+  de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
+  donnee text not null references cartes on delete cascade,   -- sa légende en double
+  voulue text not null references cartes on delete cascade,   -- la légende de l'autre
+  statut text not null default 'attente' check (statut in ('attente', 'fait', 'refuse', 'annule')),
+  cree_le timestamptz not null default now(), fini_le timestamptz
+);
+create index if not exists legende_echanges_pour on legende_echanges (pour, statut);
+alter table legende_echanges enable row level security;
+revoke all on legende_echanges from anon, authenticated;
 -- messages entre ami(e)s (lus seulement par les fonctions du jeu)
 create table if not exists messages_amis (
   id bigserial primary key, de uuid not null references profils on delete cascade, pour uuid not null references profils on delete cascade,
@@ -1147,6 +1160,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
       'gains', jsonb_build_object('gardien', mini_gain('gardien'), 'contre', mini_gain('contre'), 'suspension', mini_gain('suspension'))),
     'trophees', p.trophees,
     'social', jsonb_build_object('demandes', (select count(*) from amis a where a.pour = p.user_id and a.statut = 'attente'),
+      'legendes', (select count(*) from legende_echanges l where l.pour = p.user_id and l.statut = 'attente' and l.cree_le > now() - make_interval(days => parami('legende_echange_jours'))),
       'echanges', (select count(*) from echanges x where x.pour = p.user_id and x.statut = 'ouvert'),
       'messages', (select count(*) from messages_amis m where m.pour = p.user_id and not m.lu),
       'transferts', (select count(*) from transferts_faits t where t.b = p.user_id and t.le > coalesce(p.transferts_vus, '-infinity'))
@@ -6185,6 +6199,106 @@ begin
   return echanges_vue(p.user_id) || jsonb_build_object('pieces', v_pieces, 'xp', v_xp, 'niveaux', niveaux, 'etat', etat_de(p.user_id));
 end $$;
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- Légendes en double (demande de Maël, 26 nov. 2026) : un doublon s'échange contre un Ultime au choix (au bas du palier), ou se
+-- propose à un joueur qui a une légende qu'on n'a pas (une légende contre une légende ; il accepte ou refuse, 3 jours). Les légendes
+-- restent interdites partout ailleurs (marché, boîte, club, ami(e)s) ; seul un joueur qui a une légende en double voit qui a les autres.
+-- ════════════════════════════════════════════════════════════════════════════
+-- une légende qu'on peut céder : une de ses légendes p_carte, hors équipe et banc (il en a au moins 2)
+create or replace function legende_cedable(p_uid uuid, p_carte text) returns uuid language sql stable security definer set search_path = public as $$
+  select e.id from exemplaires e join cartes c on c.id = e.carte_id and c.legende
+  where e.proprietaire = p_uid and e.carte_id = p_carte and e.verrou is null and not en_equipe(p_uid, e.id::text)
+    and (select count(*) from exemplaires x where x.proprietaire = p_uid and x.carte_id = p_carte) >= 2
+  order by e.obtenu_le desc limit 1
+$$;
+create or replace function legendes_vue(p_uid uuid) returns jsonb language sql stable security definer set search_path = public as $$
+  with mes as (select e.carte_id, count(*) n from exemplaires e join cartes c on c.id = e.carte_id and c.legende where e.proprietaire = p_uid group by 1),
+  frais as (select * from legende_echanges where statut = 'attente' and cree_le > now() - make_interval(days => parami('legende_echange_jours')))
+  select jsonb_build_object(
+    'doublons', coalesce((select jsonb_agg(jsonb_build_object('carte', carte_id, 'n', n)) from mes where n >= 2), '[]'),
+    -- qui a une légende que je n'ai pas (seulement si j'ai un doublon à proposer)
+    'candidats', case when exists (select 1 from mes where n >= 2) then coalesce((select jsonb_agg(jsonb_build_object('pseudo', pr.pseudo, 'carte', to_jsonb(c)) order by pr.pseudo, c.nom)
+      from (select distinct e.proprietaire, e.carte_id from exemplaires e join cartes c2 on c2.id = e.carte_id and c2.legende
+            where e.proprietaire <> p_uid and not exists (select 1 from mes where mes.carte_id = e.carte_id)) z
+      join profils pr on pr.user_id = z.proprietaire join cartes c on c.id = z.carte_id), '[]') else '[]' end,
+    'recues', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'pseudo', pr.pseudo, 'donnee', to_jsonb(cd), 'voulue', f.voulue, 'le', f.cree_le) order by f.id)
+      from frais f join profils pr on pr.user_id = f.de join cartes cd on cd.id = f.donnee where f.pour = p_uid), '[]'),
+    'envoyees', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'pseudo', pr.pseudo, 'donnee', f.donnee, 'voulue', to_jsonb(cv), 'le', f.cree_le) order by f.id)
+      from frais f join profils pr on pr.user_id = f.pour join cartes cv on cv.id = f.voulue where f.de = p_uid), '[]'),
+    'jours', parami('legende_echange_jours'))
+$$;
+create or replace function mes_legendes() returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  return legendes_vue(p.user_id);
+end $$;
+-- un doublon contre un Ultime du joueur de son choix (au bas du palier)
+create or replace function legende_ultime(p_carte text, p_choix text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); ex uuid; nv uuid;
+begin
+  if not exists (select 1 from cartes where id = p_carte and legende) then raise exception 'Ce n’est pas une légende'; end if;
+  if not exists (select 1 from cartes where id = p_choix and actif and not legende) then raise exception 'Joueur inconnu'; end if;
+  if (select count(*) from exemplaires where proprietaire = p.user_id and carte_id = p_carte) < 2 then raise exception 'Tu n’as pas cette légende en double'; end if;
+  ex := legende_cedable(p.user_id, p_carte);
+  if ex is null then raise exception 'Tes deux exemplaires sont dans ton équipe ou sur le banc : retires-en un d’abord'; end if;
+  update legende_echanges set statut = 'annule', fini_le = now() where de = p.user_id and donnee = p_carte and statut = 'attente'
+    and (select count(*) from exemplaires where proprietaire = p.user_id and carte_id = p_carte) <= 2;
+  delete from exemplaires where id = ex;
+  nv := creer_exemplaire(p.user_id, p_choix, 'ultime', 'legende:doublon');
+  perform noter(p.user_id, 'legende-ultime', jsonb_build_object('legende', p_carte, 'carte', p_choix, 'exemplaire', nv));
+  return legendes_vue(p.user_id) || jsonb_build_object('ids', jsonb_build_array(nv), 'etat', etat_de(p.user_id));
+end $$;
+create or replace function legende_proposer(p_carte text, p_pseudo text, p_voulue text) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); o profils;
+begin
+  select * into o from profils where pseudo = p_pseudo;
+  if not found or o.user_id = p.user_id then raise exception 'Joueur inconnu'; end if;
+  if not exists (select 1 from cartes where id = p_carte and legende) or not exists (select 1 from cartes where id = p_voulue and legende) then raise exception 'Ce n’est pas une légende'; end if;
+  if (select count(*) from exemplaires where proprietaire = p.user_id and carte_id = p_carte) < 2 then raise exception 'Tu n’as pas cette légende en double'; end if;
+  if exists (select 1 from exemplaires where proprietaire = p.user_id and carte_id = p_voulue) then raise exception 'Tu as déjà cette légende'; end if;
+  if not exists (select 1 from exemplaires where proprietaire = o.user_id and carte_id = p_voulue) then raise exception '% n’a pas cette légende', o.pseudo; end if;
+  if exists (select 1 from legende_echanges where de = p.user_id and pour = o.user_id and statut = 'attente'
+      and cree_le > now() - make_interval(days => parami('legende_echange_jours'))) then raise exception 'Tu as déjà une proposition en attente chez %', o.pseudo; end if;
+  if (select count(*) from legende_echanges where de = p.user_id and statut = 'attente' and cree_le > now() - make_interval(days => parami('legende_echange_jours')))
+      >= parami('legende_echanges_max') then raise exception 'Tu as déjà % propositions en attente', parami('legende_echanges_max'); end if;
+  insert into legende_echanges (de, pour, donnee, voulue) values (p.user_id, o.user_id, p_carte, p_voulue);
+  return legendes_vue(p.user_id);
+end $$;
+create or replace function legende_repondre(p_id bigint, p_oui boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi(); x legende_echanges; o profils; e1 uuid; e2 uuid;
+begin
+  select * into x from legende_echanges where id = p_id and pour = p.user_id and statut = 'attente' for update;
+  if not found or x.cree_le <= now() - make_interval(days => parami('legende_echange_jours')) then raise exception 'Cette proposition n’est plus valable'; end if;
+  if not coalesce(p_oui, false) then
+    update legende_echanges set statut = 'refuse', fini_le = now() where id = x.id;
+    return legendes_vue(p.user_id) || jsonb_build_object('etat', etat_de(p.user_id));
+  end if;
+  select * into o from profils where user_id = x.de for update;   -- l'autre joueur aussi (ses cartes changent de main)
+  e1 := legende_cedable(o.user_id, x.donnee);   -- son doublon
+  if e1 is null then raise exception '% n’a plus ce doublon de libre : la proposition est annulée', o.pseudo; end if;
+  if exists (select 1 from exemplaires where proprietaire = o.user_id and carte_id = x.voulue) then raise exception '% a déjà cette légende', o.pseudo; end if;
+  select e.id into e2 from exemplaires e where e.proprietaire = p.user_id and e.carte_id = x.voulue and e.verrou is null and not en_equipe(p.user_id, e.id::text)
+    order by e.obtenu_le desc limit 1;
+  if e2 is null then raise exception 'Ta légende est dans ton équipe ou sur le banc : retire-la d’abord'; end if;
+  update exemplaires set proprietaire = p.user_id, protection = 5 where id = e1;
+  update exemplaires set proprietaire = o.user_id, protection = 5 where id = e2;
+  update legende_echanges set statut = 'fait', fini_le = now() where id = x.id;
+  -- les autres propositions qui ne tiennent plus (le doublon donné, la légende cédée)
+  update legende_echanges set statut = 'annule', fini_le = now() where statut = 'attente' and id <> x.id
+    and ((de = o.user_id and donnee = x.donnee and legende_cedable(o.user_id, x.donnee) is null) or (pour = p.user_id and voulue = x.voulue)
+      or (de = p.user_id and voulue = x.donnee) or (de = o.user_id and voulue = x.voulue));
+  perform noter(p.user_id, 'legende-echange', jsonb_build_object('recu', x.donnee, 'donne', x.voulue, 'avec', o.user_id));
+  perform noter(o.user_id, 'legende-echange', jsonb_build_object('recu', x.voulue, 'donne', x.donnee, 'avec', p.user_id));
+  return legendes_vue(p.user_id) || jsonb_build_object('ids', jsonb_build_array(e1), 'etat', etat_de(p.user_id));
+end $$;
+create or replace function legende_annuler(p_id bigint) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  update legende_echanges set statut = 'annule', fini_le = now() where id = p_id and de = p.user_id and statut = 'attente';
+  if not found then raise exception 'Proposition introuvable'; end if;
+  return legendes_vue(p.user_id);
+end $$;
+
 create policy lecture on cartes for select using (not legende
   or exists (select 1 from profils pr where pr.user_id = auth.uid() and pr.role = 'admin'));   -- sans fonction : les visiteurs lisent aussi le catalogue
 
@@ -6211,7 +6325,7 @@ grant execute on function
   admin_publier_matchs(jsonb), admin_publier_adversaires(jsonb),
   match_commencer(text, text, text, text, boolean), match_bloc(text, text, boolean), match_en_cours(), match_simuler_fin(), club_chat(bigint, text), club_chat_supprimer(bigint), match_tirs_au_but(text[], text, boolean), match_tab_tir(jsonb), match_7m(jsonb, int), pvp_7m(jsonb, int), compo_enregistrer(int), compo_charger(int),
   ouvrir_booster_semaine(), reclamer_passe(), reclamer_quete_semaine(text), faire_defi(text, uuid[]),
-  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), match_pause(int), choix_coach_preparer(text), choix_coach_choisir(int),
+  ouvrir_booster_equipe(text), ouvrir_booster_hasard(), ouvrir_boosters_lot(text), equipe_publique(text), match_temps_mort(int), match_changer(jsonb, int), match_pause(int), mes_legendes(), legende_ultime(text, text), legende_proposer(text, text, text), legende_repondre(bigint, boolean), legende_annuler(bigint), choix_coach_preparer(text), choix_coach_choisir(int),
   mes_pronostics(), pronostiquer(text, int, int, text),
   mon_club(text), club_creer(text), club_rejoindre(bigint), club_quitter(), club_reclamer(int),
   reclamer_album(text, text), choisir_capitaine(uuid), fusionner_staff(text, text), choisir_staff(text), choisir_perso(text, text),

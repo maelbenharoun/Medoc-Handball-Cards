@@ -163,6 +163,61 @@ function departAuto() {
 function integrerLegendes() {
   for (const r of S().legendes || []) if (!PAR_ID[r.id] && Compte.carteDepuisLigne) { const c = Compte.carteDepuisLigne(r); CARTES.push(c); PAR_ID[c.id] = c; }
 }
+// ── Légendes en double (demande de Maël, 26 nov. 2026) : contre un Ultime au choix, ou une légende contre une légende ──────────────
+const LEG = {data: null, recu: 0, charge: false};
+const doublonsLegende = () => { const n = {}; for (const e of EX()) if (PAR_ID[e.carte]?.legende) n[e.carte] = (n[e.carte] || 0) + 1;
+  return Object.entries(n).filter(([, k]) => k >= 2).map(([c]) => c); };
+function chargerLegendes(force) {
+  if (LEG.charge || Compte.horsLigne || (!force && LEG.data && Date.now() - LEG.recu < 15000)) return Promise.resolve(LEG.data);
+  LEG.charge = true;
+  return Compte.mesLegendes().then(d => { LEG.data = d; LEG.recu = Date.now(); return d; }).catch(() => LEG.data).finally(() => { LEG.charge = false; });
+}
+// sur l'accueil : une proposition reçue, ou un doublon à échanger
+function blocLegendes() {
+  const recues = S().social?.legendes || 0, dbl = doublonsLegende();
+  if (!recues && !dbl.length) return '';
+  if (!LEG.data || Date.now() - LEG.recu > 15000) chargerLegendes().then(d => { if (d && vueCourante() === 'accueil' && $('#overlay').hidden) route(true); });
+  const r = LEG.data?.recues?.[0];
+  const txt = recues ? (r ? `<b>👑 ${esc(r.pseudo)} te propose un échange de légende</b>${esc(r.donnee?.nom || '')} contre ta ${esc(PAR_ID[r.voulue]?.nom || 'légende')}`
+    : '<b>👑 Un échange de légende t’est proposé</b>Regarde vite !') : `<b>👑 Légende en double</b>${esc(PAR_ID[dbl[0]]?.nom || '')} : échange-la contre l’Ultime de ton choix ou une autre légende`;
+  return `<div class="daily leg-bandeau"><p>${txt}</p><button class="btn gold" data-act="legendes">${recues ? 'Voir' : 'Échanger'}</button></div>`;
+}
+const carteLeg = (r, w = 92) => { const c = r && Compte.carteDepuisLigne?.(r); return c ? carteHTML(c).replace('class="card', `style="--w:${w}px" class="card`) : ''; };
+function fenetreLegendes() {
+  const d = LEG.data;
+  if (!d) { ouvrirOverlay('<div class="sheet leg-f"><h3>Légendes en double</h3><p class="sub">Chargement…</p></div>');
+    return chargerLegendes(true).then(x => { if (x && !$('#overlay').hidden && $('#overlay .leg-f')) fenetreLegendes(); }); }
+  const nom = id => PAR_ID[id]?.nom || 'ta légende';
+  const recues = (d.recues || []).map(r => `<div class="leg-l">${carteLeg(r.donnee)}<div><p><b>${lienJ(r.pseudo)}</b> te propose <b>${esc(r.donnee?.nom || '')}</b> contre ta <b>${esc(nom(r.voulue))}</b>.</p>
+    <div class="leg-b"><button class="btn gold petit" data-leg-oui="${r.id}">Accepter</button><button class="btn ghost petit" data-leg-non="${r.id}">Refuser</button></div></div></div>`).join('');
+  const doublons = (d.doublons || []).map(x => {
+    const cand = (d.candidats || []).filter(k => !(d.envoyees || []).some(e => e.pseudo === k.pseudo && e.donnee === x.carte));
+    return `<div class="leg-d"><h4>${esc(nom(x.carte))} ×${x.n}</h4>
+      <button class="btn gold" data-leg-ultime="${x.carte}">Contre l’Ultime de ton choix ›</button>
+      ${cand.length ? `<p class="sub petit">Ou contre une légende que tu n’as pas :</p>${cand.map(k => `<div class="leg-l">${carteLeg(k.carte)}<div><p><b>${lienJ(k.pseudo)}</b> a <b>${esc(k.carte.nom)}</b>.</p>
+        <button class="btn ghost petit" data-leg-proposer="${esc(x.carte)}|${esc(k.pseudo)}|${esc(k.carte.id)}">Proposer ${esc(nom(x.carte))} contre ${esc(k.carte.nom)}</button></div></div>`).join('')}`
+        : '<p class="sub petit">Personne n’a de légende que tu n’as pas pour l’instant.</p>'}</div>`; }).join('');
+  const envoyees = (d.envoyees || []).map(e => `<div class="leg-e"><p>En attente chez <b>${lienJ(e.pseudo)}</b> : ${esc(nom(e.donnee))} contre ${esc(e.voulue?.nom || '')}</p>
+    <button class="btn ghost petit" data-leg-annuler="${e.id}">Annuler</button></div>`).join('');
+  ouvrirOverlay(`<div class="sheet leg-f"><h3>👑 Légendes en double</h3>
+    ${recues ? `<h4>Propositions reçues</h4>${recues}` : ''}
+    ${doublons || (recues ? '' : '<p class="sub">Tu n’as pas de légende en double.</p>')}
+    ${envoyees ? `<h4>Tes propositions</h4>${envoyees}<p class="sub petit">Elles restent ${d.jours || 3} jours.</p>` : ''}
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
+}
+// un doublon contre l'Ultime du joueur de son choix : tous les joueurs, une recherche par nom
+function fenetreUltime(leg) {
+  const liste = CARTES.filter(c => c.actif !== false && !c.legende).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  ouvrirOverlay(`<div class="sheet leg-u"><button class="retour" data-act="legendes">‹ Légendes en double</button>
+    <h3>Ton Ultime au choix</h3><p class="sub petit">Contre ton doublon de ${esc(PAR_ID[leg]?.nom || 'légende')} : le joueur de ton choix en Ultime ${PALIER.ultime.min}.</p>
+    <input class="leg-cherche" type="search" placeholder="Chercher un joueur" aria-label="Chercher un joueur">
+    <div class="leg-grille">${liste.map(c => `<button class="leg-c" data-leg-choix="${c.id}" data-leg="${esc(leg)}" data-nom="${esc(c.nom.toLowerCase())}">
+      ${carteHTML(vueExemplaire(c, {palier: 'ultime', note: PALIER.ultime.min})).replace('class="card', 'style="--w:104px" class="card')}</button>`).join('')}</div>
+    <button class="btn" data-act="fermer">Fermer</button></div>`);
+  const champ = $('#overlay .leg-cherche'), sans = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  champ?.addEventListener('input', () => { const t = sans(champ.value.trim());
+    $('#overlay').querySelectorAll('[data-leg-choix]').forEach(b => { b.hidden = !!t && !sans(b.dataset.nom).includes(t); }); });
+}
 function nTransferts() { return (S().social?.transferts || 0) + (S().social?.clubDemandes || 0); }
 function majEntete() {
   try { majInvitations(); } catch (er) {}
@@ -295,6 +350,7 @@ function vueAccueil() {
   return `${Compte.horsLigne ? '<div class="daily hors"><p><b>Hors ligne</b>Ton club reste consultable. Reviens en ligne pour jouer.</p></div>' : ''}
     <div class="niveau"><div><b>Niveau ${e.niveau}</b><small>${nb(e.xp)} / ${nb(e.xpNiveau)} XP</small></div><div class="bar"><i style="width:${pct}%"></i></div></div>
     ${blocPasse()}
+    ${blocLegendes()}
     ${e.depart === false ? `<div class="daily depart"><p><b>Booster de départ</b>7 joueurs, un à chaque poste : ta première équipe !</p>
       <button class="btn gold" data-act="depart">Ouvrir</button></div>` : ''}
     <section class="scene-b">${fondHand()}
@@ -891,6 +947,8 @@ function fiche(carte, poste, de) {
     ${hex}
     ${paliers ? `<div class="paliers">${paliers}</div>` : ''}
     ${mes.length ? `<h4>Tes cartes (${mes.length})</h4>${lignes}${fusions}` : '<p class="sub">Tu n’as pas encore ce joueur : ouvre des boosters !</p>'}
+    ${c.legende && mes.length >= 2 ? `<div class="leg-double"><p><b>👑 Légende en double</b>Échange ton doublon contre l’Ultime de ton choix, ou contre une légende que tu n’as pas.</p>
+      <button class="btn gold" data-act="legendes" data-carte="${c.id}">Échanger le doublon ›</button></div>` : ''}
     <div class="fiche-j">${ficheHTML(c.fiche && {...c.fiche, intro: ''}) || (c.cree ? '' : `<div class="kv"><div><b>${c.mj}</b><span>matchs</span></div><div><b>${c.buts}</b><span>buts</span></div><div><b>${String(c.bpm).replace('.', ',')}</b><span>buts / match</span></div></div>`)}</div>
     <button class="btn" data-act="fermer">Fermer</button></div>`);
   hexAnimer($('#overlay'));
@@ -4000,7 +4058,7 @@ document.addEventListener('click', e => {
   if (b && !b.disabled && !b.closest('.j7')) Son.jouer(b.closest('.tabs') ? 'onglet' : 'clic');
 }, true);
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-cc-suppr],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-tac-top],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
+  const t = e.target.closest('[data-act],[data-cc-suppr],[data-sal-suppr],[data-sal-muet],[data-booster],[data-blot],[data-bposte],[data-quete],[data-filtre],[data-fposte],[data-slot],[data-choix],[data-entrainer],[data-vendre],[data-fusion],[data-tactique],[data-voir-fiche],[data-retour-poste],[data-voir-equipe],[data-retour-equipe],[data-mini-entr],[data-hex],[data-tr-onglet],[data-mk-palier],[data-mk-equipe],[data-mk-vpalier],[data-mk-vequipe],[data-mk-choisir],[data-mk-mettre],[data-mk-retirer],[data-acheter],[data-boite],[data-dm-palier],[data-dm-equipe],[data-demander],[data-donner],[data-pfiltre],[data-pari],[data-fiche],[data-valider-pari],[data-mini],[data-tuto],[data-car],[data-tac],[data-tac-top],[data-leg-ultime],[data-leg-choix],[data-leg-proposer],[data-leg-oui],[data-leg-non],[data-leg-annuler],[data-repondre-ami],[data-retirer-ami],[data-proposer],[data-ech-donne],[data-ech-demande],[data-annuler-echange],[data-repondre-echange],[data-ami],[data-ami-message],[data-defier-ami],[data-quete-s],[data-compo],[data-compo-c],[data-bequipe],[data-cc-poste],[data-cc],[data-prono],[data-club-rejoindre],[data-club-palier],[data-album],[data-staff-mettre],[data-staff-fusion],[data-capitaine],[data-perso],[data-banc],[data-banc-choix],[data-banc-retirer],[data-banc-titulaire],[data-compo-enr],[data-compo-charger],[data-pvp-inv],.grid .card');
   if (!t) { if (e.target.id === 'overlay' && !$('.opening') && !$('.walk') && !$('.match')) { SOC.panneau = null; fermerOverlay(); } return; }
   if (t.closest('#pvp-pres') && !t.dataset.act) return;   // présentation d'un match à deux : rien à ouvrir derrière
   const a = t.dataset.act, d = t.dataset;
@@ -4110,6 +4168,17 @@ document.addEventListener('click', e => {
   if (d.tuto) return tuto(d.tuto, null, true);
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
   if (a === 'boosters-tous') return ouvrirTousGratuits();
+  if (a === 'legendes') return fenetreLegendes();
+  if (d.legUltime) return fenetreUltime(d.legUltime);
+  if (d.legChoix) { const c = PAR_ID[d.legChoix], l = PAR_ID[d.leg];
+    return demander(`Échanger ton doublon de ${l?.nom || 'légende'} contre ${c?.nom} Ultime ${PALIER.ultime.min} ?`, 'Échanger')
+      .then(oui => { if (!oui || occupe) return; cacherOverlay(); LEG.recu = 0; ouvrirBooster(Compte.legendeUltime(d.leg, d.legChoix), 'Ultime', 'pk-or'); }); }
+  if (d.legProposer) { const [c, ps, v] = d.legProposer.split('|');
+    return action(Compte.legendeProposer(c, ps, v), r => { LEG.data = r; LEG.recu = Date.now(); toast(`Proposition envoyée à ${ps}`); fenetreLegendes(); }); }
+  if (d.legOui) return demander('Accepter cet échange de légende ?', 'Accepter')
+    .then(oui => { if (!oui || occupe) return; cacherOverlay(); LEG.recu = 0; ouvrirBooster(Compte.legendeRepondre(+d.legOui, true), 'Échange', 'pk-or'); });
+  if (d.legNon) return action(Compte.legendeRepondre(+d.legNon, false), r => { LEG.data = r; LEG.recu = Date.now(); fenetreLegendes(); });
+  if (d.legAnnuler) return action(Compte.legendeAnnuler(+d.legAnnuler), r => { LEG.data = r; LEG.recu = Date.now(); fenetreLegendes(); });
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
   if (d.blot) return acheterLot(d.blot);
@@ -4530,7 +4599,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=106').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=107').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
