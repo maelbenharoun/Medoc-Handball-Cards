@@ -32,7 +32,7 @@ insert into parametres values (1, '{
   "niveau_xp_base": 100, "niveau_xp_pas": 40,
   "niveau_pieces": 100, "niveau_pieces_max": 2000, "niveau_or_tous": 5,
   "xp_fusion": 20, "xp_entrainement": 5,
-  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "exclusion_defense": 1.5, "exclusion_attaque": 0.8, "match_ordi_reaction": 0.4, "match_simule_gain": 0.95, "match_simule_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_gardien": 0.33, "fatigue_ordi": 4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
+  "tactique_bonus": 4, "match_base": 27, "match_coef": 0.2, "match_regularite": 0.04, "match_contre": 0.10, "exclusion_defense": 1.5, "exclusion_attaque": 0.8, "match_ordi_reaction": 0.4, "match_simule_gain": 0.85, "match_simule_lecture": 1, "pvp_adjoint_lecture": 0.35, "match_banc_poids": 0.5, "fatigue_rythme": {"prudent": 0.0225, "normal": 0.03, "pression": 0.04}, "fatigue_repos": 0.04, "fatigue_mi_temps": 0.6, "fatigue_temps_mort": 0.06, "fatigue_malus": 80, "fatigue_seuil": 0.3, "fatigue_endurance": 0.4, "fatigue_gardien": 0.33, "fatigue_ordi": 4, "fatigue_endurance_ecart": 0.2, "blessure_minute": 0.0002, "blessure_fatigue": 0.1, "blessure_fatigue_seuil": 0.35, "blessure_chance": 0.003, "blessure_malus": 15, "blessures_max": 1, "blessure_gravites": [{"nom": "légère", "p": 0.55, "min": 0, "max": 0}, {"nom": "moyenne", "p": 0.3, "min": 1, "max": 1}, {"nom": "sérieuse", "p": 0.12, "min": 2, "max": 3}, {"nom": "grave", "p": 0.03, "min": 4, "max": 6}], "championnat_gain": 0.5,
   "pve_par_jour": 10, "match_minutes": 60, "match_stock_max": 10, "seances_par_jour": 5, "defis_par_jour": 5, "defis_meme_adversaire": 2,
   "seance_xp_carte": 40, "seance_xp": 10,
   "pve_xp": {"gagne": 30, "nul": 15, "perdu": 5},
@@ -3096,25 +3096,36 @@ begin
 end $$;
 -- joue tous les blocs qui restent, sans adaptation
 -- « Simuler » : un adjoint coache à ta place (demande de Maël, 14 nov. 2026 : simuler perdait bien plus souvent qu'un joueur actif).
--- Avant chaque tranche, avec la probabilité match_simule_lecture, il passe à l'attaque qui bat leur défense du moment ; il garde ta
--- défense et ta consigne et ne prend pas de temps mort : moins bien qu'un joueur attentif, mieux qu'une tactique figée.
+-- Avant chaque tranche, il contre leur défense et leur attaque de la tranche d'avant, prend un temps mort pour casser leur momentum
+-- et fait les changements (match_adjoint_changer) : aussi fort qu'un joueur attentif ; « Simuler » rapporte moins (match_simule_gain).
 create or replace function match_adjoint(e jsonb) returns jsonb language plpgsql volatile security definer set search_path = public as $$
-declare d text := e #>> '{b,defense}'; ma text := e #>> '{a,defense}'; att text;
+declare der jsonb := case when jsonb_typeof(e -> 'blocs') = 'array' then (e -> 'blocs') -> -1 end; att text; def text;
   t int := (e ->> 't')::int; per text := case when (e ->> 't')::int < 1800 then 'p1' else 'p2' end;
 begin
   -- leur momentum bloqué : il prend un temps mort pour le casser, s'il nous en reste
   if e ->> 'momv' = 'b' and t > 0 and t < 3600 and (e #>> '{tm,restants}')::int > 0 and coalesce((e -> 'tm' ->> per)::int, 0) < 2 then
     e := match_tm_prendre(e);
   end if;
-  if d is null or ma is null or random() >= coalesce((param('match_simule_lecture') #>> '{}')::numeric, 0) then return e; end if;
-  select y into att from unnest(array['duels', 'enclenchement', 'rapide']) y where contre_tactique(y, d) = 1;
-  if att is null or att = e #>> '{a,attaque}' then return e; end if;
+  -- il joue comme un joueur attentif (demande de Maël, 26 nov. 2026 : « aussi forte qu'un joueur classique ») : d'après la tranche
+  -- qui vient de se jouer (ce qu'un joueur voit pendant le récit, pas le changement d'après), l'attaque qui bat leur défense et la
+  -- défense qui bat leur attaque (que les zones de leurs buts trahissent) ; match_simule_lecture = la chance qu'il le fasse
+  if e ? 'pvp' then
+    -- Classé (pas de « Simuler », demande de Maël) : l'adjoint d'un joueur absent reste celui d'avant, moins bon qu'un joueur présent :
+    -- avec la chance pvp_adjoint_lecture, l'attaque qui bat leur défense du moment, sa défense ne change pas
+    if random() >= coalesce((param('pvp_adjoint_lecture') #>> '{}')::numeric, .35) then return e; end if;
+    att := coalesce(tactique_bat_def(e #>> '{b,defense}'), e #>> '{a,attaque}'); def := e #>> '{a,defense}';
+  else
+    if der is null or random() >= coalesce((param('match_simule_lecture') #>> '{}')::numeric, 0) then return e; end if;
+    att := coalesce(tactique_bat_def(der ->> 'bd'), e #>> '{a,attaque}');
+    def := coalesce(tactique_bat_att(der ->> 'ba'), e #>> '{a,defense}');
+  end if;
+  if att = e #>> '{a,attaque}' and def = e #>> '{a,defense}' then return e; end if;
   if (e ->> 'bloc')::int > 0 then
-    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'tactique', 'v', att || ':' || ma,
+    e := jsonb_set(e, '{ev}', (e -> 'ev') || jsonb_build_object('t', (e ->> 't')::int, 'c', 'a', 'ty', 'tactique', 'v', att || ':' || def,
       'cons', coalesce(e #>> '{a,consigne}', 'normal'), 'adj', true, 's', e -> 'score'));
   end if;
-  -- l'attaque jouée change, pas la tactique choisie par le joueur (e.a.tactique, enregistrée dans son onglet Équipe en fin de match)
-  return e || jsonb_build_object('a', match_tactique(e -> 'a', att, ma));
+  -- la tactique jouée change, pas celle choisie par le joueur (e.a.tactique, enregistrée dans son onglet Équipe en fin de match)
+  return e || jsonb_build_object('a', match_tactique(e -> 'a', att, def));
 end $$;
 -- l'adjoint fait aussi les changements, avant chaque tranche : à chaque poste, il met sur le terrain celui des deux qui vaudra le plus
 -- pendant les 5 minutes à venir : sa note au poste, moins le malus de sa fatigue à la fin de la tranche, moins un coût pour le risque
@@ -5421,6 +5432,9 @@ update parametres set valeurs = valeurs || '{"match_minutes": 60}' where (valeur
 -- 20 nov. 2026 (même jour) : avec la régularité des matchs (match_regularite = 0,04), la tactique compte bien plus et un adjoint à 0,2
 -- ne gagnait plus que 22 à 30 % des matchs à force égale : 0,35 le remet entre qui garde sa tactique et qui joue activement
 update parametres set valeurs = valeurs || '{"match_simule_lecture": 0.35}' where (valeurs ->> 'match_simule_lecture')::numeric in (0.5, 0.2);
+-- « Simuler » aussi fort qu'un joueur attentif, mais 15 % de gains en moins (demande de Maël, 26 nov. 2026 : « le concept est naze »)
+update parametres set valeurs = valeurs || '{"match_simule_lecture": 1}' where (valeurs ->> 'match_simule_lecture')::numeric = 0.35;
+update parametres set valeurs = valeurs || '{"match_simule_gain": 0.85}' where (valeurs ->> 'match_simule_gain')::numeric = 0.95;
 -- 20 nov. 2026 (fatigue de chaque joueur) : au plus 1 blessure par match (Maël : « 2 blessures par match c'est trop ») ; seulement si
 -- la valeur est encore l'ancienne
 update parametres set valeurs = valeurs || '{"blessures_max": 1}' where (valeurs ->> 'blessures_max')::int = 2;

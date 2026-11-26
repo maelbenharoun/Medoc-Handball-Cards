@@ -76,19 +76,24 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   }
   verif(`l’entraîneur adverse change sans temps mort (${libres} fois en 25 matchs, contre une tactique figée)`, libres >= 5, libres);
   verif(`il ne prend un temps mort que mené de 3 buts ou plus, ou pour casser notre momentum (${tms} temps morts, dont ${tmsMom} contre le momentum)`, tmsMalMenes === 0, tmsMalMenes);
-  // « Simuler » : l'adjoint (match_adjoint) contre leur défense une tranche sur deux environ ; jamais de temps mort
-  let contres = 0, essais = 0, adjTm = 0, adjEv = 0;
+  // « Simuler » (demande de Maël, 26 nov. 2026 : aussi fort qu'un joueur attentif) : l'adjoint contre leur défense et leur attaque de
+  // la tranche qui vient de se jouer ; en Classé, l'adjoint d'un absent reste celui d'avant (leur défense du moment, une fois sur trois)
+  let contres = 0, essais = 0, adjTm = 0, adjEv = 0, pvpC = 0, pvpDef = 0;
   for (let i = 0; i < 40; i++) {
-    let x = (await q(`select match_nouveau('championnat', '{}', $1::jsonb, $1::jsonb, 'duels:06', 'normal', 'duels', '15') e`,
+    let x = (await q(`select match_nouveau('championnat', '{}', $1::jsonb, $1::jsonb, 'duels:06', 'normal', 'duels', '33') e`,
       [JSON.stringify({att: 70, def: 70, note: 70, joueurs: {}, tireurs: []})]))[0].e;
-    x.ia = ia; x.bloc = 1; x.t = 300;
+    x.ia = ia; x.bloc = 1; x.t = 300; x.blocs = [{aa: 'duels', ad: '06', ba: 'enclenchement', bd: '15'}];
     const y = (await q('select match_adjoint($1::jsonb) e', [JSON.stringify(x)]))[0].e;
-    essais++; if (y.a.attaque === 'rapide') contres++;   // rapide bat la 1-5
+    essais++; if (y.a.attaque === 'rapide' && y.a.defense === '06') contres++;   // rapide bat la 1-5, la 0-6 bat l'enclenchement
     adjTm += y.tm.restants !== 3 ? 1 : 0; adjEv += y.ev.some(v => v.ty === 'tactique' && v.adj) ? 1 : 0;
+    const z = (await q('select match_adjoint($1::jsonb) e', [JSON.stringify({...x, pvp: true})]))[0].e;   // leur défense du moment : 3-3
+    pvpC += z.a.attaque === 'enclenchement'; pvpDef += z.a.defense !== '06';
   }
   const lec = +(await q('select valeurs v from parametres'))[0].v.match_simule_lecture;
-  verif(`adjoint de « Simuler » : il contre leur défense avec la chance match_simule_lecture (${lec} : ${contres}/${essais}), raconté au fil, sans temps mort`,
-    Math.abs(contres - lec * essais) <= 9 && contres > 0 && adjEv === contres && adjTm === 0, {contres, attendu: lec * essais, adjEv, adjTm});
+  verif(`adjoint de « Simuler » : leur défense et leur attaque de la tranche d’avant contrées (${lec} : ${contres}/${essais}), raconté au fil, sans temps mort sans momentum`,
+    lec === 1 && contres === essais && adjEv === contres && adjTm === 0, {contres, adjEv, adjTm, lec});
+  verif(`Classé : l’adjoint d’un absent reste celui d’avant (leur défense du moment, ${pvpC}/40 ≈ 1 sur 3 ; sa défense ne change pas)`,
+    pvpC >= 4 && pvpC <= 24 && pvpDef === 0, {pvpC, pvpDef});
   // l'adjoint ne touche pas à la tactique choisie (enregistrée dans l'onglet Équipe en fin de match) : bug de la v71
   await q("update profils set tactique = 'duels:06', matchs = 5 where user_id = $1", [al.id]);
   let changee = 0;

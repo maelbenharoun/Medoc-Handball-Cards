@@ -1490,7 +1490,7 @@ function htmlResume(R) {
 const MS_SEC = 40;   // ×1 : une seconde de match = 40 ms (un bloc de 5 minutes en 12 s, le match en 2 min 24)
 const MD = {};
 const rotMD = (c, [x, y]) => c === 'a' ? [x, y] : [40 - x, 20 - y];
-const gainSimule = () => +(PARAMS.match_simule_gain ?? .95);
+const gainSimule = () => +(PARAMS.match_simule_gain ?? .85);
 const pcMoins = g => Math.round((1 - g) * 1000) / 10;
 const vitesseMD = () => { try { return [1, 2, 4].includes(+localStorage.getItem('mhc-vitesse')) ? +localStorage.getItem('mhc-vitesse') : 1; } catch (e) { return 1; } };
 
@@ -2194,7 +2194,7 @@ function clicMD(e) {
 }
 function simulerFinMD() {
   const g = 1 - (1 - gainSimule()) * (12 - MD.vue.bloc) / 12;
-  demander(`Simuler la fin du match ? Le reste est joué tout de suite avec ta tactique actuelle, sans temps mort. Gains −${pcMoins(g)} %.`, 'Simuler')
+  demander(`Simuler la fin du match ? Ton adjoint joue le reste tout de suite, aussi bien qu’un joueur attentif (il lit leur jeu, fait les changements et casse leur momentum). Gains −${pcMoins(g)} %.`, 'Simuler')
     .then(oui => { if (oui && MD.el && !MD.fin && !MD.attente) simulerFinMDOui(); });
 }
 function simulerFinMDOui() {
