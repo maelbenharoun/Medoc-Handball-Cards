@@ -1033,6 +1033,8 @@ body.avec-intro { overflow: hidden; }
   background: linear-gradient(180deg, #ffe08a, #ffc93a); box-shadow: 5px 5px 0 #1d5b8f, 0 12px 26px -10px rgba(255, 201, 58, .7); letter-spacing: .01em; }
 .btn-penche:active { transform: skewX(-8deg) translate(3px, 3px); box-shadow: 2px 2px 0 #1d5b8f; }
 .btn-penche[disabled] { opacity: .5; }
+.btn-tous { position: relative; z-index: 1; display: block; margin: 10px auto 0; padding: 6px 10px; border: 0; background: none; color: var(--accent);
+  font: inherit; font-weight: 800; font-size: .9rem; text-decoration: underline dotted; text-underline-offset: 4px; cursor: pointer; }
 .extras { display: flex; gap: 14px; z-index: 1; margin-top: 4px; }
 .mini-sachet { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font-size: .78rem; font-weight: 800; color: #fff; }
 /* fond animé : rayons, halos, arcs du terrain, ballons, éclats */
@@ -1946,6 +1948,11 @@ h1 { font-size: 1.75rem; text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
 .lot-etin { position: absolute; left: 0; top: 0; z-index: 7; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px rgb(var(--tc)); pointer-events: none; opacity: 0; }
 .lot-compte { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 12px; z-index: 8; padding: 7px 14px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .18);
   background: rgba(11, 13, 16, .6); font-weight: 900; font-size: .85rem; color: #fff; }
+/* fusion possible (demande de Maël, 26 nov. 2026) : badge sur la carte retournée, bouton sous la carte vue en grand */
+.ob-c.fus.vu::after { content: "⬆ Fusion"; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); padding: 2px 8px; border-radius: 99px;
+  background: var(--accent); color: #241a00; font-size: .68rem; font-weight: 900; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); pointer-events: none; }
+.ob.zoom .ob-c.fus.grand::after { display: none; }
+.lot-fus { position: fixed; left: 50%; transform: translateX(-50%); z-index: 6; white-space: nowrap; }
 .lot-astuce { display: block; text-align: center; color: rgba(255, 255, 255, .7); font-size: .76rem; }
 @media (prefers-reduced-motion: reduce) { .lot-p .sachet, .lot-titre b, .lot-c.attente .lot-f, .lot-c.vu .lot-aura { animation: none !important; } }
 /* Mémoire graphique de la scène des 10 boosters (bug vu sur Android à « Tout retourner » : écran troué, l'accueil visible au travers) :

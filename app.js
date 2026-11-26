@@ -302,6 +302,7 @@ function vueAccueil() {
         ${sachetHTML({theme: 'pk-gratuit', nom: 'Booster', sous: '1 joueur', pw: 172})}<b class="sa-stock">×${e.boosters}</b></button>
       <div class="scene-t"><b>Booster gratuit</b><small>${e.boosters}/${e.boosterMax} en stock · ${s == null ? 'stock plein' : `prochain dans <span id="minuteur">${mmss(s)}</span>`}</small></div>
       <button class="btn-penche" data-booster="gratuit"${e.boosters < 1 ? ' disabled' : ''}>${e.boosters ? 'Ouvrir' : 'Bientôt'}</button>
+      ${e.boosters >= 2 ? `<button class="btn-tous" data-act="boosters-tous">Ouvrir les ${e.boosters} d’un coup</button>` : ''}
       ${e.bonus || e.bonusOr ? `<div class="extras">${e.bonus ? `<button class="mini-sachet" data-booster="bonus">${sachetHTML({theme: 'pk-bonus', nom: 'Bonus', sous: '1 joueur', pw: 64})}<span>Bonus ×${e.bonus}</span></button>` : ''}
         ${e.bonusOr ? `<button class="mini-sachet" data-booster="or">${sachetHTML({theme: 'pk-or', nom: 'Or', sous: 'Or ou Ultime', pw: 64})}<span>Or ×${e.bonusOr}</span></button>` : ''}</div>` : ''}
     </section>
@@ -1028,11 +1029,14 @@ function vueEquipe() {
     <h3 class="tac-t">Défense : dispositif (le terrain montre le placement)</h3><div class="tacs">${bloc(TACT_DEF, 'def')}</div>
     <p class="sub petit">${T.choisie ? `${att[1]} + ${def[1]} : ta tactique de départ.` : 'Choisis ton attaque et ta défense de départ.'} En match, contrer l’adversaire compte encore plus 😉</p>`;
 }
+// seulement la meilleure carte de chaque joueur (demande de Maël, 26 nov. 2026 : proposer tous les exemplaires ne sert à rien) : la
+// liste est déjà triée de la meilleure à la moins bonne
+const unParJoueur = (c, i, l) => l.findIndex(x => x.id === c.id) === i;
 function choisir(poste) {
   // un même joueur ne joue qu'une fois : on écarte ceux déjà alignés à un autre poste
   const ailleurs = new Set(Object.entries(S().equipe || {}).filter(([k]) => k !== poste).map(([, id]) => exParId(id)?.carte));
   const ok = EX().filter(e => !e.verrou && PAR_ID[e.carte] && !ailleurs.has(e.carte) && peutJouer(PAR_ID[e.carte], poste))
-    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
+    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste)).filter(unParJoueur);
   const exA = S().equipe?.[poste] && exParId(S().equipe[poste]), actuel = exA && PAR_ID[exA.carte] ? vue(exA) : null;
   ouvrirOverlay(`<div class="sheet"><h3>${poste === 'GB' ? 'Gardien(ne) de but' : 'Poste ' + poste}</h3>
     ${actuel ? `<div class="pick-actuel">${carteHTML(actuel, {note: noteAuPoste(actuel, poste)})}<div><small>Aligné(e)</small><b>${esc(actuel.nom)}</b></div>
@@ -1050,7 +1054,7 @@ function choisirBanc(poste) {
   const eq = S().equipe || {}, rp = S().remplacants || {};
   const pris = new Set([...Object.values(eq), ...Object.entries(rp).filter(([k]) => k !== poste).map(([, id]) => id)].map(id => exParId(id)?.carte));
   const ok = EX().filter(e => !e.verrou && PAR_ID[e.carte] && !pris.has(e.carte) && peutJouer(PAR_ID[e.carte], poste))
-    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste));
+    .map(vue).sort((a, b) => noteAuPoste(b, poste) - noteAuPoste(a, poste)).filter(unParJoueur);
   const actuel = remplacant(poste), tit = aligne(poste), nomP = poste === 'GB' ? 'gardien(ne)' : 'poste ' + poste;
   ouvrirOverlay(`<div class="sheet"><h3>Remplaçant · ${nomP}</h3>
     <p class="sub petit">Il entre pendant les matchs (bouton « Banc ») quand ton titulaire fatigue ou pour changer de jeu. Il ne compte pas dans la note d’équipe.</p>
@@ -3451,7 +3455,7 @@ function sceneBooster(res, nom, cls, deco = {}) {
     <div class="ob-bas"></div>`;
   document.body.appendChild(el);
   document.body.classList.add('avec-intro'); Son.discret(true); ouvrirCouche(coucheOB);
-  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false, lot: false, zoom: null});
+  Object.assign(OB, {el, res, nom, finales, pw, ph, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false, lot: false, zoom: null, part: false});
   // dans le sachet : chaque carte, petite, cachée derrière le corps du booster
   const packY = cy, s0 = pw * .8;
   el.querySelectorAll('.ob-c').forEach((c, i) => { c.style.transform = place(W / 2 + (i - (n - 1) / 2) * 2, packY + ph * .07, s0 / finales[i].w); });
@@ -3460,7 +3464,10 @@ function sceneBooster(res, nom, cls, deco = {}) {
   el.querySelector('.ob-souffle').style.top = (packY - ph / 2 + ph * .13) + 'px';
   el.querySelector('.ob-pack').addEventListener('click', e => { e.stopPropagation(); dechirerBooster(); });
   el.querySelector('.ob-passer').addEventListener('click', e => { e.stopPropagation(); toutReveler(); });
-  el.querySelector('.ob-c[data-i="0"]').addEventListener('click', e => { e.stopPropagation(); toucherHeros(); });
+  // la carte dévoilée : un toucher l'envoie au club, ou ouvre sa fiche si une fusion est possible (demande de Maël, 26 nov. 2026 :
+  // sans aller chercher le bouton en bas, on enchaîne les boosters)
+  el.querySelectorAll('.ob-c').forEach(c => c.addEventListener('click', e => { e.stopPropagation();
+    if (OB.etape === 'fini') carteDevoilee(+c.dataset.i); else if (c.dataset.i === '0') toucherHeros(); }));
   el.addEventListener('click', () => { if (OB.etape === 'indices') indiceSuivant(); else if (OB.etape === 'retourner') toucherHeros(); });
 }
 
@@ -3623,7 +3630,17 @@ function toucherHeros() {
   }
   finBooster();
 }
+// une fusion est possible avec cette carte (assez d'exemplaires au même palier, et un palier au-dessus)
+const fusionDispo = r => !!r && !r.staff && !OB.demo && !!palierSuivant(r.c.rarete)
+  && EX().filter(e => e.carte === r.c.id && e.palier === r.c.rarete && !e.verrou).length >= (PARAMS.fusion_nombre || 3);
+function carteDevoilee(i) {
+  if (OB.etape !== 'fini' || OB.demo || OB.part || Date.now() - (OB.finLe || 0) < 250) return;
+  const r = OB.res[i];
+  if (fusionDispo(r)) return envoyerAuClub(() => fiche(r.c.id));
+  envoyerAuClub();
+}
 function finBooster() {
+  OB.finLe = Date.now();
   OB.el.querySelector('.ob-passer').hidden = true;
   const {res} = OB, n = PARAMS.fusion_nombre || 3, h = res[0];
   const memes = h.staff ? staffDe(h.c.id)?.exemplaires?.[h.c.rarete] || 0 : EX().filter(e => e.carte === h.c.id && e.palier === h.c.rarete).length;
@@ -3631,7 +3648,8 @@ function finBooster() {
   const info = res.length > 1 ? (nv ? `${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}` : 'Déjà dans ton club')
     : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton ${h.staff ? 'staff' : 'club'}` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
   OB.el.querySelector('.ob-bas').innerHTML = OB.demo ? `<p class="ob-info">Démo : rien n’est ajouté à ton club</p><button class="btn gold large ob-fin">Rejouer</button>`
-    : `<p class="ob-info">${info}</p><button class="btn gold large ob-fin">Envoyer au club</button>`;
+    : `<p class="ob-info">${info}</p><small class="lot-astuce">${res.length === 1 && fusionDispo(h) ? 'Touche la carte pour aller la fusionner' : 'Touche la carte pour l’envoyer au club'}</small>
+      <button class="btn gold large ob-fin">Envoyer au club</button>`;
   OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { quitterCouche(coucheOB); OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
   OB.el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 500, fill: 'both'});
 }
@@ -3649,12 +3667,13 @@ function coucheOB() {
   if (OB.el.querySelector('.ob-fin')) { OB.parRetour = true; return envoyerAuClub(); }
   toutReveler(); ouvrirCouche(coucheOB);
 }
-function envoyerAuClub() {
+function envoyerAuClub(apres) {
+  if (OB.part) return; OB.part = true;
   document.body.classList.remove('lot-ouvert');   // l'accueil réapparaît derrière le fondu
   if (!OB.parRetour) quitterCouche(coucheOB); OB.parRetour = false;
   const el = OB.el, cible = document.querySelector('.tabs:not([hidden]) a[data-tab="club"]')?.getBoundingClientRect();
   const tx = cible ? cible.left + cible.width / 2 : innerWidth / 2, ty = cible ? cible.top + cible.height / 2 : innerHeight + 80;
-  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true);
+  const fin = () => { el.remove(); document.body.classList.remove('avec-intro'); route(true); if (apres) apres();
     document.querySelector('.tabs a[data-tab="club"]')?.animate([{transform: 'scale(1)'}, {transform: 'scale(1.25)'}, {transform: 'scale(1)'}], {duration: 380}); };
   el.querySelector('.ob-bas').style.visibility = 'hidden';
   Son.jouer('envol'); Son.discret(false);
@@ -3680,6 +3699,30 @@ const lotTexte = eq => `${lotN()} boosters · ${nb(lotPrix(eq))} pièces`;
 const lotDeco = eq => { const bp = BOOSTERS_EQUIPE.find(x => x[0] === eq);
   return eq === '?' ? ['Mystère', 'pk-hasard', {hasard: true}] : [eq, 'pk-poste', {poste: eq, photo: bp && photoSachet(bp[1], bp[2])}]; };
 const melanger = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// tous les boosters gratuits en stock d'un coup (demande de Maël, 26 nov. 2026) : ouverts un par un sur le serveur, puis la scène des
+// boosters par 10 avec autant de sachets
+function ouvrirTousGratuits() {
+  const n = S().boosters || 0;
+  if (occupe || n < 1) return;
+  if (n === 1) return ouvrirBooster(Compte.ouvrirBooster('gratuit'), 'Booster', 'pk-gratuit');
+  const avant = new Set(EX().map(e => e.carte)), avantStaff = new Set(staffListe().filter(x => x.meilleur).map(x => x.id));
+  const tout = (async () => {
+    const ids = [], staffs = [];
+    for (let k = 0; k < n; k++) {
+      try { const r = await Compte.ouvrirBooster('gratuit'); ids.push(...(r.ids || [])); if (r.staff) staffs.push(r.staff); }
+      catch (e) { if (!ids.length && !staffs.length) throw e; break; }   // plus de stock en route : on montre ce qui est ouvert
+    }
+    return {ids, staffs};
+  })();
+  action(tout, ({ids, staffs}) => {
+    integrerLegendes();
+    const res = ids.map(exParId).filter(e => e && PAR_ID[e.carte]).map(e => ({c: vue(e), nouveau: !avant.has(e.carte) && !!avant.add(e.carte)}));
+    for (const st of staffs) { const x = staffDe(st.id);
+      if (x) res.push({c: {id: x.id, nom: x.personne || x.nom, rarete: st.palier, equipe: 'Staff', staff: true}, staff: x, nouveau: !avantStaff.has(x.id) && !!avantStaff.add(x.id)}); }
+    if (res.length > 1) sceneLot(res, 'Booster', 'pk-gratuit', {});
+    else if (res.length) sceneBooster(res, 'Booster', 'pk-gratuit');
+  });
+}
 function acheterLot(eq) {
   if (occupe || !lotPossible(eq)) return;
   const n = lotN();
@@ -3738,7 +3781,7 @@ function sceneLot(res, nom, cls, deco = {}) {
   document.body.appendChild(el);
   document.body.classList.add('avec-intro', 'lot-ouvert'); Son.discret(true); ouvrirCouche(coucheOB);
   Object.assign(OB, {el, res, nom, finales, pw, ph: pw * 1.45, zoomS: hw / w, etape: 'pack', vite: false, anims: [], attentes: [], indice: 0, demo: false,
-    lot: true, tout: false, zoom: null, meilleur: -1, enVague: false});
+    lot: true, tout: false, zoom: null, meilleur: -1, enVague: false, part: false});
   el.querySelectorAll('.lot-p').forEach((p, i) => { p.style.transform = eventail(i); });
   el.querySelectorAll('.ob-c').forEach((c, i) => { const f = finales[i]; c.style.transform = place(f.x, f.y, f.s * .8); });   // cachée derrière son sachet
   el.querySelector('.ob-passer').addEventListener('click', e => { e.stopPropagation(); lotTout(); });
@@ -3821,6 +3864,7 @@ function lotRetourner(c, enMasse) {
   if (c.classList.contains('vu') || OB.etape !== 'retourner') return;
   const {el, res, finales} = OB, i = +c.dataset.i, f = finales[i], r = res[i].c.rarete, k = Math.max(0, RARETES.indexOf(r)), d = f.w * f.s;
   c.classList.remove('attente'); c.classList.add('vu', 't-' + r);
+  if (fusionDispo(res[i])) c.classList.add('fus');
   Son.jouer('retourne');
   const leg = !!res[i].c.legende;   // une légende du club : son à elle, et l'écran tremble même pendant « Tout retourner »
   if (!enMasse) { Son.jouer(leg ? 'legende' : 'revele-' + r); vibrer(leg ? [60, 40, 60, 40, 120] : k >= 2 ? [40, 60, 80] : 20); }
@@ -3861,8 +3905,16 @@ function lotZoom(c) {
   const {el, finales} = OB, z = OB.zoom;
   if (z) { const f = finales[+z.dataset.i]; OB.zoom = null; el.classList.remove('zoom');
     lotVers(z, place(f.x, f.y, f.s), {duree: 260, toujours: !moinsAnim()}).then(() => { if (OB.zoom !== z) z.classList.remove('grand'); }); }
+  el.querySelector('.lot-fus')?.remove();
   if (!c || c === z) return;
   OB.zoom = c; c.classList.add('grand'); el.classList.add('zoom'); Son.jouer('retourne');
+  const r = OB.res[+c.dataset.i];
+  if (fusionDispo(r)) {   // fusion possible : sa fiche, directement
+    const b = document.createElement('button'); b.className = 'btn gold lot-fus'; b.textContent = 'Fusion possible : voir la carte ›';
+    b.addEventListener('click', e => { e.stopPropagation(); envoyerAuClub(() => fiche(r.c.id)); });
+    const hz = OB.finales[+c.dataset.i].w * OB.zoomS / .69; b.style.top = Math.min(innerHeight - 64, innerHeight * .45 + hz / 2 + 14) + 'px';
+    el.appendChild(b);
+  }
   lotVers(c, place(innerWidth / 2, innerHeight * .45, OB.zoomS), {duree: 320, courbe: 'cubic-bezier(.25, .9, .35, 1)', toujours: !moinsAnim()});
 }
 function finLot() {
@@ -4057,6 +4109,7 @@ document.addEventListener('click', e => {
   if (d.miniEntr) return d.miniEntr === '7m' ? ouvrirJet7m(true) : ouvrirMini(d.miniEntr, true);
   if (d.tuto) return tuto(d.tuto, null, true);
   if (a === 'depart') return ouvrirBooster(Compte.ouvrirDepart(), 'Départ', 'pk-depart');
+  if (a === 'boosters-tous') return ouvrirTousGratuits();
   if (d.booster) return ouvrirBooster(Compte.ouvrirBooster(d.booster), d.booster === 'or' ? 'Or' : d.booster === 'bonus' ? 'Bonus' : 'Booster',
     d.booster === 'or' ? 'pk-or' : d.booster === 'bonus' ? 'pk-bonus' : 'pk-gratuit');
   if (d.blot) return acheterLot(d.blot);
@@ -4477,7 +4530,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=104').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=105').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }
