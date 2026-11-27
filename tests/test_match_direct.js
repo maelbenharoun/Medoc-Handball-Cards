@@ -92,6 +92,15 @@ const ATT = ['duels', 'enclenchement', 'rapide'];
   const lec = +(await q('select valeurs v from parametres'))[0].v.match_simule_lecture;
   verif(`adjoint de « Simuler » : leur défense et leur attaque de la tranche d’avant contrées (${lec} : ${contres}/${essais}), raconté au fil, sans temps mort sans momentum`,
     lec === 1 && contres === essais && adjEv === contres && adjTm === 0, {contres, adjEv, adjTm, lec});
+  // contre l'entraîneur des Légendes (il apprend notre façon de jouer), l'adjoint varie (retour de Guilhem, 27 nov. 2026)
+  const vus = new Set();
+  for (let i = 0; i < 40; i++) {
+    const x = (await q(`select match_nouveau('championnat', '{}', $1::jsonb, $1::jsonb, 'duels:06', 'normal', 'duels', '33') e`,
+      [JSON.stringify({att: 70, def: 70, note: 70, joueurs: {}, tireurs: []})]))[0].e;
+    x.ia = (await q("select match_ia('legende') i"))[0].i; x.bloc = 1; x.t = 300; x.blocs = [{aa: 'duels', ad: '06', ba: 'enclenchement', bd: '15'}];
+    const y = (await q('select match_adjoint($1::jsonb) e', [JSON.stringify(x)]))[0].e; vus.add(y.a.attaque + ':' + y.a.defense);
+  }
+  verif(`Légendes : l’adjoint varie ses choix (${vus.size} combinaisons en 40 essais)`, vus.size >= 5, [...vus]);
   verif(`Classé : l’adjoint d’un absent reste celui d’avant (leur défense du moment, ${pvpC}/40 ≈ 1 sur 3 ; sa défense ne change pas)`,
     pvpC >= 4 && pvpC <= 24 && pvpDef === 0, {pvpC, pvpDef});
   // l'adjoint ne touche pas à la tactique choisie (enregistrée dans l'onglet Équipe en fin de match) : bug de la v71
