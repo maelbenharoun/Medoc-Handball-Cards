@@ -3128,6 +3128,16 @@ begin
     -- avec la chance pvp_adjoint_lecture, l'attaque qui bat leur défense du moment, sa défense ne change pas
     if random() >= coalesce((param('pvp_adjoint_lecture') #>> '{}')::numeric, .35) then return e; end if;
     att := coalesce(tactique_bat_def(e #>> '{b,defense}'), e #>> '{a,attaque}'); def := e #>> '{a,defense}';
+  elsif coalesce((e #>> '{ia,anticipe}')::numeric, 0) > 0 then
+    -- un entraîneur qui apprend notre façon de jouer (Légendes) : une façon fixe se fait contrer (retour de Guilhem, 27 nov. 2026 :
+    -- 3 victoires sur 20 contre la Légende 10, 10 sur 20 avant) ; comme le jeu le conseille, il varie : garder, contrer ce qu'il voit
+    -- ou jouer un coup d'avance, au hasard, en attaque et en défense chacune de son côté
+    if der is null then return e; end if;
+    att := tactique_bat_def(der ->> 'bd');
+    att := (array[e #>> '{a,attaque}', att, tactique_bat_def(tactique_bat_att(att))])[1 + floor(random() * 3)::int];
+    def := tactique_bat_att(der ->> 'ba');
+    def := (array[e #>> '{a,defense}', def, tactique_bat_att(tactique_bat_def(def))])[1 + floor(random() * 3)::int];
+    att := coalesce(att, e #>> '{a,attaque}'); def := coalesce(def, e #>> '{a,defense}');
   else
     if der is null or random() >= coalesce((param('match_simule_lecture') #>> '{}')::numeric, 0) then return e; end if;
     att := coalesce(tactique_bat_def(der ->> 'bd'), e #>> '{a,attaque}');
