@@ -1,5 +1,5 @@
 {
- "maj": "2026-11-23",
+ "maj": "2026-11-26",
  "saison": "2026-2027",
  "semaines": [
   {
@@ -963,6 +963,23 @@
   {
    "lundi": "2026-11-16",
    "equipes": {
+    "-15F": {
+     "carte": "lola-dartois",
+     "nom": "Lola Dartois",
+     "buts": 1,
+     "tirs": 0,
+     "arrets": 0,
+     "matchs": 1,
+     "match": {
+      "date": "2026-11-22",
+      "adv": "Gazinet Cestas 1",
+      "score": [
+       20,
+       52
+      ],
+      "lieu": "ext"
+     }
+    },
     "-15G": {
      "carte": "raphael-chevet",
      "nom": "Raphaël Chevet",
@@ -1132,6 +1149,10 @@
   "2691916": {
    "carte": "paloma-boudaud",
    "buts": 4
+  },
+  "2691919": {
+   "carte": "pauline-rautureau",
+   "buts": 5
   },
   "2692254": {
    "carte": "quentin-chacun",
