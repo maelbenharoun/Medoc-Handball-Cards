@@ -206,6 +206,9 @@ const SP = process.argv[2];
   verif(`30 s dans « Tactique » puis un changement : il entre à la seconde affichée (${Math.floor(hPan / 60)}'), le récit ne saute pas`,
     !!chgP && Math.abs(chgP.t - hPan) <= 5 && Math.abs(hApres - hPan) <= 5, {hPan, chg: chgP?.t, hApres, poste: posteC});
   await p.click('.md-panneau [data-md-go=annuler]');
+  // retour de Guilhem (27 nov. 2026) : après « Annuler », « Temps mort » restait grisé jusqu'à la tranche suivante
+  const tmA = await p.evaluate(() => ({possible: tmPossible() && !MD.enCours && !MD.fin, grise: document.querySelector('.md-tm').disabled}));
+  verif('« Annuler » dans Tactique : « Temps mort » se dégrise tout de suite', tmA.possible && !tmA.grise, tmA);
   await new Promise(r => setTimeout(r, 600));
   eP = (await q('select etat from matchs_direct where user_id = $1', [al.id]))[0].etat;
   verif('le panneau fermé : l’horloge du serveur repart de là', !eP.pause && Math.abs(eP.servi_t - hPan) <= 5, {servi_t: eP.servi_t, pause: eP.pause});

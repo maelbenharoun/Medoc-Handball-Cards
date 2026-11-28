@@ -91,6 +91,20 @@ const POSTES = ['AG', 'ARG', 'DC', 'ARD', 'AD', 'PIV', 'GB'];
   await rpcJoueur(db, al, 'match_simuler_fin');
   x = (await q('select blessure from exemplaires where id = $1', [bl.id]))[0];
   verif('un match passé : encore 1', x.blessure === 1);
+  // remplaçant blessé (retour de Guilhem, 27 nov. 2026) : remplacé sur le banc, pour ce match, par le meilleur joueur libre à ce poste
+  const libre = (await q(`select c.id, c.nom from cartes c where c.actif and not c.legende and $1 = any(c.postes)
+    and c.id not in (select x.carte_id from exemplaires x where x.id::text in (select value from jsonb_each_text($2::jsonb))) order by c.id limit 1`,
+    [bl.p, JSON.stringify({...eq0, [bl.p]: remp[bl.p], banc: bl.id})]))[0];
+  const exLibre = (await q("insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, 'bronze', 50) returning id", [al, libre.id]))[0].id;
+  await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify({...eq0, [bl.p]: remp[bl.p]}), JSON.stringify({[bl.p]: bl.id})]);
+  r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', false]);
+  e = await etat();
+  const ba = r.vue.evenements.find(y => y.ty === 'banc-absent');
+  verif('remplaçant blessé : un joueur libre du club prend sa place sur le banc (raconté à 0\')', !!ba && ba.p === bl.p && !!ba.r && e.a.banc[bl.p] && e.a.banc[bl.p] !== bl.id
+    && !(e.a.blesses || []).length, {ba, banc: e.a.banc, libre: exLibre});
+  verif('l’équipe enregistrée ne change pas', (await q('select remplacants from profils where user_id = $1', [al]))[0].remplacants[bl.p] === bl.id);
+  await q('delete from matchs_direct where user_id = $1', [al]); await q('update profils set matchs = 10 where user_id = $1', [al]);
+  await q('delete from exemplaires where id = $1', [exLibre]);
   // sans remplaçant : il joue diminué
   await rpcJoueur(db, al, 'aligner_remplacants', [JSON.stringify(eq0), '{}']);
   r = await rpcJoueur(db, al, 'match_commencer', ['championnat', null, 'duels:06', 'normal', false]);

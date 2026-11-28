@@ -288,6 +288,8 @@ create table if not exists pvp_matchs (
 -- choisi d'apparaître hors ligne) ; un salon de discussion ouvert à tous les joueurs, messages gardés 7 jours, modéré par l'admin
 alter table profils add column if not exists vu_le timestamptz;
 alter table profils add column if not exists invisible boolean not null default false;
+-- réglages du son gardés avec le compte (retour de Rémi, 27 nov. 2026 : sur iPhone, ils ne restaient pas dans le téléphone) : {musique, effets}
+alter table profils add column if not exists son jsonb;
 alter table profils add column if not exists salon_muet timestamptz;
 create table if not exists salon_messages (
   id bigserial primary key,
@@ -1137,6 +1139,7 @@ create or replace function etat_de(p_uid uuid) returns jsonb language sql stable
     'matchDirect', (select jsonb_build_object('type', d.etat ->> 'type', 'adversaire', d.etat #>> '{b,nom}', 'minute', (d.etat ->> 't')::int / 60,
       'score', d.etat -> 'score') from matchs_direct d where d.user_id = p.user_id),
     'invisible', p.invisible,
+    'son', p.son,
     'enLigne', (select coalesce(jsonb_agg(x.pseudo order by lower(x.pseudo)), '[]') from (select x.pseudo from profils x
       where x.vu_le > now() - make_interval(mins => parami('en_ligne_minutes')) and not x.invisible and x.pseudo is not null and x.user_id <> p.user_id
       order by x.vu_le desc limit 200) x),
@@ -3236,9 +3239,33 @@ end $$;
 -- au coup d'envoi, les cartes encore blessées : un titulaire absent est remplacé par son remplaçant (s'il est valide), sinon il joue
 -- diminué ; un remplaçant blessé ne peut pas entrer. Raconté au fil (« absent »).
 create or replace function match_absents(e jsonb, p_uid uuid) returns jsonb language plpgsql security definer set search_path = public as $$
-declare a jsonb := e -> 'a'; l record; postes text[] := '{}'; ev jsonb := '[]'; rid text; ok boolean;
+declare a jsonb := e -> 'a'; l record; c record; postes text[] := '{}'; ev jsonb := '[]'; rid text; ok boolean;
+  banc jsonb; meilleur text; mnom text; mnote numeric; f jsonb; change boolean := false;
 begin
   if coalesce(jsonb_typeof(a -> 'fp'), '') <> 'object' then return e; end if;
+  -- un remplaçant blessé est remplacé sur le banc, pour ce match, par le meilleur joueur libre du club à ce poste (retour de Guilhem,
+  -- 27 nov. 2026 : « le remplaçant pas remplacé automatiquement s'il est blessé au moment de lancer le match ») ; personne : il reste,
+  -- sans pouvoir entrer. L'équipe enregistrée ne change pas.
+  banc := coalesce(a -> 'banc', '{}');
+  for l in select j.key, j.value, k.nom from jsonb_each_text(banc) j join exemplaires x on x.id::text = j.value join cartes k on k.id = x.carte_id
+      where x.blessure > 0 order by j.key loop
+    meilleur := null; mnom := null; mnote := -1;
+    for c in select x.id::text id, k.nom from exemplaires x join cartes k on k.id = x.carte_id
+        where x.proprietaire = p_uid and coalesce(x.blessure, 0) = 0 and x.verrou is null
+          and x.carte_id not in (select y.carte_id from exemplaires y where y.id::text in
+            (select value from jsonb_each_text(a -> 'equipe') union select value from jsonb_each_text(banc)))
+        order by (l.key = any(k.postes)) desc, x.note desc limit 12 loop
+      begin
+        perform verifier_remplacants(p_uid, a -> 'equipe', jsonb_build_object(l.key, c.id));
+        f := force_equipe((a -> 'equipe') || jsonb_build_object(l.key, c.id), a ->> 'tactique');
+      exception when others then continue;
+      end;
+      if (f -> 'notes' ->> l.key)::numeric > mnote then mnote := (f -> 'notes' ->> l.key)::numeric; meilleur := c.id; mnom := c.nom; end if;
+    end loop;
+    ev := ev || jsonb_build_object('t', 0, 'c', 'a', 'ty', 'banc-absent', 'p', l.key, 'n', l.nom, 'r', mnom, 's', e -> 'score');
+    if meilleur is not null then banc := banc || jsonb_build_object(l.key, meilleur); change := true; end if;
+  end loop;
+  if change then a := a || match_banc_init(p_uid, a -> 'equipe', banc, a ->> 'tactique'); end if;
   -- remplaçants blessés : sur la liste (ils ne peuvent pas entrer)
   for l in select j.key, j.value from jsonb_each_text(coalesce(a -> 'banc', '{}')) j join exemplaires x on x.id::text = j.value where x.blessure > 0 loop
     a := a || jsonb_build_object('blesses', coalesce(a -> 'blesses', '[]') || to_jsonb(l.value));
@@ -3972,6 +3999,13 @@ declare p profils := moi();
 begin
   update profils set invisible = coalesce(p_invisible, false) where user_id = p.user_id;
   return jsonb_build_object('etat', etat_de(p.user_id));
+end $$;
+-- musique et bruitages (fenêtre du compte) : aussi gardés dans le téléphone, le compte fait foi au chargement
+create or replace function regler_son(p_musique boolean, p_effets boolean) returns jsonb language plpgsql security definer set search_path = public as $$
+declare p profils := moi();
+begin
+  update profils set son = jsonb_build_object('musique', coalesce(p_musique, true), 'effets', coalesce(p_effets, true)) where user_id = p.user_id;
+  return jsonb_build_object('ok', true);
 end $$;
 -- Avant le match (demande de Maël, 23 nov. 2026, comme dans LoL) : « Match trouvé ! » à accepter en 15 s, sans voir l'adversaire
 -- (propose) ; un refus ou un silence annule le match et remet dans la file celui qui avait accepté ; puis une présentation des deux
@@ -6329,7 +6363,7 @@ grant execute on function
   ouvrir_depart(), ouvrir_booster(text), fusionner(text, text), entrainer(uuid), vendre(uuid),
   aligner(text, uuid), aligner_equipe(jsonb), aligner_remplacants(jsonb, jsonb), reclamer_quete(text), mes_rencontres(),
   matchs_paris(), parier(text, text, int), tirer_7m(numeric, numeric, numeric), mini_preparer(text), mini_jouer(text, jsonb),
-  salon_lire(bigint), salon_ecrire(text, bigint), salon_supprimer(bigint), salon_muet(text, int), regler_presence(boolean),
+  salon_lire(bigint), salon_ecrire(text, bigint), salon_supprimer(bigint), salon_muet(text, int), regler_presence(boolean), regler_son(boolean, boolean),
   pvp_chercher(), pvp_annuler(), pvp_accepter(boolean), pvp_vue(int), pvp_choix(text, text, jsonb, int, boolean, int), pvp_temps_mort(), pvp_accueil(),
   pvp_inviter(text), pvp_attendre(uuid), pvp_repondre(uuid, boolean), pvp_annuler_invitation(uuid),
   mes_echanges(), marche_vendre(uuid, int), marche_retirer(uuid), marche_acheter(uuid), boite_echanger(text, text), club_demander(text, text), club_donner(uuid),

@@ -219,8 +219,17 @@ function fenetreUltime(leg) {
     $('#overlay').querySelectorAll('[data-leg-choix]').forEach(b => { b.hidden = !!t && !sans(b.dataset.nom).includes(t); }); });
 }
 function nTransferts() { return (S().social?.transferts || 0) + (S().social?.clubDemandes || 0); }
+// musique et bruitages : le compte fait foi à l'arrivée (une fois par visite) ; un réglage fait seulement dans ce téléphone part au compte
+let sonSynchro = false;
+function synchroSon() {
+  if (sonSynchro || !Compte.pret) return; sonSynchro = true;
+  const r = Son.reglages;
+  if (S().son) Son.appliquer(S().son);
+  else if (!r.musique || !r.effets) Compte.reglerSon?.(r.musique, r.effets).catch(() => {});
+}
 function majEntete() {
   try { majInvitations(); } catch (er) {}
+  try { synchroSon(); } catch (er) {}
   integrerLegendes();
   $('#coins').hidden = !Compte.pret;
   $('.tabs').hidden = !Compte.pret;
@@ -1070,7 +1079,9 @@ function vueEquipe() {
     ${t.hors ? `<p class="sub warn">${t.hors} joueur${t.hors > 1 ? 's' : ''} hors de son poste (−${malusHors()} chacun)</p>` : ''}
     ${(() => { const l = POSTES.map(p => [p, aligne(p.id)]).filter(([, c]) => c?.ex?.blessure > 0);
       return l.length ? `<p class="sub warn">🚑 ${l.map(([p, c]) => { const r = remplacant(p.id), rOk = r && !(r.ex?.blessure > 0);
-        return `<b>${esc(c.nom)}</b> (${p.id}) blessé(e), absent(e) ${c.ex.blessure} match${c.ex.blessure > 1 ? 's' : ''} : ${rOk ? `${esc(r.nom)} le remplacera` : 'sans remplaçant valide, il jouera diminué'}`; }).join(' · ')}</p>` : ''; })()}
+        return `<b>${esc(c.nom)}</b> (${p.id}) blessé(e), absent(e) ${c.ex.blessure} match${c.ex.blessure > 1 ? 's' : ''} : ${rOk ? `${esc(r.nom)} le remplacera` : r ? 'son remplaçant aussi est blessé : ton meilleur joueur libre à ce poste le remplacera' : 'sans remplaçant, il jouera diminué'}`; }).join(' · ')}</p>` : ''; })()}
+    ${(() => { const l = POSTES.map(p => [p, remplacant(p.id)]).filter(([p, c]) => c?.ex?.blessure > 0 && !(aligne(p.id)?.ex?.blessure > 0));
+      return l.length ? `<p class="sub warn">🚑 Remplaçant${l.length > 1 ? 's' : ''} blessé${l.length > 1 ? 's' : ''} : ${l.map(([p, c]) => `<b>${esc(c.nom)}</b> (${p.id})`).join(', ')} : ton meilleur joueur libre à ce poste prendra sa place sur le banc au coup d'envoi</p>` : ''; })()}
     <h3 class="banc-t">Remplaçants <small>${POSTES.filter(p => remplacant(p.id)).length}/7 · ils entrent pendant les matchs</small></h3>
     <div class="banc">${POSTES.map(p => { const c = remplacant(p.id);
       return `<button class="banc-s${c ? '' : ' vide'}" data-banc="${p.id}" aria-label="Remplaçant ${p.id}">${c ? vignetteHTML(c) : '<span class="empty">+</span>'}<em>${p.id}</em></button>`; }).join('')}</div>
@@ -1590,6 +1601,7 @@ function texteMD(x) {
     changement: x.c === 'b' ? `🔁 ${esc(MD.vue?.eux?.nom || '')} : entrée de <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`
       : `🔁 ${x.adj ? 'Ton adjoint fait entrer' : 'Entrée de'} <b>${esc(x.n || '')}</b> (${x.p}), ${esc(x.o || '')} sort`,
     blessure: x.c === 'b' ? `🚑 Blessure chez ${esc(MD.vue?.eux?.nom || '')} : <b>${esc(x.n || '')}</b> (${x.p})` : `🚑 Blessure ${x.g ? `<b>${esc(x.g)}</b> ` : ''}de <b>${esc(x.n || '')}</b> (${x.p})${x.m ? `, absent(e) ${x.m} match${x.m > 1 ? 's' : ''} après celui-ci` : ''} : ${x.r ? 'fais entrer son remplaçant (Banc)' : 'pas de remplaçant à ce poste, jeu diminué'}`,
+    'banc-absent': `🚑 Remplaçant blessé : <b>${esc(x.n || '')}</b> (${x.p}) : ${x.r ? `<b>${esc(x.r)}</b> le remplace sur le banc` : 'pas d’autre joueur libre pour le banc'}`,
     absent: `🚑 <b>${esc(x.n || '')}</b> (${x.p}) est blessé(e)${x.m ? `, encore ${x.m} match${x.m > 1 ? 's' : ''} d’absence` : ''} : ${x.r ? 'son remplaçant commence' : 'pas de remplaçant valide, il joue diminué'}`}[x.ty] || '';
 }
 const ligneMD = (x, calme) => `<p class="md-l ${x.c || 'n'} t-${x.ty}${calme ? ' calme' : ''}"><b>${Math.min(60, Math.floor(x.t / 60) + (x.t % 60 || !x.t ? 1 : 0))}'</b><span>${texteMD(x)}</span>${x.s ? `<em>${x.s[0]} – ${x.s[1]}</em>` : ''}</p>`;
@@ -2205,7 +2217,8 @@ function reprendreMD() {
   if (!MD.file.length && MD.h >= MD.finBloc) return finBlocMD();
   MD.attente = false;
 }
-function fermerPanneauMD() { MD.el.querySelector('.md-panneau').hidden = true; MD.el.classList.remove('en-pause'); MD.panneau = null; }
+// les boutons du bas se remettent à jour (retour de Guilhem, 27 nov. 2026 : après « Annuler » dans Tactique, « Temps mort » restait grisé jusqu'à la tranche suivante)
+function fermerPanneauMD() { MD.el.querySelector('.md-panneau').hidden = true; MD.el.classList.remove('en-pause'); MD.panneau = null; majMD(); }
 function clicMD(e) {
   e.stopPropagation();
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -3399,6 +3412,25 @@ function quitterCouche(fermer) {
   const i = COUCHES.lastIndexOf(fermer); if (i < 0) return;
   COUCHES.splice(i, 1); retoursIgnores++; history.back();
 }
+// Sur PC, les rangées de filtres (équipes, postes, paliers) défilent à la souris : glisser ou molette (retour de Guilhem, 27 nov. 2026 :
+// sans barre de défilement, impossible d'atteindre les dernières). Au doigt, le défilement natif suffit.
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse' || e.button) return;
+  const f = e.target.closest('.filters'); if (!f || f.scrollWidth <= f.clientWidth + 1) return;
+  const x0 = e.clientX, s0 = f.scrollLeft; let bouge = false;
+  const mv = ev => { const dx = ev.clientX - x0; if (!bouge && Math.abs(dx) > 5) { bouge = true; f.classList.add('glisse'); } if (bouge) f.scrollLeft = s0 - dx; };
+  const up = () => {
+    removeEventListener('pointermove', mv); removeEventListener('pointerup', up); f.classList.remove('glisse');
+    if (!bouge) return;   // un glissé n'est pas un choix de filtre
+    const stop = ev => { ev.stopPropagation(); ev.preventDefault(); };
+    addEventListener('click', stop, {capture: true, once: true}); setTimeout(() => removeEventListener('click', stop, {capture: true}), 0);
+  };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+});
+document.addEventListener('wheel', e => {
+  const f = e.target.closest?.('.filters'); if (!f || f.scrollWidth <= f.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const avant = f.scrollLeft; f.scrollLeft += e.deltaY; if (f.scrollLeft !== avant) e.preventDefault();
+}, {passive: false});
 addEventListener('popstate', () => {
   if (retoursIgnores > 0) { retoursIgnores--; return; }
   const f = COUCHES.pop(); if (f) f();
@@ -3693,8 +3725,8 @@ const fusionDispo = r => !!r && !r.staff && !OB.demo && !!palierSuivant(r.c.rare
   && EX().filter(e => e.carte === r.c.id && e.palier === r.c.rarete && !e.verrou).length >= (PARAMS.fusion_nombre || 3);
 function carteDevoilee(i) {
   if (OB.etape !== 'fini' || OB.demo || OB.part || Date.now() - (OB.finLe || 0) < 250) return;
-  const r = OB.res[i];
-  if (fusionDispo(r)) return envoyerAuClub(() => fiche(r.c.id));
+  // toujours au club, même si une fusion est possible (retour de Rémi, 27 nov. 2026 : la fiche qui s'ouvrait ressemblait à un bug) :
+  // la fusion a son bouton à part sous la carte (.ob-fus)
   envoyerAuClub();
 }
 function finBooster() {
@@ -3706,8 +3738,10 @@ function finBooster() {
   const info = res.length > 1 ? (nv ? `${nv} nouveau${nv > 1 ? 'x' : ''} joueur${nv > 1 ? 's' : ''}` : 'Déjà dans ton club')
     : h.nouveau ? `Nouveau : ${esc(h.c.nom)} rejoint ton ${h.staff ? 'staff' : 'club'}` : memes >= n && palierSuivant(h.c.rarete) ? 'Fusion possible !' : `${memes}/${n} pour fusionner`;
   OB.el.querySelector('.ob-bas').innerHTML = OB.demo ? `<p class="ob-info">Démo : rien n’est ajouté à ton club</p><button class="btn gold large ob-fin">Rejouer</button>`
-    : `<p class="ob-info">${info}</p><small class="lot-astuce">${res.length === 1 && fusionDispo(h) ? 'Touche la carte pour aller la fusionner' : 'Touche la carte pour l’envoyer au club'}</small>
+    : `<p class="ob-info">${info}</p><small class="lot-astuce">Touche la carte pour l’envoyer au club</small>
+      ${res.length === 1 && fusionDispo(h) ? '<button class="btn ghost ob-fus">⬆ Fusion possible : voir</button>' : ''}
       <button class="btn gold large ob-fin">Envoyer au club</button>`;
+  OB.el.querySelector('.ob-fus')?.addEventListener('click', e => { e.stopPropagation(); if (!OB.part) envoyerAuClub(() => fiche(h.c.id)); });
   OB.el.querySelector('.ob-fin').addEventListener('click', e => { e.stopPropagation(); if (OB.demo) { quitterCouche(coucheOB); OB.el.remove(); demoBooster(OB.demo); } else envoyerAuClub(); });
   OB.el.querySelector('.ob-bas').animate([{opacity: 0, transform: 'translateY(16px)'}, {opacity: 1, transform: 'none'}], {duration: OB.vite ? 0 : 400, delay: OB.vite ? 0 : 500, fill: 'both'});
 }
@@ -4161,7 +4195,8 @@ document.addEventListener('click', e => {
   if (a === 'pvp-inv-annuler') { arreterInv(true); return toast('Invitation annulée'); }
   if (a === 'pvp-reprendre') return reprendrePvp();
   if (d.pvpInv) { const [id, oui] = d.pvpInv.split(':'); return repondreInvitation(id, oui === '1'); }
-  if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]); return fenetreCompte(); }
+  if (a === 'son-musique' || a === 'son-effets') { const k = a.slice(4); Son.regler(k, !Son.reglages[k]);
+    const r = Son.reglages; Compte.reglerSon?.(r.musique, r.effets).catch(() => {}); return fenetreCompte(); }
   if (a === 'jet7m') return ouvrirJet7m();
   if (d.mini) return ouvrirMini(d.mini);
   if (d.miniEntr) return d.miniEntr === '7m' ? ouvrirJet7m(true) : ouvrirMini(d.miniEntr, true);
@@ -4599,7 +4634,7 @@ function passerEnVrai() {
 }
 // Les trois jeux sont en vraie 3D (jeux3d.js, three.js) : le module n'est chargé qu'à l'ouverture d'un mini-jeu.
 let J3 = null;
-const jeux3d = () => J3 ||= import('./jeux3d.js?v=107').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
+const jeux3d = () => J3 ||= import('./jeux3d.js?v=108').then(m => { m.init({MJ, miniAide, miniEnvoyer, miniFin, fermerMini, toast, vibrer, moinsAnim, Compte}); return m; })
   .catch(e => { J3 = null; throw e; });
 const essai3d = jeu => async (sc, n) => {
   let m; try { m = await jeux3d(); } catch (e) { toast('Impossible de charger le mini-jeu : vérifie ta connexion'); return fermerMini(); }

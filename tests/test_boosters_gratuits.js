@@ -1,5 +1,6 @@
-// Boosters gratuits (demande de Maël, 26 nov. 2026) : « Ouvrir les N d'un coup », toucher la carte dévoilée l'envoie au club (ou à sa
-// fiche quand une fusion est possible), et le choix d'un joueur au poste ne propose que sa meilleure carte. Navigateur à 390 px.
+// Boosters gratuits (demande de Maël, 26 nov. 2026) : « Ouvrir les N d'un coup », toucher la carte dévoilée l'envoie au club (même quand
+// une fusion est possible : bouton à part pour sa fiche), et le choix d'un joueur au poste ne propose que sa meilleure carte, carte de
+// l'aligné lisible. Navigateur à 390 px.
 //   node tests/test_boosters_gratuits.js [dossier des captures]
 const {chromium} = require('playwright');
 const FS = require('./fauxsupabase');
@@ -57,20 +58,29 @@ const SP = process.argv[2];
   await p.waitForFunction(() => !document.querySelector('.ob'), null, {timeout: 5000});
   verif('toucher la carte dévoilée : elle part au club, sans le bouton du bas', await p.evaluate(() => !document.querySelector('.ob') && $('#overlay').hidden));
 
-  // ── 3. fusion possible : toucher la carte ouvre sa fiche
-  await q('update profils set boosters = 1, boosters_maj = now() where user_id = $1', [al.id]); await p.evaluate(async () => { await Compte.rafraichir(); route(true); });
-  await p.waitForSelector('.btn-penche[data-booster=gratuit]:not([disabled])');
-  await p.click('.btn-penche[data-booster=gratuit]'); await p.waitForSelector('.ob .ob-pack');
-  const tire = await p.evaluate(() => ({id: OB.res[0].c.id, palier: OB.res[0].c.rarete, note: OB.res[0].c.ovr}));
-  await q('insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, $3, $4), ($1, $2, $3, $4)', [al.id, tire.id, tire.palier, tire.note]);
-  await p.evaluate(async () => { await Compte.rafraichir(); route(true); });
-  await p.click('.ob .ob-pack', {force: true}); await p.waitForSelector('.ob .ob-passer:not([hidden])', {timeout: 15000});
-  await p.click('.ob .ob-passer'); await p.waitForSelector('.ob .ob-fin', {timeout: 15000});
-  verif('fusion possible : l’astuce dit « pour aller la fusionner »', /fusionner/.test(await p.textContent('.ob .ob-bas')), await p.textContent('.ob .ob-bas'));
-  await p.waitForTimeout(300);
+  // ── 3. fusion possible : toucher la carte l'envoie quand même au club (retour de Rémi, 27 nov. 2026) ; un bouton à part ouvre sa fiche
+  const unBooster = async () => {
+    await q('update profils set boosters = 1, boosters_maj = now() where user_id = $1', [al.id]); await p.evaluate(async () => { await Compte.rafraichir(); route(true); });
+    await p.waitForSelector('.btn-penche[data-booster=gratuit]:not([disabled])');
+    await p.click('.btn-penche[data-booster=gratuit]'); await p.waitForSelector('.ob .ob-pack');
+    const tire = await p.evaluate(() => ({id: OB.res[0].c.id, palier: OB.res[0].c.rarete, note: OB.res[0].c.ovr}));
+    await q('insert into exemplaires (proprietaire, carte_id, palier, note) values ($1, $2, $3, $4), ($1, $2, $3, $4)', [al.id, tire.id, tire.palier, tire.note]);
+    await p.evaluate(async () => { await Compte.rafraichir(); route(true); });
+    await p.click('.ob .ob-pack', {force: true}); await p.waitForSelector('.ob .ob-passer:not([hidden])', {timeout: 15000});
+    await p.click('.ob .ob-passer'); await p.waitForSelector('.ob .ob-fin', {timeout: 15000});
+    await p.waitForTimeout(300);
+    return tire;
+  };
+  let tire = await unBooster();
+  verif('fusion possible : bouton « Fusion possible : voir », l’astuce reste « l’envoyer au club »', !!(await p.$('.ob .ob-fus')) && /envoyer au club/.test(await p.textContent('.ob .ob-bas')), await p.textContent('.ob .ob-bas'));
+  if (SP) { await p.waitForTimeout(600); await p.screenshot({path: SP + '/gratuits-3.png'}); }
   await p.click('.ob .ob-c[data-i="0"]', {force: true});
+  await p.waitForFunction(() => !document.querySelector('.ob'), null, {timeout: 5000});
+  verif('toucher la carte : elle part au club, pas de fiche ouverte', await p.evaluate(() => $('#overlay').hidden));
+  tire = await unBooster();
+  await p.click('.ob .ob-fus');
   await p.waitForFunction(() => !document.querySelector('.ob') && !$('#overlay').hidden, null, {timeout: 5000});
-  verif('toucher la carte : sa fiche s’ouvre, avec la fusion', await p.evaluate(id => FICHE.carte === id && !!document.querySelector('#overlay [data-fusion]'), tire.id), tire);
+  verif('le bouton « Fusion possible » ouvre sa fiche, avec la fusion', await p.evaluate(id => FICHE.carte === id && !!document.querySelector('#overlay [data-fusion]'), tire.id), tire);
   if (SP) { await p.waitForTimeout(500); await p.screenshot({path: SP + '/gratuits-3-fiche.png'}); }
   await p.evaluate(() => fermerOverlay());
 
@@ -82,6 +92,11 @@ const SP = process.argv[2];
   await p.click('.slot[data-slot=DC]'); await p.waitForSelector('[data-choix]');
   const choix = await p.evaluate(id => { const l = [...document.querySelectorAll('[data-choix]')].map(b => exParId(b.dataset.choix)).filter(Boolean);
     const lui = l.filter(e => e.carte === id); return {n: lui.length, note: lui[0]?.note, total: l.length, joueurs: new Set(l.map(e => e.carte)).size}; }, dc);
+  const pa = await p.evaluate(() => { const c = document.querySelector('.pick-actuel .card')?.getBoundingClientRect(), t = document.querySelector('.pick-actuel > div:not(.card) b')?.getBoundingClientRect(),
+    bt = document.querySelector('.pick-actuel .btn')?.getBoundingClientRect();
+    return c && t && bt && {w: Math.round(c.width), texteSurBouton: t.bottom > bt.top && t.right > bt.left && t.left < bt.right, texteW: Math.round(t.width)}; });
+  verif('carte de l’aligné : pas écrasée (46 px), le nom ne passe pas sous les boutons (capture de Rémi)', !!pa && pa.w >= 44 && !pa.texteSurBouton && pa.texteW > 40, pa);
+  if (SP) await p.screenshot({path: SP + '/gratuits-4-poste.png'});
   verif(`poste DC : une seule carte par joueur (${choix.total} cartes, ${choix.joueurs} joueurs), la meilleure (Argent 66)`, choix.n === 1 && choix.note === 66 && choix.total === choix.joueurs, choix);
   verif('aucune erreur de page', !erreurs.length, erreurs);
   await b.close(); await web.fermer();

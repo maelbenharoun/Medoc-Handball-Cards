@@ -276,6 +276,8 @@ const Son = (() => {
       if (cle === 'musique') { busMusique.gain.setTargetAtTime(niveauMusique(), ctx.currentTime, .2); if (v) musique.lancer(); else setTimeout(() => !reg.musique && musique.arreter(), 600); }
       if (cle === 'effets') { busEffets.gain.setTargetAtTime(v ? VOL_EFFETS : 0, ctx.currentTime, .05); }
     },
+    // les réglages gardés avec le compte (au chargement) : ils l'emportent sur ceux du téléphone
+    appliquer(o) { if (!o) return; for (const k of ['musique', 'effets']) if (typeof o[k] === 'boolean' && o[k] !== reg[k]) this.regler(k, o[k]); },
     get actif() { return !!ctx && ctx.state === 'running'; },
   };
 })();

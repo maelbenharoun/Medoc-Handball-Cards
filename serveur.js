@@ -284,6 +284,7 @@ const CompteServeur = (() => {
     salonSupprimer: id => rpc('salon_supprimer', {p_id: id}),
     salonMuet: (pseudo, heures) => rpc('salon_muet', {p_pseudo: pseudo, p_heures: heures}),
     reglerPresence: invisible => rpc('regler_presence', {p_invisible: !!invisible}),
+    reglerSon: (musique, effets) => rpc('regler_son', {p_musique: !!musique, p_effets: !!effets}),
     pvpVue: depuis => rpc('pvp_vue', {p_depuis: depuis || 0}),
     pvpChoix: (tac, cons, postes, pret, pretPause, depuis) => rpc('pvp_choix', {p_tactique: tac ?? null, p_consigne: cons ?? null,
       p_postes: postes ?? null, p_pret: pret ?? null, p_pret_pause: !!pretPause, p_depuis: depuis || 0}),
